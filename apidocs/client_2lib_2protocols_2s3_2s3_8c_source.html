@@ -134,102 +134,201 @@ $(document).ready(function(){initNavTree('client_2lib_2protocols_2s3_2s3_8c_sour
 <div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>}</div>
 </div>
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span> </div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00036" data-start="{" data-end="}">
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno"><a class="line" href="brix__net_8h.html#abc79e684e42276b95062b0fcc5e787f1">   36</a></span><a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#abc79e684e42276b95062b0fcc5e787f1">brix_s3_sign_v4_q</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *method, <span class="keyword">const</span> <span class="keywordtype">char</span> *host, <span class="keyword">const</span> <span class="keywordtype">char</span> *uri,</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>                  <span class="keyword">const</span> <span class="keywordtype">char</span> *canon_qs, <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk,</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>                  <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *payload_hex,</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>                  <span class="keywordtype">char</span> *hdrs, <span class="keywordtype">size_t</span> hdrsz)</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>{</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordtype">char</span>      amzdate[20], datestamp[12];</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    <span class="keywordtype">char</span>      canon_hex[65];</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    <span class="keywordtype">char</span>      canon[8192], scope[160], sts[640], enc_uri[2048];</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    uint8_t   k4[32], sig[32];</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <span class="keywordtype">char</span>      sighex[65];</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    time_t    now = time(NULL);</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <span class="keyword">struct </span>tm tmv;</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keywordtype">int</span>       cn;</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span> </div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    <span class="keywordflow">if</span> (canon_qs == NULL) { canon_qs = <span class="stringliteral">&quot;&quot;</span>; }</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <span class="keywordflow">if</span> (sk == NULL || ak == NULL || <a class="code hl_variable" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> == NULL || payload_hex == NULL) {</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    }</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <span class="keywordflow">if</span> (gmtime_r(&amp;now, &amp;tmv) == NULL) {</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    }</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    strftime(amzdate, <span class="keyword">sizeof</span>(amzdate), <span class="stringliteral">&quot;%Y%m%dT%H%M%SZ&quot;</span>, &amp;tmv);</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    strftime(datestamp, <span class="keyword">sizeof</span>(datestamp), <span class="stringliteral">&quot;%Y%m%d&quot;</span>, &amp;tmv);</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <span class="comment">/* Shared SigV4 CanonicalURI encoder (RFC-3986 unreserved + &#39;/&#39;), byte-identical</span></div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment">     * to the server&#39;s verify path so client-signs == server-verifies. */</span></div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="core_2compat_2uri_8c.html#abf8cec791dd477f1aa44e42770db2ee5">brix_http_urlencode</a>((<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *) uri, strlen(uri),</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>                              enc_uri, <span class="keyword">sizeof</span>(enc_uri), <span class="stringliteral">&quot;/&quot;</span>) &lt; 0) {</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    }</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    <span class="comment">/* canonical request: method\nURI\nCANONICAL_QUERY\nheaders\nsignedHeaders\nhash.</span></div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">     * canon_qs must already be sorted + RFC-3986 encoded (the server re-derives the</span></div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment">     * same string from the request query). */</span></div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    cn = snprintf(canon, <span class="keyword">sizeof</span>(canon),</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>             <span class="stringliteral">&quot;%s\n%s\n%s\nhost:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n\n&quot;</span></div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>             <span class="stringliteral">&quot;host;x-amz-content-sha256;x-amz-date\n%s&quot;</span>,</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>             method, enc_uri, canon_qs, host, payload_hex, amzdate, payload_hex);</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    <span class="comment">/* A truncated canonical request would sign a different string than the server</span></div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment">     * verifies → a confusing 403. Fail cleanly so the caller reports &quot;can&#39;t sign&quot;. */</span></div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    <span class="keywordflow">if</span> (cn &lt; 0 || (<span class="keywordtype">size_t</span>) cn &gt;= <span class="keyword">sizeof</span>(canon)) {</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    }</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    <a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#a7c8cedbf729919d8c7207a46d1dc07d3">brix_s3_sha256_hex</a>(canon, strlen(canon), canon_hex);</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    <span class="comment">/* region is user/env-controlled (--s3-region / $AWS_DEFAULT_REGION); a</span></div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="comment">     * truncated scope/sts/hdrs would sign a different string than it advertises →</span></div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="comment">     * a confusing 403. Check every snprintf and fail cleanly instead (same</span></div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="comment">     * contract as the canon guard above). */</span></div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    cn = snprintf(scope, <span class="keyword">sizeof</span>(scope), <span class="stringliteral">&quot;%s/%s/s3/aws4_request&quot;</span>, datestamp, <a class="code hl_variable" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>);</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    <span class="keywordflow">if</span> (cn &lt; 0 || (<span class="keywordtype">size_t</span>) cn &gt;= <span class="keyword">sizeof</span>(scope)) {</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    }</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    cn = snprintf(sts, <span class="keyword">sizeof</span>(sts), <span class="stringliteral">&quot;AWS4-HMAC-SHA256\n%s\n%s\n%s&quot;</span>,</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>                  amzdate, scope, canon_hex);</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <span class="keywordflow">if</span> (cn &lt; 0 || (<span class="keywordtype">size_t</span>) cn &gt;= <span class="keyword">sizeof</span>(sts)) {</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>    }</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span> </div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    <span class="comment">/* Shared 4-round signing-key derive (libxrdproto), then sign the STS. */</span></div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sigv4_8c.html#a21db0d054686b6b219608afa98f7f17f">brix_sigv4_signing_key</a>((<span class="keyword">const</span> uint8_t *) sk, strlen(sk),</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>                                  datestamp, <a class="code hl_variable" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, <span class="stringliteral">&quot;s3&quot;</span>, k4)</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        || !<a class="code hl_function" href="crypto_8c.html#aa729fd788c99ac76be5512cc36b3386e">brix_hmac_sha256</a>(k4, 32, (<span class="keyword">const</span> uint8_t *) sts, strlen(sts), sig)) {</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    }</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <a class="code hl_function" href="hex_8c.html#af2378e0205916b077ad9e96c9d23a831">brix_hex_encode</a>(sig, 32, sighex);</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    cn = snprintf(hdrs, hdrsz,</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>             <span class="stringliteral">&quot;x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n&quot;</span></div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>             <span class="stringliteral">&quot;Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, &quot;</span></div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>             <span class="stringliteral">&quot;SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=%s\r\n&quot;</span>,</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>             amzdate, payload_hex, ak, scope, sighex);</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    <span class="keywordflow">if</span> (cn &lt; 0 || (<span class="keywordtype">size_t</span>) cn &gt;= hdrsz) {</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    }</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>}</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment">/* ---- Build the SigV4 canonical request and return its SHA-256 hex ----</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment"> * WHAT: Percent-encodes the URI, assembles the canonical request</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="comment"> *       (method, URI, canonical query, the three signed headers, the trailing</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="comment"> *       SignedHeaders list, and the payload hash), and writes its lowercase</span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="comment"> *       SHA-256 hex (65 bytes incl. NUL) into canon_hex. Returns 0 on success,</span></div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="comment"> *       -1 if the URI cannot be encoded or the canonical request would overflow.</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment"> * WHY:  The canonical-request hash is the first HMAC input; if this string</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment"> *       differs by a single byte from what the server re-derives, the signature</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment"> *       mismatches and the request 403s. Isolating its construction keeps the</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="comment"> *       signer&#39;s stage boundaries explicit and each stage independently testable.</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="comment"> * HOW:  1. URL-encode uri with the shared RFC-3986 encoder (unreserved + &#39;/&#39;),</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment"> *          byte-identical to the server&#39;s verify path.</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment"> *       2. snprintf the canonical request; treat truncation as a hard failure so</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment"> *          a short buffer never silently signs a different string.</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment"> *       3. Hash the canonical request into canon_hex.</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00055" data-start="{" data-end="}">
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno"><a class="line" href="client_2lib_2protocols_2s3_2s3_8c.html#ac860b9990fd7da7cf0e76b2c0c17a7f3">   55</a></span><a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#ac860b9990fd7da7cf0e76b2c0c17a7f3">brix_s3_sigv4_build_canon_hash</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *method, <span class="keyword">const</span> <span class="keywordtype">char</span> *host,</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>                               <span class="keyword">const</span> <span class="keywordtype">char</span> *uri, <span class="keyword">const</span> <span class="keywordtype">char</span> *canon_qs,</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>                               <span class="keyword">const</span> <span class="keywordtype">char</span> *payload_hex, <span class="keyword">const</span> <span class="keywordtype">char</span> *amzdate,</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>                               <span class="keywordtype">char</span> *canon_hex)</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>{</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <span class="keywordtype">char</span> enc_uri[2048];</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    <span class="keywordtype">char</span> canon[8192];</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordtype">int</span>  cn;</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <span class="comment">/* Shared SigV4 CanonicalURI encoder (RFC-3986 unreserved + &#39;/&#39;), byte-identical</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="comment">     * to the server&#39;s verify path so client-signs == server-verifies. */</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="core_2compat_2uri_8c.html#abf8cec791dd477f1aa44e42770db2ee5">brix_http_urlencode</a>((<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *) uri, strlen(uri),</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>                              enc_uri, <span class="keyword">sizeof</span>(enc_uri), <span class="stringliteral">&quot;/&quot;</span>) &lt; 0) {</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    }</div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <span class="comment">/* canonical request: method\nURI\nCANONICAL_QUERY\nheaders\nsignedHeaders\nhash.</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment">     * canon_qs must already be sorted + RFC-3986 encoded (the server re-derives the</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment">     * same string from the request query). */</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    cn = snprintf(canon, <span class="keyword">sizeof</span>(canon),</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>             <span class="stringliteral">&quot;%s\n%s\n%s\nhost:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n\n&quot;</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>             <span class="stringliteral">&quot;host;x-amz-content-sha256;x-amz-date\n%s&quot;</span>,</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>             method, enc_uri, canon_qs, host, payload_hex, amzdate, payload_hex);</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    <span class="comment">/* A truncated canonical request would sign a different string than the server</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="comment">     * verifies → a confusing 403. Fail cleanly so the caller reports &quot;can&#39;t sign&quot;. */</span></div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="keywordflow">if</span> (cn &lt; 0 || (<span class="keywordtype">size_t</span>) cn &gt;= <span class="keyword">sizeof</span>(canon)) {</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    }</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    <a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#a7c8cedbf729919d8c7207a46d1dc07d3">brix_s3_sha256_hex</a>(canon, strlen(canon), canon_hex);</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>}</div>
 </div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span> </div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00114" data-start="{" data-end="}">
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno"><a class="line" href="brix__net_8h.html#a2b118b91229880391ddbbf85dd2b8406">  114</a></span><a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#a2b118b91229880391ddbbf85dd2b8406">brix_s3_sign_v4</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *method, <span class="keyword">const</span> <span class="keywordtype">char</span> *host, <span class="keyword">const</span> <span class="keywordtype">char</span> *uri,</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>                <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>,</div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>                <span class="keyword">const</span> <span class="keywordtype">char</span> *payload_hex, <span class="keywordtype">char</span> *hdrs, <span class="keywordtype">size_t</span> hdrsz)</div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>{</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    <span class="comment">/* no query string (GET/HEAD/PUT on a plain object key) */</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#abc79e684e42276b95062b0fcc5e787f1">brix_s3_sign_v4_q</a>(method, host, uri, <span class="stringliteral">&quot;&quot;</span>, ak, sk, <a class="code hl_variable" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>,</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>                             payload_hex, hdrs, hdrsz);</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>}</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span> </div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment">/* ---- Build the credential scope and the string-to-sign ----</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="comment"> * WHAT: Formats the credential scope (datestamp/region/s3/aws4_request) into</span></div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="comment"> *       scope and the AWS4-HMAC-SHA256 string-to-sign (algorithm, amzdate, scope,</span></div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="comment"> *       canonical-request hash) into sts. Returns 0 on success, -1 if either</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="comment"> *       snprintf would overflow its caller-supplied buffer.</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="comment"> * WHY:  region is user/env-controlled (--s3-region / $AWS_DEFAULT_REGION); a</span></div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="comment"> *       truncated scope or string-to-sign would sign a different string than the</span></div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="comment"> *       Authorization header advertises → a confusing 403. Guarding both here</span></div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="comment"> *       keeps that contract in one place, matching the canonical-request guard.</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="comment"> * HOW:  1. snprintf the credential scope; fail on truncation.</span></div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="comment"> *       2. snprintf the string-to-sign from amzdate, scope, and canon_hex; fail</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="comment"> *          on truncation.</span></div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00103" data-start="{" data-end="}">
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno"><a class="line" href="client_2lib_2protocols_2s3_2s3_8c.html#a0ab11ec8826f7435d25a951037888905">  103</a></span><a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#a0ab11ec8826f7435d25a951037888905">brix_s3_sigv4_build_sts</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *amzdate, <span class="keyword">const</span> <span class="keywordtype">char</span> *datestamp,</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>                        <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *canon_hex,</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>                        <span class="keywordtype">char</span> *<a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, <span class="keywordtype">size_t</span> scopesz, <span class="keywordtype">char</span> *sts, <span class="keywordtype">size_t</span> stssz)</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>{</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    <span class="keywordtype">int</span> cn;</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span> </div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    cn = snprintf(<a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, scopesz, <span class="stringliteral">&quot;%s/%s/s3/aws4_request&quot;</span>, datestamp, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>);</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <span class="keywordflow">if</span> (cn &lt; 0 || (<span class="keywordtype">size_t</span>) cn &gt;= scopesz) {</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    }</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    cn = snprintf(sts, stssz, <span class="stringliteral">&quot;AWS4-HMAC-SHA256\n%s\n%s\n%s&quot;</span>,</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>                  amzdate, <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, canon_hex);</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <span class="keywordflow">if</span> (cn &lt; 0 || (<span class="keywordtype">size_t</span>) cn &gt;= stssz) {</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    }</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>}</div>
 </div>
-<div class="ttc" id="aauth__sigv4__verify_8c_html_a1bb0f741a7abb9d58b43b4ca6ed05425"><div class="ttname"><a href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a></div><div class="ttdeci">char region[65]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify_8c_source.html#l00240">auth_sigv4_verify.c:240</a></div></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span> </div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment">/* ---- Derive the signing key, sign the STS, and emit the header block ----</span></div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment"> * WHAT: Runs the 4-round HMAC signing-key derivation, HMAC-signs the</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment"> *       string-to-sign, and writes the x-amz-date / x-amz-content-sha256 /</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="comment"> *       Authorization header block into hdrs. Returns 0 on success, -1 if the</span></div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="comment"> *       key derivation or HMAC fails or the header block would overflow hdrs.</span></div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="comment"> * WHY:  This is the final stage where the derived secret becomes bytes on the</span></div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="comment"> *       wire; a truncated Authorization header advertises a signature the server</span></div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span><span class="comment"> *       cannot reproduce, so truncation must fail cleanly rather than emit a</span></div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="comment"> *       partial header.</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="comment"> * HOW:  1. Derive the signing key with the shared libxrdproto 4-round chain and</span></div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment"> *          HMAC-sign the string-to-sign; bail on any crypto failure.</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment"> *       2. Hex-encode the signature.</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="comment"> *       3. snprintf the header block (Credential uses the same scope that was</span></div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="comment"> *          signed); fail on truncation.</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00140" data-start="{" data-end="}">
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno"><a class="line" href="client_2lib_2protocols_2s3_2s3_8c.html#af59f78ac103356421f231f9dc8dc72b0">  140</a></span><a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#af59f78ac103356421f231f9dc8dc72b0">brix_s3_sigv4_sign_and_emit</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *datestamp,</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>                            <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *sts,</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>                            <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *payload_hex,</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>                            <span class="keyword">const</span> <span class="keywordtype">char</span> *amzdate, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>,</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>                            <span class="keywordtype">char</span> *hdrs, <span class="keywordtype">size_t</span> hdrsz)</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>{</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    uint8_t k4[32], sig[32];</div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    <span class="keywordtype">char</span>    sighex[65];</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    <span class="keywordtype">int</span>     cn;</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span> </div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    <span class="comment">/* Shared 4-round signing-key derive (libxrdproto), then sign the STS. */</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sigv4_8c.html#a21db0d054686b6b219608afa98f7f17f">brix_sigv4_signing_key</a>((<span class="keyword">const</span> uint8_t *) sk, strlen(sk),</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>                                  datestamp, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, <span class="stringliteral">&quot;s3&quot;</span>, k4)</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>        || !<a class="code hl_function" href="crypto_8c.html#aa729fd788c99ac76be5512cc36b3386e">brix_hmac_sha256</a>(k4, 32, (<span class="keyword">const</span> uint8_t *) sts, strlen(sts), sig)) {</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>    }</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    <a class="code hl_function" href="hex_8c.html#af2378e0205916b077ad9e96c9d23a831">brix_hex_encode</a>(sig, 32, sighex);</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span> </div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>    cn = snprintf(hdrs, hdrsz,</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>             <span class="stringliteral">&quot;x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n&quot;</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>             <span class="stringliteral">&quot;Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, &quot;</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>             <span class="stringliteral">&quot;SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=%s\r\n&quot;</span>,</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>             amzdate, payload_hex, ak, <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, sighex);</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    <span class="keywordflow">if</span> (cn &lt; 0 || (<span class="keywordtype">size_t</span>) cn &gt;= hdrsz) {</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    }</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>}</div>
+</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span> </div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00170" data-start="{" data-end="}">
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno"><a class="line" href="brix__net_8h.html#abc79e684e42276b95062b0fcc5e787f1">  170</a></span><a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#abc79e684e42276b95062b0fcc5e787f1">brix_s3_sign_v4_q</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *method, <span class="keyword">const</span> <span class="keywordtype">char</span> *host, <span class="keyword">const</span> <span class="keywordtype">char</span> *uri,</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>                  <span class="keyword">const</span> <span class="keywordtype">char</span> *canon_qs, <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk,</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>                  <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *payload_hex,</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>                  <span class="keywordtype">char</span> *hdrs, <span class="keywordtype">size_t</span> hdrsz)</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>{</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    <span class="keywordtype">char</span>      amzdate[20], datestamp[12];</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    <span class="keywordtype">char</span>      canon_hex[65];</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keywordtype">char</span>      <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>[160], sts[640];</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    time_t    now = time(NULL);</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="keyword">struct </span>tm tmv;</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span> </div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    <span class="keywordflow">if</span> (canon_qs == NULL) { canon_qs = <span class="stringliteral">&quot;&quot;</span>; }</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="keywordflow">if</span> (sk == NULL || ak == NULL || <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> == NULL || payload_hex == NULL) {</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    }</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keywordflow">if</span> (gmtime_r(&amp;now, &amp;tmv) == NULL) {</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    strftime(amzdate, <span class="keyword">sizeof</span>(amzdate), <span class="stringliteral">&quot;%Y%m%dT%H%M%SZ&quot;</span>, &amp;tmv);</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    strftime(datestamp, <span class="keyword">sizeof</span>(datestamp), <span class="stringliteral">&quot;%Y%m%d&quot;</span>, &amp;tmv);</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span> </div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#ac860b9990fd7da7cf0e76b2c0c17a7f3">brix_s3_sigv4_build_canon_hash</a>(method, host, uri, canon_qs,</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>                                       payload_hex, amzdate, canon_hex) != 0) {</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    }</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#a0ab11ec8826f7435d25a951037888905">brix_s3_sigv4_build_sts</a>(amzdate, datestamp, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, canon_hex,</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>                                <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, <span class="keyword">sizeof</span>(<a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>), sts, <span class="keyword">sizeof</span>(sts)) != 0) {</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    }</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#af59f78ac103356421f231f9dc8dc72b0">brix_s3_sigv4_sign_and_emit</a>(sk, datestamp, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, sts, ak,</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>                                       payload_hex, amzdate, <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, hdrs, hdrsz);</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>}</div>
+</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span> </div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00204" data-start="{" data-end="}">
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno"><a class="line" href="brix__net_8h.html#a2b118b91229880391ddbbf85dd2b8406">  204</a></span><a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#a2b118b91229880391ddbbf85dd2b8406">brix_s3_sign_v4</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *method, <span class="keyword">const</span> <span class="keywordtype">char</span> *host, <span class="keyword">const</span> <span class="keywordtype">char</span> *uri,</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>                <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>,</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>                <span class="keyword">const</span> <span class="keywordtype">char</span> *payload_hex, <span class="keywordtype">char</span> *hdrs, <span class="keywordtype">size_t</span> hdrsz)</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>{</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <span class="comment">/* no query string (GET/HEAD/PUT on a plain object key) */</span></div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="client_2lib_2protocols_2s3_2s3_8c.html#abc79e684e42276b95062b0fcc5e787f1">brix_s3_sign_v4_q</a>(method, host, uri, <span class="stringliteral">&quot;&quot;</span>, ak, sk, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>,</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>                             payload_hex, hdrs, hdrsz);</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>}</div>
+</div>
+<div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a1bb0f741a7abb9d58b43b4ca6ed05425"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a></div><div class="ttdeci">char region[65]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00050">auth_sigv4_verify_crypto.c:50</a></div></div>
 <div class="ttc" id="abrix_8h_html"><div class="ttname"><a href="brix_8h.html">brix.h</a></div></div>
-<div class="ttc" id="aclient_2lib_2protocols_2s3_2s3_8c_html_a2b118b91229880391ddbbf85dd2b8406"><div class="ttname"><a href="client_2lib_2protocols_2s3_2s3_8c.html#a2b118b91229880391ddbbf85dd2b8406">brix_s3_sign_v4</a></div><div class="ttdeci">int brix_s3_sign_v4(const char *method, const char *host, const char *uri, const char *ak, const char *sk, const char *region, const char *payload_hex, char *hdrs, size_t hdrsz)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00114">s3.c:114</a></div></div>
+<div class="ttc" id="aclient_2lib_2protocols_2s3_2s3_8c_html_a0ab11ec8826f7435d25a951037888905"><div class="ttname"><a href="client_2lib_2protocols_2s3_2s3_8c.html#a0ab11ec8826f7435d25a951037888905">brix_s3_sigv4_build_sts</a></div><div class="ttdeci">static int brix_s3_sigv4_build_sts(const char *amzdate, const char *datestamp, const char *region, const char *canon_hex, char *scope, size_t scopesz, char *sts, size_t stssz)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00103">s3.c:103</a></div></div>
+<div class="ttc" id="aclient_2lib_2protocols_2s3_2s3_8c_html_a2b118b91229880391ddbbf85dd2b8406"><div class="ttname"><a href="client_2lib_2protocols_2s3_2s3_8c.html#a2b118b91229880391ddbbf85dd2b8406">brix_s3_sign_v4</a></div><div class="ttdeci">int brix_s3_sign_v4(const char *method, const char *host, const char *uri, const char *ak, const char *sk, const char *region, const char *payload_hex, char *hdrs, size_t hdrsz)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00204">s3.c:204</a></div></div>
 <div class="ttc" id="aclient_2lib_2protocols_2s3_2s3_8c_html_a7c8cedbf729919d8c7207a46d1dc07d3"><div class="ttname"><a href="client_2lib_2protocols_2s3_2s3_8c.html#a7c8cedbf729919d8c7207a46d1dc07d3">brix_s3_sha256_hex</a></div><div class="ttdeci">void brix_s3_sha256_hex(const void *data, size_t len, char *out)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00028">s3.c:28</a></div></div>
-<div class="ttc" id="aclient_2lib_2protocols_2s3_2s3_8c_html_abc79e684e42276b95062b0fcc5e787f1"><div class="ttname"><a href="client_2lib_2protocols_2s3_2s3_8c.html#abc79e684e42276b95062b0fcc5e787f1">brix_s3_sign_v4_q</a></div><div class="ttdeci">int brix_s3_sign_v4_q(const char *method, const char *host, const char *uri, const char *canon_qs, const char *ak, const char *sk, const char *region, const char *payload_hex, char *hdrs, size_t hdrsz)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00036">s3.c:36</a></div></div>
+<div class="ttc" id="aclient_2lib_2protocols_2s3_2s3_8c_html_abc79e684e42276b95062b0fcc5e787f1"><div class="ttname"><a href="client_2lib_2protocols_2s3_2s3_8c.html#abc79e684e42276b95062b0fcc5e787f1">brix_s3_sign_v4_q</a></div><div class="ttdeci">int brix_s3_sign_v4_q(const char *method, const char *host, const char *uri, const char *canon_qs, const char *ak, const char *sk, const char *region, const char *payload_hex, char *hdrs, size_t hdrsz)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">s3.c:170</a></div></div>
+<div class="ttc" id="aclient_2lib_2protocols_2s3_2s3_8c_html_ac860b9990fd7da7cf0e76b2c0c17a7f3"><div class="ttname"><a href="client_2lib_2protocols_2s3_2s3_8c.html#ac860b9990fd7da7cf0e76b2c0c17a7f3">brix_s3_sigv4_build_canon_hash</a></div><div class="ttdeci">static int brix_s3_sigv4_build_canon_hash(const char *method, const char *host, const char *uri, const char *canon_qs, const char *payload_hex, const char *amzdate, char *canon_hex)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00055">s3.c:55</a></div></div>
+<div class="ttc" id="aclient_2lib_2protocols_2s3_2s3_8c_html_af59f78ac103356421f231f9dc8dc72b0"><div class="ttname"><a href="client_2lib_2protocols_2s3_2s3_8c.html#af59f78ac103356421f231f9dc8dc72b0">brix_s3_sigv4_sign_and_emit</a></div><div class="ttdeci">static int brix_s3_sigv4_sign_and_emit(const char *sk, const char *datestamp, const char *region, const char *sts, const char *ak, const char *payload_hex, const char *amzdate, const char *scope, char *hdrs, size_t hdrsz)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00140">s3.c:140</a></div></div>
 <div class="ttc" id="acore_2compat_2uri_8c_html_abf8cec791dd477f1aa44e42770db2ee5"><div class="ttname"><a href="core_2compat_2uri_8c.html#abf8cec791dd477f1aa44e42770db2ee5">brix_http_urlencode</a></div><div class="ttdeci">ssize_t brix_http_urlencode(const unsigned char *src, size_t srclen, char *dst, size_t dstsz, const char *safe_extra)</div><div class="ttdef"><b>Definition</b> <a href="core_2compat_2uri_8c_source.html#l00075">uri.c:75</a></div></div>
 <div class="ttc" id="acore_2compat_2uri_8h_html"><div class="ttname"><a href="core_2compat_2uri_8h.html">uri.h</a></div></div>
 <div class="ttc" id="acrypto_8c_html_a367c7aabfa175484e4eead3856117587"><div class="ttname"><a href="crypto_8c.html#a367c7aabfa175484e4eead3856117587">brix_sha256</a></div><div class="ttdeci">int brix_sha256(const uint8_t *data, size_t len, uint8_t out[32])</div><div class="ttdef"><b>Definition</b> <a href="crypto_8c_source.html#l00067">crypto.c:67</a></div></div>
@@ -237,6 +336,7 @@ $(document).ready(function(){initNavTree('client_2lib_2protocols_2s3_2s3_8c_sour
 <div class="ttc" id="acrypto_8h_html"><div class="ttname"><a href="crypto_8h.html">crypto.h</a></div></div>
 <div class="ttc" id="ahex_8c_html_af2378e0205916b077ad9e96c9d23a831"><div class="ttname"><a href="hex_8c.html#af2378e0205916b077ad9e96c9d23a831">brix_hex_encode</a></div><div class="ttdeci">void brix_hex_encode(const uint8_t *in, size_t len, char *out)</div><div class="ttdef"><b>Definition</b> <a href="hex_8c_source.html#l00059">hex.c:59</a></div></div>
 <div class="ttc" id="ahex_8h_html"><div class="ttname"><a href="hex_8h.html">hex.h</a></div></div>
+<div class="ttc" id="amacaroon__endpoint__oauth2_8c_html_aaa3f7f51e16b6fa08e2bc1e0d7eb6bab"><div class="ttname"><a href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a></div><div class="ttdeci">const char * scope</div><div class="ttdef"><b>Definition</b> <a href="macaroon__endpoint__oauth2_8c_source.html#l00108">macaroon_endpoint_oauth2.c:108</a></div></div>
 <div class="ttc" id="asigv4_8c_html_a21db0d054686b6b219608afa98f7f17f"><div class="ttname"><a href="sigv4_8c.html#a21db0d054686b6b219608afa98f7f17f">brix_sigv4_signing_key</a></div><div class="ttdeci">int brix_sigv4_signing_key(const uint8_t *secret, size_t secret_len, const char *date, const char *region, const char *service, uint8_t out[32])</div><div class="ttdef"><b>Definition</b> <a href="sigv4_8c_source.html#l00014">sigv4.c:14</a></div></div>
 <div class="ttc" id="asigv4_8h_html"><div class="ttname"><a href="sigv4_8h.html">sigv4.h</a></div></div>
 <div class="ttc" id="atime_8h_html"><div class="ttname"><a href="time_8h.html">time.h</a></div></div>

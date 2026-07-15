@@ -104,6 +104,7 @@ $(document).ready(function(){initNavTree('fs_2path_2unified_8c.html',''); initRe
 <code>#include &lt;unistd.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="path__internal_8h_source.html">path_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2unified_8h_source.html">unified.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="fs_2path_2unified__internal_8h_source.html">unified_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for unified.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -118,344 +119,12 @@ $(document).ready(function(){initNavTree('fs_2path_2unified_8c.html',''); initRe
 Functions</h2></td></tr>
 <tr class="memitem:adcf47632cc1f986345eedadb9facb89e" id="r_adcf47632cc1f986345eedadb9facb89e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#adcf47632cc1f986345eedadb9facb89e">brix_path_result_init</a> (<a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a> *result)</td></tr>
 <tr class="separator:adcf47632cc1f986345eedadb9facb89e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a50e209418ee6ac85641baff9fd071175" id="r_a50e209418ee6ac85641baff9fd071175"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#a50e209418ee6ac85641baff9fd071175">brix_path_warn</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *prefix, const char *path)</td></tr>
-<tr class="separator:a50e209418ee6ac85641baff9fd071175"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a86fc1a6073f7fee7c24da54141a45507" id="r_a86fc1a6073f7fee7c24da54141a45507"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#a86fc1a6073f7fee7c24da54141a45507">brix_count_components_cstr</a> (const char *path)</td></tr>
-<tr class="separator:a86fc1a6073f7fee7c24da54141a45507"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a663a68c6fa74fe294dfa28b69e9528e2" id="r_a663a68c6fa74fe294dfa28b69e9528e2"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#a663a68c6fa74fe294dfa28b69e9528e2">brix_validate_components_cstr</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *path)</td></tr>
-<tr class="separator:a663a68c6fa74fe294dfa28b69e9528e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae2506c03530148372f1c1c191f11c4b8" id="r_ae2506c03530148372f1c1c191f11c4b8"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#ae2506c03530148372f1c1c191f11c4b8">brix_has_trailing_slash_cstr</a> (const char *path)</td></tr>
-<tr class="separator:ae2506c03530148372f1c1c191f11c4b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af5e5f2a7ceef2b1a5b7f8e07e3dfec0b" id="r_af5e5f2a7ceef2b1a5b7f8e07e3dfec0b"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#af5e5f2a7ceef2b1a5b7f8e07e3dfec0b">brix_copy_cstr</a> (char *dst, size_t dstsz, const char *src)</td></tr>
-<tr class="separator:af5e5f2a7ceef2b1a5b7f8e07e3dfec0b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae95d591cc7dd8a82fa19e2de08173265" id="r_ae95d591cc7dd8a82fa19e2de08173265"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#ae95d591cc7dd8a82fa19e2de08173265">brix_append_component</a> (char *path, size_t pathsz, size_t *len, const char *component, size_t component_len)</td></tr>
-<tr class="separator:ae95d591cc7dd8a82fa19e2de08173265"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af7cf161ee572479ceb0e21280a0ce1c7" id="r_af7cf161ee572479ceb0e21280a0ce1c7"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#af7cf161ee572479ceb0e21280a0ce1c7">brix_build_candidate</a> (const char *root_canon, const char *req_path, <a class="el" href="structbrix__path__opts__t.html">brix_path_opts_t</a> opts, char *candidate, size_t candidatesz, ngx_uint_t *depth_out)</td></tr>
-<tr class="separator:af7cf161ee572479ceb0e21280a0ce1c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3494c078396882bcc17fabd2808e933a" id="r_a3494c078396882bcc17fabd2808e933a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#a3494c078396882bcc17fabd2808e933a">brix_stat_type_cstr</a> (const char *path)</td></tr>
-<tr class="separator:a3494c078396882bcc17fabd2808e933a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aeef0a818cea06dd75cb3f9878ff2a31b" id="r_aeef0a818cea06dd75cb3f9878ff2a31b"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#aeef0a818cea06dd75cb3f9878ff2a31b">brix_finish_resolved</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *resolved_path, <a class="el" href="structbrix__path__opts__t.html">brix_path_opts_t</a> opts, char *resolved, size_t resolvsz, <a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a> *result, ngx_uint_t depth)</td></tr>
-<tr class="separator:aeef0a818cea06dd75cb3f9878ff2a31b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a397ea162dfd7524b151a306db3921231" id="r_a397ea162dfd7524b151a306db3921231"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#a397ea162dfd7524b151a306db3921231">brix_resolve_missing_tail</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *candidate, char *resolved, size_t resolvsz, <a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a> *result, ngx_uint_t depth)</td></tr>
-<tr class="separator:a397ea162dfd7524b151a306db3921231"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aeb18803b0c57a79f49e1610732501866" id="r_aeb18803b0c57a79f49e1610732501866"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#aeb18803b0c57a79f49e1610732501866">brix_resolve_missing_parents</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *candidate, char *resolved, size_t resolvsz, <a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a> *result, ngx_uint_t depth)</td></tr>
-<tr class="separator:aeb18803b0c57a79f49e1610732501866"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a76f01d745cbe4bb0e9f42e88787319e2" id="r_a76f01d745cbe4bb0e9f42e88787319e2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#a76f01d745cbe4bb0e9f42e88787319e2">brix_path_warn</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *prefix, const char *path)</td></tr>
+<tr class="separator:a76f01d745cbe4bb0e9f42e88787319e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa92581dcfb1f331360c21fa50a2bb9f8" id="r_aa92581dcfb1f331360c21fa50a2bb9f8"><td class="memItemLeft" align="right" valign="top"><a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2unified_8c.html#aa92581dcfb1f331360c21fa50a2bb9f8">brix_path_resolve_cstr</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *req_path, <a class="el" href="structbrix__path__opts__t.html">brix_path_opts_t</a> opts, char *resolved, size_t resolvsz, <a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a> *result)</td></tr>
 <tr class="separator:aa92581dcfb1f331360c21fa50a2bb9f8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ae95d591cc7dd8a82fa19e2de08173265" name="ae95d591cc7dd8a82fa19e2de08173265"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae95d591cc7dd8a82fa19e2de08173265">&#9670;&#160;</a></span>brix_append_component()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a> brix_append_component </td>
-          <td>(</td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>pathsz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>component</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>component_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00176">176</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00035">BRIX_PATH_STATUS_OK</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00038">BRIX_PATH_STATUS_TOO_LONG</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00198">brix_build_candidate()</a>.</p>
-
-</div>
-</div>
-<a id="af7cf161ee572479ceb0e21280a0ce1c7" name="af7cf161ee572479ceb0e21280a0ce1c7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af7cf161ee572479ceb0e21280a0ce1c7">&#9670;&#160;</a></span>brix_build_candidate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a> brix_build_candidate </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>req_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__path__opts__t.html">brix_path_opts_t</a>&#160;</td>
-          <td class="paramname"><em>opts</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>candidate</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>candidatesz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t *&#160;</td>
-          <td class="paramname"><em>depth_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00198">198</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00022">brix_path_opts_t::allow_root</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00176">brix_append_component()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00066">brix_count_components_cstr()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00036">BRIX_PATH_STATUS_INVALID</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00035">BRIX_PATH_STATUS_OK</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00038">BRIX_PATH_STATUS_TOO_LONG</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00486">brix_path_resolve_cstr()</a>.</p>
-
-</div>
-</div>
-<a id="af5e5f2a7ceef2b1a5b7f8e07e3dfec0b" name="af5e5f2a7ceef2b1a5b7f8e07e3dfec0b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af5e5f2a7ceef2b1a5b7f8e07e3dfec0b">&#9670;&#160;</a></span>brix_copy_cstr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a> brix_copy_cstr </td>
-          <td>(</td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>dst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>dstsz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00158">158</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00039">BRIX_PATH_STATUS_ERROR</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00035">BRIX_PATH_STATUS_OK</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00038">BRIX_PATH_STATUS_TOO_LONG</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00280">brix_finish_resolved()</a>.</p>
-
-</div>
-</div>
-<a id="a86fc1a6073f7fee7c24da54141a45507" name="a86fc1a6073f7fee7c24da54141a45507"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a86fc1a6073f7fee7c24da54141a45507">&#9670;&#160;</a></span>brix_count_components_cstr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_uint_t brix_count_components_cstr </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00066">66</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00198">brix_build_candidate()</a>.</p>
-
-</div>
-</div>
-<a id="aeef0a818cea06dd75cb3f9878ff2a31b" name="aeef0a818cea06dd75cb3f9878ff2a31b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aeef0a818cea06dd75cb3f9878ff2a31b">&#9670;&#160;</a></span>brix_finish_resolved()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a> brix_finish_resolved </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>resolved_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__path__opts__t.html">brix_path_opts_t</a>&#160;</td>
-          <td class="paramname"><em>opts</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>resolved</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>resolvsz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a> *&#160;</td>
-          <td class="paramname"><em>result</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>depth</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00280">280</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00018">brix_path_opts_t::allow_missing_parents</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00016">brix_path_opts_t::allow_missing_tail</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00158">brix_copy_cstr()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00039">BRIX_PATH_STATUS_ERROR</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00036">BRIX_PATH_STATUS_INVALID</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00035">BRIX_PATH_STATUS_OK</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00025">BRIX_PATH_TYPE_NOT_FOUND</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00058">brix_path_warn()</a>, <a class="el" href="resolve__confined__helpers_8c_source.html#l00084">brix_path_within_root()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00265">brix_stat_type_cstr()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00030">brix_path_result_t::depth</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00031">brix_path_result_t::is_confined</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00017">brix_path_opts_t::require_directory</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00028">brix_path_result_t::resolved</a>, and <a class="el" href="fs_2path_2unified_8h_source.html#l00029">brix_path_result_t::type</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00486">brix_path_resolve_cstr()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00394">brix_resolve_missing_parents()</a>, and <a class="el" href="fs_2path_2unified_8c_source.html#l00323">brix_resolve_missing_tail()</a>.</p>
-
-</div>
-</div>
-<a id="ae2506c03530148372f1c1c191f11c4b8" name="ae2506c03530148372f1c1c191f11c4b8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae2506c03530148372f1c1c191f11c4b8">&#9670;&#160;</a></span>brix_has_trailing_slash_cstr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_flag_t brix_has_trailing_slash_cstr </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00145">145</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00486">brix_path_resolve_cstr()</a>.</p>
-
-</div>
-</div>
 <a id="aa92581dcfb1f331360c21fa50a2bb9f8" name="aa92581dcfb1f331360c21fa50a2bb9f8"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aa92581dcfb1f331360c21fa50a2bb9f8">&#9670;&#160;</a></span>brix_path_resolve_cstr()</h2>
 
@@ -512,9 +181,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00486">486</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00089">89</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00018">brix_path_opts_t::allow_missing_parents</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00016">brix_path_opts_t::allow_missing_tail</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00198">brix_build_candidate()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00280">brix_finish_resolved()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00145">brix_has_trailing_slash_cstr()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00045">brix_path_result_init()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00039">BRIX_PATH_STATUS_ERROR</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00036">BRIX_PATH_STATUS_INVALID</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00037">BRIX_PATH_STATUS_NOT_FOUND</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00035">BRIX_PATH_STATUS_OK</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00394">brix_resolve_missing_parents()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00323">brix_resolve_missing_tail()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00099">brix_validate_components_cstr()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00018">brix_path_opts_t::allow_missing_parents</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00016">brix_path_opts_t::allow_missing_tail</a>, <a class="el" href="unified__build_8c_source.html#l00266">brix_build_candidate()</a>, <a class="el" href="unified__resolve_8c_source.html#l00065">brix_finish_resolved()</a>, <a class="el" href="unified__build_8c_source.html#l00112">brix_has_trailing_slash_cstr()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00052">brix_path_result_init()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00039">BRIX_PATH_STATUS_ERROR</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00036">BRIX_PATH_STATUS_INVALID</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00037">BRIX_PATH_STATUS_NOT_FOUND</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00035">BRIX_PATH_STATUS_OK</a>, <a class="el" href="unified__resolve_8c_source.html#l00255">brix_resolve_missing_parents()</a>, <a class="el" href="unified__resolve_8c_source.html#l00122">brix_resolve_missing_tail()</a>, <a class="el" href="unified__build_8c_source.html#l00066">brix_validate_components_cstr()</a>, <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00065">brix_candidate_out_t::buf</a>, <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00066">brix_candidate_out_t::bufsz</a>, <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00049">brix_resolve_ctx_t::depth</a>, <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00067">brix_candidate_out_t::depth_out</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00044">brix_resolve_ctx_t::log</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00046">brix_resolve_ctx_t::resolved</a>, <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00047">brix_resolve_ctx_t::resolvsz</a>, <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00048">brix_resolve_ctx_t::result</a>, and <a class="el" href="fs_2path_2unified__internal_8h_source.html#l00045">brix_resolve_ctx_t::root_canon</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="resolve__path__variants_8c_source.html#l00031">brix_resolve_with_opts()</a>.</p>
 
@@ -544,25 +213,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00045">45</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00052">52</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
 
 <p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00025">BRIX_PATH_TYPE_NOT_FOUND</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00030">brix_path_result_t::depth</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00031">brix_path_result_t::is_confined</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00028">brix_path_result_t::resolved</a>, and <a class="el" href="fs_2path_2unified_8h_source.html#l00029">brix_path_result_t::type</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00486">brix_path_resolve_cstr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00089">brix_path_resolve_cstr()</a>.</p>
 
 </div>
 </div>
-<a id="a50e209418ee6ac85641baff9fd071175" name="a50e209418ee6ac85641baff9fd071175"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a50e209418ee6ac85641baff9fd071175">&#9670;&#160;</a></span>brix_path_warn()</h2>
+<a id="a76f01d745cbe4bb0e9f42e88787319e2" name="a76f01d745cbe4bb0e9f42e88787319e2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a76f01d745cbe4bb0e9f42e88787319e2">&#9670;&#160;</a></span>brix_path_warn()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void brix_path_warn </td>
+          <td class="memname">void brix_path_warn </td>
           <td>(</td>
           <td class="paramtype">ngx_log_t *&#160;</td>
           <td class="paramname"><em>log</em>, </td>
@@ -585,236 +251,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00058">58</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00065">65</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
 
 <p class="reference">References <a class="el" href="resolve__confined__helpers_8c_source.html#l00069">brix_log_path_warning()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00280">brix_finish_resolved()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00394">brix_resolve_missing_parents()</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00323">brix_resolve_missing_tail()</a>, and <a class="el" href="fs_2path_2unified_8c_source.html#l00099">brix_validate_components_cstr()</a>.</p>
-
-</div>
-</div>
-<a id="aeb18803b0c57a79f49e1610732501866" name="aeb18803b0c57a79f49e1610732501866"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aeb18803b0c57a79f49e1610732501866">&#9670;&#160;</a></span>brix_resolve_missing_parents()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a> brix_resolve_missing_parents </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>candidate</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>resolved</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>resolvsz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a> *&#160;</td>
-          <td class="paramname"><em>result</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>depth</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00394">394</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00018">brix_path_opts_t::allow_missing_parents</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00280">brix_finish_resolved()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00039">BRIX_PATH_STATUS_ERROR</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00036">BRIX_PATH_STATUS_INVALID</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00037">BRIX_PATH_STATUS_NOT_FOUND</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00038">BRIX_PATH_STATUS_TOO_LONG</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00058">brix_path_warn()</a>, <a class="el" href="resolve__confined__helpers_8c_source.html#l00084">brix_path_within_root()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00486">brix_path_resolve_cstr()</a>.</p>
-
-</div>
-</div>
-<a id="a397ea162dfd7524b151a306db3921231" name="a397ea162dfd7524b151a306db3921231"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a397ea162dfd7524b151a306db3921231">&#9670;&#160;</a></span>brix_resolve_missing_tail()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a> brix_resolve_missing_tail </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>candidate</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>resolved</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>resolvsz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a> *&#160;</td>
-          <td class="paramname"><em>result</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>depth</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00323">323</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00016">brix_path_opts_t::allow_missing_tail</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00280">brix_finish_resolved()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00039">BRIX_PATH_STATUS_ERROR</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00036">BRIX_PATH_STATUS_INVALID</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00037">BRIX_PATH_STATUS_NOT_FOUND</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00038">BRIX_PATH_STATUS_TOO_LONG</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00058">brix_path_warn()</a>, <a class="el" href="resolve__confined__helpers_8c_source.html#l00084">brix_path_within_root()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00020">brix_path_opts_t::is_write_operation</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00486">brix_path_resolve_cstr()</a>.</p>
-
-</div>
-</div>
-<a id="a3494c078396882bcc17fabd2808e933a" name="a3494c078396882bcc17fabd2808e933a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3494c078396882bcc17fabd2808e933a">&#9670;&#160;</a></span>brix_stat_type_cstr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_stat_type_cstr </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00265">265</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00025">BRIX_PATH_TYPE_NOT_FOUND</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00280">brix_finish_resolved()</a>.</p>
-
-</div>
-</div>
-<a id="a663a68c6fa74fe294dfa28b69e9528e2" name="a663a68c6fa74fe294dfa28b69e9528e2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a663a68c6fa74fe294dfa28b69e9528e2">&#9670;&#160;</a></span>brix_validate_components_cstr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="fs_2path_2unified_8h.html#a6aa6ba3e667fbc09e9c3293a64da8b63">brix_path_status_t</a> brix_validate_components_cstr </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs_2path_2unified_8c_source.html#l00099">99</a> of file <a class="el" href="fs_2path_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00088">brix_count_path_depth()</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00010">brix_path_component_forbidden()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00036">BRIX_PATH_STATUS_INVALID</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00035">BRIX_PATH_STATUS_OK</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00038">BRIX_PATH_STATUS_TOO_LONG</a>, <a class="el" href="fs_2path_2unified_8c_source.html#l00058">brix_path_warn()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs_2path_2unified_8c_source.html#l00486">brix_path_resolve_cstr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__resolve_8c_source.html#l00065">brix_finish_resolved()</a>, <a class="el" href="unified__resolve_8c_source.html#l00255">brix_resolve_missing_parents()</a>, <a class="el" href="unified__resolve_8c_source.html#l00122">brix_resolve_missing_tail()</a>, and <a class="el" href="unified__build_8c_source.html#l00066">brix_validate_components_cstr()</a>.</p>
 
 </div>
 </div>

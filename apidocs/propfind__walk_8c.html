@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('propfind__walk_8c.html',''); initResiz
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">propfind_walk.c File Reference</div></div>
 </div><!--header-->
@@ -108,18 +109,265 @@ $(document).ready(function(){initNavTree('propfind__walk_8c.html',''); initResiz
 </div>
 <p><a href="propfind__walk_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structpropfind__walk__ctx__t.html">propfind_walk_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structpropfind__resp__t.html">propfind_resp_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a5dc1def5b1d11034f4a8b10e1345f7fd" id="r_a5dc1def5b1d11034f4a8b10e1345f7fd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a5dc1def5b1d11034f4a8b10e1345f7fd">propfind_vfs_to_stat</a> (const <a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *vs, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st)</td></tr>
 <tr class="separator:a5dc1def5b1d11034f4a8b10e1345f7fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac089d58b9567aa16241f593090ff77fd" id="r_ac089d58b9567aa16241f593090ff77fd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#ac089d58b9567aa16241f593090ff77fd">propfind_dir_ctx</a> (ngx_http_request_t *r, const char *root_canon, const char *dir_path, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx)</td></tr>
 <tr class="separator:ac089d58b9567aa16241f593090ff77fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac3cb1a3018b8184cabc7e9088df6b9b2" id="r_ac3cb1a3018b8184cabc7e9088df6b9b2"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#ac3cb1a3018b8184cabc7e9088df6b9b2">propfind_child_visible</a> (const ngx_str_t *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="separator:ac3cb1a3018b8184cabc7e9088df6b9b2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3af412f584a5534f3ca48bfe73f04b38" id="r_a3af412f584a5534f3ca48bfe73f04b38"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a3af412f584a5534f3ca48bfe73f04b38">propfind_build_child_href</a> (const char *base_href, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, char *out, size_t out_sz)</td></tr>
+<tr class="separator:a3af412f584a5534f3ca48bfe73f04b38"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9ff3497add2b4cbb7a9b47b610422789" id="r_a9ff3497add2b4cbb7a9b47b610422789"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a9ff3497add2b4cbb7a9b47b610422789">propfind_recurse_child</a> (const <a class="el" href="structpropfind__walk__ctx__t.html">propfind_walk_ctx_t</a> *w, const char *child_path, const char *child_href, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *csb)</td></tr>
+<tr class="separator:a9ff3497add2b4cbb7a9b47b610422789"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7a048f2ac42f683d31ebcc91d57ddb74" id="r_a7a048f2ac42f683d31ebcc91d57ddb74"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a7a048f2ac42f683d31ebcc91d57ddb74">propfind_walk_emit</a> (const <a class="el" href="structpropfind__walk__ctx__t.html">propfind_walk_ctx_t</a> *w, const char *dir_path, const char *base_href, const ngx_str_t *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const <a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *vst)</td></tr>
+<tr class="separator:a7a048f2ac42f683d31ebcc91d57ddb74"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a04c98b7450d8d241d591c1404b1d3645" id="r_a04c98b7450d8d241d591c1404b1d3645"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a04c98b7450d8d241d591c1404b1d3645">propfind_walk</a> (ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail, const char *dir_path, const char *base_href, ngx_uint_t *entry_count, ngx_uint_t max_entries, const <a class="el" href="structpropfind__req__t.html">propfind_req_t</a> *req, ngx_flag_t recurse)</td></tr>
 <tr class="separator:a04c98b7450d8d241d591c1404b1d3645"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0298010c68c8ecc9e4949fce6bfef26b" id="r_a0298010c68c8ecc9e4949fce6bfef26b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a0298010c68c8ecc9e4949fce6bfef26b">propfind_count_depth</a> (int depth)</td></tr>
+<tr class="separator:a0298010c68c8ecc9e4949fce6bfef26b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af6a088310e3e791f97d3c4da1de7565e" id="r_af6a088310e3e791f97d3c4da1de7565e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#af6a088310e3e791f97d3c4da1de7565e">propfind_target_href</a> (ngx_http_request_t *r, char *out, size_t out_sz)</td></tr>
+<tr class="separator:af6a088310e3e791f97d3c4da1de7565e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8e7bed18c46ea08b4ffd7fa8db81e0b1" id="r_a8e7bed18c46ea08b4ffd7fa8db81e0b1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a8e7bed18c46ea08b4ffd7fa8db81e0b1">propfind_build_body</a> (const <a class="el" href="structpropfind__resp__t.html">propfind_resp_t</a> *rb, const char *path, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *sb, const <a class="el" href="structpropfind__req__t.html">propfind_req_t</a> *req, int depth)</td></tr>
+<tr class="separator:a8e7bed18c46ea08b4ffd7fa8db81e0b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3e1a6d23fe0e83d05e2d28f47bfa0ec5" id="r_a3e1a6d23fe0e83d05e2d28f47bfa0ec5"><td class="memItemLeft" align="right" valign="top">static off_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a3e1a6d23fe0e83d05e2d28f47bfa0ec5">propfind_finalize_chain</a> (ngx_chain_t *head, ngx_chain_t *tail)</td></tr>
+<tr class="separator:a3e1a6d23fe0e83d05e2d28f47bfa0ec5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeed19fd08d9cdc1e1a63e90aac12552c" id="r_aeed19fd08d9cdc1e1a63e90aac12552c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#aeed19fd08d9cdc1e1a63e90aac12552c">propfind_send_headers</a> (ngx_http_request_t *r, off_t total_len, ngx_int_t *out_rc)</td></tr>
+<tr class="separator:aeed19fd08d9cdc1e1a63e90aac12552c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a61a7f287db5223012f2b014aac91b410" id="r_a61a7f287db5223012f2b014aac91b410"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a61a7f287db5223012f2b014aac91b410">propfind_count_tx</a> (ngx_http_request_t *r, off_t total_len)</td></tr>
+<tr class="separator:a61a7f287db5223012f2b014aac91b410"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a86765d98551e11373d967a0dd3eb1795" id="r_a86765d98551e11373d967a0dd3eb1795"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="propfind__walk_8c.html#a86765d98551e11373d967a0dd3eb1795">propfind_do</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a86765d98551e11373d967a0dd3eb1795"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a8e7bed18c46ea08b4ffd7fa8db81e0b1" name="a8e7bed18c46ea08b4ffd7fa8db81e0b1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8e7bed18c46ea08b4ffd7fa8db81e0b1">&#9670;&#160;</a></span>propfind_build_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t propfind_build_body </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structpropfind__resp__t.html">propfind_resp_t</a> *&#160;</td>
+          <td class="paramname"><em>rb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>sb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structpropfind__req__t.html">propfind_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>depth</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00335">335</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="propfind__walk_8c_source.html#l00282">propfind_resp_t::entry_count</a>, <a class="el" href="propfind__walk_8c_source.html#l00280">propfind_resp_t::head</a>, <a class="el" href="propfind__walk_8c_source.html#l00283">propfind_resp_t::href</a>, <a class="el" href="propfind__walk_8c_source.html#l00284">propfind_resp_t::href_sz</a>, <a class="el" href="propfind__props_8c_source.html#l00642">propfind_entry()</a>, <a class="el" href="propfind__internal_8h_source.html#l00068">PROPFIND_INFINITY_MAX_ENTRIES</a>, <a class="el" href="propfind__walk_8c_source.html#l00311">propfind_target_href()</a>, <a class="el" href="propfind__walk_8c_source.html#l00194">propfind_walk()</a>, <a class="el" href="propfind__walk_8c_source.html#l00279">propfind_resp_t::r</a>, and <a class="el" href="propfind__walk_8c_source.html#l00281">propfind_resp_t::tail</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00455">propfind_do()</a>.</p>
+
+</div>
+</div>
+<a id="a3af412f584a5534f3ca48bfe73f04b38" name="a3af412f584a5534f3ca48bfe73f04b38"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3af412f584a5534f3ca48bfe73f04b38">&#9670;&#160;</a></span>propfind_build_child_href()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t propfind_build_child_href </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>base_href</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>out_sz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00098">98</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00153">propfind_walk_emit()</a>.</p>
+
+</div>
+</div>
+<a id="ac3cb1a3018b8184cabc7e9088df6b9b2" name="ac3cb1a3018b8184cabc7e9088df6b9b2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac3cb1a3018b8184cabc7e9088df6b9b2">&#9670;&#160;</a></span>propfind_child_visible()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int propfind_child_visible </td>
+          <td>(</td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>name</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00077">77</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="reserved__names_8h_source.html#l00043">brix_is_internal_name()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00194">propfind_walk()</a>.</p>
+
+</div>
+</div>
+<a id="a0298010c68c8ecc9e4949fce6bfef26b" name="a0298010c68c8ecc9e4949fce6bfef26b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0298010c68c8ecc9e4949fce6bfef26b">&#9670;&#160;</a></span>propfind_count_depth()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void propfind_count_depth </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>depth</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00294">294</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00052">BRIX_WEBDAV_PROPFIND_DEPTH_0</a>, <a class="el" href="metrics__webdav_8h_source.html#l00053">BRIX_WEBDAV_PROPFIND_DEPTH_1</a>, and <a class="el" href="metrics__webdav_8h_source.html#l00054">BRIX_WEBDAV_PROPFIND_DEPTH_INF</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00455">propfind_do()</a>.</p>
+
+</div>
+</div>
+<a id="a61a7f287db5223012f2b014aac91b410" name="a61a7f287db5223012f2b014aac91b410"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a61a7f287db5223012f2b014aac91b410">&#9670;&#160;</a></span>propfind_count_tx()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void propfind_count_tx </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>total_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00435">435</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00080">BRIX_WEBDAV_METRIC_ADD</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00455">propfind_do()</a>.</p>
+
+</div>
+</div>
 <a id="ac089d58b9567aa16241f593090ff77fd" name="ac089d58b9567aa16241f593090ff77fd"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ac089d58b9567aa16241f593090ff77fd">&#9670;&#160;</a></span>propfind_dir_ctx()</h2>
 
@@ -168,9 +416,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00028">28</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00194">propfind_walk()</a>.</p>
 
 </div>
 </div>
@@ -190,11 +438,199 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00188">188</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00455">455</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="metrics__macros_8h_source.html#l00080">BRIX_WEBDAV_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00052">BRIX_WEBDAV_PROPFIND_DEPTH_0</a>, <a class="el" href="metrics__webdav_8h_source.html#l00053">BRIX_WEBDAV_PROPFIND_DEPTH_1</a>, <a class="el" href="metrics__webdav_8h_source.html#l00054">BRIX_WEBDAV_PROPFIND_DEPTH_INF</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="propfind__props_8c_source.html#l00157">propfind_entry()</a>, <a class="el" href="propfind__internal_8h_source.html#l00068">PROPFIND_INFINITY_MAX_ENTRIES</a>, <a class="el" href="propfind_8c_source.html#l00222">propfind_parse_depth()</a>, <a class="el" href="propfind_8c_source.html#l00074">propfind_parse_request()</a>, <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, and <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00080">BRIX_WEBDAV_METRIC_ADD</a>, <a class="el" href="propfind__walk_8c_source.html#l00335">propfind_build_body()</a>, <a class="el" href="propfind__walk_8c_source.html#l00294">propfind_count_depth()</a>, <a class="el" href="propfind__walk_8c_source.html#l00435">propfind_count_tx()</a>, <a class="el" href="propfind__walk_8c_source.html#l00381">propfind_finalize_chain()</a>, <a class="el" href="propfind_8c_source.html#l00270">propfind_parse_depth()</a>, <a class="el" href="propfind_8c_source.html#l00225">propfind_parse_request()</a>, <a class="el" href="propfind__walk_8c_source.html#l00407">propfind_send_headers()</a>, <a class="el" href="propfind__walk_8c_source.html#l00279">propfind_resp_t::r</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, and <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="propfind_8c_source.html#l00251">propfind_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="propfind_8c_source.html#l00299">propfind_body_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a3e1a6d23fe0e83d05e2d28f47bfa0ec5" name="a3e1a6d23fe0e83d05e2d28f47bfa0ec5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3e1a6d23fe0e83d05e2d28f47bfa0ec5">&#9670;&#160;</a></span>propfind_finalize_chain()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static off_t propfind_finalize_chain </td>
+          <td>(</td>
+          <td class="paramtype">ngx_chain_t *&#160;</td>
+          <td class="paramname"><em>head</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_chain_t *&#160;</td>
+          <td class="paramname"><em>tail</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00381">381</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00455">propfind_do()</a>.</p>
+
+</div>
+</div>
+<a id="a9ff3497add2b4cbb7a9b47b610422789" name="a9ff3497add2b4cbb7a9b47b610422789"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9ff3497add2b4cbb7a9b47b610422789">&#9670;&#160;</a></span>propfind_recurse_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t propfind_recurse_child </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structpropfind__walk__ctx__t.html">propfind_walk_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>child_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>child_href</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>csb</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00122">122</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="propfind__walk_8c_source.html#l00063">propfind_walk_ctx_t::entry_count</a>, <a class="el" href="propfind__walk_8c_source.html#l00060">propfind_walk_ctx_t::head</a>, <a class="el" href="propfind__walk_8c_source.html#l00064">propfind_walk_ctx_t::max_entries</a>, <a class="el" href="propfind__walk_8c_source.html#l00194">propfind_walk()</a>, <a class="el" href="propfind__walk_8c_source.html#l00059">propfind_walk_ctx_t::r</a>, <a class="el" href="propfind__walk_8c_source.html#l00065">propfind_walk_ctx_t::recurse</a>, <a class="el" href="propfind__walk_8c_source.html#l00062">propfind_walk_ctx_t::req</a>, <a class="el" href="propfind__walk_8c_source.html#l00061">propfind_walk_ctx_t::tail</a>, and <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00153">propfind_walk_emit()</a>.</p>
+
+</div>
+</div>
+<a id="aeed19fd08d9cdc1e1a63e90aac12552c" name="aeed19fd08d9cdc1e1a63e90aac12552c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeed19fd08d9cdc1e1a63e90aac12552c">&#9670;&#160;</a></span>propfind_send_headers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t propfind_send_headers </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>total_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_int_t *&#160;</td>
+          <td class="paramname"><em>out_rc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00407">407</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00455">propfind_do()</a>.</p>
+
+</div>
+</div>
+<a id="af6a088310e3e791f97d3c4da1de7565e" name="af6a088310e3e791f97d3c4da1de7565e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af6a088310e3e791f97d3c4da1de7565e">&#9670;&#160;</a></span>propfind_target_href()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void propfind_target_href </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>out_sz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00311">311</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00335">propfind_build_body()</a>.</p>
 
 </div>
 </div>
@@ -234,9 +670,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00014">14</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00064">brix_vfs_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00067">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00066">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00062">brix_vfs_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00073">brix_vfs_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00075">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00153">propfind_walk_emit()</a>.</p>
 
 </div>
 </div>
@@ -308,11 +744,71 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00057">57</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00194">194</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="fs__walk_8c_source.html#l00059">brix_fs_join_path()</a>, <a class="el" href="reserved__names_8h_source.html#l00043">brix_is_internal_name()</a>, <a class="el" href="vfs__dir_8c_source.html#l00359">brix_vfs_closedir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00152">brix_vfs_opendir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00178">brix_vfs_readdir()</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="propfind__walk_8c_source.html#l00028">propfind_dir_ctx()</a>, <a class="el" href="propfind__props_8c_source.html#l00157">propfind_entry()</a>, <a class="el" href="propfind__walk_8c_source.html#l00014">propfind_vfs_to_stat()</a>, <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>.</p>
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="vfs__dir_8c_source.html#l00499">brix_vfs_closedir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00212">brix_vfs_opendir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00376">brix_vfs_readdir()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="propfind__walk_8c_source.html#l00063">propfind_walk_ctx_t::entry_count</a>, <a class="el" href="propfind__walk_8c_source.html#l00060">propfind_walk_ctx_t::head</a>, <a class="el" href="propfind__walk_8c_source.html#l00064">propfind_walk_ctx_t::max_entries</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="propfind__walk_8c_source.html#l00077">propfind_child_visible()</a>, <a class="el" href="propfind__walk_8c_source.html#l00028">propfind_dir_ctx()</a>, <a class="el" href="propfind__walk_8c_source.html#l00153">propfind_walk_emit()</a>, <a class="el" href="propfind__walk_8c_source.html#l00059">propfind_walk_ctx_t::r</a>, <a class="el" href="propfind__walk_8c_source.html#l00065">propfind_walk_ctx_t::recurse</a>, <a class="el" href="propfind__walk_8c_source.html#l00062">propfind_walk_ctx_t::req</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, and <a class="el" href="propfind__walk_8c_source.html#l00061">propfind_walk_ctx_t::tail</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00188">propfind_do()</a>, and <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00335">propfind_build_body()</a>, and <a class="el" href="propfind__walk_8c_source.html#l00122">propfind_recurse_child()</a>.</p>
+
+</div>
+</div>
+<a id="a7a048f2ac42f683d31ebcc91d57ddb74" name="a7a048f2ac42f683d31ebcc91d57ddb74"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7a048f2ac42f683d31ebcc91d57ddb74">&#9670;&#160;</a></span>propfind_walk_emit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t propfind_walk_emit </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structpropfind__walk__ctx__t.html">propfind_walk_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>base_href</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>vst</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="propfind__walk_8c_source.html#l00153">153</a> of file <a class="el" href="propfind__walk_8c_source.html">propfind_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00057">brix_fs_join_path()</a>, <a class="el" href="propfind__walk_8c_source.html#l00063">propfind_walk_ctx_t::entry_count</a>, <a class="el" href="propfind__walk_8c_source.html#l00060">propfind_walk_ctx_t::head</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="propfind__walk_8c_source.html#l00098">propfind_build_child_href()</a>, <a class="el" href="propfind__props_8c_source.html#l00642">propfind_entry()</a>, <a class="el" href="propfind__walk_8c_source.html#l00122">propfind_recurse_child()</a>, <a class="el" href="propfind__walk_8c_source.html#l00014">propfind_vfs_to_stat()</a>, <a class="el" href="propfind__walk_8c_source.html#l00059">propfind_walk_ctx_t::r</a>, <a class="el" href="propfind__walk_8c_source.html#l00062">propfind_walk_ctx_t::req</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="propfind__walk_8c_source.html#l00061">propfind_walk_ctx_t::tail</a>, and <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="propfind__walk_8c_source.html#l00194">propfind_walk()</a>.</p>
 
 </div>
 </div>

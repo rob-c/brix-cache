@@ -8,6 +8,8 @@ var searchData=
   ['ktls_2eh_5',['ktls.h',['../ktls_8h.html',1,'']]],
   ['kv_2ec_6',['kv.c',['../kv_8c.html',1,'']]],
   ['kv_2eh_7',['kv.h',['../kv_8h.html',1,'']]],
-  ['kxr_5fnames_2ec_8',['kxr_names.c',['../kxr__names_8c.html',1,'']]],
-  ['kxr_5fnames_2eh_9',['kxr_names.h',['../kxr__names_8h.html',1,'']]]
+  ['kv_5fconfig_2ec_8',['kv_config.c',['../kv__config_8c.html',1,'']]],
+  ['kv_5finternal_2eh_9',['kv_internal.h',['../kv__internal_8h.html',1,'']]],
+  ['kxr_5fnames_2ec_10',['kxr_names.c',['../kxr__names_8c.html',1,'']]],
+  ['kxr_5fnames_2eh_11',['kxr_names.h',['../kxr__names_8h.html',1,'']]]
 ];

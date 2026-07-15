@@ -111,11 +111,15 @@ $(document).ready(function(){initNavTree('prefetch_8c.html',''); initResizable()
 Functions</h2></td></tr>
 <tr class="memitem:a3caf0a09a9d6ad30f753af460d6907ec" id="r_a3caf0a09a9d6ad30f753af460d6907ec"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prefetch_8c.html#a3caf0a09a9d6ad30f753af460d6907ec">brix_prefetch_fd_range</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, int fd, off_t offset, size_t length)</td></tr>
 <tr class="separator:a3caf0a09a9d6ad30f753af460d6907ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a63f3008c5ac3908a633f73c237bb1224" id="r_a63f3008c5ac3908a633f73c237bb1224"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prefetch_8c.html#a63f3008c5ac3908a633f73c237bb1224">brix_prefetch_read_end</a> (<a class="el" href="structbrix__file__t.html">brix_file_t</a> *file, off_t offset, size_t length, off_t file_size, off_t *end_out)</td></tr>
+<tr class="separator:a63f3008c5ac3908a633f73c237bb1224"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa9980f9274999e77fd3912fdb68a0d21" id="r_aa9980f9274999e77fd3912fdb68a0d21"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prefetch_8c.html#aa9980f9274999e77fd3912fdb68a0d21">brix_prefetch_seq_window</a> (<a class="el" href="structbrix__file__t.html">brix_file_t</a> *file, off_t offset, off_t end, off_t file_size, off_t *hint_start, off_t *hint_end)</td></tr>
+<tr class="separator:aa9980f9274999e77fd3912fdb68a0d21"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a76650549c1900ca280ec253823fdb60c" id="r_a76650549c1900ca280ec253823fdb60c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prefetch_8c.html#a76650549c1900ca280ec253823fdb60c">brix_prefetch_read_file</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structbrix__file__t.html">brix_file_t</a> *file, off_t offset, size_t length, off_t file_size)</td></tr>
 <tr class="separator:a76650549c1900ca280ec253823fdb60c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a56931eb168f94274dee9d5536d2e5c77" id="r_a56931eb168f94274dee9d5536d2e5c77"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prefetch_8c.html#a56931eb168f94274dee9d5536d2e5c77">brix_prefetch_flush</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, int fd, off_t range_start, off_t range_end)</td></tr>
 <tr class="separator:a56931eb168f94274dee9d5536d2e5c77"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a34b1ec6f5c600e4cf77542f0e1dde657" id="r_a34b1ec6f5c600e4cf77542f0e1dde657"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prefetch_8c.html#a34b1ec6f5c600e4cf77542f0e1dde657">brix_prefetch_readv_segments</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structreadahead__list.html">readahead_list</a> *segments, size_t segment_count, size_t readv_seg_max)</td></tr>
+<tr class="memitem:a34b1ec6f5c600e4cf77542f0e1dde657" id="r_a34b1ec6f5c600e4cf77542f0e1dde657"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prefetch_8c.html#a34b1ec6f5c600e4cf77542f0e1dde657">brix_prefetch_readv_segments</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structreadahead__list.html">readahead_list</a> *segments, size_t segment_count, size_t readv_seg_max)</td></tr>
 <tr class="separator:a34b1ec6f5c600e4cf77542f0e1dde657"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -161,7 +165,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="prefetch_8h_source.html#l00028">BRIX_READ_PREFETCH_MIN</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="prefetch_8c_source.html#l00105">brix_prefetch_flush()</a>, and <a class="el" href="prefetch_8c_source.html#l00036">brix_prefetch_read_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="prefetch_8c_source.html#l00169">brix_prefetch_flush()</a>, and <a class="el" href="prefetch_8c_source.html#l00136">brix_prefetch_read_file()</a>.</p>
 
 </div>
 </div>
@@ -203,11 +207,71 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="prefetch_8c_source.html#l00105">105</a> of file <a class="el" href="prefetch_8c_source.html">prefetch.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="prefetch_8c_source.html#l00169">169</a> of file <a class="el" href="prefetch_8c_source.html">prefetch.c</a>.</p>
 
 <p class="reference">References <a class="el" href="prefetch_8c_source.html#l00011">brix_prefetch_fd_range()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="prefetch_8c_source.html#l00116">brix_prefetch_readv_segments()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="prefetch_8c_source.html#l00180">brix_prefetch_readv_segments()</a>.</p>
+
+</div>
+</div>
+<a id="a63f3008c5ac3908a633f73c237bb1224" name="a63f3008c5ac3908a633f73c237bb1224"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a63f3008c5ac3908a633f73c237bb1224">&#9670;&#160;</a></span>brix_prefetch_read_end()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_prefetch_read_end </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__file__t.html">brix_file_t</a> *&#160;</td>
+          <td class="paramname"><em>file</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>length</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>file_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>end_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="prefetch_8c_source.html#l00052">52</a> of file <a class="el" href="prefetch_8c_source.html">prefetch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="prefetch_8h_source.html#l00028">BRIX_READ_PREFETCH_MIN</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="prefetch_8c_source.html#l00136">brix_prefetch_read_file()</a>.</p>
 
 </div>
 </div>
@@ -255,11 +319,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="prefetch_8c_source.html#l00036">36</a> of file <a class="el" href="prefetch_8c_source.html">prefetch.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="prefetch_8c_source.html#l00136">136</a> of file <a class="el" href="prefetch_8c_source.html">prefetch.c</a>.</p>
 
-<p class="reference">References <a class="el" href="prefetch_8c_source.html#l00011">brix_prefetch_fd_range()</a>, <a class="el" href="prefetch_8h_source.html#l00030">BRIX_READ_PREFETCH_LOW_WATER</a>, <a class="el" href="prefetch_8h_source.html#l00028">BRIX_READ_PREFETCH_MIN</a>, <a class="el" href="prefetch_8h_source.html#l00029">BRIX_READ_PREFETCH_WINDOW</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="core_2types_2file_8h_source.html#l00073">brix_file_t::read_ahead_end</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00072">brix_file_t::read_last_end</a>.</p>
+<p class="reference">References <a class="el" href="prefetch_8c_source.html#l00011">brix_prefetch_fd_range()</a>, <a class="el" href="prefetch_8c_source.html#l00052">brix_prefetch_read_end()</a>, <a class="el" href="prefetch_8c_source.html#l00101">brix_prefetch_seq_window()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="core_2types_2file_8h_source.html#l00081">brix_file_t::read_ahead_end</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00080">brix_file_t::read_last_end</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="read_8c_source.html#l00156">brix_handle_read()</a>, <a class="el" href="read__compress_8c_source.html#l00109">brix_read_compressed()</a>, and <a class="el" href="read_8c_source.html#l00056">brix_read_serve_sendfile()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00258">brix_read_compressed()</a>, <a class="el" href="read__sendfile_8c_source.html#l00050">brix_read_serve_sendfile()</a>, <a class="el" href="read__buffered_8c_source.html#l00116">read_prefetch_buffered()</a>, and <a class="el" href="read__buffered_8c_source.html#l00059">read_serve_windowed()</a>.</p>
 
 </div>
 </div>
@@ -307,11 +371,77 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="prefetch_8c_source.html#l00116">116</a> of file <a class="el" href="prefetch_8c_source.html">prefetch.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="prefetch_8c_source.html#l00180">180</a> of file <a class="el" href="prefetch_8c_source.html">prefetch.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="prefetch_8c_source.html#l00105">brix_prefetch_flush()</a>, <a class="el" href="prefetch_8h_source.html#l00031">BRIX_READV_PREFETCH_GAP</a>, <a class="el" href="prefetch_8h_source.html#l00032">BRIX_READV_PREFETCH_MAX</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00345">readahead_list::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00347">readahead_list::offset</a>, and <a class="el" href="wire__write__extended__requests_8h_source.html#l00346">readahead_list::rlen</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="prefetch_8c_source.html#l00169">brix_prefetch_flush()</a>, <a class="el" href="prefetch_8h_source.html#l00031">BRIX_READV_PREFETCH_GAP</a>, <a class="el" href="prefetch_8h_source.html#l00032">BRIX_READV_PREFETCH_MAX</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00345">readahead_list::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00347">readahead_list::offset</a>, and <a class="el" href="wire__write__extended__requests_8h_source.html#l00346">readahead_list::rlen</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00164">brix_handle_readv()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00575">brix_handle_readv()</a>.</p>
+
+</div>
+</div>
+<a id="aa9980f9274999e77fd3912fdb68a0d21" name="aa9980f9274999e77fd3912fdb68a0d21"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa9980f9274999e77fd3912fdb68a0d21">&#9670;&#160;</a></span>brix_prefetch_seq_window()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_prefetch_seq_window </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__file__t.html">brix_file_t</a> *&#160;</td>
+          <td class="paramname"><em>file</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>end</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>file_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>hint_start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>hint_end</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="prefetch_8c_source.html#l00101">101</a> of file <a class="el" href="prefetch_8c_source.html">prefetch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="prefetch_8h_source.html#l00030">BRIX_READ_PREFETCH_LOW_WATER</a>, <a class="el" href="prefetch_8h_source.html#l00029">BRIX_READ_PREFETCH_WINDOW</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00081">brix_file_t::read_ahead_end</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="prefetch_8c_source.html#l00136">brix_prefetch_read_file()</a>.</p>
 
 </div>
 </div>

@@ -1,10 +1,11 @@
 var fs_2path_2path_8h =
 [
+    [ "brix_authdb_query_t", "structbrix__authdb__query__t.html", "structbrix__authdb__query__t" ],
     [ "brix_access_log_flush", "fs_2path_2path_8h.html#a9b49d42e7785d004db3f804157c6d8fb", null ],
     [ "brix_apply_parent_group_policy_fd", "fs_2path_2path_8h.html#a45a3ce0ff8c6d99e2fe4d27626b4cbc2", null ],
     [ "brix_apply_parent_group_policy_path", "fs_2path_2path_8h.html#a46eb542e23ddd06f58922c2d83485f24", null ],
     [ "brix_check_authdb", "fs_2path_2path_8h.html#aef1daf9b61c5ee13398b91294c6d56e8", null ],
-    [ "brix_check_authdb_identity", "fs_2path_2path_8h.html#aa3d77c5166de18570d884dca58ac021a", null ],
+    [ "brix_check_authdb_identity", "fs_2path_2path_8h.html#a8078fb1f443a8575e5eda12b8c1aa86f", null ],
     [ "brix_check_vo_acl", "fs_2path_2path_8h.html#ae0be10aa6d0363d98353719de4b00027", null ],
     [ "brix_check_vo_acl_identity", "fs_2path_2path_8h.html#afee468e67cb093acb63501ee360544d7", null ],
     [ "brix_chmod_confined_canon", "fs_2path_2path_8h.html#a542974fbfd7c7b6ca3dee5b6e8039176", null ],

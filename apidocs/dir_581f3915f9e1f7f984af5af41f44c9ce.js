@@ -9,6 +9,7 @@ var dir_581f3915f9e1f7f984af5af41f44c9ce =
     [ "auth_gate_l1.c", "auth__gate__l1_8c.html", "auth__gate__l1_8c" ],
     [ "auth_gate_l1.h", "auth__gate__l1_8h.html", "auth__gate__l1_8h" ],
     [ "authdb.c", "authdb_8c.html", "authdb_8c" ],
+    [ "authdb_parse.c", "authdb__parse_8c.html", "authdb__parse_8c" ],
     [ "find_rule.c", "find__rule_8c.html", "find__rule_8c" ],
     [ "group_policy.c", "group__policy_8c.html", "group__policy_8c" ]
 ];

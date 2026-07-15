@@ -22,6 +22,15 @@ var xrdfs__meta_8c =
     [ "do_xattr", "xrdfs__meta_8c.html#a8b0c80fa94dea541cdeaf0539290086a", null ],
     [ "ls_json_dir", "xrdfs__meta_8c.html#a123ab4132e5a7fa95eebb71e97bd42af", null ],
     [ "ls_print_dir", "xrdfs__meta_8c.html#ace9bbacf42c4bcac3230cf0d8086c667", null ],
+    [ "ls_print_entry", "xrdfs__meta_8c.html#a19d5f38a2f950634e1be1fdcd2491273", null ],
+    [ "ls_recurse_subdirs", "xrdfs__meta_8c.html#a073c192028d0687dcadcf7827d78ac60", null ],
     [ "rm_report", "xrdfs__meta_8c.html#a972705d75f6cdbbe699fa2d1c30a3af5", null ],
-    [ "xattr_ls", "xrdfs__meta_8c.html#a5824ba508cef77239c2401c8974a6a0d", null ]
+    [ "touch_ensure_file", "xrdfs__meta_8c.html#acc69d14cdbe60d35588193b4232cc38d", null ],
+    [ "touch_fill_times", "xrdfs__meta_8c.html#afdfea0c9d5dbd68f429263fcb67ad538", null ],
+    [ "touch_parse_argv", "xrdfs__meta_8c.html#a4587724ba0f8f7000149c0f79aeeda94", null ],
+    [ "xattr_get", "xrdfs__meta_8c.html#a9e4d5409f8e0341c83a788e425613c19", null ],
+    [ "xattr_is_subcommand", "xrdfs__meta_8c.html#a33e45b2257e8149ae8b58da865cf143e", null ],
+    [ "xattr_ls", "xrdfs__meta_8c.html#a5824ba508cef77239c2401c8974a6a0d", null ],
+    [ "xattr_rm", "xrdfs__meta_8c.html#ac8eea5ed221c4b74e4ac0b994abf0323", null ],
+    [ "xattr_set", "xrdfs__meta_8c.html#ab3e364953bcbe20c672b894183db3543", null ]
 ];

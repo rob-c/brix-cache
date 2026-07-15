@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('zip__write_8c.html',''); initResizable
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">zip_write.c File Reference</div></div>
 </div><!--header-->
@@ -106,16 +107,29 @@ $(document).ready(function(){initNavTree('zip__write_8c.html',''); initResizable
 </div>
 <p><a href="zip__write_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structzw__entry.html">zw_entry</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ae61ca64d695346d570322a2cba85d31c" id="r_ae61ca64d695346d570322a2cba85d31c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#ae61ca64d695346d570322a2cba85d31c">cd_append</a> (<a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *w, const uint8_t *p, size_t len)</td></tr>
 <tr class="separator:ae61ca64d695346d570322a2cba85d31c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6b00e6df64a48936f00a5b7163b8b0d2" id="r_a6b00e6df64a48936f00a5b7163b8b0d2"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a6b00e6df64a48936f00a5b7163b8b0d2">brix_zip_writer_new</a> (<a class="el" href="zip_8h.html#a7a6ac1da879765c2b445f02c50a6416b">brix_zip_write_fn</a> wr, void *ctx)</td></tr>
 <tr class="separator:a6b00e6df64a48936f00a5b7163b8b0d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0be926eeb40873cb831da69c3847a8aa" id="r_a0be926eeb40873cb831da69c3847a8aa"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a0be926eeb40873cb831da69c3847a8aa">brix_zip_writer_new_append</a> (<a class="el" href="zip_8h.html#a7a6ac1da879765c2b445f02c50a6416b">brix_zip_write_fn</a> wr, void *ctx, uint64_t base_offset, const uint8_t *seed_cd, size_t seed_cd_len, size_t seed_n)</td></tr>
-<tr class="separator:a0be926eeb40873cb831da69c3847a8aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a747430e7d92368b14d461741d0afe64a" id="r_a747430e7d92368b14d461741d0afe64a"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a747430e7d92368b14d461741d0afe64a">brix_zip_writer_new_append</a> (<a class="el" href="zip_8h.html#a7a6ac1da879765c2b445f02c50a6416b">brix_zip_write_fn</a> wr, void *ctx, uint64_t base_offset, const <a class="el" href="structbrix__zip__seed.html">brix_zip_seed</a> *seed)</td></tr>
+<tr class="separator:a747430e7d92368b14d461741d0afe64a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab5d099274775b6031d0d5a01c2743bce" id="r_ab5d099274775b6031d0d5a01c2743bce"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#ab5d099274775b6031d0d5a01c2743bce">w_emit</a> (<a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *w, const void *p, size_t len)</td></tr>
 <tr class="separator:ab5d099274775b6031d0d5a01c2743bce"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2d6d57d7f7beed69d861c0a5b4b8cbf9" id="r_a2d6d57d7f7beed69d861c0a5b4b8cbf9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a2d6d57d7f7beed69d861c0a5b4b8cbf9">zw_crc_pass</a> (<a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *w, int fd, <a class="el" href="structzw__entry.html">zw_entry</a> *e, unsigned char *buf, size_t bufsz)</td></tr>
+<tr class="separator:a2d6d57d7f7beed69d861c0a5b4b8cbf9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a737c93f3ef12deadc20d15aebec8f595" id="r_a737c93f3ef12deadc20d15aebec8f595"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a737c93f3ef12deadc20d15aebec8f595">zw_write_local_header</a> (<a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *w, const <a class="el" href="structzw__entry.html">zw_entry</a> *e)</td></tr>
+<tr class="separator:a737c93f3ef12deadc20d15aebec8f595"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a176af48361fafeef42c13e1557126f89" id="r_a176af48361fafeef42c13e1557126f89"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a176af48361fafeef42c13e1557126f89">zw_stream_deflate</a> (<a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *w, int fd, const <a class="el" href="structzw__entry.html">zw_entry</a> *e, unsigned char *buf, size_t bufsz)</td></tr>
+<tr class="separator:a176af48361fafeef42c13e1557126f89"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9541b8d714ecdc233fe88f9d9373b33a" id="r_a9541b8d714ecdc233fe88f9d9373b33a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a9541b8d714ecdc233fe88f9d9373b33a">zw_update_central_dir</a> (<a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *w, const <a class="el" href="structzw__entry.html">zw_entry</a> *e)</td></tr>
+<tr class="separator:a9541b8d714ecdc233fe88f9d9373b33a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a476d2e1a9404a18ce573e4298def3cc6" id="r_a476d2e1a9404a18ce573e4298def3cc6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a476d2e1a9404a18ce573e4298def3cc6">brix_zip_writer_add_fd</a> (<a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *w, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, int fd)</td></tr>
 <tr class="separator:a476d2e1a9404a18ce573e4298def3cc6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7835cbd1191c5986e0e8e921f079948e" id="r_a7835cbd1191c5986e0e8e921f079948e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__write_8c.html#a7835cbd1191c5986e0e8e921f079948e">brix_zip_writer_finish</a> (<a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *w)</td></tr>
@@ -156,11 +170,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00084">84</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00281">281</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00032">brix_zip_writer::any_zip64</a>, <a class="el" href="zip__write_8c_source.html#l00011">cd_append()</a>, <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="zip__internal_8h_source.html#l00031">brix_zip_writer::n</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__internal_8h_source.html#l00027">brix_zip_writer::offset</a>, <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="zip_8c_source.html#l00337">put16()</a>, <a class="el" href="zip_8c_source.html#l00339">put32()</a>, <a class="el" href="zip_8c_source.html#l00345">put64()</a>, <a class="el" href="zip__internal_8h_source.html#l00019">SIG_CDFH</a>, <a class="el" href="zip__internal_8h_source.html#l00020">SIG_LFH</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="zip__write_8c_source.html#l00069">w_emit()</a>, <a class="el" href="zip_8h_source.html#l00057">XRDC_ZIP_EBADF</a>, <a class="el" href="zip_8h_source.html#l00058">XRDC_ZIP_EIO</a>, <a class="el" href="zip_8h_source.html#l00059">XRDC_ZIP_ENOMEM</a>, <a class="el" href="zip_8h_source.html#l00069">XRDC_ZIP_MAX_NAME</a>, <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>, and <a class="el" href="zip__internal_8h_source.html#l00023">ZIP_U32_MAX</a>.</p>
+<p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="zip__internal_8h_source.html#l00031">brix_zip_writer::n</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="zip_8h_source.html#l00057">XRDC_ZIP_EBADF</a>, <a class="el" href="zip_8h_source.html#l00058">XRDC_ZIP_EIO</a>, <a class="el" href="zip_8h_source.html#l00069">XRDC_ZIP_MAX_NAME</a>, <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>, <a class="el" href="zip__write_8c_source.html#l00115">zw_crc_pass()</a>, <a class="el" href="zip__write_8c_source.html#l00199">zw_stream_deflate()</a>, <a class="el" href="zip__write_8c_source.html#l00237">zw_update_central_dir()</a>, and <a class="el" href="zip__write_8c_source.html#l00154">zw_write_local_header()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__zip_8c_source.html#l00250">zip_emit_member()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__zip_8c_source.html#l00343">zip_emit_member()</a>.</p>
 
 </div>
 </div>
@@ -180,11 +194,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00225">225</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00326">326</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00032">brix_zip_writer::any_zip64</a>, <a class="el" href="zip__internal_8h_source.html#l00028">brix_zip_writer::cd</a>, <a class="el" href="zip__internal_8h_source.html#l00029">brix_zip_writer::cd_len</a>, <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="zip__internal_8h_source.html#l00031">brix_zip_writer::n</a>, <a class="el" href="zip__internal_8h_source.html#l00027">brix_zip_writer::offset</a>, <a class="el" href="zip_8c_source.html#l00337">put16()</a>, <a class="el" href="zip_8c_source.html#l00339">put32()</a>, <a class="el" href="zip_8c_source.html#l00345">put64()</a>, <a class="el" href="zip__internal_8h_source.html#l00016">SIG_EOCD</a>, <a class="el" href="zip__internal_8h_source.html#l00021">SIG_Z64EOCD_W</a>, <a class="el" href="zip__internal_8h_source.html#l00022">SIG_Z64LOC_W</a>, <a class="el" href="zip__write_8c_source.html#l00069">w_emit()</a>, <a class="el" href="zip_8h_source.html#l00057">XRDC_ZIP_EBADF</a>, <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>, and <a class="el" href="zip__internal_8h_source.html#l00023">ZIP_U32_MAX</a>.</p>
+<p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00032">brix_zip_writer::any_zip64</a>, <a class="el" href="zip__internal_8h_source.html#l00028">brix_zip_writer::cd</a>, <a class="el" href="zip__internal_8h_source.html#l00029">brix_zip_writer::cd_len</a>, <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="zip__internal_8h_source.html#l00031">brix_zip_writer::n</a>, <a class="el" href="zip__internal_8h_source.html#l00027">brix_zip_writer::offset</a>, <a class="el" href="zip_8c_source.html#l00533">put16()</a>, <a class="el" href="zip_8c_source.html#l00535">put32()</a>, <a class="el" href="zip_8c_source.html#l00541">put64()</a>, <a class="el" href="zip__internal_8h_source.html#l00016">SIG_EOCD</a>, <a class="el" href="zip__internal_8h_source.html#l00021">SIG_Z64EOCD_W</a>, <a class="el" href="zip__internal_8h_source.html#l00022">SIG_Z64LOC_W</a>, <a class="el" href="zip__write_8c_source.html#l00068">w_emit()</a>, <a class="el" href="zip_8h_source.html#l00057">XRDC_ZIP_EBADF</a>, <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>, and <a class="el" href="zip__internal_8h_source.html#l00023">ZIP_U32_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__zip_8c_source.html#l00250">zip_emit_member()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__zip_8c_source.html#l00343">zip_emit_member()</a>.</p>
 
 </div>
 </div>
@@ -204,11 +218,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00298">298</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00399">399</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00028">brix_zip_writer::cd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00049">brix_zip_writer_new_append()</a>, <a class="el" href="copy__zip_8c_source.html#l00267">copy_zip_store_local()</a>, and <a class="el" href="copy__zip_8c_source.html#l00310">copy_zip_store_remote()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00049">brix_zip_writer_new_append()</a>, <a class="el" href="copy__zip_8c_source.html#l00360">copy_zip_store_local()</a>, and <a class="el" href="copy__zip_8c_source.html#l00403">copy_zip_store_remote()</a>.</p>
 
 </div>
 </div>
@@ -242,12 +256,12 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00026">brix_zip_writer::ctx</a>, and <a class="el" href="zip__internal_8h_source.html#l00025">brix_zip_writer::wr</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00049">brix_zip_writer_new_append()</a>, <a class="el" href="copy__zip_8c_source.html#l00267">copy_zip_store_local()</a>, and <a class="el" href="copy__zip_8c_source.html#l00310">copy_zip_store_remote()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00049">brix_zip_writer_new_append()</a>, <a class="el" href="copy__zip_8c_source.html#l00360">copy_zip_store_local()</a>, and <a class="el" href="copy__zip_8c_source.html#l00403">copy_zip_store_remote()</a>.</p>
 
 </div>
 </div>
-<a id="a0be926eeb40873cb831da69c3847a8aa" name="a0be926eeb40873cb831da69c3847a8aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0be926eeb40873cb831da69c3847a8aa">&#9670;&#160;</a></span>brix_zip_writer_new_append()</h2>
+<a id="a747430e7d92368b14d461741d0afe64a" name="a747430e7d92368b14d461741d0afe64a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a747430e7d92368b14d461741d0afe64a">&#9670;&#160;</a></span>brix_zip_writer_new_append()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -273,20 +287,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const uint8_t *&#160;</td>
-          <td class="paramname"><em>seed_cd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>seed_cd_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>seed_n</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structbrix__zip__seed.html">brix_zip_seed</a> *&#160;</td>
+          <td class="paramname"><em>seed</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -298,9 +300,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00049">49</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="zip__write_8c_source.html#l00298">brix_zip_writer_free()</a>, <a class="el" href="zip__write_8c_source.html#l00033">brix_zip_writer_new()</a>, <a class="el" href="zip__write_8c_source.html#l00011">cd_append()</a>, <a class="el" href="zip__internal_8h_source.html#l00031">brix_zip_writer::n</a>, <a class="el" href="zip__internal_8h_source.html#l00027">brix_zip_writer::offset</a>, and <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>.</p>
+<p class="reference">References <a class="el" href="zip__write_8c_source.html#l00399">brix_zip_writer_free()</a>, <a class="el" href="zip__write_8c_source.html#l00033">brix_zip_writer_new()</a>, <a class="el" href="zip_8h_source.html#l00124">brix_zip_seed::cd</a>, <a class="el" href="zip__write_8c_source.html#l00011">cd_append()</a>, <a class="el" href="zip_8h_source.html#l00125">brix_zip_seed::cd_len</a>, <a class="el" href="zip_8h_source.html#l00126">brix_zip_seed::n</a>, <a class="el" href="zip__internal_8h_source.html#l00031">brix_zip_writer::n</a>, <a class="el" href="zip__internal_8h_source.html#l00027">brix_zip_writer::offset</a>, and <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__zip_8c_source.html#l00267">copy_zip_store_local()</a>, and <a class="el" href="copy__zip_8c_source.html#l00310">copy_zip_store_remote()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__zip_8c_source.html#l00360">copy_zip_store_local()</a>, and <a class="el" href="copy__zip_8c_source.html#l00403">copy_zip_store_remote()</a>.</p>
 
 </div>
 </div>
@@ -340,7 +342,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00028">brix_zip_writer::cd</a>, <a class="el" href="zip__internal_8h_source.html#l00030">brix_zip_writer::cd_cap</a>, <a class="el" href="zip__internal_8h_source.html#l00029">brix_zip_writer::cd_len</a>, <a class="el" href="zip_8h_source.html#l00059">XRDC_ZIP_ENOMEM</a>, and <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00084">brix_zip_writer_add_fd()</a>, and <a class="el" href="zip__write_8c_source.html#l00049">brix_zip_writer_new_append()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00049">brix_zip_writer_new_append()</a>, and <a class="el" href="zip__write_8c_source.html#l00237">zw_update_central_dir()</a>.</p>
 
 </div>
 </div>
@@ -376,11 +378,215 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00069">69</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00068">68</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00026">brix_zip_writer::ctx</a>, <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="zip__internal_8h_source.html#l00027">brix_zip_writer::offset</a>, <a class="el" href="zip__internal_8h_source.html#l00025">brix_zip_writer::wr</a>, <a class="el" href="zip_8h_source.html#l00058">XRDC_ZIP_EIO</a>, and <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00084">brix_zip_writer_add_fd()</a>, and <a class="el" href="zip__write_8c_source.html#l00225">brix_zip_writer_finish()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00326">brix_zip_writer_finish()</a>, <a class="el" href="zip__write_8c_source.html#l00199">zw_stream_deflate()</a>, and <a class="el" href="zip__write_8c_source.html#l00154">zw_write_local_header()</a>.</p>
+
+</div>
+</div>
+<a id="a2d6d57d7f7beed69d861c0a5b4b8cbf9" name="a2d6d57d7f7beed69d861c0a5b4b8cbf9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2d6d57d7f7beed69d861c0a5b4b8cbf9">&#9670;&#160;</a></span>zw_crc_pass()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int zw_crc_pass </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structzw__entry.html">zw_entry</a> *&#160;</td>
+          <td class="paramname"><em>e</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>bufsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00115">115</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00032">brix_zip_writer::any_zip64</a>, <a class="el" href="zip__write_8c_source.html#l00098">zw_entry::crc</a>, <a class="el" href="zip__write_8c_source.html#l00097">zw_entry::lfh_off</a>, <a class="el" href="zip__internal_8h_source.html#l00027">brix_zip_writer::offset</a>, <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="zip__write_8c_source.html#l00096">zw_entry::size</a>, <a class="el" href="zip_8h_source.html#l00058">XRDC_ZIP_EIO</a>, <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>, and <a class="el" href="zip__write_8c_source.html#l00099">zw_entry::zip64</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00281">brix_zip_writer_add_fd()</a>.</p>
+
+</div>
+</div>
+<a id="a176af48361fafeef42c13e1557126f89" name="a176af48361fafeef42c13e1557126f89"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a176af48361fafeef42c13e1557126f89">&#9670;&#160;</a></span>zw_stream_deflate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int zw_stream_deflate </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structzw__entry.html">zw_entry</a> *&#160;</td>
+          <td class="paramname"><em>e</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>bufsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00199">199</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="zip__write_8c_source.html#l00096">zw_entry::size</a>, <a class="el" href="zip__write_8c_source.html#l00068">w_emit()</a>, <a class="el" href="zip_8h_source.html#l00058">XRDC_ZIP_EIO</a>, and <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00281">brix_zip_writer_add_fd()</a>.</p>
+
+</div>
+</div>
+<a id="a9541b8d714ecdc233fe88f9d9373b33a" name="a9541b8d714ecdc233fe88f9d9373b33a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9541b8d714ecdc233fe88f9d9373b33a">&#9670;&#160;</a></span>zw_update_central_dir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int zw_update_central_dir </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structzw__entry.html">zw_entry</a> *&#160;</td>
+          <td class="paramname"><em>e</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00237">237</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="zip__write_8c_source.html#l00011">cd_append()</a>, <a class="el" href="zip__write_8c_source.html#l00098">zw_entry::crc</a>, <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="zip__write_8c_source.html#l00097">zw_entry::lfh_off</a>, <a class="el" href="zip__write_8c_source.html#l00094">zw_entry::name</a>, <a class="el" href="zip__write_8c_source.html#l00095">zw_entry::namelen</a>, <a class="el" href="zip_8c_source.html#l00533">put16()</a>, <a class="el" href="zip_8c_source.html#l00535">put32()</a>, <a class="el" href="zip_8c_source.html#l00541">put64()</a>, <a class="el" href="zip__internal_8h_source.html#l00019">SIG_CDFH</a>, <a class="el" href="zip__write_8c_source.html#l00096">zw_entry::size</a>, <a class="el" href="zip_8h_source.html#l00059">XRDC_ZIP_ENOMEM</a>, <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>, <a class="el" href="zip__write_8c_source.html#l00099">zw_entry::zip64</a>, and <a class="el" href="zip__internal_8h_source.html#l00023">ZIP_U32_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00281">brix_zip_writer_add_fd()</a>.</p>
+
+</div>
+</div>
+<a id="a737c93f3ef12deadc20d15aebec8f595" name="a737c93f3ef12deadc20d15aebec8f595"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a737c93f3ef12deadc20d15aebec8f595">&#9670;&#160;</a></span>zw_write_local_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int zw_write_local_header </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__zip__writer.html">brix_zip_writer</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structzw__entry.html">zw_entry</a> *&#160;</td>
+          <td class="paramname"><em>e</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00154">154</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="zip__write_8c_source.html#l00098">zw_entry::crc</a>, <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="zip__write_8c_source.html#l00094">zw_entry::name</a>, <a class="el" href="zip__write_8c_source.html#l00095">zw_entry::namelen</a>, <a class="el" href="zip_8c_source.html#l00533">put16()</a>, <a class="el" href="zip_8c_source.html#l00535">put32()</a>, <a class="el" href="zip_8c_source.html#l00541">put64()</a>, <a class="el" href="zip__internal_8h_source.html#l00020">SIG_LFH</a>, <a class="el" href="zip__write_8c_source.html#l00096">zw_entry::size</a>, <a class="el" href="zip__write_8c_source.html#l00068">w_emit()</a>, <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>, <a class="el" href="zip__write_8c_source.html#l00099">zw_entry::zip64</a>, and <a class="el" href="zip__internal_8h_source.html#l00023">ZIP_U32_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00281">brix_zip_writer_add_fd()</a>.</p>
 
 </div>
 </div>

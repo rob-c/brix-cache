@@ -1,0 +1,9 @@
+<map id="macaroon_parse_input_t" name="macaroon_parse_input_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="78,181,261,207"/>
+<area shape="rect" id="Node000002" href="$structbrix__token__claims__t.html" title=" " alt="" coords="5,93,157,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="105,126,159,179,155,183,101,130"/>
+<area shape="rect" id="Node000003" href="$structbrix__token__scope__t.html" title=" " alt="" coords="8,5,155,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="84,45,84,93,79,93,79,45"/>
+<area shape="rect" id="Node000004" href="$structbrix__macaroon__tp__t.html" title=" " alt="" coords="182,93,333,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="238,130,183,183,180,179,234,126"/>
+</map>

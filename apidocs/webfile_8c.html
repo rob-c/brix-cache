@@ -118,8 +118,12 @@ Functions</h2></td></tr>
 <tr class="separator:ad25ac22dae018ba05a5722e172ba4462"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8eb1a9824310ae02c1240f58b8973cb4" id="r_a8eb1a9824310ae02c1240f58b8973cb4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webfile_8c.html#a8eb1a9824310ae02c1240f58b8973cb4">brix_web_stat</a> (const <a class="el" href="structbrix__weburl.html">brix_weburl</a> *u, const char *path, const char *bearer, int verify, const char *ca_dir, <a class="el" href="structbrix__statinfo.html">brix_statinfo</a> *si, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a8eb1a9824310ae02c1240f58b8973cb4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a24d6c181421f0b83198965141f839ac8" id="r_a24d6c181421f0b83198965141f839ac8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webfile_8c.html#a24d6c181421f0b83198965141f839ac8">xml_name_char</a> (char <a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:a24d6c181421f0b83198965141f839ac8" id="r_a24d6c181421f0b83198965141f839ac8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webfile_8c.html#a24d6c181421f0b83198965141f839ac8">xml_name_char</a> (char <a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:a24d6c181421f0b83198965141f839ac8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aed7bef6dc833257540bf31d5322f7319" id="r_aed7bef6dc833257540bf31d5322f7319"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webfile_8c.html#aed7bef6dc833257540bf31d5322f7319">xml_local_name</a> (const char *q, const char *end, const char **<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="separator:aed7bef6dc833257540bf31d5322f7319"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a67233bf127c449a279433a826e858278" id="r_a67233bf127c449a279433a826e858278"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webfile_8c.html#a67233bf127c449a279433a826e858278">xml_name_boundary</a> (char <a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:a67233bf127c449a279433a826e858278"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a90c1eed0b585f390f8a96564038820a5" id="r_a90c1eed0b585f390f8a96564038820a5"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webfile_8c.html#a90c1eed0b585f390f8a96564038820a5">next_response_open</a> (const char *p, const char *end)</td></tr>
 <tr class="separator:a90c1eed0b585f390f8a96564038820a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aeddaed2d161523c5d514e2d69720c7d3" id="r_aeddaed2d161523c5d514e2d69720c7d3"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webfile_8c.html#aeddaed2d161523c5d514e2d69720c7d3">next_response_close</a> (const char *p, const char *end)</td></tr>
@@ -194,11 +198,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00308">308</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00352">352</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="brix__net_8h_source.html#l00279">brix_http_resp::body_len</a>, <a class="el" href="http__req_8c_source.html#l00177">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00165">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00156">brix_dirent::have_stat</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="webfile_8c_source.html#l00223">next_response_close()</a>, <a class="el" href="webfile_8c_source.html#l00187">next_response_open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="webfile_8c_source.html#l00055">parse_response()</a>, <a class="el" href="webfile_8c_source.html#l00288">path_basename()</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="webfile_8c_source.html#l00110">web_auth()</a>, <a class="el" href="webfile__internal_8h_source.html#l00019">WEB_TIMEOUT_MS</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00045">XRDC_NAME_MAX</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="brix__net_8h_source.html#l00279">brix_http_resp::body_len</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00156">brix_dirent::have_stat</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="webfile_8c_source.html#l00277">next_response_close()</a>, <a class="el" href="webfile_8c_source.html#l00247">next_response_open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="webfile_8c_source.html#l00055">parse_response()</a>, <a class="el" href="webfile_8c_source.html#l00332">path_basename()</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="webfile_8c_source.html#l00110">web_auth()</a>, <a class="el" href="webfile__internal_8h_source.html#l00019">WEB_TIMEOUT_MS</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00045">XRDC_NAME_MAX</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__web_8c_source.html#l00035">web_ls_print_dir()</a>, and <a class="el" href="xrootdfs__meta_8c_source.html#l00073">xfs_readdir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__web_8c_source.html#l00114">web_ls_print_dir()</a>, and <a class="el" href="xrootdfs__meta_8c_source.html#l00073">xfs_readdir()</a>.</p>
 
 </div>
 </div>
@@ -260,9 +264,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00121">121</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="brix__net_8h_source.html#l00279">brix_http_resp::body_len</a>, <a class="el" href="http__req_8c_source.html#l00177">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00165">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="webfile_8c_source.html#l00223">next_response_close()</a>, <a class="el" href="webfile_8c_source.html#l00187">next_response_open()</a>, <a class="el" href="webfile_8c_source.html#l00055">parse_response()</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="webfile_8c_source.html#l00110">web_auth()</a>, <a class="el" href="webfile__internal_8h_source.html#l00019">WEB_TIMEOUT_MS</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="brix__net_8h_source.html#l00279">brix_http_resp::body_len</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="webfile_8c_source.html#l00277">next_response_close()</a>, <a class="el" href="webfile_8c_source.html#l00247">next_response_open()</a>, <a class="el" href="webfile_8c_source.html#l00055">parse_response()</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="webfile_8c_source.html#l00110">web_auth()</a>, <a class="el" href="webfile__internal_8h_source.html#l00019">WEB_TIMEOUT_MS</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webfile__io_8c_source.html#l00239">brix_webfile_open()</a>, <a class="el" href="xrdfs__web_8c_source.html#l00114">web_stat()</a>, <a class="el" href="xrootdfs__meta_8c_source.html#l00035">xfs_getattr()</a>, and <a class="el" href="xrootdfs_8c_source.html#l00251">xrootdfs_aio_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrootdfs_8c_source.html#l00398">aio_web_mount()</a>, <a class="el" href="webfile__io_8c_source.html#l00334">brix_webfile_open()</a>, <a class="el" href="xrdfs__web_8c_source.html#l00171">web_stat()</a>, and <a class="el" href="xrootdfs__meta_8c_source.html#l00035">xfs_getattr()</a>.</p>
 
 </div>
 </div>
@@ -292,9 +296,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00252">252</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00306">306</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="webfile_8c_source.html#l00175">xml_name_char()</a>.</p>
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="webfile_8c_source.html#l00202">xml_local_name()</a>, and <a class="el" href="webfile_8c_source.html#l00235">xml_name_boundary()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00055">parse_response()</a>.</p>
 
@@ -326,11 +330,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00223">223</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00277">277</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="webfile_8c_source.html#l00175">xml_name_char()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00308">brix_web_readdir()</a>, and <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00352">brix_web_readdir()</a>, and <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>.</p>
 
 </div>
 </div>
@@ -360,11 +364,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00187">187</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00247">247</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="webfile_8c_source.html#l00175">xml_name_char()</a>.</p>
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="webfile_8c_source.html#l00202">xml_local_name()</a>, and <a class="el" href="webfile_8c_source.html#l00235">xml_name_boundary()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00308">brix_web_readdir()</a>, and <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00352">brix_web_readdir()</a>, and <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>.</p>
 
 </div>
 </div>
@@ -446,9 +450,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00055">55</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="webfile_8c_source.html#l00252">has_collection_element()</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix__net_8h_source.html#l00142">brix_statinfo::mtime</a>, <a class="el" href="webfile_8c_source.html#l00035">parse_http_date()</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, and <a class="el" href="webfile_8c_source.html#l00008">tag_val()</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="webfile_8c_source.html#l00306">has_collection_element()</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix__net_8h_source.html#l00142">brix_statinfo::mtime</a>, <a class="el" href="webfile_8c_source.html#l00035">parse_http_date()</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, and <a class="el" href="webfile_8c_source.html#l00008">tag_val()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00308">brix_web_readdir()</a>, and <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00352">brix_web_readdir()</a>, and <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>.</p>
 
 </div>
 </div>
@@ -484,9 +488,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00288">288</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00332">332</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00308">brix_web_readdir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00352">brix_web_readdir()</a>.</p>
 
 </div>
 </div>
@@ -570,7 +574,87 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00110">110</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00308">brix_web_readdir()</a>, <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>, and <a class="el" href="webfile__io_8c_source.html#l00239">brix_webfile_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00352">brix_web_readdir()</a>, <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>, and <a class="el" href="webfile__io_8c_source.html#l00334">brix_webfile_open()</a>.</p>
+
+</div>
+</div>
+<a id="aed7bef6dc833257540bf31d5322f7319" name="aed7bef6dc833257540bf31d5322f7319"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aed7bef6dc833257540bf31d5322f7319">&#9670;&#160;</a></span>xml_local_name()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const char * xml_local_name </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>q</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>end</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00202">202</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="webfile_8c_source.html#l00175">xml_name_char()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00306">has_collection_element()</a>, and <a class="el" href="webfile_8c_source.html#l00247">next_response_open()</a>.</p>
+
+</div>
+</div>
+<a id="a67233bf127c449a279433a826e858278" name="a67233bf127c449a279433a826e858278"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a67233bf127c449a279433a826e858278">&#9670;&#160;</a></span>xml_name_boundary()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xml_name_boundary </td>
+          <td>(</td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>c</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00235">235</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00306">has_collection_element()</a>, and <a class="el" href="webfile_8c_source.html#l00247">next_response_open()</a>.</p>
 
 </div>
 </div>
@@ -592,9 +676,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="webfile_8c_source.html#l00175">175</a> of file <a class="el" href="webfile_8c_source.html">webfile.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00252">has_collection_element()</a>, <a class="el" href="webfile_8c_source.html#l00223">next_response_close()</a>, and <a class="el" href="webfile_8c_source.html#l00187">next_response_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webfile_8c_source.html#l00277">next_response_close()</a>, and <a class="el" href="webfile_8c_source.html#l00202">xml_local_name()</a>.</p>
 
 </div>
 </div>

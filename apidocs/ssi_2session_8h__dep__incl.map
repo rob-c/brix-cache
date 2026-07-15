@@ -1,21 +1,25 @@
 <map id="src/protocols/ssi/session.h" name="src/protocols/ssi/session.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="367,5,559,31"/>
-<area shape="rect" id="Node000002" href="$deliver_8h.html" title=" " alt="" coords="105,86,292,111"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="412,37,238,89,236,83,410,32"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="445,5,637,31"/>
+<area shape="rect" id="Node000002" href="$deliver_8h.html" title=" " alt="" coords="251,86,437,111"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="501,38,374,88,372,83,499,33"/>
 <area shape="rect" id="Node000004" href="$ssi_8c.html" title=" " alt="" coords="216,174,376,199"/>
-<area shape="poly" id="edge10_Node000001_Node000004" title=" " alt="" coords="420,39,387,57,357,81,337,104,322,130,302,175,297,173,317,128,333,101,353,77,384,52,418,34"/>
-<area shape="rect" id="Node000005" href="$protocols_2ssi_2registry_8h.html" title=" " alt="" coords="367,86,558,111"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="465,44,465,86,460,86,460,44"/>
-<area shape="rect" id="Node000008" href="$session_8c.html" title=" " alt="" coords="582,86,773,111"/>
-<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="508,33,647,83,645,88,506,38"/>
-<area shape="rect" id="Node000009" href="$session__unittest_8c.html" title=" " alt="" coords="797,79,977,119"/>
-<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="538,31,786,76,797,78,796,83,785,81,537,36"/>
+<area shape="poly" id="edge12_Node000001_Node000004" title=" " alt="" coords="432,29,373,36,316,47,269,61,252,70,241,80,235,92,234,103,244,129,263,153,283,172,280,176,259,156,239,131,229,104,230,90,237,77,249,66,267,57,315,42,372,31,431,24"/>
+<area shape="rect" id="Node000005" href="$ssi__dispatch_8c.html" title=" " alt="" coords="400,167,549,207"/>
+<area shape="poly" id="edge13_Node000001_Node000005" title=" " alt="" coords="525,43,502,80,487,126,480,167,474,166,482,125,498,78,521,40"/>
+<area shape="rect" id="Node000006" href="$protocols_2ssi_2registry_8h.html" title=" " alt="" coords="513,86,703,111"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="562,40,600,84,596,88,558,43"/>
+<area shape="rect" id="Node000009" href="$session_8c.html" title=" " alt="" coords="727,86,918,111"/>
+<area shape="poly" id="edge10_Node000001_Node000009" title=" " alt="" coords="596,32,782,83,781,89,595,37"/>
+<area shape="rect" id="Node000010" href="$session__unittest_8c.html" title=" " alt="" coords="942,79,1122,119"/>
+<area shape="poly" id="edge11_Node000001_Node000010" title=" " alt="" coords="635,30,931,76,942,78,942,83,930,81,634,35"/>
 <area shape="rect" id="Node000003" href="$deliver_8c.html" title=" " alt="" coords="5,174,192,199"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="176,122,114,175,111,171,173,118"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="224,118,284,171,281,175,220,122"/>
-<area shape="poly" id="edge7_Node000005_Node000004" title=" " alt="" coords="429,120,320,176,317,171,427,115"/>
-<area shape="rect" id="Node000006" href="$protocols_2ssi_2registry_8c.html" title=" " alt="" coords="401,174,591,199"/>
-<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="475,123,494,172,489,174,470,125"/>
-<area shape="rect" id="Node000007" href="$registry__unittest_8c.html" title=" " alt="" coords="616,167,797,207"/>
-<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="510,114,654,164,652,169,508,119"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="299,119,132,176,131,171,297,113"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="333,125,305,175,300,172,329,122"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="375,117,447,164,444,169,372,121"/>
+<area shape="poly" id="edge8_Node000006_Node000004" title=" " alt="" coords="554,118,339,176,337,171,552,112"/>
+<area shape="poly" id="edge9_Node000006_Node000005" title=" " alt="" coords="580,121,506,169,503,164,577,117"/>
+<area shape="rect" id="Node000007" href="$protocols_2ssi_2registry_8c.html" title=" " alt="" coords="779,174,970,199"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="658,113,840,171,838,176,656,118"/>
+<area shape="rect" id="Node000008" href="$registry__unittest_8c.html" title=" " alt="" coords="573,167,755,207"/>
+<area shape="poly" id="edge7_Node000006_Node000008" title=" " alt="" coords="625,121,654,165,649,168,621,124"/>
 </map>

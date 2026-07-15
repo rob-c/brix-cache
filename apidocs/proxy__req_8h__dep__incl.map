@@ -1,11 +1,19 @@
 <map id="src/auth/gsi/proxy_req.h" name="src/auth/gsi/proxy_req.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="281,5,419,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="373,5,511,45"/>
 <area shape="rect" id="Node000002" href="$sec__gsi_8c.html" title=" " alt="" coords="5,93,143,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="277,52,135,96,134,91,276,47"/>
-<area shape="rect" id="Node000003" href="$delegation_8c.html" title=" " alt="" coords="167,101,349,126"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="322,57,273,102,269,98,318,53"/>
-<area shape="rect" id="Node000004" href="$proxy__req_8c.html" title=" " alt="" coords="373,93,511,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="382,53,423,91,420,95,378,57"/>
-<area shape="rect" id="Node000005" href="$proxy__req__unittest_8c.html" title=" " alt="" coords="535,93,674,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="420,47,550,91,548,96,418,52"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="360,48,143,99,142,93,359,43"/>
+<area shape="rect" id="Node000003" href="$auth_2gsi_2delegation_8c.html" title=" " alt="" coords="167,101,349,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="390,54,284,103,281,98,388,49"/>
+<area shape="rect" id="Node000004" href="$proxy__req__internal_8h.html" title=" " alt="" coords="373,93,511,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="445,59,445,93,439,93,439,59"/>
+<area shape="rect" id="Node000008" href="$proxy__req__unittest_8c.html" title=" " alt="" coords="535,93,674,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="491,49,570,91,568,96,488,54"/>
+<area shape="rect" id="Node000009" href="$protocols_2webdav_2delegation_8c.html" title=" " alt="" coords="698,93,858,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="526,45,705,91,704,96,524,50"/>
+<area shape="rect" id="Node000005" href="$proxy__req_8c.html" title=" " alt="" coords="210,181,349,221"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="396,142,316,184,314,179,393,137"/>
+<area shape="rect" id="Node000006" href="$proxy__req__assemble_8c.html" title=" " alt="" coords="373,181,511,221"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="445,147,445,181,439,181,439,147"/>
+<area shape="rect" id="Node000007" href="$proxy__req__sign_8c.html" title=" " alt="" coords="535,181,674,221"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="491,137,570,179,568,184,488,142"/>
 </map>

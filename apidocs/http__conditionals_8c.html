@@ -113,14 +113,26 @@ $(document).ready(function(){initNavTree('http__conditionals_8c.html',''); initR
 Functions</h2></td></tr>
 <tr class="memitem:a6f3f62174b3cc58ad685c589c68601e8" id="r_a6f3f62174b3cc58ad685c589c68601e8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#a6f3f62174b3cc58ad685c589c68601e8">brix_http_strip_weak</a> (const char **data, size_t *len)</td></tr>
 <tr class="separator:a6f3f62174b3cc58ad685c589c68601e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a29f45d9f0bbd7f31871b664b25aae2d1" id="r_a29f45d9f0bbd7f31871b664b25aae2d1"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#a29f45d9f0bbd7f31871b664b25aae2d1">brix_http_next_etag_token</a> (const char **cursor, const char *end, const char **tok_start, size_t *tok_len)</td></tr>
+<tr class="separator:a29f45d9f0bbd7f31871b664b25aae2d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae8f39dc6ea0946dd566a3859307ef9b1" id="r_ae8f39dc6ea0946dd566a3859307ef9b1"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#ae8f39dc6ea0946dd566a3859307ef9b1">brix_http_etag_list_contains</a> (const ngx_str_t *header, const char *etag, unsigned flags)</td></tr>
 <tr class="separator:ae8f39dc6ea0946dd566a3859307ef9b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a668e15efc691ed6e2568fd26f359e0c9" id="r_a668e15efc691ed6e2568fd26f359e0c9"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#a668e15efc691ed6e2568fd26f359e0c9">brix_http_check_etag_preconditions</a> (ngx_http_request_t *r, ngx_flag_t resource_exists, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, unsigned etag_flags, unsigned condition_flags)</td></tr>
-<tr class="separator:a668e15efc691ed6e2568fd26f359e0c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0fce66125a30a95327c6448492bec951" id="r_a0fce66125a30a95327c6448492bec951"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#a0fce66125a30a95327c6448492bec951">cond_header_present</a> (const ngx_table_elt_t *h)</td></tr>
 <tr class="separator:a0fce66125a30a95327c6448492bec951"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad1d070743deba2496269a1dc8492ceee" id="r_ad1d070743deba2496269a1dc8492ceee"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#ad1d070743deba2496269a1dc8492ceee">cond_is_wildcard</a> (const ngx_str_t *v)</td></tr>
 <tr class="separator:ad1d070743deba2496269a1dc8492ceee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad6f1e99a8545bca59b06923753eb1de7" id="r_ad6f1e99a8545bca59b06923753eb1de7"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#ad6f1e99a8545bca59b06923753eb1de7">brix_http_validator_selects</a> (const ngx_str_t *value, ngx_flag_t resource_exists, const char *etag, unsigned condition_flags)</td></tr>
+<tr class="separator:ad6f1e99a8545bca59b06923753eb1de7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af2f52e985dba785341d7626f1a500430" id="r_af2f52e985dba785341d7626f1a500430"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#af2f52e985dba785341d7626f1a500430">brix_http_eval_if_unmodified_since</a> (const ngx_table_elt_t *if_unmod, time_t mtime)</td></tr>
+<tr class="separator:af2f52e985dba785341d7626f1a500430"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab20b6392e83b3d61943f06f9f7898105" id="r_ab20b6392e83b3d61943f06f9f7898105"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#ab20b6392e83b3d61943f06f9f7898105">brix_http_eval_if_modified_since</a> (const ngx_table_elt_t *if_mod, time_t mtime)</td></tr>
+<tr class="separator:ab20b6392e83b3d61943f06f9f7898105"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a668e15efc691ed6e2568fd26f359e0c9" id="r_a668e15efc691ed6e2568fd26f359e0c9"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#a668e15efc691ed6e2568fd26f359e0c9">brix_http_check_etag_preconditions</a> (ngx_http_request_t *r, ngx_flag_t resource_exists, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, unsigned etag_flags, unsigned condition_flags)</td></tr>
+<tr class="separator:a668e15efc691ed6e2568fd26f359e0c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abf894b4cb878187ba4002a2ac6cbe87b" id="r_abf894b4cb878187ba4002a2ac6cbe87b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#abf894b4cb878187ba4002a2ac6cbe87b">brix_http_eval_match_group</a> (ngx_table_elt_t *if_match, ngx_table_elt_t *if_unmod, ngx_flag_t resource_exists, const char *etag, unsigned condition_flags, unsigned time_mode, time_t mtime)</td></tr>
+<tr class="separator:abf894b4cb878187ba4002a2ac6cbe87b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1c10f531c8e08834ccc8cc70b478ba60" id="r_a1c10f531c8e08834ccc8cc70b478ba60"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#a1c10f531c8e08834ccc8cc70b478ba60">brix_http_eval_none_match_group</a> (ngx_table_elt_t *if_none, ngx_table_elt_t *if_mod, ngx_flag_t resource_exists, const char *etag, unsigned condition_flags, unsigned read_mode, unsigned time_mode, time_t mtime)</td></tr>
+<tr class="separator:a1c10f531c8e08834ccc8cc70b478ba60"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2efc36359eb0a613207724f97c63108f" id="r_a2efc36359eb0a613207724f97c63108f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#a2efc36359eb0a613207724f97c63108f">brix_http_eval_preconditions</a> (ngx_http_request_t *r, ngx_flag_t resource_exists, time_t mtime, off_t size, unsigned etag_flags, unsigned condition_flags)</td></tr>
 <tr class="separator:a2efc36359eb0a613207724f97c63108f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a169688bced2408fbefbd90f888ad9fcd" id="r_a169688bced2408fbefbd90f888ad9fcd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__conditionals_8c.html#a169688bced2408fbefbd90f888ad9fcd">brix_http_check_if_modified_since</a> (ngx_http_request_t *r, time_t mtime)</td></tr>
@@ -173,11 +185,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00108">108</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00239">239</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__conditionals_8c_source.html#l00047">brix_http_etag_list_contains()</a>, and <a class="el" href="etag_8c_source.html#l00035">brix_http_etag_str()</a>.</p>
+<p class="reference">References <a class="el" href="etag_8c_source.html#l00035">brix_http_etag_str()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00179">brix_http_validator_selects()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__conditionals_8c_source.html#l00037">webdav_check_copy_conditionals()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__conditionals_8c_source.html#l00037">webdav_check_copy_conditionals()</a>, and <a class="el" href="put__setup_8c_source.html#l00219">webdav_put_precheck()</a>.</p>
 
 </div>
 </div>
@@ -207,9 +219,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00263">263</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00399">399</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00082">cvmfs_tier_get()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00186">cvmfs_tier_open_respond()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00410">get_eval_conditionals()</a>.</p>
 
 </div>
 </div>
@@ -245,11 +257,241 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00047">47</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00095">95</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__conditionals_8h_source.html#l00017">BRIX_HTTP_COND_WEAK_EQUIV</a>, and <a class="el" href="http__conditionals_8c_source.html#l00038">brix_http_strip_weak()</a>.</p>
+<p class="reference">References <a class="el" href="http__conditionals_8h_source.html#l00017">BRIX_HTTP_COND_WEAK_EQUIV</a>, <a class="el" href="http__conditionals_8c_source.html#l00063">brix_http_next_etag_token()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00038">brix_http_strip_weak()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00108">brix_http_check_etag_preconditions()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00193">brix_http_eval_preconditions()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00179">brix_http_validator_selects()</a>.</p>
+
+</div>
+</div>
+<a id="ab20b6392e83b3d61943f06f9f7898105" name="ab20b6392e83b3d61943f06f9f7898105"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab20b6392e83b3d61943f06f9f7898105">&#9670;&#160;</a></span>brix_http_eval_if_modified_since()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_http_eval_if_modified_since </td>
+          <td>(</td>
+          <td class="paramtype">const ngx_table_elt_t *&#160;</td>
+          <td class="paramname"><em>if_mod</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>mtime</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00228">228</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00336">brix_http_eval_none_match_group()</a>.</p>
+
+</div>
+</div>
+<a id="af2f52e985dba785341d7626f1a500430" name="af2f52e985dba785341d7626f1a500430"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af2f52e985dba785341d7626f1a500430">&#9670;&#160;</a></span>brix_http_eval_if_unmodified_since()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_http_eval_if_unmodified_since </td>
+          <td>(</td>
+          <td class="paramtype">const ngx_table_elt_t *&#160;</td>
+          <td class="paramname"><em>if_unmod</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>mtime</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00205">205</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00298">brix_http_eval_match_group()</a>.</p>
+
+</div>
+</div>
+<a id="abf894b4cb878187ba4002a2ac6cbe87b" name="abf894b4cb878187ba4002a2ac6cbe87b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abf894b4cb878187ba4002a2ac6cbe87b">&#9670;&#160;</a></span>brix_http_eval_match_group()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_http_eval_match_group </td>
+          <td>(</td>
+          <td class="paramtype">ngx_table_elt_t *&#160;</td>
+          <td class="paramname"><em>if_match</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_table_elt_t *&#160;</td>
+          <td class="paramname"><em>if_unmod</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>resource_exists</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>etag</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>condition_flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>time_mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>mtime</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00298">298</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__conditionals_8c_source.html#l00205">brix_http_eval_if_unmodified_since()</a>, <a class="el" href="http__conditionals_8c_source.html#l00179">brix_http_validator_selects()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00143">cond_header_present()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00359">brix_http_eval_preconditions()</a>.</p>
+
+</div>
+</div>
+<a id="a1c10f531c8e08834ccc8cc70b478ba60" name="a1c10f531c8e08834ccc8cc70b478ba60"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1c10f531c8e08834ccc8cc70b478ba60">&#9670;&#160;</a></span>brix_http_eval_none_match_group()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_http_eval_none_match_group </td>
+          <td>(</td>
+          <td class="paramtype">ngx_table_elt_t *&#160;</td>
+          <td class="paramname"><em>if_none</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_table_elt_t *&#160;</td>
+          <td class="paramname"><em>if_mod</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>resource_exists</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>etag</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>condition_flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>read_mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>time_mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>mtime</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00336">336</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__conditionals_8c_source.html#l00228">brix_http_eval_if_modified_since()</a>, <a class="el" href="http__conditionals_8c_source.html#l00179">brix_http_validator_selects()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00143">cond_header_present()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00359">brix_http_eval_preconditions()</a>.</p>
 
 </div>
 </div>
@@ -303,11 +545,63 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00193">193</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00359">359</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__conditionals_8h_source.html#l00032">BRIX_HTTP_COND_READ</a>, <a class="el" href="http__conditionals_8h_source.html#l00033">BRIX_HTTP_COND_TIME</a>, <a class="el" href="http__conditionals_8c_source.html#l00047">brix_http_etag_list_contains()</a>, <a class="el" href="etag_8c_source.html#l00035">brix_http_etag_str()</a>, <a class="el" href="http__conditionals_8c_source.html#l00173">cond_header_present()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00187">cond_is_wildcard()</a>.</p>
+<p class="reference">References <a class="el" href="http__conditionals_8h_source.html#l00032">BRIX_HTTP_COND_READ</a>, <a class="el" href="http__conditionals_8h_source.html#l00033">BRIX_HTTP_COND_TIME</a>, <a class="el" href="etag_8c_source.html#l00035">brix_http_etag_str()</a>, <a class="el" href="http__conditionals_8c_source.html#l00298">brix_http_eval_match_group()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00336">brix_http_eval_none_match_group()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="conditional_8c_source.html#l00086">s3_handle_conditional()</a>, and <a class="el" href="conditional_8c_source.html#l00144">s3_put_precondition()</a>.</p>
+
+</div>
+</div>
+<a id="a29f45d9f0bbd7f31871b664b25aae2d1" name="a29f45d9f0bbd7f31871b664b25aae2d1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a29f45d9f0bbd7f31871b664b25aae2d1">&#9670;&#160;</a></span>brix_http_next_etag_token()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_http_next_etag_token </td>
+          <td>(</td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>cursor</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>end</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>tok_start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>tok_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00063">63</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00095">brix_http_etag_list_contains()</a>.</p>
 
 </div>
 </div>
@@ -327,11 +621,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00282">282</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00418">418</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>, and <a class="el" href="http__headers_8c_source.html#l00215">brix_http_header_value_equals()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, and <a class="el" href="http__headers_8c_source.html#l00259">brix_http_header_value_equals()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00302">webdav_handle_copy()</a>, and <a class="el" href="move_8c_source.html#l00241">webdav_handle_move()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00434">webdav_copy_parse_request()</a>, and <a class="el" href="move_8c_source.html#l00460">webdav_handle_move()</a>.</p>
 
 </div>
 </div>
@@ -371,7 +665,61 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00038">38</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00047">brix_http_etag_list_contains()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00095">brix_http_etag_list_contains()</a>.</p>
+
+</div>
+</div>
+<a id="ad6f1e99a8545bca59b06923753eb1de7" name="ad6f1e99a8545bca59b06923753eb1de7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad6f1e99a8545bca59b06923753eb1de7">&#9670;&#160;</a></span>brix_http_validator_selects()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_http_validator_selects </td>
+          <td>(</td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>value</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>resource_exists</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>etag</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>condition_flags</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00179">179</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__conditionals_8c_source.html#l00095">brix_http_etag_list_contains()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00157">cond_is_wildcard()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00239">brix_http_check_etag_preconditions()</a>, <a class="el" href="http__conditionals_8c_source.html#l00298">brix_http_eval_match_group()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00336">brix_http_eval_none_match_group()</a>.</p>
 
 </div>
 </div>
@@ -399,9 +747,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00173">173</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00143">143</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00193">brix_http_eval_preconditions()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00298">brix_http_eval_match_group()</a>, and <a class="el" href="http__conditionals_8c_source.html#l00336">brix_http_eval_none_match_group()</a>.</p>
 
 </div>
 </div>
@@ -429,9 +777,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00187">187</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__conditionals_8c_source.html#l00157">157</a> of file <a class="el" href="http__conditionals_8c_source.html">http_conditionals.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00193">brix_http_eval_preconditions()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00179">brix_http_validator_selects()</a>.</p>
 
 </div>
 </div>

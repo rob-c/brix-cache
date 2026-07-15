@@ -110,7 +110,7 @@ $(document).ready(function(){initNavTree('zip__http_8h.html',''); initResizable(
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="zip__http_8h__dep__incl.svg" width="534" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="zip__http_8h__dep__incl.svg" width="100%" height="404"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="zip__http_8h_source.html">Go to the source code of this file.</a></p>
@@ -159,7 +159,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="zip__http_8c_source.html#l00024">zip_http_name_ok()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00132">get_zip_member_serve()</a>, and <a class="el" href="object_8c_source.html#l00110">s3_get_serve_zip_member()</a>.</p>
 
 </div>
 </div>
@@ -207,11 +207,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00079">79</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00312">312</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="zip__dir_8h_source.html#l00047">BRIX_ZIP_EIO</a>, <a class="el" href="zip__dir_8c_source.html#l00184">brix_zip_extract_full()</a>, <a class="el" href="zip__dir_8c_source.html#l00075">brix_zip_find_member()</a>, <a class="el" href="zip__dir_8h_source.html#l00030">BRIX_ZIP_METHOD_STORE</a>, <a class="el" href="zip__dir_8h_source.html#l00045">BRIX_ZIP_NOMEMBER</a>, <a class="el" href="zip__dir_8h_source.html#l00044">BRIX_ZIP_OK</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="zip__http_8c_source.html#l00070">zip_http_close_fd()</a>, and <a class="el" href="zip__http_8c_source.html#l00021">ZIP_HTTP_MEM_MAX</a>.</p>
+<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="zip__dir_8h_source.html#l00030">BRIX_ZIP_METHOD_STORE</a>, <a class="el" href="zip__http_8c_source.html#l00083">zip_http_span_t::len</a>, <a class="el" href="zip__dir_8h_source.html#l00036">brix_zip_member_t::method</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="zip__http_8c_source.html#l00082">zip_http_span_t::start</a>, <a class="el" href="zip__http_8c_source.html#l00081">zip_http_span_t::total</a>, <a class="el" href="zip__dir_8h_source.html#l00038">brix_zip_member_t::uncomp_size</a>, <a class="el" href="zip__http_8c_source.html#l00143">zip_http_locate_member()</a>, <a class="el" href="zip__http_8c_source.html#l00096">zip_http_open_archive()</a>, <a class="el" href="zip__http_8c_source.html#l00168">zip_http_parse_range()</a>, <a class="el" href="zip__http_8c_source.html#l00283">zip_http_set_headers()</a>, <a class="el" href="zip__http_8c_source.html#l00250">zip_http_stage_deflate()</a>, and <a class="el" href="zip__http_8c_source.html#l00216">zip_http_stage_stored()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00132">get_zip_member_serve()</a>, and <a class="el" href="object_8c_source.html#l00110">s3_get_serve_zip_member()</a>.</p>
 
 </div>
 </div>

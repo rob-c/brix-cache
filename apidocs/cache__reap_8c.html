@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('cache__reap_8c.html',''); initResizabl
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">cache_reap.c File Reference</div></div>
 </div><!--header-->
@@ -115,6 +116,11 @@ $(document).ready(function(){initNavTree('cache__reap_8c.html',''); initResizabl
 </div>
 <p><a href="cache__reap_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structreap__ctx__t.html">reap_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:adf735e9438e8e4dc1d27c0b15f575675" id="r_adf735e9438e8e4dc1d27c0b15f575675"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__reap_8c.html#adf735e9438e8e4dc1d27c0b15f575675">reap_is_sidecar</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
@@ -123,8 +129,14 @@ Functions</h2></td></tr>
 <tr class="separator:a4422ac56c6ecc17d03a7fefb187796a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a896e8459d036b6857b5b77f327ff3032" id="r_a896e8459d036b6857b5b77f327ff3032"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__reap_8c.html#a896e8459d036b6857b5b77f327ff3032">reap_metrics_slot</a> (const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:a896e8459d036b6857b5b77f327ff3032"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa4c7acbc295af33c5a94428f6b501738" id="r_aa4c7acbc295af33c5a94428f6b501738"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__reap_8c.html#aa4c7acbc295af33c5a94428f6b501738">reap_dir</a> (const char *dir, time_t cutoff, dev_t dev, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *slot, <a class="el" href="structbrix__cstore__t.html">brix_cstore_t</a> *cstore, const char *data_root)</td></tr>
-<tr class="separator:aa4c7acbc295af33c5a94428f6b501738"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac30c8c072e5ba16c92f8f77d33617757" id="r_ac30c8c072e5ba16c92f8f77d33617757"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__reap_8c.html#ac30c8c072e5ba16c92f8f77d33617757">reap_entry_candidate</a> (const char *dir, const struct dirent *de, const <a class="el" href="structreap__ctx__t.html">reap_ctx_t</a> *rc, char *child, int *is_dir)</td></tr>
+<tr class="separator:ac30c8c072e5ba16c92f8f77d33617757"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a07874a9c59b33a1ba9e86220ff70628b" id="r_a07874a9c59b33a1ba9e86220ff70628b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__reap_8c.html#a07874a9c59b33a1ba9e86220ff70628b">reap_classify</a> (const char *child, const <a class="el" href="structreap__ctx__t.html">reap_ctx_t</a> *rc, <a class="el" href="structbrix__cache__cinfo__state__t.html">brix_cache_cinfo_state_t</a> *cs, <a class="el" href="observability_2metrics_2metrics_8h.html#a17abce2eb0f4aa975a4953ff1bb71ccb">brix_cache_reap_reason_t</a> *reason)</td></tr>
+<tr class="separator:a07874a9c59b33a1ba9e86220ff70628b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3c0174c5f224f6542999d99ad07c6548" id="r_a3c0174c5f224f6542999d99ad07c6548"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__reap_8c.html#a3c0174c5f224f6542999d99ad07c6548">reap_remove</a> (const char *child, const <a class="el" href="structreap__ctx__t.html">reap_ctx_t</a> *rc, const <a class="el" href="structbrix__cache__cinfo__state__t.html">brix_cache_cinfo_state_t</a> *cs, <a class="el" href="observability_2metrics_2metrics_8h.html#a17abce2eb0f4aa975a4953ff1bb71ccb">brix_cache_reap_reason_t</a> reason)</td></tr>
+<tr class="separator:a3c0174c5f224f6542999d99ad07c6548"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9540aff17ae1650da2e41b45897f44c9" id="r_a9540aff17ae1650da2e41b45897f44c9"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__reap_8c.html#a9540aff17ae1650da2e41b45897f44c9">reap_dir</a> (const char *dir, const <a class="el" href="structreap__ctx__t.html">reap_ctx_t</a> *rc)</td></tr>
+<tr class="separator:a9540aff17ae1650da2e41b45897f44c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4fcde85bf163777644332181b3389b2c" id="r_a4fcde85bf163777644332181b3389b2c"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__reap_8c.html#a4fcde85bf163777644332181b3389b2c">brix_cache_reap_dirty</a> (const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a4fcde85bf163777644332181b3389b2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -155,16 +167,70 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__reap_8c_source.html#l00173">173</a> of file <a class="el" href="cache__reap_8c_source.html">cache_reap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__reap_8c_source.html#l00256">256</a> of file <a class="el" href="cache__reap_8c_source.html">cache_reap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="paths_8c_source.html#l00093">brix_cache_state_root()</a>, <a class="el" href="cache__storage_8c_source.html#l00216">brix_cache_storage_cstore()</a>, <a class="el" href="types_2config_8h_source.html#l00481">ngx_stream_brix_srv_conf_t::cache_dirty_max_age</a>, <a class="el" href="types_2config_8h_source.html#l00421">ngx_stream_brix_srv_conf_t::cache_root</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cache__reap_8c_source.html#l00071">reap_dir()</a>, <a class="el" href="cache__reap_8c_source.html#l00050">reap_metrics_slot()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="paths_8c_source.html#l00093">brix_cache_state_root()</a>, <a class="el" href="cache__storage_8c_source.html#l00216">brix_cache_storage_cstore()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cache__reap_8c_source.html#l00221">reap_dir()</a>, <a class="el" href="cache__reap_8c_source.html#l00050">reap_metrics_slot()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00167">brix_cache_reap_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="process__timers_8c_source.html#l00161">brix_cache_reap_handler()</a>.</p>
 
 </div>
 </div>
-<a id="aa4c7acbc295af33c5a94428f6b501738" name="aa4c7acbc295af33c5a94428f6b501738"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa4c7acbc295af33c5a94428f6b501738">&#9670;&#160;</a></span>reap_dir()</h2>
+<a id="a07874a9c59b33a1ba9e86220ff70628b" name="a07874a9c59b33a1ba9e86220ff70628b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a07874a9c59b33a1ba9e86220ff70628b">&#9670;&#160;</a></span>reap_classify()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int reap_classify </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>child</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structreap__ctx__t.html">reap_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>rc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__cinfo__state__t.html">brix_cache_cinfo_state_t</a> *&#160;</td>
+          <td class="paramname"><em>cs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="observability_2metrics_2metrics_8h.html#a17abce2eb0f4aa975a4953ff1bb71ccb">brix_cache_reap_reason_t</a> *&#160;</td>
+          <td class="paramname"><em>reason</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cache__reap_8c_source.html#l00134">134</a> of file <a class="el" href="cache__reap_8c_source.html">cache_reap.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cinfo_8c_source.html#l00538">brix_cache_cinfo_state()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00127">BRIX_CACHE_REAP_ABANDONED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00129">BRIX_CACHE_REAP_COMPLETED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00128">BRIX_CACHE_REAP_INCOMPLETE</a>, <a class="el" href="cache__reap_8c_source.html#l00077">reap_ctx_t::cutoff</a>, <a class="el" href="cinfo_8h_source.html#l00236">brix_cache_cinfo_state_t::dirty_since</a>, <a class="el" href="cinfo_8h_source.html#l00237">brix_cache_cinfo_state_t::flush_gen</a>, <a class="el" href="cinfo_8h_source.html#l00233">brix_cache_cinfo_state_t::is_dirty</a>, and <a class="el" href="cinfo_8h_source.html#l00238">brix_cache_cinfo_state_t::last_flush</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00221">reap_dir()</a>.</p>
+
+</div>
+</div>
+<a id="a9540aff17ae1650da2e41b45897f44c9" name="a9540aff17ae1650da2e41b45897f44c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9540aff17ae1650da2e41b45897f44c9">&#9670;&#160;</a></span>reap_dir()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -181,38 +247,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">time_t&#160;</td>
-          <td class="paramname"><em>cutoff</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">dev_t&#160;</td>
-          <td class="paramname"><em>dev</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *&#160;</td>
-          <td class="paramname"><em>slot</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__cstore__t.html">brix_cstore_t</a> *&#160;</td>
-          <td class="paramname"><em>cstore</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>data_root</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structreap__ctx__t.html">reap_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>rc</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -227,11 +263,71 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__reap_8c_source.html#l00071">71</a> of file <a class="el" href="cache__reap_8c_source.html">cache_reap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__reap_8c_source.html#l00221">221</a> of file <a class="el" href="cache__reap_8c_source.html">cache_reap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo_8c_source.html#l00538">brix_cache_cinfo_state()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00127">BRIX_CACHE_REAP_ABANDONED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00129">BRIX_CACHE_REAP_COMPLETED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00128">BRIX_CACHE_REAP_INCOMPLETE</a>, <a class="el" href="cstore_8c_source.html#l00266">brix_cstore_evict()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00195">ngx_brix_srv_metrics_t::cache_dirty_reaped</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="cache__reap_8c_source.html#l00071">reap_dir()</a>, <a class="el" href="cache__reap_8c_source.html#l00020">reap_is_sidecar()</a>, <a class="el" href="cache__reap_8c_source.html#l00034">reap_unlink_sidecars()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00127">BRIX_CACHE_REAP_ABANDONED</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="cache__reap_8c_source.html#l00134">reap_classify()</a>, <a class="el" href="cache__reap_8c_source.html#l00221">reap_dir()</a>, <a class="el" href="cache__reap_8c_source.html#l00097">reap_entry_candidate()</a>, and <a class="el" href="cache__reap_8c_source.html#l00179">reap_remove()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00173">brix_cache_reap_dirty()</a>, and <a class="el" href="cache__reap_8c_source.html#l00071">reap_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00256">brix_cache_reap_dirty()</a>, and <a class="el" href="cache__reap_8c_source.html#l00221">reap_dir()</a>.</p>
+
+</div>
+</div>
+<a id="ac30c8c072e5ba16c92f8f77d33617757" name="ac30c8c072e5ba16c92f8f77d33617757"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac30c8c072e5ba16c92f8f77d33617757">&#9670;&#160;</a></span>reap_entry_candidate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int reap_entry_candidate </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct dirent *&#160;</td>
+          <td class="paramname"><em>de</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structreap__ctx__t.html">reap_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>rc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>child</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>is_dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cache__reap_8c_source.html#l00097">97</a> of file <a class="el" href="cache__reap_8c_source.html">cache_reap.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cache__reap_8c_source.html#l00078">reap_ctx_t::dev</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="cache__reap_8c_source.html#l00020">reap_is_sidecar()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00221">reap_dir()</a>.</p>
 
 </div>
 </div>
@@ -263,7 +359,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00071">reap_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00097">reap_entry_candidate()</a>.</p>
 
 </div>
 </div>
@@ -293,9 +389,63 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cache__reap_8c_source.html#l00050">50</a> of file <a class="el" href="cache__reap_8c_source.html">cache_reap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="types_2config_8h_source.html#l00313">ngx_stream_brix_srv_conf_t::metrics_slot</a>, <a class="el" href="observability_2metrics_2handler_8c_source.html#l00011">ngx_brix_shm_zone</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00366">ngx_brix_metrics_t::servers</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2handler_8c_source.html#l00011">ngx_brix_shm_zone</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00173">brix_cache_reap_dirty()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00256">brix_cache_reap_dirty()</a>.</p>
+
+</div>
+</div>
+<a id="a3c0174c5f224f6542999d99ad07c6548" name="a3c0174c5f224f6542999d99ad07c6548"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3c0174c5f224f6542999d99ad07c6548">&#9670;&#160;</a></span>reap_remove()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void reap_remove </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>child</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structreap__ctx__t.html">reap_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>rc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__cache__cinfo__state__t.html">brix_cache_cinfo_state_t</a> *&#160;</td>
+          <td class="paramname"><em>cs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="observability_2metrics_2metrics_8h.html#a17abce2eb0f4aa975a4953ff1bb71ccb">brix_cache_reap_reason_t</a>&#160;</td>
+          <td class="paramname"><em>reason</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cache__reap_8c_source.html#l00179">179</a> of file <a class="el" href="cache__reap_8c_source.html">cache_reap.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00129">BRIX_CACHE_REAP_COMPLETED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00128">BRIX_CACHE_REAP_INCOMPLETE</a>, <a class="el" href="cstore_8c_source.html#l00266">brix_cstore_evict()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00195">ngx_brix_srv_metrics_t::cache_dirty_reaped</a>, <a class="el" href="cache__reap_8c_source.html#l00081">reap_ctx_t::cstore</a>, <a class="el" href="cache__reap_8c_source.html#l00082">reap_ctx_t::data_root</a>, <a class="el" href="cinfo_8h_source.html#l00235">brix_cache_cinfo_state_t::dirty_hi</a>, <a class="el" href="cinfo_8h_source.html#l00234">brix_cache_cinfo_state_t::dirty_lo</a>, <a class="el" href="cache__reap_8c_source.html#l00079">reap_ctx_t::log</a>, <a class="el" href="cache__reap_8c_source.html#l00034">reap_unlink_sidecars()</a>, and <a class="el" href="cache__reap_8c_source.html#l00080">reap_ctx_t::slot</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00221">reap_dir()</a>.</p>
 
 </div>
 </div>
@@ -327,7 +477,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cinfo_8c_source.html#l00090">brix_cache_cinfo_path()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00071">reap_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cache__reap_8c_source.html#l00179">reap_remove()</a>.</p>
 
 </div>
 </div>

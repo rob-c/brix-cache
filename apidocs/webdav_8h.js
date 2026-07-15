@@ -2,7 +2,6 @@ var webdav_8h =
 [
     [ "webdav_lock_xattr_t", "structwebdav__lock__xattr__t.html", "structwebdav__lock__xattr__t" ],
     [ "brix_dig_export_t", "structbrix__dig__export__t.html", "structbrix__dig__export__t" ],
-    [ "ngx_http_brix_webdav_loc_conf_t", "structngx__http__brix__webdav__loc__conf__t.html", "structngx__http__brix__webdav__loc__conf__t" ],
     [ "ngx_http_brix_webdav_req_ctx_t", "structngx__http__brix__webdav__req__ctx__t.html", "structngx__http__brix__webdav__req__ctx__t" ],
     [ "BRIX_WEBDAV_ALLOW_FLAGS", "webdav_8h.html#a28477c205ce530d03408a3e0e36eee2f", null ],
     [ "WEBDAV_FD_TABLE_SIZE", "webdav_8h.html#a0ff8dd8d7073207b0df03a3b175de2a1", null ],

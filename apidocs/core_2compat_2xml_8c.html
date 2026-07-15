@@ -120,6 +120,8 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:aeebeba0cf554249e3531e695c2640db4" id="r_aeebeba0cf554249e3531e695c2640db4"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="core_2compat_2xml_8c.html#aeebeba0cf554249e3531e695c2640db4">brix_xml_escaped_len</a> (const unsigned char *src, size_t len, unsigned flags)</td></tr>
 <tr class="separator:aeebeba0cf554249e3531e695c2640db4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad42e9893961df32a45b6c5e7f5e376da" id="r_ad42e9893961df32a45b6c5e7f5e376da"><td class="memItemLeft" align="right" valign="top">static unsigned char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="core_2compat_2xml_8c.html#ad42e9893961df32a45b6c5e7f5e376da">brix_xml_escape_char</a> (unsigned char <a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, unsigned flags, unsigned char *out)</td></tr>
+<tr class="separator:ad42e9893961df32a45b6c5e7f5e376da"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d0c0bc5b13e421ca9329cd196f0a114" id="r_a2d0c0bc5b13e421ca9329cd196f0a114"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="core_2compat_2xml_8c.html#a2d0c0bc5b13e421ca9329cd196f0a114">brix_xml_escape</a> (const unsigned char *src, size_t len, unsigned flags, unsigned char *dst, size_t dst_size, size_t *written)</td></tr>
 <tr class="separator:a2d0c0bc5b13e421ca9329cd196f0a114"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aece5965936a321de9d11b3e377198818" id="r_aece5965936a321de9d11b3e377198818"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="core_2compat_2xml_8c.html#aece5965936a321de9d11b3e377198818">brix_xml_element_name_valid</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
@@ -136,6 +138,8 @@ Functions</h2></td></tr>
 <tr class="separator:a758f96d1d3f2c5b15b0148cf892dafce"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac27388c7dd7ee90ebe1810296d77dd8c" id="r_ac27388c7dd7ee90ebe1810296d77dd8c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="core_2compat_2xml_8c.html#ac27388c7dd7ee90ebe1810296d77dd8c">brix_xml_copy_content</a> (xmlNodePtr node, char *dst, size_t dst_len)</td></tr>
 <tr class="separator:ac27388c7dd7ee90ebe1810296d77dd8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a80d5b593b2a2b0bd0d52761938a87f3c" id="r_a80d5b593b2a2b0bd0d52761938a87f3c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="core_2compat_2xml_8c.html#a80d5b593b2a2b0bd0d52761938a87f3c">brix_xml_lockinfo_extract</a> (xmlNodePtr root, char *owner, size_t owner_len, int *exclusive)</td></tr>
+<tr class="separator:a80d5b593b2a2b0bd0d52761938a87f3c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4dc6249d7574c1ab8de8d18b69ad7e03" id="r_a4dc6249d7574c1ab8de8d18b69ad7e03"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="core_2compat_2xml_8c.html#a4dc6249d7574c1ab8de8d18b69ad7e03">brix_xml_parse_lockinfo</a> (const char *xml, size_t xml_len, char *owner, size_t owner_len, int *exclusive)</td></tr>
 <tr class="separator:a4dc6249d7574c1ab8de8d18b69ad7e03"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a33302de07017ce2220d7b8a70a9676ba" id="r_a33302de07017ce2220d7b8a70a9676ba"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="core_2compat_2xml_8c.html#a33302de07017ce2220d7b8a70a9676ba">brix_xml_backend_name</a> (void)</td></tr>
@@ -175,7 +179,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00448">448</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00482">482</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
 </div>
 </div>
@@ -219,9 +223,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00339">339</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00353">353</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00381">brix_xml_parse_lockinfo()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00393">brix_xml_lockinfo_extract()</a>.</p>
 
 </div>
 </div>
@@ -249,11 +253,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00177">177</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00191">191</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00206">brix_xml_text_element_len()</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00236">brix_xml_write_text_element()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00220">brix_xml_text_element_len()</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00250">brix_xml_write_text_element()</a>.</p>
 
 </div>
 </div>
@@ -307,11 +311,59 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00099">99</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00145">145</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
-<p class="reference">References <a class="el" href="hex_8c_source.html#l00021">brix_hex_nibble()</a>, <a class="el" href="core_2compat_2xml_8h_source.html#l00027">BRIX_XML_ESCAPE_APOS_ENTITY</a>, <a class="el" href="core_2compat_2xml_8h_source.html#l00028">BRIX_XML_ESCAPE_CONTROL_PERCENT</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00043">brix_xml_escaped_len()</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00101">brix_xml_escape_char()</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00043">brix_xml_escaped_len()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00236">brix_xml_write_text_element()</a>, and <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00250">brix_xml_write_text_element()</a>, and <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>.</p>
+
+</div>
+</div>
+<a id="ad42e9893961df32a45b6c5e7f5e376da" name="ad42e9893961df32a45b6c5e7f5e376da"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad42e9893961df32a45b6c5e7f5e376da">&#9670;&#160;</a></span>brix_xml_escape_char()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static unsigned char * brix_xml_escape_char </td>
+          <td>(</td>
+          <td class="paramtype">unsigned char&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned char *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00101">101</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+
+<p class="reference">References <a class="el" href="hex_8c_source.html#l00021">brix_hex_nibble()</a>, <a class="el" href="core_2compat_2xml_8h_source.html#l00027">BRIX_XML_ESCAPE_APOS_ENTITY</a>, <a class="el" href="core_2compat_2xml_8h_source.html#l00028">BRIX_XML_ESCAPE_CONTROL_PERCENT</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00145">brix_xml_escape()</a>.</p>
 
 </div>
 </div>
@@ -351,7 +403,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="core_2compat_2xml_8h_source.html#l00027">BRIX_XML_ESCAPE_APOS_ENTITY</a>, and <a class="el" href="core_2compat_2xml_8h_source.html#l00028">BRIX_XML_ESCAPE_CONTROL_PERCENT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00099">brix_xml_escape()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00206">brix_xml_text_element_len()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00236">brix_xml_write_text_element()</a>, and <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00145">brix_xml_escape()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00220">brix_xml_text_element_len()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00250">brix_xml_write_text_element()</a>, and <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>.</p>
 
 </div>
 </div>
@@ -389,11 +441,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00291">291</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00305">305</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00283">brix_xml_name_is()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00297">brix_xml_name_is()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00381">brix_xml_parse_lockinfo()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00393">brix_xml_lockinfo_extract()</a>.</p>
 
 </div>
 </div>
@@ -431,11 +483,65 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00310">310</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00324">324</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00310">brix_xml_find_descendant()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00283">brix_xml_name_is()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00324">brix_xml_find_descendant()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00297">brix_xml_name_is()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00310">brix_xml_find_descendant()</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00381">brix_xml_parse_lockinfo()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00324">brix_xml_find_descendant()</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00393">brix_xml_lockinfo_extract()</a>.</p>
+
+</div>
+</div>
+<a id="a80d5b593b2a2b0bd0d52761938a87f3c" name="a80d5b593b2a2b0bd0d52761938a87f3c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a80d5b593b2a2b0bd0d52761938a87f3c">&#9670;&#160;</a></span>brix_xml_lockinfo_extract()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_xml_lockinfo_extract </td>
+          <td>(</td>
+          <td class="paramtype">xmlNodePtr&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>owner</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>owner_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>exclusive</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00393">393</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+
+<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00353">brix_xml_copy_content()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00305">brix_xml_find_child()</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00324">brix_xml_find_descendant()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00433">brix_xml_parse_lockinfo()</a>.</p>
 
 </div>
 </div>
@@ -473,11 +579,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00283">283</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00297">297</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00291">brix_xml_find_child()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00310">brix_xml_find_descendant()</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00381">brix_xml_parse_lockinfo()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="core_2compat_2xml_8c_source.html#l00305">brix_xml_find_child()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00324">brix_xml_find_descendant()</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00433">brix_xml_parse_lockinfo()</a>.</p>
 
 </div>
 </div>
@@ -525,9 +631,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00381">381</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00433">433</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00339">brix_xml_copy_content()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00291">brix_xml_find_child()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00310">brix_xml_find_descendant()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00028">BRIX_XML_MAX_LOCKINFO_BODY</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00283">brix_xml_name_is()</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00393">brix_xml_lockinfo_extract()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00028">BRIX_XML_MAX_LOCKINFO_BODY</a>, and <a class="el" href="core_2compat_2xml_8c_source.html#l00297">brix_xml_name_is()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2webdav_2locks_2request_8c_source.html#l00092">webdav_lock_parse_body()</a>.</p>
 
@@ -571,9 +677,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00206">206</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00220">220</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00177">brix_xml_element_name_valid()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00043">brix_xml_escaped_len()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00191">brix_xml_element_name_valid()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00043">brix_xml_escaped_len()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="http__xml_8c_source.html#l00183">brix_http_send_xml_error()</a>.</p>
 
@@ -635,11 +741,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00236">236</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="core_2compat_2xml_8c_source.html#l00250">250</a> of file <a class="el" href="core_2compat_2xml_8c_source.html">xml.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00177">brix_xml_element_name_valid()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00099">brix_xml_escape()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00043">brix_xml_escaped_len()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2xml_8c_source.html#l00191">brix_xml_element_name_valid()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00145">brix_xml_escape()</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00043">brix_xml_escaped_len()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__xml_8c_source.html#l00183">brix_http_send_xml_error()</a>, and <a class="el" href="delete__objects_8c_source.html#l00104">s3_delete_xml_append_elem()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__xml_8c_source.html#l00183">brix_http_send_xml_error()</a>, and <a class="el" href="delete__objects_8c_source.html#l00114">s3_delete_xml_append_elem()</a>.</p>
 
 </div>
 </div>

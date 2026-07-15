@@ -125,7 +125,7 @@ $(document).ready(function(){initNavTree('gsi__core__internal_8h.html',''); init
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="gsi__core__internal_8h__dep__incl.svg" width="100%" height="393"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="gsi__core__internal_8h__dep__incl.svg" width="100%" height="404"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="gsi__core__internal_8h_source.html">Go to the source code of this file.</a></p>
@@ -145,12 +145,14 @@ Functions</h2></td></tr>
 <tr class="separator:ac2c278005426562cbcc573057d4355aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a745200897f8608073d3ec0d21c601ab0" id="r_a745200897f8608073d3ec0d21c601ab0"><td class="memItemLeft" align="right" valign="top">EVP_PKEY *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__core__internal_8h.html#a745200897f8608073d3ec0d21c601ab0">gsi_cresp_cert_pubkey</a> (const uint8_t *pem, size_t len)</td></tr>
 <tr class="separator:a745200897f8608073d3ec0d21c601ab0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a99e8a62391df089f755dc95e18eb44f7" id="r_a99e8a62391df089f755dc95e18eb44f7"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__core__internal_8h.html#a99e8a62391df089f755dc95e18eb44f7">gsi_cresp_export_pubkey_pem</a> (EVP_PKEY *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t *outlen)</td></tr>
+<tr class="memitem:a99e8a62391df089f755dc95e18eb44f7" id="r_a99e8a62391df089f755dc95e18eb44f7"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__core__internal_8h.html#a99e8a62391df089f755dc95e18eb44f7">gsi_cresp_export_pubkey_pem</a> (EVP_PKEY *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t *outlen)</td></tr>
 <tr class="separator:a99e8a62391df089f755dc95e18eb44f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaea8601dd8b272c3abf791bc1c7ecda0" id="r_aaea8601dd8b272c3abf791bc1c7ecda0"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__core__internal_8h.html#aaea8601dd8b272c3abf791bc1c7ecda0">gsi_cresp_pick_md_alg</a> (const uint8_t *sbody, uint32_t slen, char *out, size_t outcap)</td></tr>
 <tr class="separator:aaea8601dd8b272c3abf791bc1c7ecda0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af3a772974cf7f4a57d9c7a5399e41f4a" id="r_af3a772974cf7f4a57d9c7a5399e41f4a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__core__internal_8h.html#af3a772974cf7f4a57d9c7a5399e41f4a">gsi_cresp_fail</a> (<a class="el" href="structgsi__cresp__ctx.html">gsi_cresp_ctx</a> *x, char *err, size_t errcap, const char *msg)</td></tr>
 <tr class="separator:af3a772974cf7f4a57d9c7a5399e41f4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3a3c12127ed7e2f69c8eb9703e157866" id="r_a3a3c12127ed7e2f69c8eb9703e157866"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__core__internal_8h.html#a3a3c12127ed7e2f69c8eb9703e157866">gsi_add_fullproxy_bucket</a> (<a class="el" href="structbrix__gbuf.html">brix_gbuf</a> *inner)</td></tr>
+<tr class="separator:a3a3c12127ed7e2f69c8eb9703e157866"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -160,6 +162,30 @@ Variables</h2></td></tr>
 <tr class="separator:af7a78d8e006588902a9d5e9f543fd0e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a3a3c12127ed7e2f69c8eb9703e157866" name="a3a3c12127ed7e2f69c8eb9703e157866"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3a3c12127ed7e2f69c8eb9703e157866">&#9670;&#160;</a></span>gsi_add_fullproxy_bucket()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void gsi_add_fullproxy_bucket </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__gbuf.html">brix_gbuf</a> *&#160;</td>
+          <td class="paramname"><em>inner</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="gsi__core__cresp__util_8c_source.html#l00142">142</a> of file <a class="el" href="gsi__core__cresp__util_8c_source.html">gsi_core_cresp_util.c</a>.</p>
+
+<p class="reference">References <a class="el" href="gsi__buf_8c_source.html#l00113">brix_gbuf_bucket()</a>, and <a class="el" href="gsi_8h_source.html#l00063">kXRS_x509_fullproxy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="gsi__core__cresp_8c_source.html#l00284">gsi_cresp_build_inner()</a>.</p>
+
+</div>
+</div>
 <a id="a745200897f8608073d3ec0d21c601ab0" name="a745200897f8608073d3ec0d21c601ab0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a745200897f8608073d3ec0d21c601ab0">&#9670;&#160;</a></span>gsi_cresp_cert_pubkey()</h2>
 
@@ -186,9 +212,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gsi__core_8c_source.html#l00124">124</a> of file <a class="el" href="gsi__core_8c_source.html">gsi_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gsi__core__cresp__util_8c_source.html#l00031">31</a> of file <a class="el" href="gsi__core__cresp__util_8c_source.html">gsi_core_cresp_util.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__core_8c_source.html#l00224">brix_gsi_build_cert_response_ex()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__core__cresp_8c_source.html#l00101">gsi_cresp_extract_peer_pub()</a>.</p>
 
 </div>
 </div>
@@ -218,11 +244,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gsi__core_8c_source.html#l00141">141</a> of file <a class="el" href="gsi__core_8c_source.html">gsi_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gsi__core__cresp__util_8c_source.html#l00048">48</a> of file <a class="el" href="gsi__core__cresp__util_8c_source.html">gsi_core_cresp_util.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__core_8c_source.html#l00224">brix_gsi_build_cert_response_ex()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__core__cresp_8c_source.html#l00348">gsi_cresp_add_signed_public()</a>.</p>
 
 </div>
 </div>
@@ -264,11 +290,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gsi__core_8c_source.html#l00203">203</a> of file <a class="el" href="gsi__core_8c_source.html">gsi_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gsi__core__cresp__util_8c_source.html#l00109">109</a> of file <a class="el" href="gsi__core__cresp__util_8c_source.html">gsi_core_cresp_util.c</a>.</p>
 
 <p class="reference">References <a class="el" href="gsi__buf_8c_source.html#l00063">brix_gbuf_free()</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00039">gsi_cresp_ctx::cpub</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00043">gsi_cresp_ctx::enc</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00044">gsi_cresp_ctx::inner</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00033">gsi_cresp_ctx::mine</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00045">gsi_cresp_ctx::outer</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00034">gsi_cresp_ctx::peer</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00036">gsi_cresp_ctx::peerblob</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00042">gsi_cresp_ctx::pubpem</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00035">gsi_cresp_ctx::servpub</a>, <a class="el" href="gsi__core__internal_8h_source.html#l00040">gsi_cresp_ctx::signed_cpub</a>, and <a class="el" href="gsi__core__internal_8h_source.html#l00037">gsi_cresp_ctx::signed_rtag</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__core_8c_source.html#l00224">brix_gsi_build_cert_response_ex()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__core__cresp_8c_source.html#l00431">brix_gsi_build_cert_response_ex()</a>, and <a class="el" href="gsi__core__cresp_8c_source.html#l00084">gsi_cresp_state_fail()</a>.</p>
 
 </div>
 </div>
@@ -310,11 +336,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gsi__core_8c_source.html#l00166">166</a> of file <a class="el" href="gsi__core_8c_source.html">gsi_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gsi__core__cresp__util_8c_source.html#l00073">73</a> of file <a class="el" href="gsi__core__cresp__util_8c_source.html">gsi_core_cresp_util.c</a>.</p>
 
 <p class="reference">References <a class="el" href="gsi__buf_8c_source.html#l00008">brix_gsi_find_bucket()</a>, and <a class="el" href="gsi_8h_source.html#l00053">kXRS_md_alg</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__core_8c_source.html#l00224">brix_gsi_build_cert_response_ex()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__core__cresp_8c_source.html#l00386">gsi_cresp_build_outer()</a>.</p>
 
 </div>
 </div>
@@ -336,7 +362,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="gsi__dh_8c_source.html#l00177">177</a> of file <a class="el" href="gsi__dh_8c_source.html">gsi_dh.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gsi__dh_8c_source.html#l00161">gsi_fixed_dh_params()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="gsi__dh_8c_source.html#l00161">gsi_fixed_dh_params()</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="gsi__cipher_8c_source.html#l00010">brix_gsi_cipher_keygen()</a>, and <a class="el" href="gsi__cipher_8c_source.html#l00017">brix_gsi_cipher_keygen_from()</a>.</p>
 
@@ -360,7 +386,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="gsi__dh_8c_source.html#l00161">161</a> of file <a class="el" href="gsi__dh_8c_source.html">gsi_dh.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gsi__core_8c_source.html#l00007">brix_gsi_dh_params_pem</a>.</p>
+<p class="reference">References <a class="el" href="gsi__core_8c_source.html#l00014">brix_gsi_dh_params_pem</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="gsi__dh_8c_source.html#l00177">gsi_dh_keygen_with()</a>.</p>
 
@@ -382,9 +408,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gsi__cipher_8c_source.html#l00143">143</a> of file <a class="el" href="gsi__cipher_8c_source.html">gsi_cipher.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gsi__cipher_8c_source.html#l00146">146</a> of file <a class="el" href="gsi__cipher_8c_source.html">gsi_cipher.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__cipher_8c_source.html#l00155">brix_gsi_cipher_lookup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__cipher_8c_source.html#l00158">brix_gsi_cipher_lookup()</a>.</p>
 
 </div>
 </div>
@@ -409,7 +435,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gsi__core_8c_source.html#l00007">7</a> of file <a class="el" href="gsi__core_8c_source.html">gsi_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gsi__core_8c_source.html#l00014">14</a> of file <a class="el" href="gsi__core_8c_source.html">gsi_core.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="gsi__dh_8c_source.html#l00161">gsi_fixed_dh_params()</a>.</p>
 
@@ -435,9 +461,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gsi__core_8c_source.html#l00020">20</a> of file <a class="el" href="gsi__core_8c_source.html">gsi_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gsi__core_8c_source.html#l00027">27</a> of file <a class="el" href="gsi__core_8c_source.html">gsi_core.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__cipher_8c_source.html#l00155">brix_gsi_cipher_lookup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__cipher_8c_source.html#l00158">brix_gsi_cipher_lookup()</a>.</p>
 
 </div>
 </div>

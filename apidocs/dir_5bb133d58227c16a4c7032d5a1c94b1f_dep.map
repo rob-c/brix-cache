@@ -1,8 +1,8 @@
 <map id="src/protocols/dig" name="src/protocols/dig">
 <area shape="rect" id="node1" href="dir_59fd0f310d21ab586fe0200b5dbe53cd.html" title="webdav" alt="" coords="27,125,101,151"/>
 <area shape="rect" id="node2" href="dir_5bb133d58227c16a4c7032d5a1c94b1f.html" title="dig" alt="" coords="59,52,101,77"/>
-<area shape="poly" id="edge1" href="dir_000035_000126.html" alt="" coords="80,78,72,113,67,112,75,77"/>
-<area shape="rect" id="edge1-headlabel" href="dir_000035_000126.html" title="1" alt="" coords="74,102,84,117"/>
+<area shape="poly" id="edge1" href="dir_000035_000127.html" alt="" coords="80,78,72,113,67,112,75,77"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000035_000127.html" title="1" alt="" coords="74,102,84,117"/>
 <area shape="rect" id="node3" href="dir_7d71b6c457a61cbf03a04bfdc57b6110.html" title="fs" alt="" coords="125,125,163,151"/>
 <area shape="poly" id="edge2" href="dir_000035_000044.html" alt="" coords="93,76,127,113,123,117,89,79"/>
 <area shape="rect" id="edge2-headlabel" href="dir_000035_000044.html" title="2" alt="" coords="123,99,132,113"/>

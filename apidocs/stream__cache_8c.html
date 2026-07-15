@@ -111,6 +111,26 @@ $(document).ready(function(){initNavTree('stream__cache_8c.html',''); initResiza
 Functions</h2></td></tr>
 <tr class="memitem:a266bc0087d189fc230be975f3dabb37b" id="r_a266bc0087d189fc230be975f3dabb37b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#a266bc0087d189fc230be975f3dabb37b">brix_cache_statvfs</a> (const char *root, uint64_t *total, uint64_t *used, uint64_t *available, ngx_uint_t *occupancy_ppm)</td></tr>
 <tr class="separator:a266bc0087d189fc230be975f3dabb37b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abee5eac096893814815d28f6495513e1" id="r_abee5eac096893814815d28f6495513e1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#abee5eac096893814815d28f6495513e1">stream_cache_port_str</a> (char *buf, size_t buf_size, ngx_uint_t port)</td></tr>
+<tr class="separator:abee5eac096893814815d28f6495513e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5f39bfdce5af1411aac92e6b6c0612b8" id="r_a5f39bfdce5af1411aac92e6b6c0612b8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#a5f39bfdce5af1411aac92e6b6c0612b8">stream_cache_emit_occupancy_ratio</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
+<tr class="separator:a5f39bfdce5af1411aac92e6b6c0612b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af2ad02fb31c9f31c3ae0fcf38190205b" id="r_af2ad02fb31c9f31c3ae0fcf38190205b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#af2ad02fb31c9f31c3ae0fcf38190205b">stream_cache_emit_eviction_threshold</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
+<tr class="separator:af2ad02fb31c9f31c3ae0fcf38190205b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa0ead597cf762ff025e7dcfb4963d5ac" id="r_aa0ead597cf762ff025e7dcfb4963d5ac"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#aa0ead597cf762ff025e7dcfb4963d5ac">stream_cache_emit_cache_bytes</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
+<tr class="separator:aa0ead597cf762ff025e7dcfb4963d5ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a06f10bc3d9570bc9f4b3a74a1957c049" id="r_a06f10bc3d9570bc9f4b3a74a1957c049"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#a06f10bc3d9570bc9f4b3a74a1957c049">stream_cache_emit_eviction_counter</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm, const char *header, const char *metric_name, size_t counter_off)</td></tr>
+<tr class="separator:a06f10bc3d9570bc9f4b3a74a1957c049"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad2656888e2042f4c5468ce3ccb6267e5" id="r_ad2656888e2042f4c5468ce3ccb6267e5"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#ad2656888e2042f4c5468ce3ccb6267e5">stream_cache_emit_eviction_counters</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
+<tr class="separator:ad2656888e2042f4c5468ce3ccb6267e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae71a2e6598ba5d4fcfd4f45bb3f3b7fd" id="r_ae71a2e6598ba5d4fcfd4f45bb3f3b7fd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#ae71a2e6598ba5d4fcfd4f45bb3f3b7fd">stream_cache_emit_dirty_reaped</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
+<tr class="separator:ae71a2e6598ba5d4fcfd4f45bb3f3b7fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a41e18ef7e00816243c8d281a945780d0" id="r_a41e18ef7e00816243c8d281a945780d0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#a41e18ef7e00816243c8d281a945780d0">stream_cache_emit_wt_single</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm, const char *header, const char *metric_name, size_t counter_off)</td></tr>
+<tr class="separator:a41e18ef7e00816243c8d281a945780d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acf5312c6222611a7908983575852aac9" id="r_acf5312c6222611a7908983575852aac9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#acf5312c6222611a7908983575852aac9">stream_cache_emit_wt_flushes</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
+<tr class="separator:acf5312c6222611a7908983575852aac9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aad47178e4446c02ee75999387bcb543b" id="r_aad47178e4446c02ee75999387bcb543b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#aad47178e4446c02ee75999387bcb543b">stream_cache_emit_write_through</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
+<tr class="separator:aad47178e4446c02ee75999387bcb543b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6b7f19af43a5ad7e1c0da4a5ac56484c" id="r_a6b7f19af43a5ad7e1c0da4a5ac56484c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#a6b7f19af43a5ad7e1c0da4a5ac56484c">brix_export_stream_cache_metrics</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
 <tr class="separator:a6b7f19af43a5ad7e1c0da4a5ac56484c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -167,11 +187,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00028">28</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00027">27</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
 
 <p class="reference">References <a class="el" href="fs__usage_8h_source.html#l00020">brix_fs_usage_t::available_bytes</a>, <a class="el" href="fs__usage_8c_source.html#l00072">brix_fs_usage_stat()</a>, <a class="el" href="fs__usage_8h_source.html#l00022">brix_fs_usage_t::occupancy_bytes</a>, <a class="el" href="fs__usage_8h_source.html#l00023">brix_fs_usage_t::occupancy_ppm</a>, and <a class="el" href="fs__usage_8h_source.html#l00018">brix_fs_usage_t::total_bytes</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00065">brix_export_stream_cache_metrics()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00136">stream_cache_emit_cache_bytes()</a>, and <a class="el" href="stream__cache_8c_source.html#l00067">stream_cache_emit_occupancy_ratio()</a>.</p>
 
 </div>
 </div>
@@ -201,11 +221,471 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00065">65</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00401">401</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00127">BRIX_CACHE_REAP_ABANDONED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00129">BRIX_CACHE_REAP_COMPLETED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00128">BRIX_CACHE_REAP_INCOMPLETE</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00130">BRIX_CACHE_REAP_REASON_COUNT</a>, <a class="el" href="stream__cache_8c_source.html#l00028">brix_cache_statvfs()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00195">ngx_brix_srv_metrics_t::cache_dirty_reaped</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00227">ngx_brix_srv_metrics_t::cache_enabled</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00186">ngx_brix_srv_metrics_t::cache_evicted_bytes_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00187">ngx_brix_srv_metrics_t::cache_eviction_errors_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00228">ngx_brix_srv_metrics_t::cache_eviction_threshold</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00185">ngx_brix_srv_metrics_t::cache_evictions_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00229">ngx_brix_srv_metrics_t::cache_root</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00366">ngx_brix_metrics_t::servers</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00198">ngx_brix_srv_metrics_t::wt_dirty_handles</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00202">ngx_brix_srv_metrics_t::wt_flush_bytes_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00201">ngx_brix_srv_metrics_t::wt_flush_error_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00199">ngx_brix_srv_metrics_t::wt_flush_pending</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00200">ngx_brix_srv_metrics_t::wt_flush_success_total</a>.</p>
+<p class="reference">References <a class="el" href="stream__cache_8c_source.html#l00136">stream_cache_emit_cache_bytes()</a>, <a class="el" href="stream__cache_8c_source.html#l00248">stream_cache_emit_dirty_reaped()</a>, <a class="el" href="stream__cache_8c_source.html#l00212">stream_cache_emit_eviction_counters()</a>, <a class="el" href="stream__cache_8c_source.html#l00105">stream_cache_emit_eviction_threshold()</a>, <a class="el" href="stream__cache_8c_source.html#l00067">stream_cache_emit_occupancy_ratio()</a>, and <a class="el" href="stream__cache_8c_source.html#l00360">stream_cache_emit_write_through()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stream_8c_source.html#l00075">brix_export_prometheus_metrics()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stream_8c_source.html#l00204">brix_export_prometheus_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="aa0ead597cf762ff025e7dcfb4963d5ac" name="aa0ead597cf762ff025e7dcfb4963d5ac"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa0ead597cf762ff025e7dcfb4963d5ac">&#9670;&#160;</a></span>stream_cache_emit_cache_bytes()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_cache_bytes </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00136">136</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="stream__cache_8c_source.html#l00027">brix_cache_statvfs()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00227">ngx_brix_srv_metrics_t::cache_enabled</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00229">ngx_brix_srv_metrics_t::cache_root</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>, and <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00401">brix_export_stream_cache_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="ae71a2e6598ba5d4fcfd4f45bb3f3b7fd" name="ae71a2e6598ba5d4fcfd4f45bb3f3b7fd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae71a2e6598ba5d4fcfd4f45bb3f3b7fd">&#9670;&#160;</a></span>stream_cache_emit_dirty_reaped()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_dirty_reaped </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00248">248</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00127">BRIX_CACHE_REAP_ABANDONED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00129">BRIX_CACHE_REAP_COMPLETED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00128">BRIX_CACHE_REAP_INCOMPLETE</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00130">BRIX_CACHE_REAP_REASON_COUNT</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00195">ngx_brix_srv_metrics_t::cache_dirty_reaped</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>, and <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00401">brix_export_stream_cache_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="a06f10bc3d9570bc9f4b3a74a1957c049" name="a06f10bc3d9570bc9f4b3a74a1957c049"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a06f10bc3d9570bc9f4b3a74a1957c049">&#9670;&#160;</a></span>stream_cache_emit_eviction_counter()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_eviction_counter </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>header</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>metric_name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>counter_off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00182">182</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00227">ngx_brix_srv_metrics_t::cache_enabled</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>, and <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00212">stream_cache_emit_eviction_counters()</a>.</p>
+
+</div>
+</div>
+<a id="ad2656888e2042f4c5468ce3ccb6267e5" name="ad2656888e2042f4c5468ce3ccb6267e5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad2656888e2042f4c5468ce3ccb6267e5">&#9670;&#160;</a></span>stream_cache_emit_eviction_counters()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_eviction_counters </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00212">212</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="stream__cache_8c_source.html#l00182">stream_cache_emit_eviction_counter()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00401">brix_export_stream_cache_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="af2ad02fb31c9f31c3ae0fcf38190205b" name="af2ad02fb31c9f31c3ae0fcf38190205b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af2ad02fb31c9f31c3ae0fcf38190205b">&#9670;&#160;</a></span>stream_cache_emit_eviction_threshold()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_eviction_threshold </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00105">105</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00227">ngx_brix_srv_metrics_t::cache_enabled</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00228">ngx_brix_srv_metrics_t::cache_eviction_threshold</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>, and <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00401">brix_export_stream_cache_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="a5f39bfdce5af1411aac92e6b6c0612b8" name="a5f39bfdce5af1411aac92e6b6c0612b8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5f39bfdce5af1411aac92e6b6c0612b8">&#9670;&#160;</a></span>stream_cache_emit_occupancy_ratio()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_occupancy_ratio </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00067">67</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="stream__cache_8c_source.html#l00027">brix_cache_statvfs()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00227">ngx_brix_srv_metrics_t::cache_enabled</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00229">ngx_brix_srv_metrics_t::cache_root</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>, and <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00401">brix_export_stream_cache_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="aad47178e4446c02ee75999387bcb543b" name="aad47178e4446c02ee75999387bcb543b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad47178e4446c02ee75999387bcb543b">&#9670;&#160;</a></span>stream_cache_emit_write_through()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_write_through </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00360">360</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="stream__cache_8c_source.html#l00323">stream_cache_emit_wt_flushes()</a>, and <a class="el" href="stream__cache_8c_source.html#l00292">stream_cache_emit_wt_single()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00401">brix_export_stream_cache_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="acf5312c6222611a7908983575852aac9" name="acf5312c6222611a7908983575852aac9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acf5312c6222611a7908983575852aac9">&#9670;&#160;</a></span>stream_cache_emit_wt_flushes()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_wt_flushes </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00323">323</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>, <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00201">ngx_brix_srv_metrics_t::wt_flush_error_total</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00200">ngx_brix_srv_metrics_t::wt_flush_success_total</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00360">stream_cache_emit_write_through()</a>.</p>
+
+</div>
+</div>
+<a id="a41e18ef7e00816243c8d281a945780d0" name="a41e18ef7e00816243c8d281a945780d0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a41e18ef7e00816243c8d281a945780d0">&#9670;&#160;</a></span>stream_cache_emit_wt_single()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_emit_wt_single </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
+          <td class="paramname"><em>mw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>shm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>header</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>metric_name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>counter_off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00292">292</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>, and <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00360">stream_cache_emit_write_through()</a>.</p>
+
+</div>
+</div>
+<a id="abee5eac096893814815d28f6495513e1" name="abee5eac096893814815d28f6495513e1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abee5eac096893814815d28f6495513e1">&#9670;&#160;</a></span>stream_cache_port_str()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void stream_cache_port_str </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>buf_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>port</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00053">53</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00136">stream_cache_emit_cache_bytes()</a>, <a class="el" href="stream__cache_8c_source.html#l00248">stream_cache_emit_dirty_reaped()</a>, <a class="el" href="stream__cache_8c_source.html#l00182">stream_cache_emit_eviction_counter()</a>, <a class="el" href="stream__cache_8c_source.html#l00105">stream_cache_emit_eviction_threshold()</a>, <a class="el" href="stream__cache_8c_source.html#l00067">stream_cache_emit_occupancy_ratio()</a>, <a class="el" href="stream__cache_8c_source.html#l00323">stream_cache_emit_wt_flushes()</a>, and <a class="el" href="stream__cache_8c_source.html#l00292">stream_cache_emit_wt_single()</a>.</p>
 
 </div>
 </div>

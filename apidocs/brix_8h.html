@@ -103,7 +103,7 @@ $(document).ready(function(){initNavTree('brix_8h.html',''); initResizable(); })
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;<a class="el" href="time_8h_source.html">time.h</a>&gt;</code><br />
 <code>#include &lt;sys/types.h&gt;</code><br />
-<code>#include &quot;<a class="el" href="protocol_8h_source.html">protocols/root/protocol/protocol.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="root_2protocol_2protocol_8h_source.html">protocols/root/protocol/protocol.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="wire__codec_8h_source.html">protocols/root/protocol/codec/wire_codec.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="brix__net_8h_source.html">brix_net.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="brix__auth_8h_source.html">brix_auth.h</a>&quot;</code><br />
@@ -141,7 +141,7 @@ Macros</h2></td></tr>
 <tr class="separator:a94c75459b30cdfced4fda81f583ac6e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0947dfd83dd311820fd28f69ba3a0c08" id="r_a0947dfd83dd311820fd28f69ba3a0c08"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix_8h.html#a0947dfd83dd311820fd28f69ba3a0c08">XRDC_NAME_MAX</a>&#160;&#160;&#160;256</td></tr>
 <tr class="separator:a0947dfd83dd311820fd28f69ba3a0c08"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a141192625ba7ded2c42fc3ea84f496dd" id="r_a141192625ba7ded2c42fc3ea84f496dd"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>&#160;&#160;&#160;(-1)   /* connect/<a class="el" href="auth_2impersonate_2lifecycle_8c.html#a8ed8e7559381984009f93b1c95febc82">socket</a>/timeout failure */</td></tr>
+<tr class="memitem:a141192625ba7ded2c42fc3ea84f496dd" id="r_a141192625ba7ded2c42fc3ea84f496dd"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>&#160;&#160;&#160;(-1)   /* connect/socket/timeout failure */</td></tr>
 <tr class="separator:a141192625ba7ded2c42fc3ea84f496dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adee8ddccba5b50837d031b0501a879e0" id="r_adee8ddccba5b50837d031b0501a879e0"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix_8h.html#adee8ddccba5b50837d031b0501a879e0">XRDC_EPROTO</a>&#160;&#160;&#160;(-2)   /* malformed/unexpected server frame */</td></tr>
 <tr class="separator:adee8ddccba5b50837d031b0501a879e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -341,7 +341,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define XRDC_ESOCK&#160;&#160;&#160;(-1)   /* connect/<a class="el" href="auth_2impersonate_2lifecycle_8c.html#a8ed8e7559381984009f93b1c95febc82">socket</a>/timeout failure */</td>
+          <td class="memname">#define XRDC_ESOCK&#160;&#160;&#160;(-1)   /* connect/socket/timeout failure */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -532,7 +532,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00237">brix_copy()</a>, and <a class="el" href="copy__block_8c_source.html#l00222">copy_block()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00433">brix_copy()</a>, and <a class="el" href="copy__block_8c_source.html#l00226">copy_block()</a>.</p>
 
 </div>
 </div>
@@ -556,7 +556,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="url_8c_source.html#l00025">starts_with()</a>, and <a class="el" href="url_8c_source.html#l00236">WEB_SCHEMES</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00280">both_web()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00237">brix_copy()</a>, <a class="el" href="copy__local_8c_source.html#l00576">copy_web()</a>, <a class="el" href="xrdcp_8c_source.html#l00244">dest_is_dir()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00199">ensure_web_dst_base()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00139">entry_cksum()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00097">entry_meta()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>, <a class="el" href="xrdcp_8c_source.html#l00349">main()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00147">recursive_place()</a>, <a class="el" href="xrdcp_8c_source.html#l00227">uses_cred_auth()</a>, <a class="el" href="vfs_8c_source.html#l00093">vfs_url_to_scheme()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>, <a class="el" href="xrd__battery_8c_source.html#l00502">xrd_run_battery()</a>, and <a class="el" href="xrootdfs_8c_source.html#l00251">xrootdfs_aio_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00413">both_web()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00433">brix_copy()</a>, <a class="el" href="xrdcp_8c_source.html#l00991">build_and_preflight_credentials()</a>, <a class="el" href="copy__local_8c_source.html#l00809">copy_web()</a>, <a class="el" href="xrdcp_8c_source.html#l00377">dest_is_dir()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00228">ensure_web_dst_base()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00139">entry_cksum()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00097">entry_meta()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>, <a class="el" href="xrdfs_8c_source.html#l00474">main()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00208">recursive_place()</a>, <a class="el" href="xrdcp_8c_source.html#l00360">uses_cred_auth()</a>, <a class="el" href="vfs_8c_source.html#l00093">vfs_url_to_scheme()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>, <a class="el" href="xrd__battery_8c_source.html#l00653">xrd_run_battery()</a>, <a class="el" href="xrdcp_8c_source.html#l01084">xrdcp_dispatch_recursive_web_download()</a>, <a class="el" href="xrdcp_8c_source.html#l01069">xrdcp_hint_failed_source()</a>, <a class="el" href="xrdcp_8c_source.html#l01137">xrdcp_try_recursive_web()</a>, and <a class="el" href="xrootdfs_8c_source.html#l00518">xrootdfs_aio_main()</a>.</p>
 
 </div>
 </div>
@@ -586,11 +586,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="url_8c_source.html#l00280">280</a> of file <a class="el" href="url_8c_source.html">url.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="url_8c_source.html#l00395">395</a> of file <a class="el" href="url_8c_source.html">url.c</a>.</p>
 
-<p class="reference">References <a class="el" href="url_8c_source.html#l00233">web_scheme::defport</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="url_8c_source.html#l00232">web_scheme::is_s3</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="url_8c_source.html#l00229">web_scheme::prefix</a>, <a class="el" href="brix_8h_source.html#l00094">brix_weburl::proto</a>, <a class="el" href="url_8c_source.html#l00230">web_scheme::proto</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="url_8c_source.html#l00025">starts_with()</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="url_8c_source.html#l00231">web_scheme::tls</a>, and <a class="el" href="url_8c_source.html#l00236">WEB_SCHEMES</a>.</p>
+<p class="reference">References <a class="el" href="url_8c_source.html#l00233">web_scheme::defport</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="url_8c_source.html#l00232">web_scheme::is_s3</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="url_8c_source.html#l00229">web_scheme::prefix</a>, <a class="el" href="brix_8h_source.html#l00094">brix_weburl::proto</a>, <a class="el" href="url_8c_source.html#l00230">web_scheme::proto</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="url_8c_source.html#l00231">web_scheme::tls</a>, <a class="el" href="url_8c_source.html#l00381">weburl_copy_path()</a>, <a class="el" href="url_8c_source.html#l00288">weburl_match_scheme()</a>, <a class="el" href="url_8c_source.html#l00312">weburl_parse_bracket_host()</a>, and <a class="el" href="url_8c_source.html#l00346">weburl_parse_plain_host()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00576">copy_web()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00199">ensure_web_dst_base()</a>, <a class="el" href="xrdfs_8c_source.html#l00243">main()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00147">recursive_place()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00319">recursive_web_download()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00518">recursive_web_upload()</a>, <a class="el" href="vfs__s3_8c_source.html#l00134">s3_be_open()</a>, <a class="el" href="vfs__s3_8c_source.html#l00221">s3_be_stat()</a>, <a class="el" href="vfs_8c_source.html#l00093">vfs_url_to_scheme()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00050">xrd_clockskew_http()</a>, <a class="el" href="xrd__battery_8c_source.html#l00502">xrd_run_battery()</a>, and <a class="el" href="xrootdfs_8c_source.html#l00251">xrootdfs_aio_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrootdfs_8c_source.html#l00398">aio_web_mount()</a>, <a class="el" href="copy__local_8c_source.html#l00809">copy_web()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00228">ensure_web_dst_base()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00144">place_to_web()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00478">recursive_web_download()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00703">recursive_web_upload()</a>, <a class="el" href="xrdfs_8c_source.html#l00399">run_web_endpoint()</a>, <a class="el" href="vfs__s3_8c_source.html#l00134">s3_be_open()</a>, <a class="el" href="vfs__s3_8c_source.html#l00221">s3_be_stat()</a>, <a class="el" href="vfs_8c_source.html#l00093">vfs_url_to_scheme()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00050">xrd_clockskew_http()</a>, and <a class="el" href="xrd__battery_8c_source.html#l00653">xrd_run_battery()</a>.</p>
 
 </div>
 </div>

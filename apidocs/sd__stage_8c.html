@@ -91,7 +91,6 @@ $(document).ready(function(){initNavTree('sd__stage_8c.html',''); initResizable(
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
@@ -99,6 +98,7 @@ $(document).ready(function(){initNavTree('sd__stage_8c.html',''); initResizable(
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="sd__stage_8h_source.html">sd_stage.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="sd__stage__internal_8h_source.html">sd_stage_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="stage__engine_8h_source.html">fs/xfer/stage_engine.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;limits.h&gt;</code><br />
@@ -114,15 +114,6 @@ $(document).ready(function(){initNavTree('sd__stage_8c.html',''); initResizable(
 </div>
 <p><a href="sd__stage_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__stage__inst__state.html">sd_stage_inst_state</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__stage__staged__state.html">sd_stage_staged_state</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__stage__wb__state.html">sd_stage_wb_state</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a2c9b8ea3c41402b2599f95a88c1b4d5b" id="r_a2c9b8ea3c41402b2599f95a88c1b4d5b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a2c9b8ea3c41402b2599f95a88c1b4d5b">SD_STAGE_SRC</a>(inst)&#160;&#160;&#160;(((<a class="el" href="structsd__stage__inst__state.html">sd_stage_inst_state</a> *) (inst)-&gt;state)-&gt;source)</td></tr>
@@ -130,29 +121,15 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a2dd9733df627881a53951f72b891b57c" id="r_a2dd9733df627881a53951f72b891b57c"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a2dd9733df627881a53951f72b891b57c">sd_stage_open_writeback</a> (brix_sd_instance_t *inst, <a class="el" href="structsd__stage__inst__state.html">sd_stage_inst_state</a> *is, const char *path, int sd_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td></tr>
-<tr class="separator:a2dd9733df627881a53951f72b891b57c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a98b404474fbcb6a2e9622aff41deae95" id="r_a98b404474fbcb6a2e9622aff41deae95"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a98b404474fbcb6a2e9622aff41deae95">sd_stage_open</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td></tr>
+<tr class="memitem:a98b404474fbcb6a2e9622aff41deae95" id="r_a98b404474fbcb6a2e9622aff41deae95"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a98b404474fbcb6a2e9622aff41deae95">sd_stage_open</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</td></tr>
 <tr class="separator:a98b404474fbcb6a2e9622aff41deae95"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a10b1e031e71af8d9441d235810f2b9fa" id="r_a10b1e031e71af8d9441d235810f2b9fa"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a10b1e031e71af8d9441d235810f2b9fa">sd_stage_wb_flush</a> (<a class="el" href="structsd__stage__wb__state.html">sd_stage_wb_state</a> *wb)</td></tr>
-<tr class="separator:a10b1e031e71af8d9441d235810f2b9fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a81acfaad1ca6c9aa74477a8f8048e910" id="r_a81acfaad1ca6c9aa74477a8f8048e910"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a81acfaad1ca6c9aa74477a8f8048e910">sd_stage_wb_pwrite</a> (brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)</td></tr>
-<tr class="separator:a81acfaad1ca6c9aa74477a8f8048e910"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1cee4c4e841b928a366afbc932c33233" id="r_a1cee4c4e841b928a366afbc932c33233"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a1cee4c4e841b928a366afbc932c33233">sd_stage_wb_pread</a> (brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</td></tr>
-<tr class="separator:a1cee4c4e841b928a366afbc932c33233"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a05b07bcf78ae64add4b6f03dd67280a2" id="r_a05b07bcf78ae64add4b6f03dd67280a2"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a05b07bcf78ae64add4b6f03dd67280a2">sd_stage_wb_ftruncate</a> (brix_sd_obj_t *obj, off_t length)</td></tr>
-<tr class="separator:a05b07bcf78ae64add4b6f03dd67280a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abe041e5f6b1413b4387e2692d5ccb54f" id="r_abe041e5f6b1413b4387e2692d5ccb54f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#abe041e5f6b1413b4387e2692d5ccb54f">sd_stage_wb_fstat</a> (brix_sd_obj_t *obj, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
-<tr class="separator:abe041e5f6b1413b4387e2692d5ccb54f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad97db4be2444db7ba86be0d38f166825" id="r_ad97db4be2444db7ba86be0d38f166825"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#ad97db4be2444db7ba86be0d38f166825">sd_stage_wb_fsync</a> (brix_sd_obj_t *obj)</td></tr>
-<tr class="separator:ad97db4be2444db7ba86be0d38f166825"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac50147e3822b958d15275559f51b44aa" id="r_ac50147e3822b958d15275559f51b44aa"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#ac50147e3822b958d15275559f51b44aa">sd_stage_wb_close</a> (brix_sd_obj_t *obj)</td></tr>
-<tr class="separator:ac50147e3822b958d15275559f51b44aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a406dc9f765486765dbc6751e0a4a0194" id="r_a406dc9f765486765dbc6751e0a4a0194"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a406dc9f765486765dbc6751e0a4a0194">sd_stage_open_cred</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:a406dc9f765486765dbc6751e0a4a0194"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaefa40ee1840c2bb55d7e34321877fdf" id="r_aaefa40ee1840c2bb55d7e34321877fdf"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#aaefa40ee1840c2bb55d7e34321877fdf">sd_stage_stat</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
 <tr class="separator:aaefa40ee1840c2bb55d7e34321877fdf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a86f4aad0b13b0857da30269f52dfb226" id="r_a86f4aad0b13b0857da30269f52dfb226"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a86f4aad0b13b0857da30269f52dfb226">sd_stage_unlink</a> (brix_sd_instance_t *inst, const char *path, int is_dir)</td></tr>
 <tr class="separator:a86f4aad0b13b0857da30269f52dfb226"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a01505f501296df1b6a6fbd6c3306911a" id="r_a01505f501296df1b6a6fbd6c3306911a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a01505f501296df1b6a6fbd6c3306911a">sd_stage_mkdir</a> (brix_sd_instance_t *inst, const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a01505f501296df1b6a6fbd6c3306911a" id="r_a01505f501296df1b6a6fbd6c3306911a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a01505f501296df1b6a6fbd6c3306911a">sd_stage_mkdir</a> (brix_sd_instance_t *inst, const char *path, mode_t mode)</td></tr>
 <tr class="separator:a01505f501296df1b6a6fbd6c3306911a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a81d0eb97eb83af5b60852542c1fb9629" id="r_a81d0eb97eb83af5b60852542c1fb9629"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a81d0eb97eb83af5b60852542c1fb9629">sd_stage_rename</a> (brix_sd_instance_t *inst, const char *src, const char *dst, int noreplace)</td></tr>
 <tr class="separator:a81d0eb97eb83af5b60852542c1fb9629"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -174,14 +151,6 @@ Functions</h2></td></tr>
 <tr class="separator:a339cb20100eea92b938235ecb0633f1a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa9412ed27a24341a9be062e1f0742b0e" id="r_aa9412ed27a24341a9be062e1f0742b0e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#aa9412ed27a24341a9be062e1f0742b0e">sd_stage_removexattr</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
 <tr class="separator:aa9412ed27a24341a9be062e1f0742b0e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a74f92896f3b29b21097e6a2a6de25f37" id="r_a74f92896f3b29b21097e6a2a6de25f37"><td class="memItemLeft" align="right" valign="top">static brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a74f92896f3b29b21097e6a2a6de25f37">sd_stage_staged_open</a> (brix_sd_instance_t *inst, const char *final_path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td></tr>
-<tr class="separator:a74f92896f3b29b21097e6a2a6de25f37"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3962c59da5a805e40d5afab16f7d8152" id="r_a3962c59da5a805e40d5afab16f7d8152"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a3962c59da5a805e40d5afab16f7d8152">sd_stage_staged_write</a> (brix_sd_staged_t *st, const void *buf, size_t len, off_t off)</td></tr>
-<tr class="separator:a3962c59da5a805e40d5afab16f7d8152"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9c7309995ceb129464634c62ced960ef" id="r_a9c7309995ceb129464634c62ced960ef"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a9c7309995ceb129464634c62ced960ef">sd_stage_staged_commit</a> (brix_sd_staged_t *st, int noreplace)</td></tr>
-<tr class="separator:a9c7309995ceb129464634c62ced960ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad416ebd137fc3f532cc612aac5e4195a" id="r_ad416ebd137fc3f532cc612aac5e4195a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#ad416ebd137fc3f532cc612aac5e4195a">sd_stage_staged_abort</a> (brix_sd_staged_t *st)</td></tr>
-<tr class="separator:ad416ebd137fc3f532cc612aac5e4195a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a46e860b7dc3ce030ab9d5445a5fd8a46" id="r_a46e860b7dc3ce030ab9d5445a5fd8a46"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a46e860b7dc3ce030ab9d5445a5fd8a46">brix_sd_stage_create</a> (brix_sd_instance_t *source, brix_sd_instance_t *store, const <a class="el" href="structbrix__stage__policy__t.html">brix_stage_policy_t</a> *policy, const char *root_canon, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a46e860b7dc3ce030ab9d5445a5fd8a46"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af7eb1b157bf4278889c7247a6d914717" id="r_af7eb1b157bf4278889c7247a6d914717"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#af7eb1b157bf4278889c7247a6d914717">brix_sd_stage_destroy</a> (brix_sd_instance_t *inst)</td></tr>
@@ -192,13 +161,13 @@ Functions</h2></td></tr>
 <tr class="separator:a9f9c6952ed171ccf0a5266db9b53a0c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c7a7bc216bb7ad2e90d4e2b961a52e4" id="r_a3c7a7bc216bb7ad2e90d4e2b961a52e4"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a3c7a7bc216bb7ad2e90d4e2b961a52e4">brix_sd_stage_store_instance</a> (const brix_sd_instance_t *inst)</td></tr>
 <tr class="separator:a3c7a7bc216bb7ad2e90d4e2b961a52e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a00f703ef0a1851ce5e506adf42f477aa" id="r_a00f703ef0a1851ce5e506adf42f477aa"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a00f703ef0a1851ce5e506adf42f477aa">brix_sd_stage_reflush</a> (brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)</td></tr>
-<tr class="separator:a00f703ef0a1851ce5e506adf42f477aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acef437f551060c8b22431183738ed6a6" id="r_acef437f551060c8b22431183738ed6a6"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#acef437f551060c8b22431183738ed6a6">brix_sd_stage_reflush</a> (brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__stage__cred__t.html">brix_stage_cred_t</a> *cred)</td></tr>
+<tr class="separator:acef437f551060c8b22431183738ed6a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
-<tr class="memitem:aa767299911fe9892cff015e4dd809750" id="r_aa767299911fe9892cff015e4dd809750"><td class="memItemLeft" align="right" valign="top">static const brix_sd_driver_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#aa767299911fe9892cff015e4dd809750">brix_sd_stage_driver</a></td></tr>
-<tr class="separator:aa767299911fe9892cff015e4dd809750"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a13b3ea38cc48fbf0e0f44b78c1085d8d" id="r_a13b3ea38cc48fbf0e0f44b78c1085d8d"><td class="memItemLeft" align="right" valign="top">const brix_sd_driver_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage_8c.html#a13b3ea38cc48fbf0e0f44b78c1085d8d">brix_sd_stage_driver</a></td></tr>
+<tr class="separator:a13b3ea38cc48fbf0e0f44b78c1085d8d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a2c9b8ea3c41402b2599f95a88c1b4d5b" name="a2c9b8ea3c41402b2599f95a88c1b4d5b"></a>
@@ -217,7 +186,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00046">46</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00023">23</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
 </div>
 </div>
@@ -266,11 +235,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00479">479</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00224">224</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00048">brix_sd_stage_driver</a>, <a class="el" href="conf__structs_8h_source.html#l00059">BRIX_WT_MODE_SYNC</a>, <a class="el" href="tier_8h_source.html#l00098">brix_stage_policy_t::flush_mode</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="sd__stage_8c_source.html#l00024">sd_stage_inst_state::log</a>, <a class="el" href="sd__stage_8c_source.html#l00022">sd_stage_inst_state::policy</a>, <a class="el" href="sd__stage_8c_source.html#l00023">sd_stage_inst_state::root_canon</a>, <a class="el" href="sd__stage_8c_source.html#l00020">sd_stage_inst_state::source</a>, and <a class="el" href="sd__stage_8c_source.html#l00021">sd_stage_inst_state::store</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00185">brix_sd_stage_driver</a>, <a class="el" href="conf__structs_8h_source.html#l00059">BRIX_WT_MODE_SYNC</a>, <a class="el" href="tier_8h_source.html#l00098">brix_stage_policy_t::flush_mode</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00039">sd_stage_inst_state::log</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00037">sd_stage_inst_state::policy</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00038">sd_stage_inst_state::root_canon</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00035">sd_stage_inst_state::source</a>, and <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tier__build_8c_source.html#l00188">brix_tier_build_stack()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00349">brix_vfs_backend_entry_build()</a>, and <a class="el" href="cache__storage_8c_source.html#l00297">cache_build_wt_stage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00134">brix_vbr_wrap_stage_tier()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00102">brix_vbr_wrap_staging_shim()</a>, <a class="el" href="cache__storage_8c_source.html#l00297">cache_build_wt_stage()</a>, and <a class="el" href="tier__build_8c_source.html#l00281">tier_compose_stage()</a>.</p>
 
 </div>
 </div>
@@ -290,7 +259,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00519">519</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00264">264</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cache__storage_8c_source.html#l00436">brix_cache_storage_cleanup()</a>.</p>
 
@@ -312,16 +281,16 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00530">530</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00275">275</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00048">brix_sd_stage_driver</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00185">brix_sd_stage_driver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__stage_8c_source.html#l00557">brix_sd_stage_reflush()</a>, <a class="el" href="sd__stage_8c_source.html#l00539">brix_sd_stage_source_instance()</a>, <a class="el" href="sd__stage_8c_source.html#l00546">brix_sd_stage_store_instance()</a>, and <a class="el" href="stage__engine_8c_source.html#l00561">stage_reconcile_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__stage_8c_source.html#l00312">brix_sd_stage_reflush()</a>, <a class="el" href="sd__stage_8c_source.html#l00284">brix_sd_stage_source_instance()</a>, <a class="el" href="sd__stage_8c_source.html#l00291">brix_sd_stage_store_instance()</a>, and <a class="el" href="stage__engine__reconcile_8c_source.html#l00061">stage_reconcile_one()</a>.</p>
 
 </div>
 </div>
-<a id="a00f703ef0a1851ce5e506adf42f477aa" name="a00f703ef0a1851ce5e506adf42f477aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a00f703ef0a1851ce5e506adf42f477aa">&#9670;&#160;</a></span>brix_sd_stage_reflush()</h2>
+<a id="acef437f551060c8b22431183738ed6a6" name="acef437f551060c8b22431183738ed6a6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acef437f551060c8b22431183738ed6a6">&#9670;&#160;</a></span>brix_sd_stage_reflush()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -336,7 +305,13 @@ Variables</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__stage__cred__t.html">brix_stage_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -346,11 +321,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00557">557</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00312">312</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00530">brix_sd_stage_instance_is()</a>, <a class="el" href="stage__engine_8h_source.html#l00046">BRIX_STAGE_FLUSH</a>, <a class="el" href="stage__engine_8c_source.html#l00369">brix_stage_run_inline()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="sd__stage_8c_source.html#l00020">sd_stage_inst_state::source</a>, and <a class="el" href="sd__stage_8c_source.html#l00021">sd_stage_inst_state::store</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00275">brix_sd_stage_instance_is()</a>, <a class="el" href="stage__engine_8h_source.html#l00077">BRIX_STAGE_FLUSH</a>, <a class="el" href="stage__engine_8c_source.html#l00388">brix_stage_run_inline_cred()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00035">sd_stage_inst_state::source</a>, and <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stage__engine_8c_source.html#l00561">stage_reconcile_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stage__engine__reconcile_8c_source.html#l00061">stage_reconcile_one()</a>.</p>
 
 </div>
 </div>
@@ -370,11 +345,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00539">539</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00284">284</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00530">brix_sd_stage_instance_is()</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00275">brix_sd_stage_instance_is()</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cache__storage_8c_source.html#l00436">brix_cache_storage_cleanup()</a>, and <a class="el" href="vfs__stat_8c_source.html#l00112">brix_vfs_decorator_source()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cache__storage_8c_source.html#l00436">brix_cache_storage_cleanup()</a>, <a class="el" href="vfs__stat_8c_source.html#l00139">brix_vfs_decorator_source()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00465">brix_vfs_ns_leaf()</a>.</p>
 
 </div>
 </div>
@@ -394,9 +369,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00546">546</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00291">291</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00530">brix_sd_stage_instance_is()</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00275">brix_sd_stage_instance_is()</a>.</p>
 
 </div>
 </div>
@@ -424,7 +399,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00280">280</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00139">139</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
 </div>
 </div>
@@ -480,9 +455,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00286">286</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00145">145</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -532,9 +507,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00295">295</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00154">154</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -578,9 +553,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00229">229</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00088">88</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -636,14 +611,14 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00104">104</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00028">28</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00110">BRIX_SD_O_WRITE</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="sd__stage_8c_source.html#l00057">sd_stage_open_writeback()</a>, and <a class="el" href="sd__stage_8c_source.html#l00020">sd_stage_inst_state::source</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__stage__write_8c_source.html#l00109">sd_stage_open_writeback()</a>, and <a class="el" href="sd__stage__internal_8h_source.html#l00035">sd_stage_inst_state::source</a>.</p>
 
 </div>
 </div>
-<a id="a2dd9733df627881a53951f72b891b57c" name="a2dd9733df627881a53951f72b891b57c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2dd9733df627881a53951f72b891b57c">&#9670;&#160;</a></span>sd_stage_open_writeback()</h2>
+<a id="a406dc9f765486765dbc6751e0a4a0194" name="a406dc9f765486765dbc6751e0a4a0194"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a406dc9f765486765dbc6751e0a4a0194">&#9670;&#160;</a></span>sd_stage_open_cred()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -652,16 +627,10 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static brix_sd_obj_t * sd_stage_open_writeback </td>
+          <td class="memname">static brix_sd_obj_t * sd_stage_open_cred </td>
           <td>(</td>
           <td class="paramtype">brix_sd_instance_t *&#160;</td>
           <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structsd__stage__inst__state.html">sd_stage_inst_state</a> *&#160;</td>
-          <td class="paramname"><em>is</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -684,6 +653,12 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
           <td class="paramtype">int *&#160;</td>
           <td class="paramname"><em>err_out</em>&#160;</td>
         </tr>
@@ -700,11 +675,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00057">57</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00058">58</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00048">brix_sd_stage_driver</a>, <a class="el" href="sd__stage_8c_source.html#l00043">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage_8c_source.html#l00042">sd_stage_wb_state::high_water</a>, <a class="el" href="sd__stage_8c_source.html#l00039">sd_stage_wb_state::is</a>, <a class="el" href="sd__stage_8c_source.html#l00040">sd_stage_wb_state::key</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="sd__stage_8c_source.html#l00021">sd_stage_inst_state::store</a>, and <a class="el" href="sd__stage_8c_source.html#l00041">sd_stage_wb_state::store_obj</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__stage_8c_source.html#l00104">sd_stage_open()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd_8h_source.html#l00567">brix_sd_open_maybe_cred()</a>, <a class="el" href="sd__stage__write_8c_source.html#l00109">sd_stage_open_writeback()</a>, and <a class="el" href="sd__stage__internal_8h_source.html#l00035">sd_stage_inst_state::source</a>.</p>
 
 </div>
 </div>
@@ -748,9 +721,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00262">262</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00121">121</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -788,7 +761,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00273">273</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00132">132</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
 </div>
 </div>
@@ -832,9 +805,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00313">313</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00172">172</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -884,9 +857,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00236">236</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00095">95</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -936,9 +909,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00245">245</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00104">104</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -982,9 +955,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00254">254</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00113">113</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -1046,183 +1019,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00304">304</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00163">163</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
-
-</div>
-</div>
-<a id="ad416ebd137fc3f532cc612aac5e4195a" name="ad416ebd137fc3f532cc612aac5e4195a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad416ebd137fc3f532cc612aac5e4195a">&#9670;&#160;</a></span>sd_stage_staged_abort()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void sd_stage_staged_abort </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_staged_t *&#160;</td>
-          <td class="paramname"><em>st</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00431">431</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00030">sd_stage_staged_state::inner</a>, <a class="el" href="sd__stage_8c_source.html#l00028">sd_stage_staged_state::is</a>, and <a class="el" href="sd__stage_8c_source.html#l00021">sd_stage_inst_state::store</a>.</p>
-
-</div>
-</div>
-<a id="a9c7309995ceb129464634c62ced960ef" name="a9c7309995ceb129464634c62ced960ef"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9c7309995ceb129464634c62ced960ef">&#9670;&#160;</a></span>sd_stage_staged_commit()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_stage_staged_commit </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_staged_t *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>noreplace</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00378">378</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="stage__engine_8h_source.html#l00089">brix_stage_opts_t::async</a>, <a class="el" href="stage__engine_8h_source.html#l00046">BRIX_STAGE_FLUSH</a>, <a class="el" href="stage__engine_8c_source.html#l00369">brix_stage_run_inline()</a>, <a class="el" href="stage__engine_8c_source.html#l00319">brix_stage_submit()</a>, <a class="el" href="conf__structs_8h_source.html#l00060">BRIX_WT_MODE_ASYNC</a>, <a class="el" href="stage__engine_8h_source.html#l00094">brix_stage_opts_t::export_root</a>, <a class="el" href="tier_8h_source.html#l00098">brix_stage_policy_t::flush_mode</a>, <a class="el" href="sd__stage_8c_source.html#l00030">sd_stage_staged_state::inner</a>, <a class="el" href="sd__stage_8c_source.html#l00028">sd_stage_staged_state::is</a>, <a class="el" href="sd__stage_8c_source.html#l00029">sd_stage_staged_state::key</a>, <a class="el" href="sd__stage_8c_source.html#l00022">sd_stage_inst_state::policy</a>, <a class="el" href="sd__stage_8c_source.html#l00023">sd_stage_inst_state::root_canon</a>, <a class="el" href="sd__stage_8c_source.html#l00020">sd_stage_inst_state::source</a>, and <a class="el" href="sd__stage_8c_source.html#l00021">sd_stage_inst_state::store</a>.</p>
-
-</div>
-</div>
-<a id="a74f92896f3b29b21097e6a2a6de25f37" name="a74f92896f3b29b21097e6a2a6de25f37"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a74f92896f3b29b21097e6a2a6de25f37">&#9670;&#160;</a></span>sd_stage_staged_open()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static brix_sd_staged_t * sd_stage_staged_open </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>final_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>err_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00324">324</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00030">sd_stage_staged_state::inner</a>, <a class="el" href="sd__stage_8c_source.html#l00028">sd_stage_staged_state::is</a>, <a class="el" href="sd__stage_8c_source.html#l00029">sd_stage_staged_state::key</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, and <a class="el" href="sd__stage_8c_source.html#l00021">sd_stage_inst_state::store</a>.</p>
-
-</div>
-</div>
-<a id="a3962c59da5a805e40d5afab16f7d8152" name="a3962c59da5a805e40d5afab16f7d8152"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3962c59da5a805e40d5afab16f7d8152">&#9670;&#160;</a></span>sd_stage_staged_write()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_stage_staged_write </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_staged_t *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00363">363</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00030">sd_stage_staged_state::inner</a>.</p>
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -1266,9 +1065,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00215">215</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00074">74</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
@@ -1312,312 +1111,28 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00222">222</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00081">81</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00046">SD_STAGE_SRC</a>.</p>
-
-</div>
-</div>
-<a id="ac50147e3822b958d15275559f51b44aa" name="ac50147e3822b958d15275559f51b44aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac50147e3822b958d15275559f51b44aa">&#9670;&#160;</a></span>sd_stage_wb_close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_stage_wb_close </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00199">199</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00043">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage_8c_source.html#l00124">sd_stage_wb_flush()</a>, and <a class="el" href="sd__stage_8c_source.html#l00041">sd_stage_wb_state::store_obj</a>.</p>
-
-</div>
-</div>
-<a id="a10b1e031e71af8d9441d235810f2b9fa" name="a10b1e031e71af8d9441d235810f2b9fa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a10b1e031e71af8d9441d235810f2b9fa">&#9670;&#160;</a></span>sd_stage_wb_flush()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_stage_wb_flush </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structsd__stage__wb__state.html">sd_stage_wb_state</a> *&#160;</td>
-          <td class="paramname"><em>wb</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00124">124</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="stage__engine_8h_source.html#l00046">BRIX_STAGE_FLUSH</a>, <a class="el" href="stage__engine_8c_source.html#l00369">brix_stage_run_inline()</a>, <a class="el" href="sd__stage_8c_source.html#l00043">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage_8c_source.html#l00039">sd_stage_wb_state::is</a>, <a class="el" href="sd__stage_8c_source.html#l00040">sd_stage_wb_state::key</a>, <a class="el" href="sd__stage_8c_source.html#l00020">sd_stage_inst_state::source</a>, <a class="el" href="sd__stage_8c_source.html#l00021">sd_stage_inst_state::store</a>, and <a class="el" href="sd__stage_8c_source.html#l00041">sd_stage_wb_state::store_obj</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__stage_8c_source.html#l00199">sd_stage_wb_close()</a>, and <a class="el" href="sd__stage_8c_source.html#l00193">sd_stage_wb_fsync()</a>.</p>
-
-</div>
-</div>
-<a id="abe041e5f6b1413b4387e2692d5ccb54f" name="abe041e5f6b1413b4387e2692d5ccb54f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abe041e5f6b1413b4387e2692d5ccb54f">&#9670;&#160;</a></span>sd_stage_wb_fstat()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_stage_wb_fstat </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00185">185</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00041">sd_stage_wb_state::store_obj</a>.</p>
-
-</div>
-</div>
-<a id="ad97db4be2444db7ba86be0d38f166825" name="ad97db4be2444db7ba86be0d38f166825"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad97db4be2444db7ba86be0d38f166825">&#9670;&#160;</a></span>sd_stage_wb_fsync()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_stage_wb_fsync </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00193">193</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00124">sd_stage_wb_flush()</a>.</p>
-
-</div>
-</div>
-<a id="a05b07bcf78ae64add4b6f03dd67280a2" name="a05b07bcf78ae64add4b6f03dd67280a2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a05b07bcf78ae64add4b6f03dd67280a2">&#9670;&#160;</a></span>sd_stage_wb_ftruncate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_stage_wb_ftruncate </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00167">167</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00043">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage_8c_source.html#l00042">sd_stage_wb_state::high_water</a>, and <a class="el" href="sd__stage_8c_source.html#l00041">sd_stage_wb_state::store_obj</a>.</p>
-
-</div>
-</div>
-<a id="a1cee4c4e841b928a366afbc932c33233" name="a1cee4c4e841b928a366afbc932c33233"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1cee4c4e841b928a366afbc932c33233">&#9670;&#160;</a></span>sd_stage_wb_pread()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_stage_wb_pread </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00159">159</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00041">sd_stage_wb_state::store_obj</a>.</p>
-
-</div>
-</div>
-<a id="a81acfaad1ca6c9aa74477a8f8048e910" name="a81acfaad1ca6c9aa74477a8f8048e910"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a81acfaad1ca6c9aa74477a8f8048e910">&#9670;&#160;</a></span>sd_stage_wb_pwrite()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_stage_wb_pwrite </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00144">144</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00043">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage_8c_source.html#l00042">sd_stage_wb_state::high_water</a>, and <a class="el" href="sd__stage_8c_source.html#l00041">sd_stage_wb_state::store_obj</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd__stage_8c_source.html#l00023">SD_STAGE_SRC</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Variable Documentation</h2>
-<a id="aa767299911fe9892cff015e4dd809750" name="aa767299911fe9892cff015e4dd809750"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa767299911fe9892cff015e4dd809750">&#9670;&#160;</a></span>brix_sd_stage_driver</h2>
+<a id="a13b3ea38cc48fbf0e0f44b78c1085d8d" name="a13b3ea38cc48fbf0e0f44b78c1085d8d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a13b3ea38cc48fbf0e0f44b78c1085d8d">&#9670;&#160;</a></span>brix_sd_stage_driver</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static const brix_sd_driver_t brix_sd_stage_driver</td>
+          <td class="memname">const brix_sd_driver_t brix_sd_stage_driver</td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00048">48</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage_8c_source.html#l00185">185</a> of file <a class="el" href="sd__stage_8c_source.html">sd_stage.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__stage_8c_source.html#l00479">brix_sd_stage_create()</a>, <a class="el" href="sd__stage_8c_source.html#l00530">brix_sd_stage_instance_is()</a>, and <a class="el" href="sd__stage_8c_source.html#l00057">sd_stage_open_writeback()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__stage_8c_source.html#l00224">brix_sd_stage_create()</a>, <a class="el" href="sd__stage_8c_source.html#l00275">brix_sd_stage_instance_is()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00109">sd_stage_open_writeback()</a>.</p>
 
 </div>
 </div>

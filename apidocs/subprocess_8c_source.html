@@ -113,111 +113,254 @@ $(document).ready(function(){initNavTree('subprocess_8c_source.html',''); initRe
 <div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#include &lt;sys/wait.h&gt;</span></div>
 <div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="preprocessor">#include &lt;sys/types.h&gt;</span></div>
 <div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span> </div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00017" data-start="{" data-end="}">
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno"><a class="line" href="subprocess_8c.html#a46c15aef1006e9de1955628fd6f00fbb">   17</a></span><a class="code hl_function" href="subprocess_8c.html#a46c15aef1006e9de1955628fd6f00fbb">brix_subprocess_capture</a>(<span class="keywordtype">char</span> *<span class="keyword">const</span> argv[], <span class="keywordtype">char</span> *out, <span class="keywordtype">size_t</span> outsz,</div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>                          <span class="keywordtype">size_t</span> *out_len, <span class="keywordtype">int</span> *exit_code)</div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>{</div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    <span class="keywordtype">int</span>      pfd[2];</div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    pid_t    pid;</div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    <span class="keywordtype">size_t</span>   got = 0;</div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>    <span class="keywordtype">int</span>      status = 0;</div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>    sigset_t block, old;</div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span> </div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <span class="keywordflow">if</span> (out_len != NULL)   { *out_len = 0; }</div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>    <span class="keywordflow">if</span> (exit_code != NULL) { *exit_code = -1; }</div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <span class="keywordflow">if</span> (argv == NULL || argv[0] == NULL || out == NULL || outsz == 0) {</div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    }</div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    <span class="keywordflow">if</span> (pipe(pfd) != 0) {</div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="comment">/* ---- Validate the capture arguments ----</span></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="comment"> * WHAT: Returns 1 when argv, argv[0], and the output buffer are all usable</span></div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="comment"> * (non-NULL argv/argv[0]/out and a non-zero outsz); returns 0 otherwise.</span></div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="comment"> * WHY: Keeps the argument-guard branch ladder out of the orchestrator so the</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="comment"> * top-level function stays a flat, low-complexity sequence of steps.</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="comment"> *   1. Reject a NULL argv, a NULL argv[0], a NULL out, or a zero outsz.</span></div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="comment"> *   2. Otherwise report the arguments as valid.</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00029" data-start="{" data-end="}">
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno"><a class="line" href="subprocess_8c.html#a6e8062bef114e4f44690e6f1b304d7d1">   29</a></span><a class="code hl_function" href="subprocess_8c.html#a6e8062bef114e4f44690e6f1b304d7d1">brix_subprocess_args_ok</a>(<span class="keywordtype">char</span> *<span class="keyword">const</span> argv[], <span class="keyword">const</span> <span class="keywordtype">char</span> *out, <span class="keywordtype">size_t</span> outsz)</div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>{</div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    <span class="keywordflow">if</span> (argv == NULL || argv[0] == NULL || out == NULL || outsz == 0) {</div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    }</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <span class="comment">/* Block SIGCHLD so a host SIGCHLD handler (e.g. nginx&#39;s child reaper) cannot</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment">     * reap our child before waitpid(); the child restores the mask before exec so</span></div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment">     * the executed program is unaffected. Restored before every return. */</span></div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    sigemptyset(&amp;block);</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    sigaddset(&amp;block, SIGCHLD);</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    sigprocmask(SIG_BLOCK, &amp;block, &amp;old);</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    pid = fork();</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    <span class="keywordflow">if</span> (pid &lt; 0) {</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>        sigprocmask(SIG_SETMASK, &amp;old, NULL);</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[0]);</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[1]);</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    }</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keywordflow">if</span> (pid == 0) {</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[0]);</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>        <span class="comment">/* The dup&#39;d stdout MUST stay open across execvp — it IS the capture</span></div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment">         * channel; the kernel reclaims it at _exit. (gcc &gt;= 13 -fanalyzer</span></div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment">         * reports it as an fd leak: it does not model exec/_exit ending the</span></div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment">         * image — known false positive.) */</span></div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        <span class="keywordflow">if</span> (dup2(pfd[1], STDOUT_FILENO) &lt; 0) {</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>            _exit(127);</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        }</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[1]);</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>        sigprocmask(SIG_SETMASK, &amp;old, NULL);   <span class="comment">/* don&#39;t leak the mask to the child */</span></div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>        execvp(argv[0], argv);</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        _exit(127);   <span class="comment">/* exec failed (command not installed) */</span></div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    }</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[1]);</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <span class="keywordflow">while</span> (got + 1 &lt; outsz) {</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>        ssize_t r = <a class="code hl_function" href="brixposix__preload_8c.html#af32a16ad2dd9e48482f8f790db7dbbd2">read</a>(pfd[0], out + got, outsz - 1 - got);</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>        <span class="keywordflow">if</span> (r &lt; 0) {</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>            <span class="keywordflow">if</span> (errno == EINTR) {</div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>                <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>            }</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        }</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>        <span class="keywordflow">if</span> (r == 0) {</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        }</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        got += (size_t) r;</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    }</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    out[got] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[0]);</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    <span class="keywordflow">while</span> (waitpid(pid, &amp;status, 0) &lt; 0 &amp;&amp; errno == EINTR) {</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        <span class="comment">/* retry */</span></div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    }</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    sigprocmask(SIG_SETMASK, &amp;old, NULL);</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    <span class="keywordflow">if</span> (out_len != NULL) {</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>        *out_len = got;</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    }</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    <span class="keywordflow">if</span> (!WIFEXITED(status)) {</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>        <span class="keywordflow">return</span> -1;   <span class="comment">/* killed by a signal, etc. */</span></div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    }</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <span class="keywordflow">if</span> (exit_code != NULL) {</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        *exit_code = WEXITSTATUS(status);</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    }</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>}</div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <span class="keywordflow">return</span> 1;</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>}</div>
 </div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span> </div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="keywordtype">size_t</span></div>
-<div class="foldopen" id="foldopen00098" data-start="{" data-end="}">
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno"><a class="line" href="subprocess_8c.html#aaccad22e4991ce3ee6794eb2b24412b2">   98</a></span><a class="code hl_function" href="subprocess_8c.html#aaccad22e4991ce3ee6794eb2b24412b2">brix_rstrip</a>(<span class="keywordtype">char</span> *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>{</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <span class="keywordtype">size_t</span> n;</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> == NULL) {</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    }</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    n = strlen(<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>);</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    <span class="keywordflow">while</span> (n &gt; 0 &amp;&amp; (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[n - 1] == <span class="charliteral">&#39;\n&#39;</span> || <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[n - 1] == <span class="charliteral">&#39;\r&#39;</span></div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>                     || <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[n - 1] == <span class="charliteral">&#39; &#39;</span> || <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[n - 1] == <span class="charliteral">&#39;\t&#39;</span>)) {</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>        <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[--n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    }</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <span class="keywordflow">return</span> n;</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>}</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment">/* ---- Run the forked child: wire stdout to the pipe and exec ----</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="comment"> * WHAT: In the child process, redirects stdout to the pipe write end and execs</span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="comment"> * argv. Never returns to the caller: on any failure it calls _exit(127), and on</span></div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="comment"> * success control passes to the executed image.</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment"> * WHY: The child half of the fork is a distinct, self-contained responsibility;</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment"> * isolating it keeps the fd wiring and mask restore linear and auditable.</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="comment"> *   1. Close the pipe read end (the child only writes).</span></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="comment"> *   2. dup2 the pipe write end onto STDOUT_FILENO; _exit(127) if that fails.</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment"> *   3. Close the now-redundant original write-end fd. The dup&#39;d stdout stays</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment"> *      open across execvp — it IS the capture channel; the kernel reclaims it at</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment"> *      _exit. (gcc &gt;= 13 -fanalyzer reports it as an fd leak: it does not model</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment"> *      exec/_exit ending the image — known false positive.)</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment"> *   4. Restore the inherited signal mask so the mask is not leaked to the exec&#39;d</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="comment"> *      program.</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment"> *   5. execvp argv; on failure (command not installed) _exit(127).</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00058" data-start="{" data-end="}">
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno"><a class="line" href="subprocess_8c.html#a272477e7bd15f2997ef33b50ba6b94d9">   58</a></span><a class="code hl_function" href="subprocess_8c.html#a272477e7bd15f2997ef33b50ba6b94d9">brix_subprocess_child</a>(<span class="keywordtype">int</span> pfd[2], <span class="keywordtype">char</span> *<span class="keyword">const</span> argv[], <span class="keyword">const</span> sigset_t *old)</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>{</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[0]);</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    <span class="keywordflow">if</span> (dup2(pfd[1], STDOUT_FILENO) &lt; 0) {</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>        _exit(127);</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    }</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[1]);</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    sigprocmask(SIG_SETMASK, old, NULL);   <span class="comment">/* don&#39;t leak the mask to the child */</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    execvp(argv[0], argv);</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    _exit(127);   <span class="comment">/* exec failed (command not installed) */</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>}</div>
+</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span> </div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment">/* ---- Drain the child&#39;s stdout into the output buffer ----</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> * WHAT: Reads from fd into out until the buffer is full (leaving room for a</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> * trailing NUL), EOF, or a non-EINTR error; NUL-terminates out and returns the</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment"> * number of bytes captured.</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="comment"> * WHY: The bounded read loop is the parent&#39;s only real work and has its own</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="comment"> * EINTR/EOF handling; keeping it separate isolates that control flow from the</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="comment"> * fork/reap plumbing.</span></div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="comment"> *   1. While at least one byte of space remains before the reserved NUL, read</span></div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="comment"> *      into out at the current offset.</span></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="comment"> *   2. On a negative return, retry on EINTR, else stop.</span></div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="comment"> *   3. On a zero return (EOF), stop.</span></div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="comment"> *   4. Otherwise advance the captured-byte count.</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment"> *   5. NUL-terminate at the captured length and return that length.</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="keyword">static</span> <span class="keywordtype">size_t</span></div>
+<div class="foldopen" id="foldopen00089" data-start="{" data-end="}">
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno"><a class="line" href="subprocess_8c.html#a091e470f933e97685e8d54650ee26c82">   89</a></span><a class="code hl_function" href="subprocess_8c.html#a091e470f933e97685e8d54650ee26c82">brix_subprocess_drain</a>(<span class="keywordtype">int</span> fd, <span class="keywordtype">char</span> *out, <span class="keywordtype">size_t</span> outsz)</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>{</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <span class="keywordtype">size_t</span> got = 0;</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span> </div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    <span class="keywordflow">while</span> (got + 1 &lt; outsz) {</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        ssize_t r = <a class="code hl_function" href="brixposix__preload_8c.html#af32a16ad2dd9e48482f8f790db7dbbd2">read</a>(fd, out + got, outsz - 1 - got);</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        <span class="keywordflow">if</span> (r &lt; 0) {</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>            <span class="keywordflow">if</span> (errno == EINTR) {</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>                <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>            }</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>            <span class="keywordflow">break</span>;</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        }</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>        <span class="keywordflow">if</span> (r == 0) {</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>            <span class="keywordflow">break</span>;</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        }</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>        got += (size_t) r;</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    }</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    out[got] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    <span class="keywordflow">return</span> got;</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>}</div>
+</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span> </div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment">/* ---- Reap the child and report its exit status ----</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><span class="comment"> * WHAT: waitpid()s for pid (retrying on EINTR), then returns 0 and, when</span></div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="comment"> * exit_code is non-NULL, stores the child&#39;s exit status; returns -1 if the child</span></div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="comment"> * did not exit normally (killed by a signal, etc.).</span></div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment"> * WHY: Collapsing the waitpid retry loop and the WIFEXITED decoding into one</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment"> * helper keeps the status semantics in a single place and out of the</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment"> * orchestrator&#39;s branch count.</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment"> *   1. waitpid for the child, retrying while it fails with EINTR.</span></div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment"> *   2. If the child did not exit normally, return -1.</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment"> *   3. Otherwise store WEXITSTATUS into exit_code when provided and return 0.</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00126" data-start="{" data-end="}">
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno"><a class="line" href="subprocess_8c.html#a3fd21279672719b054a9bc83cbd3c078">  126</a></span><a class="code hl_function" href="subprocess_8c.html#a3fd21279672719b054a9bc83cbd3c078">brix_subprocess_reap</a>(pid_t pid, <span class="keywordtype">int</span> *exit_code)</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>{</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    <span class="keywordtype">int</span> status = 0;</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span> </div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    <span class="keywordflow">while</span> (waitpid(pid, &amp;status, 0) &lt; 0 &amp;&amp; errno == EINTR) {</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        <span class="comment">/* retry */</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    }</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="keywordflow">if</span> (!WIFEXITED(status)) {</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        <span class="keywordflow">return</span> -1;   <span class="comment">/* killed by a signal, etc. */</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    }</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    <span class="keywordflow">if</span> (exit_code != NULL) {</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>        *exit_code = WEXITSTATUS(status);</div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    }</div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>}</div>
+</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span> </div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="comment">/* ---- Capture a child command&#39;s stdout ----</span></div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="comment"> * WHAT: Forks and execs argv, capturing its stdout into out (up to outsz-1 bytes</span></div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span><span class="comment"> * plus a NUL). Returns 0 on a normal child exit (storing the byte count in</span></div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="comment"> * out_len and the exit status in exit_code when non-NULL), or -1 on any setup</span></div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="comment"> * failure or abnormal child termination.</span></div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment"> * WHY: Gives ngx-free callers a single, side-effect-honest primitive for running</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment"> * a helper command and reading its output without leaking fds, child processes,</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment"> * or a modified signal mask.</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment"> *   1. Zero the caller&#39;s out_len/exit_code and validate the arguments.</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment"> *   2. Create the capture pipe.</span></div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment"> *   3. Block SIGCHLD so a host reaper cannot steal our child before waitpid();</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="comment"> *      the mask is restored before every return.</span></div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="comment"> *   4. fork; on failure restore the mask, close both pipe ends, and fail.</span></div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="comment"> *   5. In the child, hand off to brix_subprocess_child (never returns).</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment"> *   6. In the parent, close the write end, drain stdout, close the read end.</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment"> *   7. Reap the child, restore the signal mask, publish out_len, and return the</span></div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="comment"> *      reap result.</span></div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00165" data-start="{" data-end="}">
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno"><a class="line" href="subprocess_8c.html#a46c15aef1006e9de1955628fd6f00fbb">  165</a></span><a class="code hl_function" href="subprocess_8c.html#a46c15aef1006e9de1955628fd6f00fbb">brix_subprocess_capture</a>(<span class="keywordtype">char</span> *<span class="keyword">const</span> argv[], <span class="keywordtype">char</span> *out, <span class="keywordtype">size_t</span> outsz,</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>                          <span class="keywordtype">size_t</span> *out_len, <span class="keywordtype">int</span> *exit_code)</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>{</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    <span class="keywordtype">int</span>      pfd[2];</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    pid_t    pid;</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <span class="keywordtype">size_t</span>   got;</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <span class="keywordtype">int</span>      rc;</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    sigset_t block, old;</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span> </div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    <span class="keywordflow">if</span> (out_len != NULL)   { *out_len = 0; }</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    <span class="keywordflow">if</span> (exit_code != NULL) { *exit_code = -1; }</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="subprocess_8c.html#a6e8062bef114e4f44690e6f1b304d7d1">brix_subprocess_args_ok</a>(argv, out, outsz)) {</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    }</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="keywordflow">if</span> (pipe(pfd) != 0) {</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    }</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="comment">/* Block SIGCHLD so a host SIGCHLD handler (e.g. nginx&#39;s child reaper) cannot</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment">     * reap our child before waitpid(); the child restores the mask before exec so</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="comment">     * the executed program is unaffected. Restored before every return. */</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    sigemptyset(&amp;block);</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    sigaddset(&amp;block, SIGCHLD);</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    sigprocmask(SIG_BLOCK, &amp;block, &amp;old);</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span> </div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    pid = fork();</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    <span class="keywordflow">if</span> (pid &lt; 0) {</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>        sigprocmask(SIG_SETMASK, &amp;old, NULL);</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[0]);</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[1]);</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    }</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <span class="keywordflow">if</span> (pid == 0) {</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        <a class="code hl_function" href="subprocess_8c.html#a272477e7bd15f2997ef33b50ba6b94d9">brix_subprocess_child</a>(pfd, argv, &amp;old);</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    }</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span> </div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[1]);</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    got = <a class="code hl_function" href="subprocess_8c.html#a091e470f933e97685e8d54650ee26c82">brix_subprocess_drain</a>(pfd[0], out, outsz);</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(pfd[0]);</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span> </div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    rc = <a class="code hl_function" href="subprocess_8c.html#a3fd21279672719b054a9bc83cbd3c078">brix_subprocess_reap</a>(pid, exit_code);</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    sigprocmask(SIG_SETMASK, &amp;old, NULL);</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span> </div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    <span class="keywordflow">if</span> (out_len != NULL) {</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>        *out_len = got;</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    }</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    <span class="keywordflow">return</span> rc;</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>}</div>
+</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span> </div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span><span class="comment">/* ---- Strip trailing whitespace from a C string ----</span></div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span><span class="comment"> * WHAT: Removes trailing newline, carriage-return, space, and tab characters</span></div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="comment"> * from s in place and returns the resulting length; returns 0 for a NULL s.</span></div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span><span class="comment"> * WHY: Command output captured by brix_subprocess_capture routinely carries a</span></div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span><span class="comment"> * trailing newline that callers must not treat as part of a token or value.</span></div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="comment"> *   1. Return 0 immediately for a NULL string.</span></div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span><span class="comment"> *   2. Measure the current length.</span></div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span><span class="comment"> *   3. While the last character is a trailing whitespace byte, overwrite it with</span></div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="comment"> *      NUL and shrink the length.</span></div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="comment"> *   4. Return the trimmed length.</span></div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span><span class="keywordtype">size_t</span></div>
+<div class="foldopen" id="foldopen00229" data-start="{" data-end="}">
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno"><a class="line" href="subprocess_8c.html#aaccad22e4991ce3ee6794eb2b24412b2">  229</a></span><a class="code hl_function" href="subprocess_8c.html#aaccad22e4991ce3ee6794eb2b24412b2">brix_rstrip</a>(<span class="keywordtype">char</span> *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>{</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    <span class="keywordtype">size_t</span> n;</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span> </div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> == NULL) {</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    }</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    n = strlen(<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>);</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    <span class="keywordflow">while</span> (n &gt; 0 &amp;&amp; (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[n - 1] == <span class="charliteral">&#39;\n&#39;</span> || <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[n - 1] == <span class="charliteral">&#39;\r&#39;</span></div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>                     || <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[n - 1] == <span class="charliteral">&#39; &#39;</span> || <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[n - 1] == <span class="charliteral">&#39;\t&#39;</span>)) {</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>        <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>[--n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    }</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    <span class="keywordflow">return</span> n;</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>}</div>
 </div>
 <div class="ttc" id="abrixposix__preload_8c_html_aafbcde67669a1b96577e735ddebd8634"><div class="ttname"><a href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a></div><div class="ttdeci">int close(int fd)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00374">brixposix_preload.c:374</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_af32a16ad2dd9e48482f8f790db7dbbd2"><div class="ttname"><a href="brixposix__preload_8c.html#af32a16ad2dd9e48482f8f790db7dbbd2">read</a></div><div class="ttdeci">ssize_t read(int fd, void *buf, size_t count)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00299">brixposix_preload.c:299</a></div></div>
 <div class="ttc" id="aprotocols_2ssi_2registry_8c_html_acd3d5832e08669d2a41d61c045abc1fd"><div class="ttname"><a href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a></div><div class="ttdeci">brix_ssi_session_t * s</div><div class="ttdef"><b>Definition</b> <a href="protocols_2ssi_2registry_8c_source.html#l00016">registry.c:16</a></div></div>
-<div class="ttc" id="asubprocess_8c_html_a46c15aef1006e9de1955628fd6f00fbb"><div class="ttname"><a href="subprocess_8c.html#a46c15aef1006e9de1955628fd6f00fbb">brix_subprocess_capture</a></div><div class="ttdeci">int brix_subprocess_capture(char *const argv[], char *out, size_t outsz, size_t *out_len, int *exit_code)</div><div class="ttdef"><b>Definition</b> <a href="subprocess_8c_source.html#l00017">subprocess.c:17</a></div></div>
-<div class="ttc" id="asubprocess_8c_html_aaccad22e4991ce3ee6794eb2b24412b2"><div class="ttname"><a href="subprocess_8c.html#aaccad22e4991ce3ee6794eb2b24412b2">brix_rstrip</a></div><div class="ttdeci">size_t brix_rstrip(char *s)</div><div class="ttdef"><b>Definition</b> <a href="subprocess_8c_source.html#l00098">subprocess.c:98</a></div></div>
+<div class="ttc" id="asubprocess_8c_html_a091e470f933e97685e8d54650ee26c82"><div class="ttname"><a href="subprocess_8c.html#a091e470f933e97685e8d54650ee26c82">brix_subprocess_drain</a></div><div class="ttdeci">static size_t brix_subprocess_drain(int fd, char *out, size_t outsz)</div><div class="ttdef"><b>Definition</b> <a href="subprocess_8c_source.html#l00089">subprocess.c:89</a></div></div>
+<div class="ttc" id="asubprocess_8c_html_a272477e7bd15f2997ef33b50ba6b94d9"><div class="ttname"><a href="subprocess_8c.html#a272477e7bd15f2997ef33b50ba6b94d9">brix_subprocess_child</a></div><div class="ttdeci">static void brix_subprocess_child(int pfd[2], char *const argv[], const sigset_t *old)</div><div class="ttdef"><b>Definition</b> <a href="subprocess_8c_source.html#l00058">subprocess.c:58</a></div></div>
+<div class="ttc" id="asubprocess_8c_html_a3fd21279672719b054a9bc83cbd3c078"><div class="ttname"><a href="subprocess_8c.html#a3fd21279672719b054a9bc83cbd3c078">brix_subprocess_reap</a></div><div class="ttdeci">static int brix_subprocess_reap(pid_t pid, int *exit_code)</div><div class="ttdef"><b>Definition</b> <a href="subprocess_8c_source.html#l00126">subprocess.c:126</a></div></div>
+<div class="ttc" id="asubprocess_8c_html_a46c15aef1006e9de1955628fd6f00fbb"><div class="ttname"><a href="subprocess_8c.html#a46c15aef1006e9de1955628fd6f00fbb">brix_subprocess_capture</a></div><div class="ttdeci">int brix_subprocess_capture(char *const argv[], char *out, size_t outsz, size_t *out_len, int *exit_code)</div><div class="ttdef"><b>Definition</b> <a href="subprocess_8c_source.html#l00165">subprocess.c:165</a></div></div>
+<div class="ttc" id="asubprocess_8c_html_a6e8062bef114e4f44690e6f1b304d7d1"><div class="ttname"><a href="subprocess_8c.html#a6e8062bef114e4f44690e6f1b304d7d1">brix_subprocess_args_ok</a></div><div class="ttdeci">static int brix_subprocess_args_ok(char *const argv[], const char *out, size_t outsz)</div><div class="ttdef"><b>Definition</b> <a href="subprocess_8c_source.html#l00029">subprocess.c:29</a></div></div>
+<div class="ttc" id="asubprocess_8c_html_aaccad22e4991ce3ee6794eb2b24412b2"><div class="ttname"><a href="subprocess_8c.html#aaccad22e4991ce3ee6794eb2b24412b2">brix_rstrip</a></div><div class="ttdeci">size_t brix_rstrip(char *s)</div><div class="ttdef"><b>Definition</b> <a href="subprocess_8c_source.html#l00229">subprocess.c:229</a></div></div>
 <div class="ttc" id="asubprocess_8h_html"><div class="ttname"><a href="subprocess_8h.html">subprocess.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

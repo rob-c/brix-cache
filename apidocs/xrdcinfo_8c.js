@@ -1,5 +1,7 @@
 var xrdcinfo_8c =
 [
+    [ "xmeta_hdr_t", "structxmeta__hdr__t.html", "structxmeta__hdr__t" ],
+    [ "xmeta_state_t", "structxmeta__state__t.html", "structxmeta__state__t" ],
     [ "F_EXPIRES", "xrdcinfo_8c.html#a73d89dbb4ffa7d385e7da1887a631568", null ],
     [ "F_VERIFIED", "xrdcinfo_8c.html#a7a2cd70232d6db2345056de967e9b3ce", null ],
     [ "SEC_BLOCKCRC", "xrdcinfo_8c.html#a96b731536d933e4e6c8f614782ae61e3", null ],
@@ -10,6 +12,15 @@ var xrdcinfo_8c =
     [ "XMETA_STOCK_VERSION", "xrdcinfo_8c.html#a10d508f9aee9affa4af0749a14c38c62", null ],
     [ "brix_xrdcinfo_main", "xrdcinfo_8c.html#a1a6b85888d1ed1db4f6ac580bdd12af7", null ],
     [ "dump_record", "xrdcinfo_8c.html#a11735521644fa1ae0a7e11b022f3c493", null ],
+    [ "emit_digest_value", "xrdcinfo_8c.html#a338d12a7ed6f9e941956fb3d3cd39593", null ],
+    [ "emit_ext_blockcrc", "xrdcinfo_8c.html#a3d11cba83f71f6fd7565e114f8f62479", null ],
+    [ "emit_ext_digest", "xrdcinfo_8c.html#a9a5ea2ba23f90f02ee6ee74f79bb1141", null ],
+    [ "emit_ext_sections", "xrdcinfo_8c.html#aa02693fab53d743f59cbb143d9383ba2", null ],
+    [ "emit_ext_state", "xrdcinfo_8c.html#a31bbdc267fc90fdcf78ce78b4e57c18b", null ],
+    [ "emit_flags", "xrdcinfo_8c.html#a48ae968c12dfe1be650e181b20d9ee31", null ],
+    [ "emit_geometry", "xrdcinfo_8c.html#a995409a061c1161ba432b539d975f61a", null ],
+    [ "emit_present_bitmap", "xrdcinfo_8c.html#a82e83822185edb25732f0b9d5163e93e", null ],
+    [ "parse_stock_header", "xrdcinfo_8c.html#ac6cd65bdb15b1a7eb2f43e313b50f101", null ],
     [ "rd_u16", "xrdcinfo_8c.html#a9b51b46636e0f75450e8173537fa8c86", null ],
     [ "rd_u32", "xrdcinfo_8c.html#a4926a3bd811c54fd3f9aff0848bd6b10", null ],
     [ "rd_u64", "xrdcinfo_8c.html#a885fd5119a5065c868b0d7d118cfa1ad", null ],

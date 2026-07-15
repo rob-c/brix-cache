@@ -1,7 +1,26 @@
 var protocols_2root_2query_2config_8c =
 [
+    [ "brix_qconfig_entry_t", "structbrix__qconfig__entry__t.html", "structbrix__qconfig__entry__t" ],
+    [ "brix_qconfig_emit_fn", "protocols_2root_2query_2config_8c.html#a70d92281f5c232081f565ba739921a8d", null ],
     [ "brix_qconfig_append", "protocols_2root_2query_2config_8c.html#a3a3552f78123728f482f9bbaa9e8ca0a", null ],
+    [ "brix_qconfig_codec_list", "protocols_2root_2query_2config_8c.html#af8b09f787a44cec9d7a6bb4627a864b7", null ],
+    [ "brix_qconfig_emit_bind_max", "protocols_2root_2query_2config_8c.html#a263c37ec5a8ccbe03ddb9ad5d918d9c7", null ],
+    [ "brix_qconfig_emit_chksum", "protocols_2root_2query_2config_8c.html#aa5e09dbaa96415393f5cdef4c6dc30e2", null ],
+    [ "brix_qconfig_emit_cmpread", "protocols_2root_2query_2config_8c.html#a3d18f5832c966f5f4021d7d2ec817e8a", null ],
+    [ "brix_qconfig_emit_cmpwrite", "protocols_2root_2query_2config_8c.html#ae67ad7c472120e4b92d9746251794951", null ],
+    [ "brix_qconfig_emit_fattr", "protocols_2root_2query_2config_8c.html#a8fa33d0092e04bf116881302a7f68f5a", null ],
+    [ "brix_qconfig_emit_key", "protocols_2root_2query_2config_8c.html#a24daf87d188c34d4329f06f38db04d04", null ],
+    [ "brix_qconfig_emit_pio_max", "protocols_2root_2query_2config_8c.html#ae7cf52b9511975f374f66b292557d4df", null ],
+    [ "brix_qconfig_emit_readv", "protocols_2root_2query_2config_8c.html#ad6d74ebd7204059f9e5336cb26a0d921", null ],
+    [ "brix_qconfig_emit_readv_ior_max", "protocols_2root_2query_2config_8c.html#a828d34c6f469a33d58d044b4af962827", null ],
+    [ "brix_qconfig_emit_readv_iov_max", "protocols_2root_2query_2config_8c.html#a8b9de61be7de7520e6530d1b7e928c0e", null ],
+    [ "brix_qconfig_emit_role", "protocols_2root_2query_2config_8c.html#a1578a57b2e6844dc2313d30e5a8c2d86", null ],
+    [ "brix_qconfig_emit_tpc", "protocols_2root_2query_2config_8c.html#afcf2a6ab34167d41519d6bb698312847", null ],
+    [ "brix_qconfig_emit_tpcdlg", "protocols_2root_2query_2config_8c.html#a5f10beb36d150a35b8b2830c02750bd3", null ],
+    [ "brix_qconfig_emit_version", "protocols_2root_2query_2config_8c.html#a3b00589680ec88ba6207ec6601831423", null ],
+    [ "brix_qconfig_emit_xrdfs_ext", "protocols_2root_2query_2config_8c.html#a8568435173537ac7821980d204d0dcd6", null ],
     [ "brix_qconfig_next_token", "protocols_2root_2query_2config_8c.html#a342fdedd29a76ecb91ec506f2e551e9a", null ],
     [ "brix_qconfig_skip_ws", "protocols_2root_2query_2config_8c.html#ad6ca0f4391393023fca5a5003918230e", null ],
-    [ "brix_query_config", "protocols_2root_2query_2config_8c.html#a49a9849556a40b4c718fbb55270d10d9", null ]
+    [ "brix_query_config", "protocols_2root_2query_2config_8c.html#a49a9849556a40b4c718fbb55270d10d9", null ],
+    [ "brix_qconfig_table", "protocols_2root_2query_2config_8c.html#a7aefe1ac57e73c048d75463948e3b1e0", null ]
 ];

@@ -109,14 +109,292 @@ $(document).ready(function(){initNavTree('entity_8c.html',''); initResizable(); 
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:acee0fe9bc680a0e1f95bd2289409cf86" id="r_acee0fe9bc680a0e1f95bd2289409cf86"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="entity_8c.html#acee0fe9bc680a0e1f95bd2289409cf86">acc_csv_trim</a> (const char **<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, size_t *len)</td></tr>
+<tr class="separator:acee0fe9bc680a0e1f95bd2289409cf86"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abef9edf9598f576214e9acb4984950c3" id="r_abef9edf9598f576214e9acb4984950c3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="entity_8c.html#abef9edf9598f576214e9acb4984950c3">acc_csv_push_field</a> (ngx_pool_t *pool, ngx_array_t *out, const char *field, size_t len)</td></tr>
+<tr class="separator:abef9edf9598f576214e9acb4984950c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6000644d17e79bea94a023734093f129" id="r_a6000644d17e79bea94a023734093f129"><td class="memItemLeft" align="right" valign="top">static ngx_array_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="entity_8c.html#a6000644d17e79bea94a023734093f129">acc_split_csv</a> (ngx_pool_t *pool, const char *csv)</td></tr>
 <tr class="separator:a6000644d17e79bea94a023734093f129"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab0d8246c6576c5769e9ebe1b6aebfaf3" id="r_ab0d8246c6576c5769e9ebe1b6aebfaf3"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="entity_8c.html#ab0d8246c6576c5769e9ebe1b6aebfaf3">acc_pick</a> (ngx_array_t *a, ngx_uint_t i)</td></tr>
 <tr class="separator:ab0d8246c6576c5769e9ebe1b6aebfaf3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9739e5ce47c0d237b08f6642e7c542bc" id="r_a9739e5ce47c0d237b08f6642e7c542bc"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="entity_8c.html#a9739e5ce47c0d237b08f6642e7c542bc">acc_entity_init_scalars</a> (<a class="el" href="structbrix__acc__entity__t.html">brix_acc_entity_t</a> *ent, ngx_pool_t *pool, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const char *host, int isuser)</td></tr>
+<tr class="separator:a9739e5ce47c0d237b08f6642e7c542bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aabcfe42c5a98d4bd995892d1b66fc93b" id="r_aabcfe42c5a98d4bd995892d1b66fc93b"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="entity_8c.html#aabcfe42c5a98d4bd995892d1b66fc93b">acc_entity_tuple_count</a> (ngx_array_t *vorgs, ngx_array_t *roles, ngx_array_t *grps)</td></tr>
+<tr class="separator:aabcfe42c5a98d4bd995892d1b66fc93b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abe87cb6078f3162db034ccaa3730f7ab" id="r_abe87cb6078f3162db034ccaa3730f7ab"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="entity_8c.html#abe87cb6078f3162db034ccaa3730f7ab">acc_entity_fill_tuples</a> (ngx_pool_t *pool, <a class="el" href="structbrix__acc__entity__t.html">brix_acc_entity_t</a> *ent, ngx_array_t *vorgs, ngx_array_t *roles, ngx_array_t *grps, ngx_uint_t n)</td></tr>
+<tr class="separator:abe87cb6078f3162db034ccaa3730f7ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4e13f677b4cabb43cad05a97e5cf42b1" id="r_a4e13f677b4cabb43cad05a97e5cf42b1"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__acc__entity__t.html">brix_acc_entity_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="entity_8c.html#a4e13f677b4cabb43cad05a97e5cf42b1">brix_acc_entity_build</a> (ngx_pool_t *pool, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const char *host, int isuser, const char *vorg_csv, const char *role_csv, const char *grp_csv)</td></tr>
 <tr class="separator:a4e13f677b4cabb43cad05a97e5cf42b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="abef9edf9598f576214e9acb4984950c3" name="abef9edf9598f576214e9acb4984950c3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abef9edf9598f576214e9acb4984950c3">&#9670;&#160;</a></span>acc_csv_push_field()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t acc_csv_push_field </td>
+          <td>(</td>
+          <td class="paramtype">ngx_pool_t *&#160;</td>
+          <td class="paramname"><em>pool</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_array_t *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>field</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00064">64</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+
+<p class="reference">References <a class="el" href="entity_8c_source.html#l00037">acc_csv_trim()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00106">acc_split_csv()</a>.</p>
+
+</div>
+</div>
+<a id="acee0fe9bc680a0e1f95bd2289409cf86" name="acee0fe9bc680a0e1f95bd2289409cf86"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acee0fe9bc680a0e1f95bd2289409cf86">&#9670;&#160;</a></span>acc_csv_trim()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void acc_csv_trim </td>
+          <td>(</td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00037">37</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00064">acc_csv_push_field()</a>.</p>
+
+</div>
+</div>
+<a id="abe87cb6078f3162db034ccaa3730f7ab" name="abe87cb6078f3162db034ccaa3730f7ab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abe87cb6078f3162db034ccaa3730f7ab">&#9670;&#160;</a></span>acc_entity_fill_tuples()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t acc_entity_fill_tuples </td>
+          <td>(</td>
+          <td class="paramtype">ngx_pool_t *&#160;</td>
+          <td class="paramname"><em>pool</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__acc__entity__t.html">brix_acc_entity_t</a> *&#160;</td>
+          <td class="paramname"><em>ent</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_array_t *&#160;</td>
+          <td class="paramname"><em>vorgs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_array_t *&#160;</td>
+          <td class="paramname"><em>roles</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_array_t *&#160;</td>
+          <td class="paramname"><em>grps</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>n</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00214">214</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+
+<p class="reference">References <a class="el" href="entity_8c_source.html#l00137">acc_pick()</a>, <a class="el" href="acc_8h_source.html#l00121">brix_acc_attr_t::grup</a>, <a class="el" href="acc_8h_source.html#l00120">brix_acc_attr_t::role</a>, <a class="el" href="acc_8h_source.html#l00133">brix_acc_entity_t::tuples</a>, and <a class="el" href="acc_8h_source.html#l00119">brix_acc_attr_t::vorg</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00237">brix_acc_entity_build()</a>.</p>
+
+</div>
+</div>
+<a id="a9739e5ce47c0d237b08f6642e7c542bc" name="a9739e5ce47c0d237b08f6642e7c542bc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9739e5ce47c0d237b08f6642e7c542bc">&#9670;&#160;</a></span>acc_entity_init_scalars()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void acc_entity_init_scalars </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__acc__entity__t.html">brix_acc_entity_t</a> *&#160;</td>
+          <td class="paramname"><em>ent</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_pool_t *&#160;</td>
+          <td class="paramname"><em>pool</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>host</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>isuser</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00166">166</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+
+<p class="reference">References <a class="el" href="acc_8h_source.html#l00131">brix_acc_entity_t::host</a>, <a class="el" href="acc_8h_source.html#l00132">brix_acc_entity_t::isuser</a>, <a class="el" href="acc_8h_source.html#l00130">brix_acc_entity_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="acc_8h_source.html#l00134">brix_acc_entity_t::pool</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00237">brix_acc_entity_build()</a>.</p>
+
+</div>
+</div>
+<a id="aabcfe42c5a98d4bd995892d1b66fc93b" name="aabcfe42c5a98d4bd995892d1b66fc93b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aabcfe42c5a98d4bd995892d1b66fc93b">&#9670;&#160;</a></span>acc_entity_tuple_count()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_uint_t acc_entity_tuple_count </td>
+          <td>(</td>
+          <td class="paramtype">ngx_array_t *&#160;</td>
+          <td class="paramname"><em>vorgs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_array_t *&#160;</td>
+          <td class="paramname"><em>roles</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_array_t *&#160;</td>
+          <td class="paramname"><em>grps</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00188">188</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00237">brix_acc_entity_build()</a>.</p>
+
+</div>
+</div>
 <a id="ab0d8246c6576c5769e9ebe1b6aebfaf3" name="ab0d8246c6576c5769e9ebe1b6aebfaf3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab0d8246c6576c5769e9ebe1b6aebfaf3">&#9670;&#160;</a></span>acc_pick()</h2>
 
@@ -151,9 +429,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00079">79</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00137">137</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00094">brix_acc_entity_build()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00214">acc_entity_fill_tuples()</a>.</p>
 
 </div>
 </div>
@@ -191,11 +469,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00030">30</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00106">106</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="entity_8c_source.html#l00064">acc_csv_push_field()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00094">brix_acc_entity_build()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00237">brix_acc_entity_build()</a>.</p>
 
 </div>
 </div>
@@ -255,11 +533,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00094">94</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00237">237</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
 
-<p class="reference">References <a class="el" href="entity_8c_source.html#l00079">acc_pick()</a>, <a class="el" href="entity_8c_source.html#l00030">acc_split_csv()</a>, <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, <a class="el" href="acc_8h_source.html#l00121">brix_acc_attr_t::grup</a>, <a class="el" href="acc_8h_source.html#l00131">brix_acc_entity_t::host</a>, <a class="el" href="acc_8h_source.html#l00132">brix_acc_entity_t::isuser</a>, <a class="el" href="acc_8h_source.html#l00130">brix_acc_entity_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="acc_8h_source.html#l00134">brix_acc_entity_t::pool</a>, <a class="el" href="acc_8h_source.html#l00120">brix_acc_attr_t::role</a>, <a class="el" href="acc_8h_source.html#l00133">brix_acc_entity_t::tuples</a>, and <a class="el" href="acc_8h_source.html#l00119">brix_acc_attr_t::vorg</a>.</p>
+<p class="reference">References <a class="el" href="entity_8c_source.html#l00214">acc_entity_fill_tuples()</a>, <a class="el" href="entity_8c_source.html#l00166">acc_entity_init_scalars()</a>, <a class="el" href="entity_8c_source.html#l00188">acc_entity_tuple_count()</a>, <a class="el" href="entity_8c_source.html#l00106">acc_split_csv()</a>, <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00026">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00140">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
 
 </div>
 </div>

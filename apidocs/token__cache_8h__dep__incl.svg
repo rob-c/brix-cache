@@ -46,7 +46,7 @@
   </g>
 </defs>
 <script type="application/ecmascript">
-var viewWidth = 804;
+var viewWidth = 874;
 var viewHeight = 170;
 var sectionId = 'dynsection-1';
 </script>
@@ -162,9 +162,9 @@ var sectionId = 'dynsection-1';
 <g id="Node000007" class="node">
 <title>Node7</title>
 <g id="a_Node000007"><a xlink:href="protocols_2webdav_2module_8c.html" target="_top" xlink:title=" ">
-<polygon fill="white" stroke="#666666" points="519.5,-30 399.5,-30 399.5,0 519.5,0 519.5,-30"/>
-<text text-anchor="start" x="407.5" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
-<text text-anchor="middle" x="459.5" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/module.c</text>
+<polygon fill="white" stroke="#666666" points="447.5,-30 327.5,-30 327.5,0 447.5,0 447.5,-30"/>
+<text text-anchor="start" x="335.5" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
+<text text-anchor="middle" x="387.5" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/module.c</text>
 </a>
 </g>
 </g>
@@ -172,18 +172,18 @@ var sectionId = 'dynsection-1';
 <g id="edge6_Node000006_Node000007" class="edge">
 <title>Node6&#45;&gt;Node7</title>
 <g id="a_edge6_Node000006_Node000007"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M557.93,-61.65C536.23,-51.58 509.74,-39.3 489.71,-30.01"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="556.67,-64.92 567.22,-65.95 559.62,-58.57 556.67,-64.92"/>
+<path fill="none" stroke="#63b8ff" d="M541.68,-62.99C507.89,-52.69 465.32,-39.72 433.48,-30.01"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="540.83,-66.39 551.41,-65.95 542.87,-59.69 540.83,-66.39"/>
 </a>
 </g>
 </g>
 <!-- Node8 -->
 <g id="Node000008" class="node">
 <title>Node8</title>
-<g id="a_Node000008"><a xlink:href="module__directives_8c.html" target="_top" xlink:title=" ">
-<polygon fill="white" stroke="#666666" points="657.5,-30 537.5,-30 537.5,0 657.5,0 657.5,-30"/>
-<text text-anchor="start" x="545.5" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
-<text text-anchor="middle" x="597.5" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/module_directives.c</text>
+<g id="a_Node000008"><a xlink:href="module__commands_8c.html" target="_top" xlink:title=" ">
+<polygon fill="white" stroke="#666666" points="589.5,-30 465.5,-30 465.5,0 589.5,0 589.5,-30"/>
+<text text-anchor="start" x="473.5" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
+<text text-anchor="middle" x="527.5" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/module_commands.c</text>
 </a>
 </g>
 </g>
@@ -191,18 +191,18 @@ var sectionId = 'dynsection-1';
 <g id="edge7_Node000006_Node000008" class="edge">
 <title>Node6&#45;&gt;Node8</title>
 <g id="a_edge7_Node000006_Node000008"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M597.5,-55.54C597.5,-46.96 597.5,-37.61 597.5,-30.16"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="594,-55.8 597.5,-65.8 601,-55.8 594,-55.8"/>
+<path fill="none" stroke="#63b8ff" d="M574.45,-58.92C564.13,-49.49 552.23,-38.61 542.99,-30.16"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="572.22,-61.63 581.96,-65.8 576.95,-56.47 572.22,-61.63"/>
 </a>
 </g>
 </g>
 <!-- Node9 -->
 <g id="Node000009" class="node">
 <title>Node9</title>
-<g id="a_Node000009"><a xlink:href="module__init_8c.html" target="_top" xlink:title=" ">
-<polygon fill="white" stroke="#666666" points="795.5,-30 675.5,-30 675.5,0 795.5,0 795.5,-30"/>
-<text text-anchor="start" x="683.5" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
-<text text-anchor="middle" x="735.5" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/module_init.c</text>
+<g id="a_Node000009"><a xlink:href="module__directives_8c.html" target="_top" xlink:title=" ">
+<polygon fill="white" stroke="#666666" points="727.5,-30 607.5,-30 607.5,0 727.5,0 727.5,-30"/>
+<text text-anchor="start" x="615.5" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
+<text text-anchor="middle" x="667.5" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/module_directives.c</text>
 </a>
 </g>
 </g>
@@ -210,8 +210,27 @@ var sectionId = 'dynsection-1';
 <g id="edge8_Node000006_Node000009" class="edge">
 <title>Node6&#45;&gt;Node9</title>
 <g id="a_edge8_Node000006_Node000009"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M637.07,-61.65C658.77,-51.58 685.26,-39.3 705.29,-30.01"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="635.38,-58.57 627.78,-65.95 638.33,-64.92 635.38,-58.57"/>
+<path fill="none" stroke="#63b8ff" d="M620.55,-58.92C630.87,-49.49 642.77,-38.61 652.01,-30.16"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="618.05,-56.47 613.04,-65.8 622.78,-61.63 618.05,-56.47"/>
+</a>
+</g>
+</g>
+<!-- Node10 -->
+<g id="Node000010" class="node">
+<title>Node10</title>
+<g id="a_Node000010"><a xlink:href="module__init_8c.html" target="_top" xlink:title=" ">
+<polygon fill="white" stroke="#666666" points="865.5,-30 745.5,-30 745.5,0 865.5,0 865.5,-30"/>
+<text text-anchor="start" x="753.5" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
+<text text-anchor="middle" x="805.5" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/module_init.c</text>
+</a>
+</g>
+</g>
+<!-- Node6&#45;&gt;Node10 -->
+<g id="edge9_Node000006_Node000010" class="edge">
+<title>Node6&#45;&gt;Node10</title>
+<g id="a_edge9_Node000006_Node000010"><a xlink:title=" ">
+<path fill="none" stroke="#63b8ff" d="M652.79,-62.99C686.25,-52.69 728.42,-39.72 759.96,-30.01"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="651.67,-59.67 643.15,-65.95 653.73,-66.36 651.67,-59.67"/>
 </a>
 </g>
 </g>

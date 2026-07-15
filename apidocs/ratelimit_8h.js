@@ -5,7 +5,9 @@ var ratelimit_8h =
     [ "brix_rl_zone_t", "structbrix__rl__zone__t.html", "structbrix__rl__zone__t" ],
     [ "brix_rl_rule_t", "structbrix__rl__rule__t.html", "structbrix__rl__rule__t" ],
     [ "brix_rl_snapshot_entry_t", "structbrix__rl__snapshot__entry__t.html", "structbrix__rl__snapshot__entry__t" ],
+    [ "rl_key_req_t", "structrl__key__req__t.html", "structrl__key__req__t" ],
     [ "BRIX_RL_KEY_LEN", "ratelimit_8h.html#a53ae4df7a9691f8272411408ee41ce10", null ],
+    [ "BRIX_RL_REQ_SCALE", "ratelimit_8h.html#a08c9814b4a949f3612ef5faefec55fbf", null ],
     [ "brix_rl_key_type_t", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49", [
       [ "BRIX_RL_KEY_VO", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49a2e90a7637a417bab9200187a25a08c9b", null ],
       [ "BRIX_RL_KEY_ISSUER", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49a182e78ab96aebd0df687ab0724d649db", null ],
@@ -25,7 +27,7 @@ var ratelimit_8h =
     [ "brix_rl_hash", "ratelimit_8h.html#ac6919a822f1a0b8542524a6574bbdf91", null ],
     [ "brix_rl_http_access_handler", "ratelimit_8h.html#adf239305c024bf7cb38ab60c4068e50e", null ],
     [ "brix_rl_http_log_handler", "ratelimit_8h.html#a181ef89f4b65284ab4c729fdc52fce62", null ],
-    [ "brix_rl_key_http", "ratelimit_8h.html#ab79e8689e25d3b4547657cf799f45dd0", null ],
+    [ "brix_rl_key_http", "ratelimit_8h.html#a715a92409e8c3c0a0b1ce32a7eea72dd", null ],
     [ "brix_rl_key_stream", "ratelimit_8h.html#a2c945ea6c6f69028e17b5cbcf8a09619", null ],
     [ "brix_rl_lookup_locked", "ratelimit_8h.html#a8d33098925211b54ef2068ec2a9c89fc", null ],
     [ "brix_rl_release_ctx", "ratelimit_8h.html#ae003072e2e4288b51e11a70e797b8492", null ],

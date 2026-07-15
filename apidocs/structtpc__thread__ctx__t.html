@@ -127,6 +127,10 @@ Data Fields</h2></td></tr>
 <tr class="separator:a5cd6c724e1a1ed1ea1f7e1712ff5af87"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac4b2eda541388d6a20eaedee9f4e21ed" id="r_ac4b2eda541388d6a20eaedee9f4e21ed"><td class="memItemLeft" align="right" valign="top">ngx_array_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__thread__ctx__t.html#ac4b2eda541388d6a20eaedee9f4e21ed">transfer_headers</a></td></tr>
 <tr class="separator:ac4b2eda541388d6a20eaedee9f4e21ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab43dc9265823afc075a9aa87d7c480ab" id="r_ab43dc9265823afc075a9aa87d7c480ab"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__thread__ctx__t.html#ab43dc9265823afc075a9aa87d7c480ab">user_cert</a></td></tr>
+<tr class="separator:ab43dc9265823afc075a9aa87d7c480ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4753e8cf5837268b150d89c816737ade" id="r_a4753e8cf5837268b150d89c816737ade"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__thread__ctx__t.html#a4753e8cf5837268b150d89c816737ade">user_key</a></td></tr>
+<tr class="separator:a4753e8cf5837268b150d89c816737ade"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae5ce249594e1d0d1160c68a4b09b2abf" id="r_ae5ce249594e1d0d1160c68a4b09b2abf"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__thread__ctx__t.html#ae5ce249594e1d0d1160c68a4b09b2abf">http_status</a></td></tr>
 <tr class="separator:ae5ce249594e1d0d1160c68a4b09b2abf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9d66b9ee1f6f15aa3fa882cb2c58ebc0" id="r_a9d66b9ee1f6f15aa3fa882cb2c58ebc0"><td class="memItemLeft" align="right" valign="top">off_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__thread__ctx__t.html#a9d66b9ee1f6f15aa3fa882cb2c58ebc0">bytes_transferred</a></td></tr>
@@ -152,9 +156,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00039">39</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00041">41</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00096">tpc_thread_fail()</a>, <a class="el" href="tpc__thread_8c_source.html#l00116">tpc_thread_record_size()</a>, <a class="el" href="tpc__thread_8c_source.html#l00306">tpc_thread_run_pull()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>.</p>
 
 </div>
 </div>
@@ -172,7 +176,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00028">28</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>, <a class="el" href="tpc__thread_8c_source.html#l00136">tpc_thread_ssrf_preflight()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -190,7 +194,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00035">35</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00412">tpc_thread_ctx_copy_paths()</a>, <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00261">tpc_thread_pull_commit()</a>.</p>
 
 </div>
 </div>
@@ -208,7 +212,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00031">31</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00261">tpc_thread_pull_commit()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -224,9 +228,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00038">38</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00040">40</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00261">tpc_thread_pull_commit()</a>, <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00136">tpc_thread_ssrf_preflight()</a>.</p>
 
 </div>
 </div>
@@ -244,7 +248,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00030">30</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00096">tpc_thread_fail()</a>, <a class="el" href="tpc__thread_8c_source.html#l00333">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -262,7 +266,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00034">34</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00412">tpc_thread_ctx_copy_paths()</a>, <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00261">tpc_thread_pull_commit()</a>, <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, <a class="el" href="tpc__thread_8c_source.html#l00116">tpc_thread_record_size()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>.</p>
 
 </div>
 </div>
@@ -280,7 +284,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00029">29</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00096">tpc_thread_fail()</a>, <a class="el" href="tpc__thread_8c_source.html#l00333">tpc_thread_func()</a>, <a class="el" href="tpc__thread_8c_source.html#l00261">tpc_thread_pull_commit()</a>, <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, <a class="el" href="tpc__thread_8c_source.html#l00306">tpc_thread_run_pull()</a>, <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>, <a class="el" href="tpc__thread_8c_source.html#l00136">tpc_thread_ssrf_preflight()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -296,9 +300,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00041">41</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00043">43</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -316,7 +320,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00032">32</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00261">tpc_thread_pull_commit()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -334,7 +338,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00027">27</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -352,7 +356,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00036">36</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00412">tpc_thread_ctx_copy_paths()</a>, <a class="el" href="tpc__thread_8c_source.html#l00261">tpc_thread_pull_commit()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>.</p>
 
 </div>
 </div>
@@ -370,7 +374,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00037">37</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -386,9 +390,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00040">40</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00042">42</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00096">tpc_thread_fail()</a>, <a class="el" href="tpc__thread_8c_source.html#l00333">tpc_thread_func()</a>, <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, <a class="el" href="tpc__thread_8c_source.html#l00306">tpc_thread_run_pull()</a>, <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>
@@ -406,7 +410,43 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00033">33</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>, <a class="el" href="tpc__thread_8c_source.html#l00136">tpc_thread_ssrf_preflight()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
+
+</div>
+</div>
+<a id="ab43dc9265823afc075a9aa87d7c480ab" name="ab43dc9265823afc075a9aa87d7c480ab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab43dc9265823afc075a9aa87d7c480ab">&#9670;&#160;</a></span>user_cert</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const char* tpc_thread_ctx_t::user_cert</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00038">38</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
+
+</div>
+</div>
+<a id="a4753e8cf5837268b150d89c816737ade" name="a4753e8cf5837268b150d89c816737ade"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4753e8cf5837268b150d89c816737ade">&#9670;&#160;</a></span>user_key</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const char* tpc_thread_ctx_t::user_key</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00039">39</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00437">webdav_tpc_post_thread_task()</a>.</p>
 
 </div>
 </div>

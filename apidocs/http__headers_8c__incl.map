@@ -1,13 +1,11 @@
 <map id="src/core/http/http_headers.c" name="src/core/http/http_headers.c">
-<area shape="rect" id="Node000001" title=" " alt="" coords="387,5,520,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="332,5,465,45"/>
 <area shape="rect" id="Node000002" href="$http__headers_8h.html" title=" " alt="" coords="154,93,273,119"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="397,48,262,92,261,87,395,43"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="355,48,254,90,252,85,353,43"/>
 <area shape="rect" id="Node000006" href="$cstr_8h.html" title=" " alt="" coords="327,93,470,119"/>
-<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="442,47,417,84,412,80,438,44"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="401,46,401,79,396,79,396,46"/>
 <area shape="rect" id="Node000008" title=" " alt="" coords="470,167,541,192"/>
-<area shape="poly" id="edge9_Node000001_Node000008" title=" " alt="" coords="465,45,485,92,502,152,497,154,480,94,460,47"/>
-<area shape="rect" id="Node000009" title=" " alt="" coords="545,93,612,119"/>
-<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="485,43,550,84,547,88,482,48"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="433,43,461,65,485,92,499,122,505,152,500,153,494,124,480,95,457,68,430,48"/>
 <area shape="rect" id="Node000003" title=" " alt="" coords="5,167,109,192"/>
 <area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="189,121,96,163,94,158,187,116"/>
 <area shape="rect" id="Node000004" title=" " alt="" coords="133,167,227,192"/>

@@ -153,7 +153,11 @@ Functions</h2></td></tr>
 <tr class="separator:aa2a28903302c7f43ac18b82b726754f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5f14c03a2de06fdcc5d41067109c72b8" id="r_a5f14c03a2de06fdcc5d41067109c72b8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cks__verify_8c.html#a5f14c03a2de06fdcc5d41067109c72b8">ckv_collect_cache</a> (const char *path, <a class="el" href="structckv__record.html">ckv_record</a> *recs, size_t max, size_t *n)</td></tr>
 <tr class="separator:a5f14c03a2de06fdcc5d41067109c72b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a893614901036498f21aba68c464d2911" id="r_a893614901036498f21aba68c464d2911"><td class="memItemLeft" align="right" valign="top"><a class="el" href="brix__ops_8h.html#ad4ac6b425e74e79a0ad3b9cd961a4208">brix_ckv_result</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cks__verify_8c.html#a893614901036498f21aba68c464d2911">brix_cks_verify_file</a> (const char *path, const char *want_algo, <a class="el" href="brix__ops_8h.html#a3ef19f0fefe18ee1560738068f1b9e39">brix_ckv_mode</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, <a class="el" href="structbrix__ckv__report.html">brix_ckv_report</a> *rep, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:af9bba48de0cb9c42be8ab22f582a28b3" id="r_af9bba48de0cb9c42be8ab22f582a28b3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cks__verify_8c.html#af9bba48de0cb9c42be8ab22f582a28b3">ckv_collect_records</a> (const char *path, <a class="el" href="brix__ops_8h.html#a3ef19f0fefe18ee1560738068f1b9e39">brix_ckv_mode</a> mode, <a class="el" href="structckv__record.html">ckv_record</a> *recs, size_t max, size_t *n)</td></tr>
+<tr class="separator:af9bba48de0cb9c42be8ab22f582a28b3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad41d3260774339b8b4b19ad15ee03a7a" id="r_ad41d3260774339b8b4b19ad15ee03a7a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cks__verify_8c.html#ad41d3260774339b8b4b19ad15ee03a7a">ckv_verify_one</a> (int fd, const <a class="el" href="structckv__record.html">ckv_record</a> *rec, const char *path, const char *want_algo, char comp[][<a class="el" href="brix__ops_8h.html#a70bfe38ce7aa1bd9eb0c374037b045a6">XRDC_CKV_HEX_MAX</a>], int *comp_done, <a class="el" href="structbrix__ckv__report.html">brix_ckv_report</a> *rep, <a class="el" href="structbrix__status.html">brix_status</a> *st, int *matched, int *unsupported, <a class="el" href="brix__ops_8h.html#ad4ac6b425e74e79a0ad3b9cd961a4208">brix_ckv_result</a> *out)</td></tr>
+<tr class="separator:ad41d3260774339b8b4b19ad15ee03a7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a893614901036498f21aba68c464d2911" id="r_a893614901036498f21aba68c464d2911"><td class="memItemLeft" align="right" valign="top"><a class="el" href="brix__ops_8h.html#ad4ac6b425e74e79a0ad3b9cd961a4208">brix_ckv_result</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cks__verify_8c.html#a893614901036498f21aba68c464d2911">brix_cks_verify_file</a> (const char *path, const char *want_algo, <a class="el" href="brix__ops_8h.html#a3ef19f0fefe18ee1560738068f1b9e39">brix_ckv_mode</a> mode, <a class="el" href="structbrix__ckv__report.html">brix_ckv_report</a> *rep, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a893614901036498f21aba68c464d2911"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -250,11 +254,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cks__verify_8c_source.html#l00262">262</a> of file <a class="el" href="cks__verify_8c_source.html">cks_verify.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cks__verify_8c_source.html#l00358">358</a> of file <a class="el" href="cks__verify_8c_source.html">cks_verify.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00246">brix_ckv_report::algo</a>, <a class="el" href="cks__verify_8c_source.html#l00094">ckv_record::algo</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00029">brix_cksum_algo_parse()</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="cks__verify_8c_source.html#l00243">ckv_collect_cache()</a>, <a class="el" href="cks__verify_8c_source.html#l00177">ckv_collect_sidecar()</a>, <a class="el" href="cks__verify_8c_source.html#l00147">ckv_collect_xattr()</a>, <a class="el" href="cks__verify_8c_source.html#l00039">CKV_MAX_RECORDS</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__ops_8h_source.html#l00248">brix_ckv_report::computed</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="cks__verify_8c_source.html#l00095">ckv_record::hex</a>, <a class="el" href="brixposix__preload_8c_source.html#l00353">lseek()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brix__ops_8h_source.html#l00247">brix_ckv_report::recorded</a>, <a class="el" href="brix__ops_8h_source.html#l00245">brix_ckv_report::source</a>, <a class="el" href="cks__verify_8c_source.html#l00093">ckv_record::src</a>, <a class="el" href="brix__ops_8h_source.html#l00210">XRDC_CK_ZCRC32</a>, <a class="el" href="brix__ops_8h_source.html#l00229">XRDC_CKV_AUTO</a>, <a class="el" href="brix__ops_8h_source.html#l00230">XRDC_CKV_CACHE</a>, <a class="el" href="brix__ops_8h_source.html#l00240">XRDC_CKV_ERROR</a>, <a class="el" href="brix__ops_8h_source.html#l00225">XRDC_CKV_HEX_MAX</a>, <a class="el" href="brix__ops_8h_source.html#l00237">XRDC_CKV_MISMATCH</a>, <a class="el" href="brix__ops_8h_source.html#l00238">XRDC_CKV_NO_RECORD</a>, <a class="el" href="brix__ops_8h_source.html#l00236">XRDC_CKV_OK</a>, <a class="el" href="brix__ops_8h_source.html#l00231">XRDC_CKV_STORAGE</a>, <a class="el" href="brix__ops_8h_source.html#l00239">XRDC_CKV_UNSUPPORTED</a>, <a class="el" href="brix_8h_source.html#l00059">XRDC_EINTEGRITY</a>, <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="cks__verify_8c_source.html#l00277">ckv_collect_records()</a>, <a class="el" href="cks__verify_8c_source.html#l00039">CKV_MAX_RECORDS</a>, <a class="el" href="cks__verify_8c_source.html#l00315">ckv_verify_one()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brix__ops_8h_source.html#l00210">XRDC_CK_ZCRC32</a>, <a class="el" href="brix__ops_8h_source.html#l00240">XRDC_CKV_ERROR</a>, <a class="el" href="brix__ops_8h_source.html#l00225">XRDC_CKV_HEX_MAX</a>, <a class="el" href="brix__ops_8h_source.html#l00238">XRDC_CKV_NO_RECORD</a>, <a class="el" href="brix__ops_8h_source.html#l00236">XRDC_CKV_OK</a>, <a class="el" href="brix__ops_8h_source.html#l00239">XRDC_CKV_UNSUPPORTED</a>, <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdckverify_8c_source.html#l00048">brix_xrdckverify_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdckverify_8c_source.html#l00205">brix_xrdckverify_main()</a>.</p>
 
 </div>
 </div>
@@ -438,7 +442,67 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cks__verify_8c_source.html#l00065">ckv_meta::cks_alg</a>, <a class="el" href="cks__verify_8c_source.html#l00086">ckv_cinfo::cks_alg</a>, <a class="el" href="cks__verify_8c_source.html#l00064">ckv_meta::cks_alg_len</a>, <a class="el" href="cks__verify_8c_source.html#l00085">ckv_cinfo::cks_alg_len</a>, <a class="el" href="cks__verify_8c_source.html#l00067">ckv_meta::cks_hex</a>, <a class="el" href="cks__verify_8c_source.html#l00088">ckv_cinfo::cks_hex</a>, <a class="el" href="cks__verify_8c_source.html#l00066">ckv_meta::cks_len</a>, <a class="el" href="cks__verify_8c_source.html#l00087">ckv_cinfo::cks_len</a>, <a class="el" href="cks__verify_8c_source.html#l00228">ckv_add_cache_record()</a>, <a class="el" href="cks__verify_8c_source.html#l00090">CKV_CINFO_MAGIC</a>, <a class="el" href="cks__verify_8c_source.html#l00207">ckv_read_sidecar_blob()</a>, <a class="el" href="cks__verify_8c_source.html#l00072">ckv_cinfo::magic</a>, and <a class="el" href="cks__verify_8c_source.html#l00060">ckv_meta::version</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00262">brix_cks_verify_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00277">ckv_collect_records()</a>.</p>
+
+</div>
+</div>
+<a id="af9bba48de0cb9c42be8ab22f582a28b3" name="af9bba48de0cb9c42be8ab22f582a28b3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af9bba48de0cb9c42be8ab22f582a28b3">&#9670;&#160;</a></span>ckv_collect_records()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void ckv_collect_records </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="brix__ops_8h.html#a3ef19f0fefe18ee1560738068f1b9e39">brix_ckv_mode</a>&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structckv__record.html">ckv_record</a> *&#160;</td>
+          <td class="paramname"><em>recs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>max</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>n</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cks__verify_8c_source.html#l00277">277</a> of file <a class="el" href="cks__verify_8c_source.html">cks_verify.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cks__verify_8c_source.html#l00243">ckv_collect_cache()</a>, <a class="el" href="cks__verify_8c_source.html#l00177">ckv_collect_sidecar()</a>, <a class="el" href="cks__verify_8c_source.html#l00147">ckv_collect_xattr()</a>, <a class="el" href="brix__ops_8h_source.html#l00229">XRDC_CKV_AUTO</a>, <a class="el" href="brix__ops_8h_source.html#l00230">XRDC_CKV_CACHE</a>, and <a class="el" href="brix__ops_8h_source.html#l00231">XRDC_CKV_STORAGE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00358">brix_cks_verify_file()</a>.</p>
 
 </div>
 </div>
@@ -492,7 +556,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="brix__ops_8h_source.html#l00225">XRDC_CKV_HEX_MAX</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00262">brix_cks_verify_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00277">ckv_collect_records()</a>.</p>
 
 </div>
 </div>
@@ -544,9 +608,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cks__verify_8c_source.html#l00147">147</a> of file <a class="el" href="cks__verify_8c_source.html">cks_verify.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cks__verify_8c_source.html#l00118">ckv_decode_xattr_value()</a>, <a class="el" href="cks__verify_8c_source.html#l00038">CKV_XATTR_PREFIX</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="cks__verify_8c_source.html#l00118">ckv_decode_xattr_value()</a>, <a class="el" href="cks__verify_8c_source.html#l00038">CKV_XATTR_PREFIX</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00262">brix_cks_verify_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00277">ckv_collect_records()</a>.</p>
 
 </div>
 </div>
@@ -655,6 +719,102 @@ Functions</h2></td></tr>
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00243">ckv_collect_cache()</a>.</p>
+
+</div>
+</div>
+<a id="ad41d3260774339b8b4b19ad15ee03a7a" name="ad41d3260774339b8b4b19ad15ee03a7a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad41d3260774339b8b4b19ad15ee03a7a">&#9670;&#160;</a></span>ckv_verify_one()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ckv_verify_one </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structckv__record.html">ckv_record</a> *&#160;</td>
+          <td class="paramname"><em>rec</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>want_algo</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>comp</em>[][XRDC_CKV_HEX_MAX], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>comp_done</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ckv__report.html">brix_ckv_report</a> *&#160;</td>
+          <td class="paramname"><em>rep</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>matched</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>unsupported</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="brix__ops_8h.html#ad4ac6b425e74e79a0ad3b9cd961a4208">brix_ckv_result</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cks__verify_8c_source.html#l00315">315</a> of file <a class="el" href="cks__verify_8c_source.html">cks_verify.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00246">brix_ckv_report::algo</a>, <a class="el" href="cks__verify_8c_source.html#l00094">ckv_record::algo</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00029">brix_cksum_algo_parse()</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__ops_8h_source.html#l00248">brix_ckv_report::computed</a>, <a class="el" href="cks__verify_8c_source.html#l00095">ckv_record::hex</a>, <a class="el" href="brixposix__preload_8c_source.html#l00353">lseek()</a>, <a class="el" href="brix__ops_8h_source.html#l00247">brix_ckv_report::recorded</a>, <a class="el" href="brix__ops_8h_source.html#l00245">brix_ckv_report::source</a>, <a class="el" href="cks__verify_8c_source.html#l00093">ckv_record::src</a>, <a class="el" href="brix__ops_8h_source.html#l00210">XRDC_CK_ZCRC32</a>, <a class="el" href="brix__ops_8h_source.html#l00240">XRDC_CKV_ERROR</a>, <a class="el" href="brix__ops_8h_source.html#l00225">XRDC_CKV_HEX_MAX</a>, <a class="el" href="brix__ops_8h_source.html#l00237">XRDC_CKV_MISMATCH</a>, and <a class="el" href="brix_8h_source.html#l00059">XRDC_EINTEGRITY</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cks__verify_8c_source.html#l00358">brix_cks_verify_file()</a>.</p>
 
 </div>
 </div>

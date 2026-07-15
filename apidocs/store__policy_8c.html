@@ -93,8 +93,7 @@ $(document).ready(function(){initNavTree('store__policy_8c.html',''); initResiza
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">store_policy.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -111,12 +110,13 @@ $(document).ready(function(){initNavTree('store__policy_8c.html',''); initResiza
 <code>#include &lt;strings.h&gt;</code><br />
 <code>#include &lt;sys/stat.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
+<code>#include &quot;<a class="el" href="store__policy__internal_8h_source.html">store_policy_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for store_policy.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="store__policy_8c__incl.svg" width="100%" height="514"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="store__policy_8c__incl.svg" width="100%" height="569"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="store__policy_8c_source.html">Go to the source code of this file.</a></p>
@@ -126,8 +126,6 @@ Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sp__entry__t.html">brix_sp_entry_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sp__table__s.html">brix_sp_table_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__store__policy__t.html">brix_store_policy_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
@@ -143,8 +141,8 @@ Functions</h2></td></tr>
 <tr class="separator:a18258ecca6b177cf8259289e52e99496"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a63aca998a6bbf2924c2e74a48bd4da95" id="r_a63aca998a6bbf2924c2e74a48bd4da95"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a63aca998a6bbf2924c2e74a48bd4da95">sp_read_file</a> (const char *path, size_t *out_len)</td></tr>
 <tr class="separator:a63aca998a6bbf2924c2e74a48bd4da95"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7d13f3fdbb226d0e48c256dd1e7fa4e3" id="r_a7d13f3fdbb226d0e48c256dd1e7fa4e3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a7d13f3fdbb226d0e48c256dd1e7fa4e3">sp_log</a> (void *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="store__policy_8h.html#a911e7a493198c573ac75fe327fbab901">brix_sp_log_fn</a> <a class="el" href="ssi__service_8c.html#a958a24ea3e61407c12cdb0ea5bbf9738">fn</a>, int level, const char *msg)</td></tr>
-<tr class="separator:a7d13f3fdbb226d0e48c256dd1e7fa4e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4fb612ac1bffc1389b4af255df9fe0c4" id="r_a4fb612ac1bffc1389b4af255df9fe0c4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a4fb612ac1bffc1389b4af255df9fe0c4">sp_log</a> (void *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="store__policy_8h.html#a911e7a493198c573ac75fe327fbab901">brix_sp_log_fn</a> <a class="el" href="broker__ops_8c.html#a5c3d91bb07df8e05d3407e6ec6ce47f6">fn</a>, int level, const char *msg)</td></tr>
+<tr class="separator:a4fb612ac1bffc1389b4af255df9fe0c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4f283cfe61c886d811794702a845c733" id="r_a4f283cfe61c886d811794702a845c733"><td class="memItemLeft" align="right" valign="top">brix_sp_table_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a4f283cfe61c886d811794702a845c733">brix_sp_table_build</a> (const char *cadir, void *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="store__policy_8h.html#a911e7a493198c573ac75fe327fbab901">brix_sp_log_fn</a> log_fn)</td></tr>
 <tr class="separator:a4f283cfe61c886d811794702a845c733"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3a7a0e6cfec3a8c78a8d3a21f7c9594f" id="r_a3a7a0e6cfec3a8c78a8d3a21f7c9594f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a3a7a0e6cfec3a8c78a8d3a21f7c9594f">brix_sp_table_free</a> (brix_sp_table_t *t)</td></tr>
@@ -153,49 +151,8 @@ Functions</h2></td></tr>
 <tr class="separator:ae40b991a48ca31e9f236c83e5d08b36c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7ed6b3c7e6814408e23cf33ebecfd87a" id="r_a7ed6b3c7e6814408e23cf33ebecfd87a"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structbrix__sp__entry__t.html">brix_sp_entry_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a7ed6b3c7e6814408e23cf33ebecfd87a">sp_find_by_dn</a> (const brix_sp_table_t *t, const char *ca_dn)</td></tr>
 <tr class="separator:a7ed6b3c7e6814408e23cf33ebecfd87a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5fcf5093e39e60e6b60042db31c9ffed" id="r_a5fcf5093e39e60e6b60042db31c9ffed"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a5fcf5093e39e60e6b60042db31c9ffed">brix_sp_table_check</a> (const brix_sp_table_t *t, <a class="el" href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50a">brix_sp_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, X509 *ca, X509 *subject)</td></tr>
+<tr class="memitem:a5fcf5093e39e60e6b60042db31c9ffed" id="r_a5fcf5093e39e60e6b60042db31c9ffed"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a5fcf5093e39e60e6b60042db31c9ffed">brix_sp_table_check</a> (const brix_sp_table_t *t, <a class="el" href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50a">brix_sp_mode_t</a> mode, X509 *ca, X509 *subject)</td></tr>
 <tr class="separator:a5fcf5093e39e60e6b60042db31c9ffed"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5cc9360506ea8545b62a7edb578bdc63" id="r_a5cc9360506ea8545b62a7edb578bdc63"><td class="memItemLeft" align="right" valign="top"><a class="el" href="store__policy_8h.html#a935dc78225422de7fe5ce9d6893f2be0">brix_px_kind_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a5cc9360506ea8545b62a7edb578bdc63">brix_px_classify</a> (X509 *cert)</td></tr>
-<tr class="separator:a5cc9360506ea8545b62a7edb578bdc63"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a27de32917e64e96e2c38fb8529147677" id="r_a27de32917e64e96e2c38fb8529147677"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a27de32917e64e96e2c38fb8529147677">brix_proxy_chain_ok</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain)</td></tr>
-<tr class="separator:a27de32917e64e96e2c38fb8529147677"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3ff458a14cb48aec128a3a126738e518" id="r_a3ff458a14cb48aec128a3a126738e518"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a3ff458a14cb48aec128a3a126738e518">brix_dn_has_control_bytes</a> (X509_NAME *nm)</td></tr>
-<tr class="separator:a3ff458a14cb48aec128a3a126738e518"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae289953ff175642a92caf00a4ea321f2" id="r_ae289953ff175642a92caf00a4ea321f2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#ae289953ff175642a92caf00a4ea321f2">brix_cert_policy_violation</a> (X509 *cert)</td></tr>
-<tr class="separator:ae289953ff175642a92caf00a4ea321f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae1e7f1391a42c04d6b6b1630fc4c0655" id="r_ae1e7f1391a42c04d6b6b1630fc4c0655"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#ae1e7f1391a42c04d6b6b1630fc4c0655">brix_leaf_purpose_violation</a> (X509 *leaf)</td></tr>
-<tr class="separator:ae1e7f1391a42c04d6b6b1630fc4c0655"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac708f571d8dd1440c9c46dca1078450c" id="r_ac708f571d8dd1440c9c46dca1078450c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#ac708f571d8dd1440c9c46dca1078450c">brix_proxy_pci_ok</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain)</td></tr>
-<tr class="separator:ac708f571d8dd1440c9c46dca1078450c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adb0b54f756a27b5f45cf5f47fc727a66" id="r_adb0b54f756a27b5f45cf5f47fc727a66"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#adb0b54f756a27b5f45cf5f47fc727a66">brix_sp_proxy_check_issued</a> (X509_STORE_CTX *ctx, X509 *subject, X509 *issuer)</td></tr>
-<tr class="separator:adb0b54f756a27b5f45cf5f47fc727a66"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aec0d88d03f3e15d48459dde9d3b0b065" id="r_aec0d88d03f3e15d48459dde9d3b0b065"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#aec0d88d03f3e15d48459dde9d3b0b065">brix_crl_try_verify_cb</a> (int ok, X509_STORE_CTX *ctx)</td></tr>
-<tr class="separator:aec0d88d03f3e15d48459dde9d3b0b065"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a13db36a3d2376f5d8b5261b631177866" id="r_a13db36a3d2376f5d8b5261b631177866"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a13db36a3d2376f5d8b5261b631177866">brix_store_configure</a> (<a class="el" href="webdav_8h.html#a3a2b800bae08729d11bc28f12b795597">X509_STORE</a> *store, const char *cadir, unsigned long extra_flags, int crl_count, <a class="el" href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50a">brix_sp_mode_t</a> sp_mode, int crl_mode, void *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="store__policy_8h.html#a911e7a493198c573ac75fe327fbab901">brix_sp_log_fn</a> log_fn)</td></tr>
-<tr class="separator:a13db36a3d2376f5d8b5261b631177866"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a591d94456abc2d3ac2b10e5cdd22b364" id="r_a591d94456abc2d3ac2b10e5cdd22b364"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a591d94456abc2d3ac2b10e5cdd22b364">sp_ex_free</a> (void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)</td></tr>
-<tr class="separator:a591d94456abc2d3ac2b10e5cdd22b364"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6071880ab23ac358b077488bb2e7205a" id="r_a6071880ab23ac358b077488bb2e7205a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a6071880ab23ac358b077488bb2e7205a">sp_store_ex_index</a> (void)</td></tr>
-<tr class="separator:a6071880ab23ac358b077488bb2e7205a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a65a8e67a68aca1da1c6535c1f2d28038" id="r_a65a8e67a68aca1da1c6535c1f2d28038"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a65a8e67a68aca1da1c6535c1f2d28038">brix_store_policy_attach</a> (<a class="el" href="webdav_8h.html#a3a2b800bae08729d11bc28f12b795597">X509_STORE</a> *store, brix_sp_table_t *table, <a class="el" href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50a">brix_sp_mode_t</a> sp_mode, int crl_mode)</td></tr>
-<tr class="separator:a65a8e67a68aca1da1c6535c1f2d28038"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5af0796da4d18ef0d55a6c86b0e9812b" id="r_a5af0796da4d18ef0d55a6c86b0e9812b"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__store__policy__t.html">brix_store_policy_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a5af0796da4d18ef0d55a6c86b0e9812b">sp_from_ctx</a> (X509_STORE_CTX *ctx)</td></tr>
-<tr class="separator:a5af0796da4d18ef0d55a6c86b0e9812b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a51ab32c5f8a5f5abd5efa55204ab95d2" id="r_a51ab32c5f8a5f5abd5efa55204ab95d2"><td class="memItemLeft" align="right" valign="top">brix_sp_table_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a51ab32c5f8a5f5abd5efa55204ab95d2">brix_store_policy_table</a> (X509_STORE_CTX *ctx)</td></tr>
-<tr class="separator:a51ab32c5f8a5f5abd5efa55204ab95d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a518375a1d67504221109acb48ce710ed" id="r_a518375a1d67504221109acb48ce710ed"><td class="memItemLeft" align="right" valign="top"><a class="el" href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50a">brix_sp_mode_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a518375a1d67504221109acb48ce710ed">brix_store_policy_mode</a> (X509_STORE_CTX *ctx)</td></tr>
-<tr class="separator:a518375a1d67504221109acb48ce710ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a11d47e8e96037a75d5003f7f4fc28324" id="r_a11d47e8e96037a75d5003f7f4fc28324"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a11d47e8e96037a75d5003f7f4fc28324">brix_store_crl_mode</a> (X509_STORE_CTX *ctx)</td></tr>
-<tr class="separator:a11d47e8e96037a75d5003f7f4fc28324"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:aa2bc631a4dcd02defddb6c7e5d13977c" id="r_aa2bc631a4dcd02defddb6c7e5d13977c"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#aa2bc631a4dcd02defddb6c7e5d13977c">BRIX_PX_LIMITED_OID</a> = &quot;1.3.6.1.4.1.3536.1.1.1.9&quot;</td></tr>
-<tr class="separator:aa2bc631a4dcd02defddb6c7e5d13977c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a31063ea6c851cf483ad7141b195ca798" id="r_a31063ea6c851cf483ad7141b195ca798"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#a31063ea6c851cf483ad7141b195ca798">BRIX_PX_OID_IMPERSONATION</a> = &quot;1.3.6.1.5.5.7.21.1&quot;</td></tr>
-<tr class="separator:a31063ea6c851cf483ad7141b195ca798"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa49e9e61326b1b732d41bd147888b45d" id="r_aa49e9e61326b1b732d41bd147888b45d"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="store__policy_8c.html#aa49e9e61326b1b732d41bd147888b45d">BRIX_PX_OID_INDEPENDENT</a> = &quot;1.3.6.1.5.5.7.21.2&quot;</td></tr>
-<tr class="separator:aa49e9e61326b1b732d41bd147888b45d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a93b70c6f322bc5d253bbedc9886215bd" name="a93b70c6f322bc5d253bbedc9886215bd"></a>
@@ -210,247 +167,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00044">44</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00039">39</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ae289953ff175642a92caf00a4ea321f2" name="ae289953ff175642a92caf00a4ea321f2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae289953ff175642a92caf00a4ea321f2">&#9670;&#160;</a></span>brix_cert_policy_violation()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_cert_policy_violation </td>
-          <td>(</td>
-          <td class="paramtype">X509 *&#160;</td>
-          <td class="paramname"><em>cert</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00404">404</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00385">brix_dn_has_control_bytes()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00116">brix_gsi_enforce_cert_policy()</a>.</p>
-
-</div>
-</div>
-<a id="aec0d88d03f3e15d48459dde9d3b0b065" name="aec0d88d03f3e15d48459dde9d3b0b065"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aec0d88d03f3e15d48459dde9d3b0b065">&#9670;&#160;</a></span>brix_crl_try_verify_cb()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int brix_crl_try_verify_cb </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ok</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">X509_STORE_CTX *&#160;</td>
-          <td class="paramname"><em>ctx</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00583">583</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00595">brix_store_configure()</a>.</p>
-
-</div>
-</div>
-<a id="a3ff458a14cb48aec128a3a126738e518" name="a3ff458a14cb48aec128a3a126738e518"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3ff458a14cb48aec128a3a126738e518">&#9670;&#160;</a></span>brix_dn_has_control_bytes()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int brix_dn_has_control_bytes </td>
-          <td>(</td>
-          <td class="paramtype">X509_NAME *&#160;</td>
-          <td class="paramname"><em>nm</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00385">385</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00404">brix_cert_policy_violation()</a>.</p>
-
-</div>
-</div>
-<a id="ae1e7f1391a42c04d6b6b1630fc4c0655" name="ae1e7f1391a42c04d6b6b1630fc4c0655"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae1e7f1391a42c04d6b6b1630fc4c0655">&#9670;&#160;</a></span>brix_leaf_purpose_violation()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_leaf_purpose_violation </td>
-          <td>(</td>
-          <td class="paramtype">X509 *&#160;</td>
-          <td class="paramname"><em>leaf</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00460">460</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00116">brix_gsi_enforce_cert_policy()</a>.</p>
-
-</div>
-</div>
-<a id="a27de32917e64e96e2c38fb8529147677" name="a27de32917e64e96e2c38fb8529147677"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a27de32917e64e96e2c38fb8529147677">&#9670;&#160;</a></span>brix_proxy_chain_ok()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_proxy_chain_ok </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
-          <td class="paramname"><em>chain</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00355">355</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00310">brix_px_classify()</a>, <a class="el" href="store__policy_8h_source.html#l00104">BRIX_PX_FULL</a>, and <a class="el" href="store__policy_8h_source.html#l00104">BRIX_PX_LIMITED</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00040">brix_gsi_enforce_proxy_monotonicity()</a>.</p>
-
-</div>
-</div>
-<a id="ac708f571d8dd1440c9c46dca1078450c" name="ac708f571d8dd1440c9c46dca1078450c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac708f571d8dd1440c9c46dca1078450c">&#9670;&#160;</a></span>brix_proxy_pci_ok()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_proxy_pci_ok </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
-          <td class="paramname"><em>chain</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00493">493</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00307">BRIX_PX_LIMITED_OID</a>, <a class="el" href="store__policy_8c_source.html#l00380">BRIX_PX_OID_IMPERSONATION</a>, and <a class="el" href="store__policy_8c_source.html#l00381">BRIX_PX_OID_INDEPENDENT</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00116">brix_gsi_enforce_cert_policy()</a>.</p>
-
-</div>
-</div>
-<a id="a5cc9360506ea8545b62a7edb578bdc63" name="a5cc9360506ea8545b62a7edb578bdc63"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5cc9360506ea8545b62a7edb578bdc63">&#9670;&#160;</a></span>brix_px_classify()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="store__policy_8h.html#a935dc78225422de7fe5ce9d6893f2be0">brix_px_kind_t</a> brix_px_classify </td>
-          <td>(</td>
-          <td class="paramtype">X509 *&#160;</td>
-          <td class="paramname"><em>cert</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00310">310</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8h_source.html#l00104">BRIX_PX_FULL</a>, <a class="el" href="store__policy_8h_source.html#l00104">BRIX_PX_LIMITED</a>, <a class="el" href="store__policy_8c_source.html#l00307">BRIX_PX_LIMITED_OID</a>, <a class="el" href="store__policy_8h_source.html#l00104">BRIX_PX_NONE</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00355">brix_proxy_chain_ok()</a>.</p>
-
-</div>
-</div>
-<a id="adb0b54f756a27b5f45cf5f47fc727a66" name="adb0b54f756a27b5f45cf5f47fc727a66"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adb0b54f756a27b5f45cf5f47fc727a66">&#9670;&#160;</a></span>brix_sp_proxy_check_issued()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int brix_sp_proxy_check_issued </td>
-          <td>(</td>
-          <td class="paramtype">X509_STORE_CTX *&#160;</td>
-          <td class="paramname"><em>ctx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">X509 *&#160;</td>
-          <td class="paramname"><em>subject</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">X509 *&#160;</td>
-          <td class="paramname"><em>issuer</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00549">549</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00595">brix_store_configure()</a>.</p>
-
-</div>
-</div>
 <a id="a4f283cfe61c886d811794702a845c733" name="a4f283cfe61c886d811794702a845c733"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a4f283cfe61c886d811794702a845c733">&#9670;&#160;</a></span>brix_sp_table_build()</h2>
 
@@ -483,11 +204,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00143">143</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00138">138</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="signing__policy_8c_source.html#l00385">brix_sp_free()</a>, <a class="el" href="store__policy_8h_source.html#l00033">BRIX_SP_LOG_WARN</a>, <a class="el" href="signing__policy_8c_source.html#l00345">brix_sp_parse()</a>, <a class="el" href="store__policy_8c_source.html#l00025">brix_sp_entry_t::hash</a>, <a class="el" href="store__policy_8c_source.html#l00026">brix_sp_entry_t::have_hash</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="store__policy_8c_source.html#l00027">brix_sp_entry_t::malformed</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="store__policy_8c_source.html#l00028">brix_sp_entry_t::policy</a>, <a class="el" href="store__policy_8c_source.html#l00076">sp_entry_push()</a>, <a class="el" href="store__policy_8c_source.html#l00135">sp_log()</a>, and <a class="el" href="store__policy_8c_source.html#l00093">sp_read_file()</a>.</p>
+<p class="reference">References <a class="el" href="signing__policy_8c_source.html#l00388">brix_sp_free()</a>, <a class="el" href="store__policy_8h_source.html#l00033">BRIX_SP_LOG_WARN</a>, <a class="el" href="signing__policy_8c_source.html#l00348">brix_sp_parse()</a>, <a class="el" href="store__policy_8c_source.html#l00027">brix_sp_entry_t::hash</a>, <a class="el" href="store__policy_8c_source.html#l00028">brix_sp_entry_t::have_hash</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="store__policy_8c_source.html#l00029">brix_sp_entry_t::malformed</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="store__policy_8c_source.html#l00030">brix_sp_entry_t::policy</a>, <a class="el" href="store__policy_8c_source.html#l00071">sp_entry_push()</a>, <a class="el" href="store__policy_8c_source.html#l00130">sp_log()</a>, and <a class="el" href="store__policy_8c_source.html#l00088">sp_read_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00595">brix_store_configure()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="store__policy__store_8c_source.html#l00095">brix_store_configure()</a>.</p>
 
 </div>
 </div>
@@ -529,9 +250,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00269">269</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00264">264</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="signing__policy_8c_source.html#l00403">brix_sp_ca_dn_present()</a>, <a class="el" href="signing__policy_8h_source.html#l00021">BRIX_SP_MODE_OFF</a>, <a class="el" href="signing__policy_8h_source.html#l00023">BRIX_SP_MODE_REQUIRE</a>, <a class="el" href="signing__policy_8c_source.html#l00417">brix_sp_subject_allowed()</a>, <a class="el" href="store__policy_8c_source.html#l00049">brix_x509_oneline()</a>, <a class="el" href="store__policy_8c_source.html#l00027">brix_sp_entry_t::malformed</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="store__policy_8c_source.html#l00028">brix_sp_entry_t::policy</a>, <a class="el" href="store__policy_8c_source.html#l00256">sp_find_by_dn()</a>, and <a class="el" href="store__policy_8c_source.html#l00236">sp_find_by_hash()</a>.</p>
+<p class="reference">References <a class="el" href="signing__policy_8c_source.html#l00406">brix_sp_ca_dn_present()</a>, <a class="el" href="signing__policy_8h_source.html#l00021">BRIX_SP_MODE_OFF</a>, <a class="el" href="signing__policy_8h_source.html#l00023">BRIX_SP_MODE_REQUIRE</a>, <a class="el" href="signing__policy_8c_source.html#l00420">brix_sp_subject_allowed()</a>, <a class="el" href="store__policy_8c_source.html#l00044">brix_x509_oneline()</a>, <a class="el" href="store__policy_8c_source.html#l00029">brix_sp_entry_t::malformed</a>, <a class="el" href="store__policy_8c_source.html#l00030">brix_sp_entry_t::policy</a>, <a class="el" href="store__policy_8c_source.html#l00251">sp_find_by_dn()</a>, and <a class="el" href="store__policy_8c_source.html#l00231">sp_find_by_hash()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00064">brix_gsi_enforce_signing_policy()</a>.</p>
 
@@ -553,197 +274,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00215">215</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00210">210</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="signing__policy_8c_source.html#l00385">brix_sp_free()</a>.</p>
+<p class="reference">References <a class="el" href="signing__policy_8c_source.html#l00388">brix_sp_free()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00595">brix_store_configure()</a>, and <a class="el" href="store__policy_8c_source.html#l00648">sp_ex_free()</a>.</p>
-
-</div>
-</div>
-<a id="a13db36a3d2376f5d8b5261b631177866" name="a13db36a3d2376f5d8b5261b631177866"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a13db36a3d2376f5d8b5261b631177866">&#9670;&#160;</a></span>brix_store_configure()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_store_configure </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="webdav_8h.html#a3a2b800bae08729d11bc28f12b795597">X509_STORE</a> *&#160;</td>
-          <td class="paramname"><em>store</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>cadir</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>extra_flags</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>crl_count</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50a">brix_sp_mode_t</a>&#160;</td>
-          <td class="paramname"><em>sp_mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>crl_mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="store__policy_8h.html#a911e7a493198c573ac75fe327fbab901">brix_sp_log_fn</a>&#160;</td>
-          <td class="paramname"><em>log_fn</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00595">595</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8h_source.html#l00028">BRIX_CRL_MODE_REQUIRE</a>, <a class="el" href="store__policy_8h_source.html#l00027">BRIX_CRL_MODE_TRY</a>, <a class="el" href="store__policy_8c_source.html#l00583">brix_crl_try_verify_cb()</a>, <a class="el" href="store__policy_8h_source.html#l00033">BRIX_SP_LOG_WARN</a>, <a class="el" href="signing__policy_8h_source.html#l00023">BRIX_SP_MODE_REQUIRE</a>, <a class="el" href="store__policy_8c_source.html#l00549">brix_sp_proxy_check_issued()</a>, <a class="el" href="store__policy_8c_source.html#l00143">brix_sp_table_build()</a>, <a class="el" href="store__policy_8c_source.html#l00215">brix_sp_table_free()</a>, <a class="el" href="store__policy_8c_source.html#l00673">brix_store_policy_attach()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="store__policy_8c_source.html#l00135">sp_log()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="pki__build_8c_source.html#l00150">brix_build_ca_store()</a>.</p>
-
-</div>
-</div>
-<a id="a11d47e8e96037a75d5003f7f4fc28324" name="a11d47e8e96037a75d5003f7f4fc28324"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a11d47e8e96037a75d5003f7f4fc28324">&#9670;&#160;</a></span>brix_store_crl_mode()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_store_crl_mode </td>
-          <td>(</td>
-          <td class="paramtype">X509_STORE_CTX *&#160;</td>
-          <td class="paramname"><em>ctx</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00728">728</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8h_source.html#l00026">BRIX_CRL_MODE_OFF</a>, <a class="el" href="store__policy_8c_source.html#l00041">brix_store_policy_t::crl_mode</a>, and <a class="el" href="store__policy_8c_source.html#l00698">sp_from_ctx()</a>.</p>
-
-</div>
-</div>
-<a id="a65a8e67a68aca1da1c6535c1f2d28038" name="a65a8e67a68aca1da1c6535c1f2d28038"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a65a8e67a68aca1da1c6535c1f2d28038">&#9670;&#160;</a></span>brix_store_policy_attach()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_store_policy_attach </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="webdav_8h.html#a3a2b800bae08729d11bc28f12b795597">X509_STORE</a> *&#160;</td>
-          <td class="paramname"><em>store</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">brix_sp_table_t *&#160;</td>
-          <td class="paramname"><em>table</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50a">brix_sp_mode_t</a>&#160;</td>
-          <td class="paramname"><em>sp_mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>crl_mode</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00673">673</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00041">brix_store_policy_t::crl_mode</a>, <a class="el" href="store__policy_8c_source.html#l00040">brix_store_policy_t::sp_mode</a>, <a class="el" href="store__policy_8c_source.html#l00663">sp_store_ex_index()</a>, and <a class="el" href="store__policy_8c_source.html#l00039">brix_store_policy_t::table</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00595">brix_store_configure()</a>.</p>
-
-</div>
-</div>
-<a id="a518375a1d67504221109acb48ce710ed" name="a518375a1d67504221109acb48ce710ed"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a518375a1d67504221109acb48ce710ed">&#9670;&#160;</a></span>brix_store_policy_mode()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50a">brix_sp_mode_t</a> brix_store_policy_mode </td>
-          <td>(</td>
-          <td class="paramtype">X509_STORE_CTX *&#160;</td>
-          <td class="paramname"><em>ctx</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00721">721</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="signing__policy_8h_source.html#l00021">BRIX_SP_MODE_OFF</a>, <a class="el" href="store__policy_8c_source.html#l00698">sp_from_ctx()</a>, and <a class="el" href="store__policy_8c_source.html#l00040">brix_store_policy_t::sp_mode</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00064">brix_gsi_enforce_signing_policy()</a>.</p>
-
-</div>
-</div>
-<a id="a51ab32c5f8a5f5abd5efa55204ab95d2" name="a51ab32c5f8a5f5abd5efa55204ab95d2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a51ab32c5f8a5f5abd5efa55204ab95d2">&#9670;&#160;</a></span>brix_store_policy_table()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">brix_sp_table_t * brix_store_policy_table </td>
-          <td>(</td>
-          <td class="paramtype">X509_STORE_CTX *&#160;</td>
-          <td class="paramname"><em>ctx</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00714">714</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00698">sp_from_ctx()</a>, and <a class="el" href="store__policy_8c_source.html#l00039">brix_store_policy_t::table</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00064">brix_gsi_enforce_signing_policy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="store__policy__store_8c_source.html#l00095">brix_store_configure()</a>, and <a class="el" href="store__policy__store_8c_source.html#l00148">sp_ex_free()</a>.</p>
 
 </div>
 </div>
@@ -779,11 +314,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00049">49</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00044">44</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00064">brix_gsi_enforce_signing_policy()</a>, and <a class="el" href="store__policy_8c_source.html#l00269">brix_sp_table_check()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__verify_8c_source.html#l00064">brix_gsi_enforce_signing_policy()</a>, <a class="el" href="store__policy_8c_source.html#l00264">brix_sp_table_check()</a>, <a class="el" href="deleg__capture_8c_source.html#l00035">deleg_proxy_leaf_dn()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00260">delegation_eec_dn_matches()</a>.</p>
 
 </div>
 </div>
@@ -821,75 +356,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00076">76</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00071">71</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00143">brix_sp_table_build()</a>.</p>
-
-</div>
-</div>
-<a id="a591d94456abc2d3ac2b10e5cdd22b364" name="a591d94456abc2d3ac2b10e5cdd22b364"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a591d94456abc2d3ac2b10e5cdd22b364">&#9670;&#160;</a></span>sp_ex_free()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void sp_ex_free </td>
-          <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>parent</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>ptr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">CRYPTO_EX_DATA *&#160;</td>
-          <td class="paramname"><em>ad</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>idx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">long&#160;</td>
-          <td class="paramname"><em>argl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>argp</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00648">648</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00215">brix_sp_table_free()</a>, and <a class="el" href="store__policy_8c_source.html#l00039">brix_store_policy_t::table</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00663">sp_store_ex_index()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00138">brix_sp_table_build()</a>.</p>
 
 </div>
 </div>
@@ -927,11 +396,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00256">256</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00251">251</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="signing__policy_8c_source.html#l00403">brix_sp_ca_dn_present()</a>.</p>
+<p class="reference">References <a class="el" href="signing__policy_8c_source.html#l00406">brix_sp_ca_dn_present()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00269">brix_sp_table_check()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00264">brix_sp_table_check()</a>.</p>
 
 </div>
 </div>
@@ -969,55 +438,20 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00236">236</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00231">231</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00269">brix_sp_table_check()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00264">brix_sp_table_check()</a>.</p>
 
 </div>
 </div>
-<a id="a5af0796da4d18ef0d55a6c86b0e9812b" name="a5af0796da4d18ef0d55a6c86b0e9812b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5af0796da4d18ef0d55a6c86b0e9812b">&#9670;&#160;</a></span>sp_from_ctx()</h2>
+<a id="a4fb612ac1bffc1389b4af255df9fe0c4" name="a4fb612ac1bffc1389b4af255df9fe0c4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4fb612ac1bffc1389b4af255df9fe0c4">&#9670;&#160;</a></span>sp_log()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static <a class="el" href="structbrix__store__policy__t.html">brix_store_policy_t</a> * sp_from_ctx </td>
-          <td>(</td>
-          <td class="paramtype">X509_STORE_CTX *&#160;</td>
-          <td class="paramname"><em>ctx</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00698">698</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00663">sp_store_ex_index()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00728">brix_store_crl_mode()</a>, <a class="el" href="store__policy_8c_source.html#l00721">brix_store_policy_mode()</a>, and <a class="el" href="store__policy_8c_source.html#l00714">brix_store_policy_table()</a>.</p>
-
-</div>
-</div>
-<a id="a7d13f3fdbb226d0e48c256dd1e7fa4e3" name="a7d13f3fdbb226d0e48c256dd1e7fa4e3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7d13f3fdbb226d0e48c256dd1e7fa4e3">&#9670;&#160;</a></span>sp_log()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void sp_log </td>
+          <td class="memname">void sp_log </td>
           <td>(</td>
           <td class="paramtype">void *&#160;</td>
           <td class="paramname"><em>log</em>, </td>
@@ -1046,18 +480,13 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00135">135</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00130">130</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00103">fn</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="broker__ops_8c_source.html#l00393">fn</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00143">brix_sp_table_build()</a>, and <a class="el" href="store__policy_8c_source.html#l00595">brix_store_configure()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00138">brix_sp_table_build()</a>, and <a class="el" href="store__policy__store_8c_source.html#l00095">brix_store_configure()</a>.</p>
 
 </div>
 </div>
@@ -1095,122 +524,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00093">93</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00088">88</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00044">BRIX_SP_FILE_MAX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00039">BRIX_SP_FILE_MAX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00143">brix_sp_table_build()</a>.</p>
-
-</div>
-</div>
-<a id="a6071880ab23ac358b077488bb2e7205a" name="a6071880ab23ac358b077488bb2e7205a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6071880ab23ac358b077488bb2e7205a">&#9670;&#160;</a></span>sp_store_ex_index()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int sp_store_ex_index </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00663">663</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">References <a class="el" href="store__policy_8c_source.html#l00648">sp_ex_free()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00673">brix_store_policy_attach()</a>, and <a class="el" href="store__policy_8c_source.html#l00698">sp_from_ctx()</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="aa2bc631a4dcd02defddb6c7e5d13977c" name="aa2bc631a4dcd02defddb6c7e5d13977c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa2bc631a4dcd02defddb6c7e5d13977c">&#9670;&#160;</a></span>BRIX_PX_LIMITED_OID</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* BRIX_PX_LIMITED_OID = &quot;1.3.6.1.4.1.3536.1.1.1.9&quot;</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00307">307</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00493">brix_proxy_pci_ok()</a>, and <a class="el" href="store__policy_8c_source.html#l00310">brix_px_classify()</a>.</p>
-
-</div>
-</div>
-<a id="a31063ea6c851cf483ad7141b195ca798" name="a31063ea6c851cf483ad7141b195ca798"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a31063ea6c851cf483ad7141b195ca798">&#9670;&#160;</a></span>BRIX_PX_OID_IMPERSONATION</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* BRIX_PX_OID_IMPERSONATION = &quot;1.3.6.1.5.5.7.21.1&quot;</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00380">380</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00493">brix_proxy_pci_ok()</a>.</p>
-
-</div>
-</div>
-<a id="aa49e9e61326b1b732d41bd147888b45d" name="aa49e9e61326b1b732d41bd147888b45d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa49e9e61326b1b732d41bd147888b45d">&#9670;&#160;</a></span>BRIX_PX_OID_INDEPENDENT</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* BRIX_PX_OID_INDEPENDENT = &quot;1.3.6.1.5.5.7.21.2&quot;</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="store__policy_8c_source.html#l00381">381</a> of file <a class="el" href="store__policy_8c_source.html">store_policy.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00493">brix_proxy_pci_ok()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="store__policy_8c_source.html#l00138">brix_sp_table_build()</a>.</p>
 
 </div>
 </div>

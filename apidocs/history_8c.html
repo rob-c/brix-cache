@@ -118,6 +118,14 @@ Functions</h2></td></tr>
 <tr class="separator:aeadd4d657d2e9403f16a8e859d3ea4b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1299b63cc502af5abccd304f92c13eee" id="r_a1299b63cc502af5abccd304f92c13eee"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="history_8c.html#a1299b63cc502af5abccd304f92c13eee">ngx_brix_dashboard_history_shm_init</a> (ngx_shm_zone_t *shm_zone, void *data)</td></tr>
 <tr class="separator:a1299b63cc502af5abccd304f92c13eee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a55670b70209431900de7098ed8bbc4e0" id="r_a55670b70209431900de7098ed8bbc4e0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="history_8c.html#a55670b70209431900de7098ed8bbc4e0">dashboard_history_zero_fill_gap</a> (<a class="el" href="structbrix__dashboard__history__t.html">brix_dashboard_history_t</a> *hist, int64_t bucket_start)</td></tr>
+<tr class="separator:a55670b70209431900de7098ed8bbc4e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a75a97843496b338d499c5ba3ef77ac10" id="r_a75a97843496b338d499c5ba3ef77ac10"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__dashboard__history__bucket__t.html">brix_dashboard_history_bucket_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="history_8c.html#a75a97843496b338d499c5ba3ef77ac10">dashboard_history_select_bucket</a> (<a class="el" href="structbrix__dashboard__history__t.html">brix_dashboard_history_t</a> *hist, int64_t bucket_start)</td></tr>
+<tr class="separator:a75a97843496b338d499c5ba3ef77ac10"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a59281ccccc61f1730ee39370e487104a" id="r_a59281ccccc61f1730ee39370e487104a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="history_8c.html#a59281ccccc61f1730ee39370e487104a">dashboard_history_count_active</a> (ngx_uint_t active[(<a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9ea2aaef7c6c530e8531668108347e55fe4">BRIX_XFER_PROTO__END</a> - 1)], ngx_uint_t *active_tpc)</td></tr>
+<tr class="separator:a59281ccccc61f1730ee39370e487104a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7ddb1b13825477a091a208a5d2fad0d3" id="r_a7ddb1b13825477a091a208a5d2fad0d3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="history_8c.html#a7ddb1b13825477a091a208a5d2fad0d3">dashboard_history_sum_totals</a> (uint64_t *bytes_rx, uint64_t *bytes_tx, uint64_t *errors, uint64_t *auth_failures)</td></tr>
+<tr class="separator:a7ddb1b13825477a091a208a5d2fad0d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2ca22c78a3b7cf96f0752fa6d8e7f215" id="r_a2ca22c78a3b7cf96f0752fa6d8e7f215"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="history_8c.html#a2ca22c78a3b7cf96f0752fa6d8e7f215">brix_dashboard_history_sample</a> (int64_t now_ms)</td></tr>
 <tr class="separator:a2ca22c78a3b7cf96f0752fa6d8e7f215"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c1c259780f7dbaa1ec07d10b6a85c8e" id="r_a3c1c259780f7dbaa1ec07d10b6a85c8e"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="history_8c.html#a3c1c259780f7dbaa1ec07d10b6a85c8e">brix_dashboard_history_snapshot</a> (<a class="el" href="structbrix__dashboard__history__bucket__t.html">brix_dashboard_history_bucket_t</a> *out, ngx_uint_t max_buckets)</td></tr>
@@ -145,7 +153,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00088">88</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00249">249</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
 
 </div>
 </div>
@@ -175,7 +183,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00211">211</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00298">298</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
 
 </div>
 </div>
@@ -207,7 +215,145 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="dashboard_8h_source.html#l00090">BRIX_DASHBOARD_HISTORY_BUCKETS</a>, and <a class="el" href="dashboard_8h_source.html#l00091">BRIX_DASHBOARD_HISTORY_INTERVAL_MS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00088">brix_dashboard_history_sample()</a>, and <a class="el" href="history_8c_source.html#l00211">brix_dashboard_history_snapshot()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00298">brix_dashboard_history_snapshot()</a>, <a class="el" href="history_8c_source.html#l00136">dashboard_history_select_bucket()</a>, and <a class="el" href="history_8c_source.html#l00102">dashboard_history_zero_fill_gap()</a>.</p>
+
+</div>
+</div>
+<a id="a59281ccccc61f1730ee39370e487104a" name="a59281ccccc61f1730ee39370e487104a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a59281ccccc61f1730ee39370e487104a">&#9670;&#160;</a></span>dashboard_history_count_active()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_history_count_active </td>
+          <td>(</td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>active</em>[(BRIX_XFER_PROTO__END - 1)], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>active_tpc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00162">162</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
+
+<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00036">BRIX_DASHBOARD_MAX_TRANSFERS</a>, <a class="el" href="dashboard_8h_source.html#l00063">BRIX_XFER_DIR_TPC</a>, <a class="el" href="dashboard_8h_source.html#l00058">BRIX_XFER_NPROTOS</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_ROOT</a>, <a class="el" href="dashboard_8h_source.html#l00128">brix_transfer_slot_t::direction</a>, <a class="el" href="dashboard_8h_source.html#l00119">brix_transfer_slot_t::in_use</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="dashboard_8h_source.html#l00129">brix_transfer_slot_t::proto</a>, and <a class="el" href="dashboard_8h_source.html#l00160">brix_transfer_table_t::slots</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>.</p>
+
+</div>
+</div>
+<a id="a75a97843496b338d499c5ba3ef77ac10" name="a75a97843496b338d499c5ba3ef77ac10"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a75a97843496b338d499c5ba3ef77ac10">&#9670;&#160;</a></span>dashboard_history_select_bucket()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structbrix__dashboard__history__bucket__t.html">brix_dashboard_history_bucket_t</a> * dashboard_history_select_bucket </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__dashboard__history__t.html">brix_dashboard_history_t</a> *&#160;</td>
+          <td class="paramname"><em>hist</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int64_t&#160;</td>
+          <td class="paramname"><em>bucket_start</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00136">136</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
+
+<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00180">brix_dashboard_history_bucket_t::bucket_start_ms</a>, <a class="el" href="dashboard_8h_source.html#l00196">brix_dashboard_history_t::buckets</a>, and <a class="el" href="history_8c_source.html#l00052">dashboard_history_bucket_index()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>.</p>
+
+</div>
+</div>
+<a id="a7ddb1b13825477a091a208a5d2fad0d3" name="a7ddb1b13825477a091a208a5d2fad0d3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7ddb1b13825477a091a208a5d2fad0d3">&#9670;&#160;</a></span>dashboard_history_sum_totals()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_history_sum_totals </td>
+          <td>(</td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>bytes_rx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>bytes_tx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>errors</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>auth_failures</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00211">211</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__webdav_8h_source.html#l00090">ngx_brix_webdav_metrics_t::auth_total</a>, <a class="el" href="metrics__s3_8h_source.html#l00074">ngx_brix_s3_metrics_t::auth_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00069">BRIX_NOPS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00032">BRIX_OP_AUTH</a>, <a class="el" href="metrics__s3_8h_source.html#l00038">BRIX_S3_AUTH_BAD_KEY</a>, <a class="el" href="metrics__s3_8h_source.html#l00037">BRIX_S3_AUTH_MALFORMED</a>, <a class="el" href="metrics__s3_8h_source.html#l00040">BRIX_S3_AUTH_SIG_MISMATCH</a>, <a class="el" href="metrics__webdav_8h_source.html#l00038">BRIX_WEBDAV_AUTH_RESULT_REJECTED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00145">ngx_brix_srv_metrics_t::bytes_rx_total</a>, <a class="el" href="metrics__s3_8h_source.html#l00076">ngx_brix_s3_metrics_t::bytes_rx_total</a>, <a class="el" href="metrics__webdav_8h_source.html#l00092">ngx_brix_webdav_metrics_t::bytes_rx_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00146">ngx_brix_srv_metrics_t::bytes_tx_total</a>, <a class="el" href="metrics__s3_8h_source.html#l00077">ngx_brix_s3_metrics_t::bytes_tx_total</a>, <a class="el" href="metrics__webdav_8h_source.html#l00093">ngx_brix_webdav_metrics_t::bytes_tx_total</a>, <a class="el" href="observability_2metrics_2handler_8c_source.html#l00011">ngx_brix_shm_zone</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00182">ngx_brix_srv_metrics_t::op_err</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00385">ngx_brix_metrics_t::s3</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00384">ngx_brix_metrics_t::webdav</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>.</p>
 
 </div>
 </div>
@@ -239,7 +385,49 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="observability_2dashboard_2config_8c_source.html#l00021">ngx_brix_dashboard_history_shm_zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00088">brix_dashboard_history_sample()</a>, and <a class="el" href="history_8c_source.html#l00211">brix_dashboard_history_snapshot()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>, and <a class="el" href="history_8c_source.html#l00298">brix_dashboard_history_snapshot()</a>.</p>
+
+</div>
+</div>
+<a id="a55670b70209431900de7098ed8bbc4e0" name="a55670b70209431900de7098ed8bbc4e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a55670b70209431900de7098ed8bbc4e0">&#9670;&#160;</a></span>dashboard_history_zero_fill_gap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_history_zero_fill_gap </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__dashboard__history__t.html">brix_dashboard_history_t</a> *&#160;</td>
+          <td class="paramname"><em>hist</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int64_t&#160;</td>
+          <td class="paramname"><em>bucket_start</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00102">102</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
+
+<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00091">BRIX_DASHBOARD_HISTORY_INTERVAL_MS</a>, <a class="el" href="dashboard_8h_source.html#l00180">brix_dashboard_history_bucket_t::bucket_start_ms</a>, <a class="el" href="dashboard_8h_source.html#l00196">brix_dashboard_history_t::buckets</a>, <a class="el" href="history_8c_source.html#l00052">dashboard_history_bucket_index()</a>, and <a class="el" href="dashboard_8h_source.html#l00195">brix_dashboard_history_t::last_bucket_start_ms</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>.</p>
 
 </div>
 </div>
@@ -296,7 +484,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="history_8c_source.html#l00035">35</a> of file <a class="el" href="history_8c_source.html">history.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00088">brix_dashboard_history_sample()</a>, <a class="el" href="history_8c_source.html#l00211">brix_dashboard_history_snapshot()</a>, and <a class="el" href="history_8c_source.html#l00060">ngx_brix_dashboard_history_shm_init()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>, <a class="el" href="history_8c_source.html#l00298">brix_dashboard_history_snapshot()</a>, and <a class="el" href="history_8c_source.html#l00060">ngx_brix_dashboard_history_shm_init()</a>.</p>
 
 </div>
 </div>

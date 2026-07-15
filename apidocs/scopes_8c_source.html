@@ -152,12 +152,12 @@ $(document).ready(function(){initNavTree('scopes_8c_source.html',''); initResiza
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span> </div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
 <div class="foldopen" id="foldopen00050" data-start="{" data-end="}">
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno"><a class="line" href="scopes_8c.html#aad0fbb03d71c6fe66978c1258d9450c7">   50</a></span><a class="code hl_function" href="scopes_8c.html#aad0fbb03d71c6fe66978c1258d9450c7">token_scope_copy_path</a>(<a class="code hl_struct" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *scope, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno"><a class="line" href="scopes_8c.html#aad0fbb03d71c6fe66978c1258d9450c7">   50</a></span><a class="code hl_function" href="scopes_8c.html#aad0fbb03d71c6fe66978c1258d9450c7">token_scope_copy_path</a>(<a class="code hl_struct" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *<a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <span class="keywordtype">size_t</span> path_len)</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>{</div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <span class="keywordflow">if</span> (path_len == 0) {</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#a849b866569632cbb4004c7e5a06d4747">path</a>[0] = <span class="charliteral">&#39;/&#39;</span>;</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>        scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#a849b866569632cbb4004c7e5a06d4747">path</a>[1] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;path[0] = <span class="charliteral">&#39;/&#39;</span>;</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>        <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;path[1] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    }</div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
@@ -165,8 +165,8 @@ $(document).ready(function(){initNavTree('scopes_8c_source.html',''); initResiza
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        path_len = <a class="code hl_define" href="scopes_8h.html#a7445bf2313defc0f83d78bd8d969206a">BRIX_SCOPE_PATH_MAX</a> - 1;</div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    }</div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    memcpy(scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#a849b866569632cbb4004c7e5a06d4747">path</a>, path, path_len);</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#a849b866569632cbb4004c7e5a06d4747">path</a>[path_len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    memcpy(<a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;path, path, path_len);</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;path[path_len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>}</div>
 </div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
@@ -176,41 +176,41 @@ $(document).ready(function(){initNavTree('scopes_8c_source.html',''); initResiza
 <div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span> </div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
 <div class="foldopen" id="foldopen00072" data-start="{" data-end="}">
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno"><a class="line" href="scopes_8c.html#aefa23676d3bb1e1ad651bca73cbdcaea">   72</a></span><a class="code hl_function" href="scopes_8c.html#aefa23676d3bb1e1ad651bca73cbdcaea">token_scope_set_permission</a>(<a class="code hl_struct" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *scope,</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno"><a class="line" href="scopes_8c.html#aefa23676d3bb1e1ad651bca73cbdcaea">   72</a></span><a class="code hl_function" href="scopes_8c.html#aefa23676d3bb1e1ad651bca73cbdcaea">token_scope_set_permission</a>(<a class="code hl_struct" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *<a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>,</div>
 <div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *permission, <span class="keywordtype">size_t</span> permission_len)</div>
 <div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>{</div>
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    <span class="keywordflow">if</span> (permission_len == 12</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>        &amp;&amp; memcmp(permission, <span class="stringliteral">&quot;storage.read&quot;</span>, 12) == 0)</div>
 <div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    {</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#afe0b88f5155381877faf8d4ac079e9ab">read</a> = 1;</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;read = 1;</div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    }</div>
 <div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span> </div>
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    <span class="keywordflow">if</span> (permission_len == 13</div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>        &amp;&amp; memcmp(permission, <span class="stringliteral">&quot;storage.write&quot;</span>, 13) == 0)</div>
 <div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    {</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>        scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#af4bb9ca71a525f5640940592b14347c7">write</a> = 1;</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>        <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;write = 1;</div>
 <div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    }</div>
 <div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span> </div>
 <div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    <span class="keywordflow">if</span> (permission_len == 14</div>
 <div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>        &amp;&amp; memcmp(permission, <span class="stringliteral">&quot;storage.create&quot;</span>, 14) == 0)</div>
 <div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    {</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#a44c38e4939cdb7414e78e0e9a090073e">create</a> = 1;</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;create = 1;</div>
 <div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    }</div>
 <div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span> </div>
 <div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    <span class="keywordflow">if</span> (permission_len == 14</div>
 <div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        &amp;&amp; memcmp(permission, <span class="stringliteral">&quot;storage.modify&quot;</span>, 14) == 0)</div>
 <div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    {</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#ac569a22bb6779a718eb7de18a9ceef17">modify</a> = 1;</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;modify = 1;</div>
 <div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    }</div>
 <div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span> </div>
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    <span class="keywordflow">if</span> (permission_len == 13</div>
 <div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>        &amp;&amp; memcmp(permission, <span class="stringliteral">&quot;storage.stage&quot;</span>, 13) == 0)</div>
 <div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    {</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>        scope-&gt;<a class="code hl_variable" href="structbrix__token__scope__t.html#afe0b88f5155381877faf8d4ac079e9ab">read</a> = 1;</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>        <a class="code hl_variable" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>-&gt;read = 1;</div>
 <div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    }</div>
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>}</div>
 </div>
@@ -403,6 +403,7 @@ $(document).ready(function(){initNavTree('scopes_8c_source.html',''); initResiza
 <div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>}</div>
 </div>
 <div class="ttc" id="abrixposix__preload_8c_html_af32a16ad2dd9e48482f8f790db7dbbd2"><div class="ttname"><a href="brixposix__preload_8c.html#af32a16ad2dd9e48482f8f790db7dbbd2">read</a></div><div class="ttdeci">ssize_t read(int fd, void *buf, size_t count)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00299">brixposix_preload.c:299</a></div></div>
+<div class="ttc" id="amacaroon__endpoint__oauth2_8c_html_aaa3f7f51e16b6fa08e2bc1e0d7eb6bab"><div class="ttname"><a href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a></div><div class="ttdeci">const char * scope</div><div class="ttdef"><b>Definition</b> <a href="macaroon__endpoint__oauth2_8c_source.html#l00108">macaroon_endpoint_oauth2.c:108</a></div></div>
 <div class="ttc" id="ascopes_8c_html_a38d11c761d9960c51d1ec3676e4f5db6"><div class="ttname"><a href="scopes_8c.html#a38d11c761d9960c51d1ec3676e4f5db6">brix_token_parse_scopes</a></div><div class="ttdeci">int brix_token_parse_scopes(const char *scope_str, brix_token_scope_t *scopes, int max_scopes)</div><div class="ttdef"><b>Definition</b> <a href="scopes_8c_source.html#l00126">scopes.c:126</a></div></div>
 <div class="ttc" id="ascopes_8c_html_a51a17afb9580f94c26e1c589dac74ee1"><div class="ttname"><a href="scopes_8c.html#a51a17afb9580f94c26e1c589dac74ee1">token_scope_skip_spaces</a></div><div class="ttdeci">static const char * token_scope_skip_spaces(const char *cursor)</div><div class="ttdef"><b>Definition</b> <a href="scopes_8c_source.html#l00023">scopes.c:23</a></div></div>
 <div class="ttc" id="ascopes_8c_html_a8282efb3769a62f02766535cf2f644c0"><div class="ttname"><a href="scopes_8c.html#a8282efb3769a62f02766535cf2f644c0">brix_token_check_write</a></div><div class="ttdeci">int brix_token_check_write(const brix_token_scope_t *scopes, int scope_count, const char *path)</div><div class="ttdef"><b>Definition</b> <a href="scopes_8c_source.html#l00265">scopes.c:265</a></div></div>
@@ -414,11 +415,6 @@ $(document).ready(function(){initNavTree('scopes_8c_source.html',''); initResiza
 <div class="ttc" id="ascopes_8h_html"><div class="ttname"><a href="scopes_8h.html">scopes.h</a></div></div>
 <div class="ttc" id="ascopes_8h_html_a7445bf2313defc0f83d78bd8d969206a"><div class="ttname"><a href="scopes_8h.html#a7445bf2313defc0f83d78bd8d969206a">BRIX_SCOPE_PATH_MAX</a></div><div class="ttdeci">#define BRIX_SCOPE_PATH_MAX</div><div class="ttdef"><b>Definition</b> <a href="scopes_8h_source.html#l00010">scopes.h:10</a></div></div>
 <div class="ttc" id="astructbrix__token__scope__t_html"><div class="ttname"><a href="structbrix__token__scope__t.html">brix_token_scope_t</a></div><div class="ttdef"><b>Definition</b> <a href="scopes_8h_source.html#l00015">scopes.h:15</a></div></div>
-<div class="ttc" id="astructbrix__token__scope__t_html_a44c38e4939cdb7414e78e0e9a090073e"><div class="ttname"><a href="structbrix__token__scope__t.html#a44c38e4939cdb7414e78e0e9a090073e">brix_token_scope_t::create</a></div><div class="ttdeci">unsigned int create</div><div class="ttdef"><b>Definition</b> <a href="scopes_8h_source.html#l00019">scopes.h:19</a></div></div>
-<div class="ttc" id="astructbrix__token__scope__t_html_a849b866569632cbb4004c7e5a06d4747"><div class="ttname"><a href="structbrix__token__scope__t.html#a849b866569632cbb4004c7e5a06d4747">brix_token_scope_t::path</a></div><div class="ttdeci">char path[256]</div><div class="ttdef"><b>Definition</b> <a href="scopes_8h_source.html#l00016">scopes.h:16</a></div></div>
-<div class="ttc" id="astructbrix__token__scope__t_html_ac569a22bb6779a718eb7de18a9ceef17"><div class="ttname"><a href="structbrix__token__scope__t.html#ac569a22bb6779a718eb7de18a9ceef17">brix_token_scope_t::modify</a></div><div class="ttdeci">unsigned int modify</div><div class="ttdef"><b>Definition</b> <a href="scopes_8h_source.html#l00020">scopes.h:20</a></div></div>
-<div class="ttc" id="astructbrix__token__scope__t_html_af4bb9ca71a525f5640940592b14347c7"><div class="ttname"><a href="structbrix__token__scope__t.html#af4bb9ca71a525f5640940592b14347c7">brix_token_scope_t::write</a></div><div class="ttdeci">unsigned int write</div><div class="ttdef"><b>Definition</b> <a href="scopes_8h_source.html#l00018">scopes.h:18</a></div></div>
-<div class="ttc" id="astructbrix__token__scope__t_html_afe0b88f5155381877faf8d4ac079e9ab"><div class="ttname"><a href="structbrix__token__scope__t.html#afe0b88f5155381877faf8d4ac079e9ab">brix_token_scope_t::read</a></div><div class="ttdeci">unsigned int read</div><div class="ttdef"><b>Definition</b> <a href="scopes_8h_source.html#l00017">scopes.h:17</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

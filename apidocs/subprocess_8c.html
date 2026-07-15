@@ -114,6 +114,14 @@ $(document).ready(function(){initNavTree('subprocess_8c.html',''); initResizable
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a6e8062bef114e4f44690e6f1b304d7d1" id="r_a6e8062bef114e4f44690e6f1b304d7d1"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="subprocess_8c.html#a6e8062bef114e4f44690e6f1b304d7d1">brix_subprocess_args_ok</a> (char *const argv[], const char *out, size_t outsz)</td></tr>
+<tr class="separator:a6e8062bef114e4f44690e6f1b304d7d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a272477e7bd15f2997ef33b50ba6b94d9" id="r_a272477e7bd15f2997ef33b50ba6b94d9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="subprocess_8c.html#a272477e7bd15f2997ef33b50ba6b94d9">brix_subprocess_child</a> (int pfd[2], char *const argv[], const sigset_t *old)</td></tr>
+<tr class="separator:a272477e7bd15f2997ef33b50ba6b94d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a091e470f933e97685e8d54650ee26c82" id="r_a091e470f933e97685e8d54650ee26c82"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="subprocess_8c.html#a091e470f933e97685e8d54650ee26c82">brix_subprocess_drain</a> (int fd, char *out, size_t outsz)</td></tr>
+<tr class="separator:a091e470f933e97685e8d54650ee26c82"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3fd21279672719b054a9bc83cbd3c078" id="r_a3fd21279672719b054a9bc83cbd3c078"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="subprocess_8c.html#a3fd21279672719b054a9bc83cbd3c078">brix_subprocess_reap</a> (pid_t pid, int *exit_code)</td></tr>
+<tr class="separator:a3fd21279672719b054a9bc83cbd3c078"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a46c15aef1006e9de1955628fd6f00fbb" id="r_a46c15aef1006e9de1955628fd6f00fbb"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="subprocess_8c.html#a46c15aef1006e9de1955628fd6f00fbb">brix_subprocess_capture</a> (char *const argv[], char *out, size_t outsz, size_t *out_len, int *exit_code)</td></tr>
 <tr class="separator:a46c15aef1006e9de1955628fd6f00fbb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaccad22e4991ce3ee6794eb2b24412b2" id="r_aaccad22e4991ce3ee6794eb2b24412b2"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="subprocess_8c.html#aaccad22e4991ce3ee6794eb2b24412b2">brix_rstrip</a> (char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
@@ -136,11 +144,57 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="subprocess_8c_source.html#l00098">98</a> of file <a class="el" href="subprocess_8c_source.html">subprocess.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="subprocess_8c_source.html#l00229">229</a> of file <a class="el" href="subprocess_8c_source.html">subprocess.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="credrefresh_8c_source.html#l00045">run_oidc_token()</a>.</p>
+
+</div>
+</div>
+<a id="a6e8062bef114e4f44690e6f1b304d7d1" name="a6e8062bef114e4f44690e6f1b304d7d1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6e8062bef114e4f44690e6f1b304d7d1">&#9670;&#160;</a></span>brix_subprocess_args_ok()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_subprocess_args_ok </td>
+          <td>(</td>
+          <td class="paramtype">char *const&#160;</td>
+          <td class="paramname"><em>argv</em>[], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="subprocess_8c_source.html#l00029">29</a> of file <a class="el" href="subprocess_8c_source.html">subprocess.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="subprocess_8c_source.html#l00165">brix_subprocess_capture()</a>.</p>
 
 </div>
 </div>
@@ -188,11 +242,147 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="subprocess_8c_source.html#l00017">17</a> of file <a class="el" href="subprocess_8c_source.html">subprocess.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="subprocess_8c_source.html#l00165">165</a> of file <a class="el" href="subprocess_8c_source.html">subprocess.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>.</p>
+<p class="reference">References <a class="el" href="subprocess_8c_source.html#l00029">brix_subprocess_args_ok()</a>, <a class="el" href="subprocess_8c_source.html#l00058">brix_subprocess_child()</a>, <a class="el" href="subprocess_8c_source.html#l00089">brix_subprocess_drain()</a>, <a class="el" href="subprocess_8c_source.html#l00126">brix_subprocess_reap()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="credrefresh_8c_source.html#l00045">run_oidc_token()</a>, <a class="el" href="tpc__cred_8c_source.html#l00340">tpc_cred_rfc8693_exchange()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="credrefresh_8c_source.html#l00045">run_oidc_token()</a>, <a class="el" href="tpc__cred__exchange_8c_source.html#l00048">tpc_cred_rfc8693_exchange()</a>, and <a class="el" href="tpc__token__exchange_8c_source.html#l00181">tpc_rfc8693_run_curl()</a>.</p>
+
+</div>
+</div>
+<a id="a272477e7bd15f2997ef33b50ba6b94d9" name="a272477e7bd15f2997ef33b50ba6b94d9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a272477e7bd15f2997ef33b50ba6b94d9">&#9670;&#160;</a></span>brix_subprocess_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_subprocess_child </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>pfd</em>[2], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *const&#160;</td>
+          <td class="paramname"><em>argv</em>[], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const sigset_t *&#160;</td>
+          <td class="paramname"><em>old</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="subprocess_8c_source.html#l00058">58</a> of file <a class="el" href="subprocess_8c_source.html">subprocess.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="subprocess_8c_source.html#l00165">brix_subprocess_capture()</a>.</p>
+
+</div>
+</div>
+<a id="a091e470f933e97685e8d54650ee26c82" name="a091e470f933e97685e8d54650ee26c82"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a091e470f933e97685e8d54650ee26c82">&#9670;&#160;</a></span>brix_subprocess_drain()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t brix_subprocess_drain </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="subprocess_8c_source.html#l00089">89</a> of file <a class="el" href="subprocess_8c_source.html">subprocess.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="subprocess_8c_source.html#l00165">brix_subprocess_capture()</a>.</p>
+
+</div>
+</div>
+<a id="a3fd21279672719b054a9bc83cbd3c078" name="a3fd21279672719b054a9bc83cbd3c078"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3fd21279672719b054a9bc83cbd3c078">&#9670;&#160;</a></span>brix_subprocess_reap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_subprocess_reap </td>
+          <td>(</td>
+          <td class="paramtype">pid_t&#160;</td>
+          <td class="paramname"><em>pid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>exit_code</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="subprocess_8c_source.html#l00126">126</a> of file <a class="el" href="subprocess_8c_source.html">subprocess.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="subprocess_8c_source.html#l00165">brix_subprocess_capture()</a>.</p>
 
 </div>
 </div>

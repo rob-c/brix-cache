@@ -340,7 +340,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="zip_8h_source.html#l00041">brix_zip_entry::comp_size</a>, <a class="el" href="zip_8h_source.html#l00043">brix_zip_entry::lfh_off</a>, <a class="el" href="zip_8h_source.html#l00042">brix_zip_entry::uncomp_size</a>, and <a class="el" href="zip__kernel_8c_source.html#l00184">zip_apply_zip64_extra()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00069">brix_zip_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00144">zip_parse_cd_entry()</a>.</p>
 
 </div>
 </div>
@@ -380,7 +380,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00028">brix_zip_writer::cd</a>, <a class="el" href="zip__internal_8h_source.html#l00030">brix_zip_writer::cd_cap</a>, <a class="el" href="zip__internal_8h_source.html#l00029">brix_zip_writer::cd_len</a>, <a class="el" href="zip_8h_source.html#l00059">XRDC_ZIP_ENOMEM</a>, and <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00084">brix_zip_writer_add_fd()</a>, and <a class="el" href="zip__write_8c_source.html#l00049">brix_zip_writer_new_append()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00049">brix_zip_writer_new_append()</a>, and <a class="el" href="zip__write_8c_source.html#l00237">zw_update_central_dir()</a>.</p>
 
 </div>
 </div>
@@ -438,7 +438,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="zip_8h_source.html#l00068">XRDC_ZIP_MAX_CD_SIZE</a>, <a class="el" href="zip_8h_source.html#l00067">XRDC_ZIP_MAX_ENTRIES</a>, <a class="el" href="zip__kernel_8c_source.html#l00113">zip_locate_cd()</a>, and <a class="el" href="zip_8c_source.html#l00018">zip_map_kernel_rc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00069">brix_zip_open()</a>, and <a class="el" href="zip_8c_source.html#l00354">brix_zip_read_eocd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00550">brix_zip_read_eocd()</a>, and <a class="el" href="zip_8c_source.html#l00092">zip_read_central_dir()</a>.</p>
 
 </div>
 </div>
@@ -462,7 +462,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="zip__kernel_8c_source.html#l00032">zip_rd16le()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00069">brix_zip_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00144">zip_parse_cd_entry()</a>.</p>
 
 </div>
 </div>
@@ -486,7 +486,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="zip__kernel_8c_source.html#l00037">zip_rd32le()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00069">brix_zip_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00144">zip_parse_cd_entry()</a>.</p>
 
 </div>
 </div>
@@ -556,11 +556,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00200">200</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00275">275</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
 
 <p class="reference">References <a class="el" href="zip_8h_source.html#l00041">brix_zip_entry::comp_size</a>, <a class="el" href="zip_8h_source.html#l00043">brix_zip_entry::lfh_off</a>, <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="zip_8c_source.html#l00018">zip_map_kernel_rc()</a>, and <a class="el" href="zip__kernel_8c_source.html#l00216">zip_resolve_data_off()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00230">brix_zip_member_extract()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00488">brix_zip_member_extract()</a>.</p>
 
 </div>
 </div>
@@ -590,9 +590,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00337">337</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00533">533</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00084">brix_zip_writer_add_fd()</a>, and <a class="el" href="zip__write_8c_source.html#l00225">brix_zip_writer_finish()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00326">brix_zip_writer_finish()</a>, <a class="el" href="zip__write_8c_source.html#l00237">zw_update_central_dir()</a>, and <a class="el" href="zip__write_8c_source.html#l00154">zw_write_local_header()</a>.</p>
 
 </div>
 </div>
@@ -622,9 +622,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00339">339</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00535">535</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00084">brix_zip_writer_add_fd()</a>, and <a class="el" href="zip__write_8c_source.html#l00225">brix_zip_writer_finish()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00326">brix_zip_writer_finish()</a>, <a class="el" href="zip__write_8c_source.html#l00237">zw_update_central_dir()</a>, and <a class="el" href="zip__write_8c_source.html#l00154">zw_write_local_header()</a>.</p>
 
 </div>
 </div>
@@ -654,9 +654,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00345">345</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00541">541</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00084">brix_zip_writer_add_fd()</a>, and <a class="el" href="zip__write_8c_source.html#l00225">brix_zip_writer_finish()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00326">brix_zip_writer_finish()</a>, <a class="el" href="zip__write_8c_source.html#l00237">zw_update_central_dir()</a>, and <a class="el" href="zip__write_8c_source.html#l00154">zw_write_local_header()</a>.</p>
 
 </div>
 </div>
@@ -714,7 +714,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="zip_8c_source.html#l00018">zip_map_kernel_rc()</a>, and <a class="el" href="zip__kernel_8c_source.html#l00051">zip_read_at()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00230">brix_zip_member_extract()</a>, and <a class="el" href="zip_8c_source.html#l00069">brix_zip_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00438">zip_extract_stream()</a>, and <a class="el" href="zip_8c_source.html#l00092">zip_read_central_dir()</a>.</p>
 
 </div>
 </div>
@@ -774,11 +774,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00211">211</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip_8c_source.html#l00286">286</a> of file <a class="el" href="zip_8c_source.html">zip.c</a>.</p>
 
 <p class="reference">References <a class="el" href="zip_8h_source.html#l00062">XRDC_ZIP_EBOMB</a>, <a class="el" href="zip_8h_source.html#l00058">XRDC_ZIP_EIO</a>, <a class="el" href="zip_8h_source.html#l00070">XRDC_ZIP_MAX_OUTPUT</a>, and <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00230">brix_zip_member_extract()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00398">zip_extract_inflate_chunk()</a>, and <a class="el" href="zip_8c_source.html#l00438">zip_extract_stream()</a>.</p>
 
 </div>
 </div>
@@ -814,11 +814,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00069">69</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip__write_8c_source.html#l00068">68</a> of file <a class="el" href="zip__write_8c_source.html">zip_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="zip__internal_8h_source.html#l00026">brix_zip_writer::ctx</a>, <a class="el" href="zip__internal_8h_source.html#l00033">brix_zip_writer::err</a>, <a class="el" href="zip__internal_8h_source.html#l00027">brix_zip_writer::offset</a>, <a class="el" href="zip__internal_8h_source.html#l00025">brix_zip_writer::wr</a>, <a class="el" href="zip_8h_source.html#l00058">XRDC_ZIP_EIO</a>, and <a class="el" href="zip_8h_source.html#l00055">XRDC_ZIP_OK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00084">brix_zip_writer_add_fd()</a>, and <a class="el" href="zip__write_8c_source.html#l00225">brix_zip_writer_finish()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__write_8c_source.html#l00326">brix_zip_writer_finish()</a>, <a class="el" href="zip__write_8c_source.html#l00199">zw_stream_deflate()</a>, and <a class="el" href="zip__write_8c_source.html#l00154">zw_write_local_header()</a>.</p>
 
 </div>
 </div>

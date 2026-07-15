@@ -112,7 +112,7 @@ $(document).ready(function(){initNavTree('server_8h.html',''); initResizable(); 
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="server_8h__dep__incl.svg" width="100%" height="393"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="server_8h__dep__incl.svg" width="100%" height="459"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="server_8h_source.html">Go to the source code of this file.</a></p>
@@ -167,7 +167,7 @@ Functions</h2></td></tr>
 <tr class="separator:ac17c089a3c63f4e9f739863ded64f7d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5ca72a83c9aefb7fb1fb20367ad1d895" id="r_a5ca72a83c9aefb7fb1fb20367ad1d895"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server_8h.html#a5ca72a83c9aefb7fb1fb20367ad1d895">brix_cms_srv_send_data</a> (<a class="el" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> *ctx, uint32_t streamid, const u_char *payload, size_t len)</td></tr>
 <tr class="separator:a5ca72a83c9aefb7fb1fb20367ad1d895"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4a878fa6f354154a93256a4774c0cf58" id="r_a4a878fa6f354154a93256a4774c0cf58"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server_8h.html#a4a878fa6f354154a93256a4774c0cf58">brix_cms_srv_check_peer</a> (ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, ngx_stream_brix_cms_srv_conf_t *conf)</td></tr>
+<tr class="memitem:a4a878fa6f354154a93256a4774c0cf58" id="r_a4a878fa6f354154a93256a4774c0cf58"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server_8h.html#a4a878fa6f354154a93256a4774c0cf58">brix_cms_srv_check_peer</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, ngx_stream_brix_cms_srv_conf_t *conf)</td></tr>
 <tr class="separator:a4a878fa6f354154a93256a4774c0cf58"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ada0cbac515207d89ab8df979b52f5f4e" id="r_ada0cbac515207d89ab8df979b52f5f4e"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server_8h.html#ada0cbac515207d89ab8df979b52f5f4e">brix_cms_srv_verify_xauth</a> (<a class="el" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> *ctx, const u_char *payload, size_t payload_len)</td></tr>
 <tr class="separator:ada0cbac515207d89ab8df979b52f5f4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -229,7 +229,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__auth_8c_source.html#l00031">31</a> of file <a class="el" href="server__auth_8c_source.html">server_auth.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__handler_8c_source.html#l00140">brix_cms_srv_handler()</a>.</p>
 
@@ -251,11 +251,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="server__recv_8c_source.html#l00100">100</a> of file <a class="el" href="server__recv_8c_source.html">server_recv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="server__recv__lifecycle_8c_source.html#l00116">116</a> of file <a class="el" href="server__recv__lifecycle_8c_source.html">server_recv_lifecycle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__handler_8c_source.html#l00030">brix_cms_srv_conn_dec()</a>, <a class="el" href="server__handler_8c_source.html#l00110">brix_cms_srv_ip_dec()</a>, <a class="el" href="log__diag_8h_source.html#l00059">BRIX_DIAG</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00435">brix_sess_end()</a>, <a class="el" href="registry__select_8c_source.html#l00332">brix_srv_blacklist()</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="server__recv_8c_source.html#l00022">cms_srv_end_reason()</a>, <a class="el" href="server_8h_source.html#l00054">brix_cms_srv_ctx_t::counted</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="server_8h_source.html#l00048">brix_cms_srv_ctx_t::logged_in</a>, <a class="el" href="server_8h_source.html#l00050">brix_cms_srv_ctx_t::ping_timer</a>, <a class="el" href="server_8h_source.html#l00044">brix_cms_srv_ctx_t::port</a>, and <a class="el" href="server_8h_source.html#l00039">brix_cms_srv_ctx_t::sess</a>.</p>
+<p class="reference">References <a class="el" href="server__handler_8c_source.html#l00030">brix_cms_srv_conn_dec()</a>, <a class="el" href="server__handler_8c_source.html#l00110">brix_cms_srv_ip_dec()</a>, <a class="el" href="log__diag_8h_source.html#l00059">BRIX_DIAG</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00454">brix_sess_end()</a>, <a class="el" href="registry__select_8c_source.html#l00423">brix_srv_blacklist()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="server__recv__lifecycle_8c_source.html#l00038">cms_srv_end_reason()</a>, <a class="el" href="server_8h_source.html#l00054">brix_cms_srv_ctx_t::counted</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="server_8h_source.html#l00048">brix_cms_srv_ctx_t::logged_in</a>, <a class="el" href="cms__internal_8h_source.html#l00037">NGX_BRIX_CMS_SRV_DROP_BLACKLIST_MS</a>, <a class="el" href="server_8h_source.html#l00050">brix_cms_srv_ctx_t::ping_timer</a>, <a class="el" href="server_8h_source.html#l00044">brix_cms_srv_ctx_t::port</a>, and <a class="el" href="server_8h_source.html#l00039">brix_cms_srv_ctx_t::sess</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00384">brix_cms_srv_ping_timer()</a>, <a class="el" href="server__recv_8c_source.html#l00698">brix_cms_srv_read()</a>, <a class="el" href="server__recv_8c_source.html#l00679">brix_cms_srv_write()</a>, and <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00033">brix_cms_srv_ping_timer()</a>, <a class="el" href="server__recv_8c_source.html#l00035">brix_cms_srv_write()</a>, and <a class="el" href="server__recv__lifecycle_8c_source.html#l00171">cms_srv_fail_close()</a>.</p>
 
 </div>
 </div>
@@ -303,7 +303,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="server__handler_8c_source.html#l00015">brix_cms_srv_conns</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00100">brix_cms_srv_close()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__lifecycle_8c_source.html#l00116">brix_cms_srv_close()</a>.</p>
 
 </div>
 </div>
@@ -349,7 +349,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__handler_8c_source.html#l00140">140</a> of file <a class="el" href="server__handler_8c_source.html">server_handler.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00306">ngx_stream_brix_srv_conf_t::access_log_fd</a>, <a class="el" href="server_8h_source.html#l00049">brix_cms_srv_ctx_t::auth_state</a>, <a class="el" href="netopt_8h_source.html#l00039">brix_apply_tcp_deadpeer_opts()</a>, <a class="el" href="server__auth_8c_source.html#l00031">brix_cms_srv_check_peer()</a>, <a class="el" href="server__handler_8c_source.html#l00018">brix_cms_srv_conn_count()</a>, <a class="el" href="server__handler_8c_source.html#l00024">brix_cms_srv_conn_inc()</a>, <a class="el" href="server__handler_8c_source.html#l00094">brix_cms_srv_ip_count()</a>, <a class="el" href="server__handler_8c_source.html#l00101">brix_cms_srv_ip_inc()</a>, <a class="el" href="server__recv_8c_source.html#l00698">brix_cms_srv_read()</a>, <a class="el" href="server__recv_8c_source.html#l00679">brix_cms_srv_write()</a>, <a class="el" href="log__diag_8h_source.html#l00059">BRIX_DIAG</a>, <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>, <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00242">brix_sess_begin()</a>, <a class="el" href="sesslog_8h_source.html#l00028">BRIX_SESS_DIR_IN</a>, <a class="el" href="sesslog_8h_source.html#l00021">BRIX_SESS_PROTO_CMS</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="server_8h_source.html#l00029">CMS_AUTH_NONE</a>, <a class="el" href="server_8h_source.html#l00030">CMS_AUTH_REQUESTED</a>, <a class="el" href="server_8h_source.html#l00038">brix_cms_srv_ctx_t::conf</a>, <a class="el" href="server_8h_source.html#l00054">brix_cms_srv_ctx_t::counted</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="server_8h_source.html#l00053">brix_cms_srv_ctx_t::idle_timeout_ms</a>, <a class="el" href="server_8h_source.html#l00057">brix_cms_srv_ctx_t::in_need</a>, <a class="el" href="server_8h_source.html#l00051">brix_cms_srv_ctx_t::interval_ms</a>, <a class="el" href="server_8h_source.html#l00052">brix_cms_srv_ctx_t::login_timeout_ms</a>, <a class="el" href="cms__internal_8h_source.html#l00041">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="server__module_8c_source.html#l00279">ngx_stream_brix_cms_srv_module</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="server_8h_source.html#l00050">brix_cms_srv_ctx_t::ping_timer</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="server_8h_source.html#l00039">brix_cms_srv_ctx_t::sess</a>, and <a class="el" href="types_2config_8h_source.html#l00305">ngx_stream_brix_srv_conf_t::session_log</a>.</p>
+<p class="reference">References <a class="el" href="server_8h_source.html#l00049">brix_cms_srv_ctx_t::auth_state</a>, <a class="el" href="netopt_8h_source.html#l00039">brix_apply_tcp_deadpeer_opts()</a>, <a class="el" href="server__auth_8c_source.html#l00031">brix_cms_srv_check_peer()</a>, <a class="el" href="server__handler_8c_source.html#l00018">brix_cms_srv_conn_count()</a>, <a class="el" href="server__handler_8c_source.html#l00024">brix_cms_srv_conn_inc()</a>, <a class="el" href="server__handler_8c_source.html#l00094">brix_cms_srv_ip_count()</a>, <a class="el" href="server__handler_8c_source.html#l00101">brix_cms_srv_ip_inc()</a>, <a class="el" href="server__recv_8c_source.html#l00181">brix_cms_srv_read()</a>, <a class="el" href="server__recv_8c_source.html#l00035">brix_cms_srv_write()</a>, <a class="el" href="log__diag_8h_source.html#l00059">BRIX_DIAG</a>, <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>, <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00242">brix_sess_begin()</a>, <a class="el" href="sesslog_8h_source.html#l00028">BRIX_SESS_DIR_IN</a>, <a class="el" href="sesslog_8h_source.html#l00021">BRIX_SESS_PROTO_CMS</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="server_8h_source.html#l00029">CMS_AUTH_NONE</a>, <a class="el" href="server_8h_source.html#l00030">CMS_AUTH_REQUESTED</a>, <a class="el" href="server_8h_source.html#l00038">brix_cms_srv_ctx_t::conf</a>, <a class="el" href="server_8h_source.html#l00054">brix_cms_srv_ctx_t::counted</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="server_8h_source.html#l00053">brix_cms_srv_ctx_t::idle_timeout_ms</a>, <a class="el" href="server_8h_source.html#l00057">brix_cms_srv_ctx_t::in_need</a>, <a class="el" href="server_8h_source.html#l00051">brix_cms_srv_ctx_t::interval_ms</a>, <a class="el" href="server_8h_source.html#l00052">brix_cms_srv_ctx_t::login_timeout_ms</a>, <a class="el" href="cms__internal_8h_source.html#l00046">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="server__module_8c_source.html#l00279">ngx_stream_brix_cms_srv_module</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="server_8h_source.html#l00050">brix_cms_srv_ctx_t::ping_timer</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="server_8h_source.html#l00039">brix_cms_srv_ctx_t::sess</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__module_8c_source.html#l00091">brix_cms_srv_set_enable()</a>.</p>
 
@@ -399,7 +399,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="server__handler_8c_source.html#l00069">brix_cms_ip_find()</a>, <a class="el" href="server__handler_8c_source.html#l00049">brix_cms_ip_slot_t::count</a>, and <a class="el" href="server__handler_8c_source.html#l00048">brix_cms_ip_slot_t::ip</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00100">brix_cms_srv_close()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__lifecycle_8c_source.html#l00116">brix_cms_srv_close()</a>.</p>
 
 </div>
 </div>
@@ -443,9 +443,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="server__recv_8c_source.html#l00698">698</a> of file <a class="el" href="server__recv_8c_source.html">server_recv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="server__recv_8c_source.html#l00181">181</a> of file <a class="el" href="server__recv_8c_source.html">server_recv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__recv_8c_source.html#l00100">brix_cms_srv_close()</a>, <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>, <a class="el" href="sesslog_8h_source.html#l00062">BRIX_SESS_END_CLIENT</a>, <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>, <a class="el" href="server__recv_8c_source.html#l00011">cms_srv_set_end_hint()</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="server_8h_source.html#l00053">brix_cms_srv_ctx_t::idle_timeout_ms</a>, <a class="el" href="server_8h_source.html#l00057">brix_cms_srv_ctx_t::in_need</a>, <a class="el" href="server_8h_source.html#l00056">brix_cms_srv_ctx_t::in_pos</a>, <a class="el" href="server_8h_source.html#l00055">brix_cms_srv_ctx_t::inbuf</a>, <a class="el" href="server_8h_source.html#l00048">brix_cms_srv_ctx_t::logged_in</a>, <a class="el" href="wire_8c_source.html#l00027">ngx_brix_cms_get16()</a>, <a class="el" href="wire_8c_source.html#l00034">ngx_brix_cms_get32()</a>, <a class="el" href="cms__internal_8h_source.html#l00041">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="cms__internal_8h_source.html#l00042">NGX_BRIX_CMS_MAX_FRAME</a>, and <a class="el" href="cms__internal_8h_source.html#l00049">NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="server__recv_8c_source.html#l00138">cms_srv_dispatch_frame()</a>, <a class="el" href="server__recv__lifecycle_8c_source.html#l00171">cms_srv_fail_close()</a>, <a class="el" href="server__recv_8c_source.html#l00081">cms_srv_read_accumulate()</a>, <a class="el" href="server__recv_8c_source.html#l00060">cms_srv_read_timeout()</a>, <a class="el" href="server__recv_8c_source.html#l00170">cms_srv_read_yield()</a>, and <a class="el" href="cms__internal_8h_source.html#l00054">NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__handler_8c_source.html#l00140">brix_cms_srv_handler()</a>.</p>
 
@@ -491,9 +491,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00072">72</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00078">CMS_RSP_DATA</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00083">CMS_RSP_DATA</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00266">cms_srv_frame_statfs()</a>.</p>
 
 </div>
 </div>
@@ -515,9 +515,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00054">54</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00067">CMS_RR_DISC</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00072">CMS_RR_DISC</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00234">cms_srv_frame_disc()</a>.</p>
 
 </div>
 </div>
@@ -539,9 +539,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00027">27</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00094">CMS_RR_PING</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00099">CMS_RR_PING</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00384">brix_cms_srv_ping_timer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00033">brix_cms_srv_ping_timer()</a>.</p>
 
 </div>
 </div>
@@ -563,9 +563,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00046">46</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00095">CMS_RR_PONG</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00100">CMS_RR_PONG</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00219">cms_srv_frame_ping()</a>.</p>
 
 </div>
 </div>
@@ -597,9 +597,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00063">63</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00098">CMS_RR_STATUS</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00103">CMS_RR_STATUS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00248">cms_srv_frame_update()</a>.</p>
 
 </div>
 </div>
@@ -637,9 +637,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00037">37</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00100">CMS_RR_XAUTH</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00105">CMS_RR_XAUTH</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00111">cms_srv_frame_login()</a>.</p>
 
 </div>
 </div>
@@ -677,9 +677,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__auth_8c_source.html#l00062">62</a> of file <a class="el" href="server__auth_8c_source.html">server_auth.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00119">brix_sss_verify_blob()</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="server__auth_8c_source.html#l00028">CMS_SSS_LIFETIME</a>, <a class="el" href="server_8h_source.html#l00038">brix_cms_srv_ctx_t::conf</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00354">brix_sss_verify_blob()</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="server__auth_8c_source.html#l00028">CMS_SSS_LIFETIME</a>, <a class="el" href="server_8h_source.html#l00038">brix_cms_srv_ctx_t::conf</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00144">cms_srv_frame_xauth()</a>.</p>
 
 </div>
 </div>
@@ -699,9 +699,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="server__recv_8c_source.html#l00679">679</a> of file <a class="el" href="server__recv_8c_source.html">server_recv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="server__recv_8c_source.html#l00035">35</a> of file <a class="el" href="server__recv_8c_source.html">server_recv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__recv_8c_source.html#l00100">brix_cms_srv_close()</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="server__recv_8c_source.html#l00011">cms_srv_set_end_hint()</a>.</p>
+<p class="reference">References <a class="el" href="server__recv__lifecycle_8c_source.html#l00116">brix_cms_srv_close()</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="server__recv__lifecycle_8c_source.html#l00027">cms_srv_set_end_hint()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__handler_8c_source.html#l00140">brix_cms_srv_handler()</a>.</p>
 

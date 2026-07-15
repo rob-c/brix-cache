@@ -113,6 +113,10 @@ $(document).ready(function(){initNavTree('http__tracking_8c.html',''); initResiz
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__dashboard__http__track__t.html">brix_dashboard_http_track_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__dashboard__http__meta__t.html">brix_dashboard_http_meta_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structredact__parts__t.html">redact_parts_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -122,9 +126,15 @@ Functions</h2></td></tr>
 <tr class="separator:a6bc678b9ab5d2c12ef440969996bae7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8ce477f112908ca195fafa3954e6f962" id="r_a8ce477f112908ca195fafa3954e6f962"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a8ce477f112908ca195fafa3954e6f962">dashboard_http_client</a> (ngx_http_request_t *r, char *buf, size_t bufsz)</td></tr>
 <tr class="separator:a8ce477f112908ca195fafa3954e6f962"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0de6894768acf8526c5033a5bdc9bf10" id="r_a0de6894768acf8526c5033a5bdc9bf10"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a0de6894768acf8526c5033a5bdc9bf10">brix_dashboard_http_start_identity</a> (ngx_http_request_t *r, const char *path, const char *identity, const char *vo, uint8_t proto, uint8_t direction, const char *op, int64_t expected_bytes)</td></tr>
+<tr class="memitem:ab51a6b25b6177161ba6e9fb3753dff83" id="r_ab51a6b25b6177161ba6e9fb3753dff83"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#ab51a6b25b6177161ba6e9fb3753dff83">dashboard_shm_ready</a> (void)</td></tr>
+<tr class="separator:ab51a6b25b6177161ba6e9fb3753dff83"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a05543f52d06ca1e957a06cd75129b884" id="r_a05543f52d06ca1e957a06cd75129b884"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a05543f52d06ca1e957a06cd75129b884">dashboard_http_bind_slot</a> (ngx_http_request_t *r, int slot, const char *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>)</td></tr>
+<tr class="separator:a05543f52d06ca1e957a06cd75129b884"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac51515d30f89973f610344472717a844" id="r_ac51515d30f89973f610344472717a844"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#ac51515d30f89973f610344472717a844">dashboard_http_reserve_slot</a> (ngx_http_request_t *r, const <a class="el" href="structbrix__dashboard__http__meta__t.html">brix_dashboard_http_meta_t</a> *m)</td></tr>
+<tr class="separator:ac51515d30f89973f610344472717a844"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0de6894768acf8526c5033a5bdc9bf10" id="r_a0de6894768acf8526c5033a5bdc9bf10"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a0de6894768acf8526c5033a5bdc9bf10">brix_dashboard_http_start_identity</a> (ngx_http_request_t *r, const char *path, const char *identity, const char *vo, uint8_t proto, uint8_t direction, const char *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, int64_t expected_bytes)</td></tr>
 <tr class="separator:a0de6894768acf8526c5033a5bdc9bf10"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abb1d8cbfe139423d1ce1c1a9f27b3400" id="r_abb1d8cbfe139423d1ce1c1a9f27b3400"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#abb1d8cbfe139423d1ce1c1a9f27b3400">brix_dashboard_http_start</a> (ngx_http_request_t *r, const char *path, uint8_t proto, uint8_t direction, const char *op, int64_t expected_bytes)</td></tr>
+<tr class="memitem:abb1d8cbfe139423d1ce1c1a9f27b3400" id="r_abb1d8cbfe139423d1ce1c1a9f27b3400"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#abb1d8cbfe139423d1ce1c1a9f27b3400">brix_dashboard_http_start</a> (ngx_http_request_t *r, const char *path, uint8_t proto, uint8_t direction, const char *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, int64_t expected_bytes)</td></tr>
 <tr class="separator:abb1d8cbfe139423d1ce1c1a9f27b3400"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0a04015221602fe68fbfe6504b9c9d09" id="r_a0a04015221602fe68fbfe6504b9c9d09"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a0a04015221602fe68fbfe6504b9c9d09">brix_dashboard_http_add</a> (ngx_http_request_t *r, ngx_atomic_int_t bytes)</td></tr>
 <tr class="separator:a0a04015221602fe68fbfe6504b9c9d09"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -132,6 +142,12 @@ Functions</h2></td></tr>
 <tr class="separator:a07788c445bab1a5b42a2ee65b90e57f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa79dea917e4e2a56675dc8b0154d49a0" id="r_aa79dea917e4e2a56675dc8b0154d49a0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#aa79dea917e4e2a56675dc8b0154d49a0">brix_dashboard_http_error</a> (ngx_http_request_t *r, const char *reason)</td></tr>
 <tr class="separator:aa79dea917e4e2a56675dc8b0154d49a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1d64c24ab97b7be49bc7016963daafa3" id="r_a1d64c24ab97b7be49bc7016963daafa3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a1d64c24ab97b7be49bc7016963daafa3">redact_split_authority</a> (const char *url, <a class="el" href="structredact__parts__t.html">redact_parts_t</a> *p)</td></tr>
+<tr class="separator:a1d64c24ab97b7be49bc7016963daafa3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a353f98ce1750136446267b3e00e0e522" id="r_a353f98ce1750136446267b3e00e0e522"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a353f98ce1750136446267b3e00e0e522">redact_write_host</a> (const <a class="el" href="structredact__parts__t.html">redact_parts_t</a> *p, char *host, size_t hostsz)</td></tr>
+<tr class="separator:a353f98ce1750136446267b3e00e0e522"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9293f8d0c3878adc12106fd7ff610c98" id="r_a9293f8d0c3878adc12106fd7ff610c98"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a9293f8d0c3878adc12106fd7ff610c98">redact_write_path_hint</a> (const char *path, char *path_hint, size_t pathsz)</td></tr>
+<tr class="separator:a9293f8d0c3878adc12106fd7ff610c98"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a640b67efc2ce82398b44ff54a97225e0" id="r_a640b67efc2ce82398b44ff54a97225e0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a640b67efc2ce82398b44ff54a97225e0">dashboard_redact_url</a> (const char *url, char *host, size_t hostsz, char *path_hint, size_t pathsz)</td></tr>
 <tr class="separator:a640b67efc2ce82398b44ff54a97225e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a69839bf975d5f7a64e68bc0c02b3568d" id="r_a69839bf975d5f7a64e68bc0c02b3568d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a69839bf975d5f7a64e68bc0c02b3568d">brix_dashboard_http_tpc_remote</a> (ngx_http_request_t *r, const char *remote_url, int remote_status, int curl_exit)</td></tr>
@@ -166,7 +182,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00162">162</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00244">244</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
 </div>
 </div>
@@ -196,7 +212,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00188">188</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00270">270</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
 </div>
 </div>
@@ -216,7 +232,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00314">314</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00473">473</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
 </div>
 </div>
@@ -270,7 +286,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00152">152</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00234">234</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
 </div>
 </div>
@@ -336,9 +352,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00095">95</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00199">199</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00152">brix_dashboard_http_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00234">brix_dashboard_http_start()</a>.</p>
 
 </div>
 </div>
@@ -368,7 +384,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00175">175</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00257">257</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
 </div>
 </div>
@@ -410,7 +426,55 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00296">296</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00455">455</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+
+</div>
+</div>
+<a id="a05543f52d06ca1e957a06cd75129b884" name="a05543f52d06ca1e957a06cd75129b884"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a05543f52d06ca1e957a06cd75129b884">&#9670;&#160;</a></span>dashboard_http_bind_slot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int dashboard_http_bind_slot </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>op</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00134">134</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00153">brix_transfer_slot_count_op()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00162">brix_transfer_slot_free()</a>, <a class="el" href="http__tracking_8c_source.html#l00055">dashboard_http_cleanup()</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00431">ngx_http_brix_dashboard_module</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="http__tracking_8c_source.html#l00035">brix_dashboard_http_track_t::r</a>, <a class="el" href="http__tracking_8c_source.html#l00033">brix_dashboard_http_track_t::slot</a>, and <a class="el" href="http__tracking_8c_source.html#l00034">brix_dashboard_http_track_t::table</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>.</p>
 
 </div>
 </div>
@@ -438,11 +502,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00039">39</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00055">55</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
 <p class="reference">References <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00162">brix_transfer_slot_free()</a>, <a class="el" href="http__tracking_8c_source.html#l00033">brix_dashboard_http_track_t::slot</a>, and <a class="el" href="http__tracking_8c_source.html#l00034">brix_dashboard_http_track_t::table</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00134">dashboard_http_bind_slot()</a>.</p>
 
 </div>
 </div>
@@ -486,11 +550,53 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00067">67</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00083">83</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00171">dashboard_http_reserve_slot()</a>.</p>
+
+</div>
+</div>
+<a id="ac51515d30f89973f610344472717a844" name="ac51515d30f89973f610344472717a844"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac51515d30f89973f610344472717a844">&#9670;&#160;</a></span>dashboard_http_reserve_slot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int dashboard_http_reserve_slot </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__dashboard__http__meta__t.html">brix_dashboard_http_meta_t</a> *&#160;</td>
+          <td class="paramname"><em>m</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00171">171</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00079">brix_transfer_slot_alloc_ex()</a>, <a class="el" href="http__tracking_8c_source.html#l00083">dashboard_http_client()</a>, <a class="el" href="http__tracking_8c_source.html#l00051">brix_dashboard_http_meta_t::direction</a>, <a class="el" href="http__tracking_8c_source.html#l00049">brix_dashboard_http_meta_t::expected_bytes</a>, <a class="el" href="http__tracking_8c_source.html#l00046">brix_dashboard_http_meta_t::identity</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="http__tracking_8c_source.html#l00048">brix_dashboard_http_meta_t::op</a>, <a class="el" href="http__tracking_8c_source.html#l00045">brix_dashboard_http_meta_t::path</a>, <a class="el" href="http__tracking_8c_source.html#l00050">brix_dashboard_http_meta_t::proto</a>, and <a class="el" href="http__tracking_8c_source.html#l00047">brix_dashboard_http_meta_t::vo</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>.</p>
 
 </div>
 </div>
@@ -518,11 +624,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00052">52</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00068">68</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2dashboard_2module_8c_source.html#l00501">ngx_http_brix_dashboard_module</a>.</p>
+<p class="reference">References <a class="el" href="observability_2dashboard_2module_8c_source.html#l00431">ngx_http_brix_dashboard_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00162">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00188">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00314">brix_dashboard_http_finish()</a>, <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__tracking_8c_source.html#l00175">brix_dashboard_http_state()</a>, and <a class="el" href="http__tracking_8c_source.html#l00296">brix_dashboard_http_tpc_remote()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__tracking_8c_source.html#l00257">brix_dashboard_http_state()</a>, and <a class="el" href="http__tracking_8c_source.html#l00455">brix_dashboard_http_tpc_remote()</a>.</p>
 
 </div>
 </div>
@@ -578,11 +684,181 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00210">210</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00428">428</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00294">redact_parts_t::path</a>, <a class="el" href="http__tracking_8c_source.html#l00309">redact_split_authority()</a>, <a class="el" href="http__tracking_8c_source.html#l00341">redact_write_host()</a>, and <a class="el" href="http__tracking_8c_source.html#l00391">redact_write_path_hint()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00455">brix_dashboard_http_tpc_remote()</a>.</p>
+
+</div>
+</div>
+<a id="ab51a6b25b6177161ba6e9fb3753dff83" name="ab51a6b25b6177161ba6e9fb3753dff83"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab51a6b25b6177161ba6e9fb3753dff83">&#9670;&#160;</a></span>dashboard_shm_ready()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int dashboard_shm_ready </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00113">113</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>.</p>
+
+</div>
+</div>
+<a id="a1d64c24ab97b7be49bc7016963daafa3" name="a1d64c24ab97b7be49bc7016963daafa3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1d64c24ab97b7be49bc7016963daafa3">&#9670;&#160;</a></span>redact_split_authority()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void redact_split_authority </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>url</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structredact__parts__t.html">redact_parts_t</a> *&#160;</td>
+          <td class="paramname"><em>p</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00309">309</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00292">redact_parts_t::authority</a>, <a class="el" href="http__tracking_8c_source.html#l00293">redact_parts_t::end</a>, <a class="el" href="http__tracking_8c_source.html#l00294">redact_parts_t::path</a>, <a class="el" href="http__tracking_8c_source.html#l00291">redact_parts_t::scheme_end</a>, and <a class="el" href="http__tracking_8c_source.html#l00290">redact_parts_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00428">dashboard_redact_url()</a>.</p>
+
+</div>
+</div>
+<a id="a353f98ce1750136446267b3e00e0e522" name="a353f98ce1750136446267b3e00e0e522"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a353f98ce1750136446267b3e00e0e522">&#9670;&#160;</a></span>redact_write_host()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void redact_write_host </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structredact__parts__t.html">redact_parts_t</a> *&#160;</td>
+          <td class="paramname"><em>p</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>host</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>hostsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00341">341</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00292">redact_parts_t::authority</a>, <a class="el" href="http__tracking_8c_source.html#l00293">redact_parts_t::end</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="http__tracking_8c_source.html#l00291">redact_parts_t::scheme_end</a>, and <a class="el" href="http__tracking_8c_source.html#l00290">redact_parts_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00428">dashboard_redact_url()</a>.</p>
+
+</div>
+</div>
+<a id="a9293f8d0c3878adc12106fd7ff610c98" name="a9293f8d0c3878adc12106fd7ff610c98"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9293f8d0c3878adc12106fd7ff610c98">&#9670;&#160;</a></span>redact_write_path_hint()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void redact_write_path_hint </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>path_hint</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>pathsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00391">391</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00296">brix_dashboard_http_tpc_remote()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00428">dashboard_redact_url()</a>.</p>
 
 </div>
 </div>

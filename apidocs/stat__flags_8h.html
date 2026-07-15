@@ -118,6 +118,10 @@ $(document).ready(function(){initNavTree('stat__flags_8h.html',''); initResizabl
 Functions</h2></td></tr>
 <tr class="memitem:a3703055c53532567938cb235b915b8a7" id="r_a3703055c53532567938cb235b915b8a7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stat__flags_8h.html#a3703055c53532567938cb235b915b8a7">brix_stat_flags_from_mode</a> (mode_t st_mode, int extra_flags)</td></tr>
 <tr class="separator:a3703055c53532567938cb235b915b8a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ade5609b5ba57c42e0806d963745edf43" id="r_ade5609b5ba57c42e0806d963745edf43"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stat__flags_8h.html#ade5609b5ba57c42e0806d963745edf43">brix_stat_perm_granted</a> (mode_t m, mode_t ubit, mode_t gbit, mode_t obit, uid_t myuid, gid_t mygid, uid_t fuid, gid_t fgid)</td></tr>
+<tr class="separator:ade5609b5ba57c42e0806d963745edf43"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a295e5be2d7b5aae706d08d9e9693b085" id="r_a295e5be2d7b5aae706d08d9e9693b085"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stat__flags_8h.html#a295e5be2d7b5aae706d08d9e9693b085">brix_stat_type_flag</a> (mode_t m)</td></tr>
+<tr class="separator:a295e5be2d7b5aae706d08d9e9693b085"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abb1aa0de2df2401d0a626f210d34418b" id="r_abb1aa0de2df2401d0a626f210d34418b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stat__flags_8h.html#abb1aa0de2df2401d0a626f210d34418b">brix_stat_flags_from_stat</a> (const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, uid_t myuid, gid_t mygid, int extra_flags)</td></tr>
 <tr class="separator:abb1aa0de2df2401d0a626f210d34418b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a470030670dd6ff5099f3f87ab7033940" id="r_a470030670dd6ff5099f3f87ab7033940"><td class="memItemLeft" align="right" valign="top">static mode_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stat__flags_8h.html#a470030670dd6ff5099f3f87ab7033940">brix_stat_mode_from_flags</a> (int flags, int allow_symlink)</td></tr>
@@ -210,9 +214,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="stat__flags_8h_source.html#l00073">73</a> of file <a class="el" href="stat__flags_8h_source.html">stat_flags.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="stat__flags_8h_source.html#l00120">120</a> of file <a class="el" href="stat__flags_8h_source.html">stat_flags.h</a>.</p>
 
-<p class="reference">References <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="flags_8h_source.html#l00050">kXR_other</a>, <a class="el" href="flags_8h_source.html#l00052">kXR_readable</a>, <a class="el" href="flags_8h_source.html#l00053">kXR_writable</a>, and <a class="el" href="flags_8h_source.html#l00048">kXR_xset</a>.</p>
+<p class="reference">References <a class="el" href="stat__flags_8h_source.html#l00071">brix_stat_perm_granted()</a>, <a class="el" href="stat__flags_8h_source.html#l00095">brix_stat_type_flag()</a>, <a class="el" href="flags_8h_source.html#l00052">kXR_readable</a>, <a class="el" href="flags_8h_source.html#l00053">kXR_writable</a>, and <a class="el" href="flags_8h_source.html#l00048">kXR_xset</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="stat__body_8c_source.html#l00017">brix_make_stat_body()</a>.</p>
 
@@ -252,11 +256,119 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="stat__flags_8h_source.html#l00117">117</a> of file <a class="el" href="stat__flags_8h_source.html">stat_flags.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="stat__flags_8h_source.html#l00156">156</a> of file <a class="el" href="stat__flags_8h_source.html">stat_flags.h</a>.</p>
 
 <p class="reference">References <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="flags_8h_source.html#l00050">kXR_other</a>, and <a class="el" href="flags_8h_source.html#l00048">kXR_xset</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="posix__map_8c_source.html#l00016">brix_statinfo_to_stat()</a>.</p>
+
+</div>
+</div>
+<a id="ade5609b5ba57c42e0806d963745edf43" name="ade5609b5ba57c42e0806d963745edf43"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ade5609b5ba57c42e0806d963745edf43">&#9670;&#160;</a></span>brix_stat_perm_granted()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_stat_perm_granted </td>
+          <td>(</td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>m</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>ubit</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>gbit</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>obit</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uid_t&#160;</td>
+          <td class="paramname"><em>myuid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">gid_t&#160;</td>
+          <td class="paramname"><em>mygid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uid_t&#160;</td>
+          <td class="paramname"><em>fuid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">gid_t&#160;</td>
+          <td class="paramname"><em>fgid</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stat__flags_8h_source.html#l00071">71</a> of file <a class="el" href="stat__flags_8h_source.html">stat_flags.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stat__flags_8h_source.html#l00120">brix_stat_flags_from_stat()</a>.</p>
+
+</div>
+</div>
+<a id="a295e5be2d7b5aae706d08d9e9693b085" name="a295e5be2d7b5aae706d08d9e9693b085"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a295e5be2d7b5aae706d08d9e9693b085">&#9670;&#160;</a></span>brix_stat_type_flag()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_stat_type_flag </td>
+          <td>(</td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>m</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stat__flags_8h_source.html#l00095">95</a> of file <a class="el" href="stat__flags_8h_source.html">stat_flags.h</a>.</p>
+
+<p class="reference">References <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, and <a class="el" href="flags_8h_source.html#l00050">kXR_other</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stat__flags_8h_source.html#l00120">brix_stat_flags_from_stat()</a>.</p>
 
 </div>
 </div>

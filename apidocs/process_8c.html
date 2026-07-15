@@ -91,38 +91,23 @@ $(document).ready(function(){initNavTree('process_8c.html',''); initResizable();
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">process.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &lt;unistd.h&gt;</code><br />
-<code>#include &lt;sys/stat.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="config_2config_8h_source.html">config.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="process__internal_8h_source.html">process_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="proxy_8h_source.html">net/proxy/proxy.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="net_2proxy_2proxy__internal_8h_source.html">net/proxy/proxy_internal.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="staged__file_8h_source.html">core/compat/staged_file.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="tmp__path_8h_source.html">core/compat/tmp_path.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="chkpoint_8h_source.html">protocols/root/write/chkpoint.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="crypto_8h_source.html">core/compat/crypto.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="log__diag_8h_source.html">core/compat/log_diag.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="lifecycle__timing_8h_source.html">core/compat/lifecycle_timing.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="health__check_8h_source.html">net/manager/health_check.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="pending_8h_source.html">net/manager/pending.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="pelican__register_8h_source.html">fs/cache/origin/pelican_register.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="cache__internal_8h_source.html">fs/cache/cache_internal.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="cache__reap_8h_source.html">fs/cache/cache_reap.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="reap__watermark_8h_source.html">fs/cache/reap_watermark.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="stage__request__registry_8h_source.html">fs/xfer/stage_request_registry.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cache__storage_8h_source.html">fs/cache/cache_storage.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="xfer_8h_source.html">fs/xfer/xfer.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="stage__engine_8h_source.html">fs/xfer/stage_engine.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="keypool_8h_source.html">auth/gsi/keypool.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="lifecycle_8h_source.html">auth/impersonate/lifecycle.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2core_2aio_2uring_8h_source.html">core/aio/uring.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="sd_8h_source.html">fs/backend/sd.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="cstr_8h_source.html">core/compat/cstr.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="sesslog__ngx_8h_source.html">observability/sesslog/sesslog_ngx.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for process.c:</div>
@@ -134,193 +119,20 @@ $(document).ready(function(){initNavTree('process_8c.html',''); initResizable();
 </div>
 <p><a href="process_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:a133a77bee2d4d08488fe0f7a8e642e7b" id="r_a133a77bee2d4d08488fe0f7a8e642e7b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a133a77bee2d4d08488fe0f7a8e642e7b">BRIX_STAGE_REAP_FIRST_MS</a>&#160;&#160;&#160;1000</td></tr>
-<tr class="separator:a133a77bee2d4d08488fe0f7a8e642e7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a70f034c25663104212d2369bb1c27886" id="r_a70f034c25663104212d2369bb1c27886"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a70f034c25663104212d2369bb1c27886">BRIX_STAGE_REAP_INTERVAL_MS</a>&#160;&#160;&#160;60000</td></tr>
-<tr class="separator:a70f034c25663104212d2369bb1c27886"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a591f55aa72bbe4beb78d26f7929e419b" id="r_a591f55aa72bbe4beb78d26f7929e419b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a591f55aa72bbe4beb78d26f7929e419b">BRIX_CACHE_REAP_FIRST_MS</a>&#160;&#160;&#160;5000</td></tr>
-<tr class="separator:a591f55aa72bbe4beb78d26f7929e419b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4ac3e2cf7689ed0885a3f50cca31813d" id="r_a4ac3e2cf7689ed0885a3f50cca31813d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a4ac3e2cf7689ed0885a3f50cca31813d">BRIX_CACHE_REAP_INTERVAL_MS</a>&#160;&#160;&#160;3600000   /* hourly */</td></tr>
-<tr class="separator:a4ac3e2cf7689ed0885a3f50cca31813d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aada7ddfad81d4b3959c243f693820c62" id="r_aada7ddfad81d4b3959c243f693820c62"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#aada7ddfad81d4b3959c243f693820c62">BRIX_STAGE_SCHED_MS</a>&#160;&#160;&#160;1000</td></tr>
-<tr class="separator:aada7ddfad81d4b3959c243f693820c62"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ae0d0013be7ff36eb2239934f230cce1b" id="r_ae0d0013be7ff36eb2239934f230cce1b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#ae0d0013be7ff36eb2239934f230cce1b">brix_crl_reload_handler</a> (ngx_event_t *ev)</td></tr>
-<tr class="separator:ae0d0013be7ff36eb2239934f230cce1b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3f19674dfe778b0bebb6379374631184" id="r_a3f19674dfe778b0bebb6379374631184"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a3f19674dfe778b0bebb6379374631184">brix_pending_reap_handler</a> (ngx_event_t *ev)</td></tr>
-<tr class="separator:a3f19674dfe778b0bebb6379374631184"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9d88eaf35c66648d2aebcadb93efb5f5" id="r_a9d88eaf35c66648d2aebcadb93efb5f5"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a9d88eaf35c66648d2aebcadb93efb5f5">brix_stage_reap_handler</a> (ngx_event_t *ev)</td></tr>
-<tr class="separator:a9d88eaf35c66648d2aebcadb93efb5f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a01b99049091dbb9fbf5a193d6c9ed41b" id="r_a01b99049091dbb9fbf5a193d6c9ed41b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a01b99049091dbb9fbf5a193d6c9ed41b">brix_cache_reap_handler</a> (ngx_event_t *ev)</td></tr>
-<tr class="separator:a01b99049091dbb9fbf5a193d6c9ed41b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a29442600c3a431188face76dfcb97fee" id="r_a29442600c3a431188face76dfcb97fee"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a29442600c3a431188face76dfcb97fee">brix_stage_sched_handler</a> (ngx_event_t *ev)</td></tr>
-<tr class="separator:a29442600c3a431188face76dfcb97fee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a31483984f7f5174495c7ea4a4aee060b" id="r_a31483984f7f5174495c7ea4a4aee060b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">brix_init_stage_engine_worker</a> (ngx_cycle_t *cycle)</td></tr>
+<tr class="separator:a31483984f7f5174495c7ea4a4aee060b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aba9417f5093f9190bc8c7c27b11ffa6e" id="r_aba9417f5093f9190bc8c7c27b11ffa6e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">brix_init_gsi_keypool</a> (ngx_cycle_t *cycle, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *gsi_xcf)</td></tr>
+<tr class="separator:aba9417f5093f9190bc8c7c27b11ffa6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad4b36dcd5016319df35afe5f846afa9c" id="r_ad4b36dcd5016319df35afe5f846afa9c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">brix_warn_openat2_unavailable</a> (ngx_cycle_t *cycle)</td></tr>
+<tr class="separator:ad4b36dcd5016319df35afe5f846afa9c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9041a20a2a88dee5db2546577526ba4a" id="r_a9041a20a2a88dee5db2546577526ba4a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a9041a20a2a88dee5db2546577526ba4a">ngx_stream_brix_init_process</a> (ngx_cycle_t *cycle)</td></tr>
 <tr class="separator:a9041a20a2a88dee5db2546577526ba4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a556eae007725d3778b6ad3fceebf0dcd" id="r_a556eae007725d3778b6ad3fceebf0dcd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a556eae007725d3778b6ad3fceebf0dcd">brix_exit_process</a> (ngx_cycle_t *cycle)</td></tr>
 <tr class="separator:a556eae007725d3778b6ad3fceebf0dcd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:a5919edaa6a3aa525fc0a7ab9eab2a16d" id="r_a5919edaa6a3aa525fc0a7ab9eab2a16d"><td class="memItemLeft" align="right" valign="top">ngx_connection_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a5919edaa6a3aa525fc0a7ab9eab2a16d">brix_maint_timer_conn</a> = { .fd = (ngx_socket_t) -1 }</td></tr>
-<tr class="separator:a5919edaa6a3aa525fc0a7ab9eab2a16d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a779f0746075bc3d25afce4e8eb1918de" id="r_a779f0746075bc3d25afce4e8eb1918de"><td class="memItemLeft" align="right" valign="top">static ngx_event_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a779f0746075bc3d25afce4e8eb1918de">brix_pending_reap_timer</a></td></tr>
-<tr class="separator:a779f0746075bc3d25afce4e8eb1918de"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a470cd0ab69c0c03bbe5fc08aa79428c0" id="r_a470cd0ab69c0c03bbe5fc08aa79428c0"><td class="memItemLeft" align="right" valign="top">static ngx_event_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#a470cd0ab69c0c03bbe5fc08aa79428c0">brix_stage_reap_timer</a></td></tr>
-<tr class="separator:a470cd0ab69c0c03bbe5fc08aa79428c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa95dfecfdb75eb6abc9394f4aed1b0a8" id="r_aa95dfecfdb75eb6abc9394f4aed1b0a8"><td class="memItemLeft" align="right" valign="top">static ngx_event_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="process_8c.html#aa95dfecfdb75eb6abc9394f4aed1b0a8">brix_stage_sched_timer</a></td></tr>
-<tr class="separator:aa95dfecfdb75eb6abc9394f4aed1b0a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a591f55aa72bbe4beb78d26f7929e419b" name="a591f55aa72bbe4beb78d26f7929e419b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a591f55aa72bbe4beb78d26f7929e419b">&#9670;&#160;</a></span>BRIX_CACHE_REAP_FIRST_MS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_CACHE_REAP_FIRST_MS&#160;&#160;&#160;5000</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00163">163</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-</div>
-</div>
-<a id="a4ac3e2cf7689ed0885a3f50cca31813d" name="a4ac3e2cf7689ed0885a3f50cca31813d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4ac3e2cf7689ed0885a3f50cca31813d">&#9670;&#160;</a></span>BRIX_CACHE_REAP_INTERVAL_MS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_CACHE_REAP_INTERVAL_MS&#160;&#160;&#160;3600000   /* hourly */</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00164">164</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-</div>
-</div>
-<a id="a133a77bee2d4d08488fe0f7a8e642e7b" name="a133a77bee2d4d08488fe0f7a8e642e7b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a133a77bee2d4d08488fe0f7a8e642e7b">&#9670;&#160;</a></span>BRIX_STAGE_REAP_FIRST_MS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_STAGE_REAP_FIRST_MS&#160;&#160;&#160;1000</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00137">137</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-</div>
-</div>
-<a id="a70f034c25663104212d2369bb1c27886" name="a70f034c25663104212d2369bb1c27886"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a70f034c25663104212d2369bb1c27886">&#9670;&#160;</a></span>BRIX_STAGE_REAP_INTERVAL_MS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_STAGE_REAP_INTERVAL_MS&#160;&#160;&#160;60000</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00138">138</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-</div>
-</div>
-<a id="aada7ddfad81d4b3959c243f693820c62" name="aada7ddfad81d4b3959c243f693820c62"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aada7ddfad81d4b3959c243f693820c62">&#9670;&#160;</a></span>BRIX_STAGE_SCHED_MS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_STAGE_SCHED_MS&#160;&#160;&#160;1000</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00183">183</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a01b99049091dbb9fbf5a193d6c9ed41b" name="a01b99049091dbb9fbf5a193d6c9ed41b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a01b99049091dbb9fbf5a193d6c9ed41b">&#9670;&#160;</a></span>brix_cache_reap_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_cache_reap_handler </td>
-          <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>ev</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00167">167</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-<p class="reference">References <a class="el" href="cache__reap_8c_source.html#l00173">brix_cache_reap_dirty()</a>, and <a class="el" href="process_8c_source.html#l00164">BRIX_CACHE_REAP_INTERVAL_MS</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
-
-</div>
-</div>
-<a id="ae0d0013be7ff36eb2239934f230cce1b" name="ae0d0013be7ff36eb2239934f230cce1b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae0d0013be7ff36eb2239934f230cce1b">&#9670;&#160;</a></span>brix_crl_reload_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_crl_reload_handler </td>
-          <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>ev</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00056">56</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00067">BRIX_DIAG_CRIT</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00016">brix_rebuild_gsi_store()</a>, <a class="el" href="types_2config_8h_source.html#l00132">ngx_stream_brix_srv_conf_t::crl</a>, <a class="el" href="types_2config_8h_source.html#l00136">ngx_stream_brix_srv_conf_t::crl_mtime</a>, <a class="el" href="types_2config_8h_source.html#l00134">ngx_stream_brix_srv_conf_t::crl_reload</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
-
-</div>
-</div>
 <a id="a556eae007725d3778b6ad3fceebf0dcd" name="a556eae007725d3778b6ad3fceebf0dcd"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a556eae007725d3778b6ad3fceebf0dcd">&#9670;&#160;</a></span>brix_exit_process()</h2>
 
@@ -337,14 +149,14 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00501">501</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00254">254</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cache__storage_8c_source.html#l00436">brix_cache_storage_cleanup()</a>, <a class="el" href="crypto_8c_source.html#l00030">brix_crypto_cleanup()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00209">brix_proxy_pool_shutdown()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00465">brix_sesslog_shutdown_flush()</a>, <a class="el" href="src_2core_2aio_2uring_8c_source.html#l00660">brix_uring_exit_worker()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, and <a class="el" href="types_2config_8h_source.html#l00117">ngx_stream_brix_srv_conf_t::rootfd</a>.</p>
+<p class="reference">References <a class="el" href="cache__storage_8c_source.html#l00436">brix_cache_storage_cleanup()</a>, <a class="el" href="crypto_8c_source.html#l00030">brix_crypto_cleanup()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00209">brix_proxy_pool_shutdown()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00488">brix_sesslog_shutdown_flush()</a>, <a class="el" href="src_2core_2aio_2uring_8c_source.html#l00210">brix_uring_exit_worker()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
 </div>
 </div>
-<a id="a3f19674dfe778b0bebb6379374631184" name="a3f19674dfe778b0bebb6379374631184"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3f19674dfe778b0bebb6379374631184">&#9670;&#160;</a></span>brix_pending_reap_handler()</h2>
+<a id="aba9417f5093f9190bc8c7c27b11ffa6e" name="aba9417f5093f9190bc8c7c27b11ffa6e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aba9417f5093f9190bc8c7c27b11ffa6e">&#9670;&#160;</a></span>brix_init_gsi_keypool()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -353,10 +165,52 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void brix_pending_reap_handler </td>
+          <td class="memname">static void brix_init_gsi_keypool </td>
           <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>ev</em></td><td>)</td>
+          <td class="paramtype">ngx_cycle_t *&#160;</td>
+          <td class="paramname"><em>cycle</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>gsi_xcf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00085">85</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
+
+<p class="reference">References <a class="el" href="keypool_8c_source.html#l00132">brix_gsi_keypool_init()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00157">ngx_stream_brix_init_process()</a>.</p>
+
+</div>
+</div>
+<a id="a31483984f7f5174495c7ea4a4aee060b" name="a31483984f7f5174495c7ea4a4aee060b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a31483984f7f5174495c7ea4a4aee060b">&#9670;&#160;</a></span>brix_init_stage_engine_worker()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_init_stage_engine_worker </td>
+          <td>(</td>
+          <td class="paramtype">ngx_cycle_t *&#160;</td>
+          <td class="paramname"><em>cycle</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -367,16 +221,16 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00116">116</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00051">51</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pending_8c_source.html#l00195">brix_pending_reap_expired()</a>, and <a class="el" href="pending_8h_source.html#l00077">BRIX_PENDING_REAP_INTERVAL_MS</a>.</p>
+<p class="reference">References <a class="el" href="stage__engine__journal_8c_source.html#l00050">brix_stage_engine_init()</a>, <a class="el" href="stage__engine__reconcile_8c_source.html#l00173">brix_stage_reconcile()</a>, and <a class="el" href="tmp__path_8c_source.html#l00213">brix_tmp_reap_all()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00157">ngx_stream_brix_init_process()</a>.</p>
 
 </div>
 </div>
-<a id="a9d88eaf35c66648d2aebcadb93efb5f5" name="a9d88eaf35c66648d2aebcadb93efb5f5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9d88eaf35c66648d2aebcadb93efb5f5">&#9670;&#160;</a></span>brix_stage_reap_handler()</h2>
+<a id="ad4b36dcd5016319df35afe5f846afa9c" name="ad4b36dcd5016319df35afe5f846afa9c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad4b36dcd5016319df35afe5f846afa9c">&#9670;&#160;</a></span>brix_warn_openat2_unavailable()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -385,10 +239,10 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void brix_stage_reap_handler </td>
+          <td class="memname">static void brix_warn_openat2_unavailable </td>
           <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>ev</em></td><td>)</td>
+          <td class="paramtype">ngx_cycle_t *&#160;</td>
+          <td class="paramname"><em>cycle</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -399,43 +253,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00144">144</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00111">111</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
 
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00623">brix_stage_reap_all()</a>, and <a class="el" href="process_8c_source.html#l00138">BRIX_STAGE_REAP_INTERVAL_MS</a>.</p>
+<p class="reference">References <a class="el" href="resolve__confined__helpers_8c_source.html#l00197">brix_openat2_runtime_available()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
-
-</div>
-</div>
-<a id="a29442600c3a431188face76dfcb97fee" name="a29442600c3a431188face76dfcb97fee"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a29442600c3a431188face76dfcb97fee">&#9670;&#160;</a></span>brix_stage_sched_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_stage_sched_handler </td>
-          <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>ev</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00187">187</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-<p class="reference">References <a class="el" href="process_8c_source.html#l00183">BRIX_STAGE_SCHED_MS</a>, and <a class="el" href="stage__engine_8c_source.html#l00509">brix_stage_scheduler_tick()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00157">ngx_stream_brix_init_process()</a>.</p>
 
 </div>
 </div>
@@ -455,106 +277,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00205">205</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00157">157</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00306">ngx_stream_brix_srv_conf_t::access_log_fd</a>, <a class="el" href="types_2config_8h_source.html#l00308">ngx_stream_brix_srv_conf_t::access_log_file</a>, <a class="el" href="conf__structs_8h_source.html#l00081">brix_cms_conf_t::addr</a>, <a class="el" href="conf__structs_8h_source.html#l00153">brix_proxy_conf_t::audit_log_fd</a>, <a class="el" href="conf__structs_8h_source.html#l00154">brix_proxy_conf_t::audit_log_file</a>, <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00239">brix_acc_init_server()</a>, <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="pelican__register_8c_source.html#l00464">brix_cache_pelican_schedule_advertise()</a>, <a class="el" href="process_8c_source.html#l00163">BRIX_CACHE_REAP_FIRST_MS</a>, <a class="el" href="process_8c_source.html#l00167">brix_cache_reap_handler()</a>, <a class="el" href="paths_8c_source.html#l00093">brix_cache_state_root()</a>, <a class="el" href="cache__storage_8c_source.html#l00339">brix_cache_storage_init()</a>, <a class="el" href="reap__watermark_8c_source.html#l00079">brix_cache_watermark_timer_handler()</a>, <a class="el" href="chkpoint_8c_source.html#l00488">brix_chkpoint_recover_root()</a>, <a class="el" href="process_8c_source.html#l00056">brix_crl_reload_handler()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="keypool_8c_source.html#l00132">brix_gsi_keypool_init()</a>, <a class="el" href="health__check_8c_source.html#l00667">brix_hc_manager_start()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00509">brix_imp_init_worker()</a>, <a class="el" href="process_8c_source.html#l00051">brix_maint_timer_conn</a>, <a class="el" href="resolve__confined__helpers_8c_source.html#l00197">brix_openat2_runtime_available()</a>, <a class="el" href="process_8c_source.html#l00116">brix_pending_reap_handler()</a>, <a class="el" href="pending_8h_source.html#l00077">BRIX_PENDING_REAP_INTERVAL_MS</a>, <a class="el" href="process_8c_source.html#l00111">brix_pending_reap_timer</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00068">brix_phase_mark()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00097">brix_phase_timer_log()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00035">brix_phase_timer_start()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00250">brix_proxy_pool_init()</a>, <a class="el" href="staged__file_8c_source.html#l00496">brix_stage_dir_count()</a>, <a class="el" href="stage__engine_8c_source.html#l00058">brix_stage_engine_init()</a>, <a class="el" href="process_8c_source.html#l00137">BRIX_STAGE_REAP_FIRST_MS</a>, <a class="el" href="process_8c_source.html#l00144">brix_stage_reap_handler()</a>, <a class="el" href="process_8c_source.html#l00139">brix_stage_reap_timer</a>, <a class="el" href="stage__engine_8c_source.html#l00602">brix_stage_reconcile()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00466">brix_stage_registry_init()</a>, <a class="el" href="process_8c_source.html#l00187">brix_stage_sched_handler()</a>, <a class="el" href="process_8c_source.html#l00183">BRIX_STAGE_SCHED_MS</a>, <a class="el" href="process_8c_source.html#l00184">brix_stage_sched_timer</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="tmp__path_8c_source.html#l00213">brix_tmp_reap_all()</a>, <a class="el" href="refresh_8c_source.html#l00110">brix_token_jwks_schedule_refresh()</a>, <a class="el" href="src_2core_2aio_2uring_8c_source.html#l00653">brix_uring_init_worker()</a>, <a class="el" href="xfer__resume__sweep_8c_source.html#l00127">brix_xfer_resume_sweep_register()</a>, <a class="el" href="types_2config_8h_source.html#l00420">ngx_stream_brix_srv_conf_t::cache</a>, <a class="el" href="types_2config_8h_source.html#l00481">ngx_stream_brix_srv_conf_t::cache_dirty_max_age</a>, <a class="el" href="types_2config_8h_source.html#l00482">ngx_stream_brix_srv_conf_t::cache_reap_timer</a>, <a class="el" href="shared__conf_8h_source.html#l00059">ngx_http_brix_shared_conf_t::cache_store</a>, <a class="el" href="types_2config_8h_source.html#l00637">ngx_stream_brix_srv_conf_t::cms</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="tape__stage__conf_8h_source.html#l00042">brix_frm_conf_t::control_dir</a>, <a class="el" href="types_2config_8h_source.html#l00132">ngx_stream_brix_srv_conf_t::crl</a>, <a class="el" href="types_2config_8h_source.html#l00134">ngx_stream_brix_srv_conf_t::crl_reload</a>, <a class="el" href="types_2config_8h_source.html#l00204">ngx_stream_brix_srv_conf_t::crl_timer</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="tape__stage__conf_8h_source.html#l00025">brix_frm_conf_t::enable</a>, <a class="el" href="types_2config_8h_source.html#l00215">ngx_stream_brix_srv_conf_t::frm</a>, <a class="el" href="types_2config_8h_source.html#l00194">ngx_stream_brix_srv_conf_t::gsi_keypool_seed</a>, <a class="el" href="types_2config_8h_source.html#l00193">ngx_stream_brix_srv_conf_t::gsi_keypool_size</a>, <a class="el" href="conf__structs_8h_source.html#l00230">brix_cache_reaper_conf_t::high_watermark</a>, <a class="el" href="types_2config_8h_source.html#l00615">ngx_stream_brix_srv_conf_t::manager_mode</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00514">ngx_brix_cms_start()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="resolve__confined__helpers_8c_source.html#l00060">O_PATH</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="types_2config_8h_source.html#l00492">ngx_stream_brix_srv_conf_t::reaper</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="types_2config_8h_source.html#l00117">ngx_stream_brix_srv_conf_t::rootfd</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="conf__structs_8h_source.html#l00233">brix_cache_reaper_conf_t::timer</a>, and <a class="el" href="types_2config_8h_source.html#l00681">ngx_stream_brix_srv_conf_t::upload_stage_dir_canon</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="a5919edaa6a3aa525fc0a7ab9eab2a16d" name="a5919edaa6a3aa525fc0a7ab9eab2a16d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5919edaa6a3aa525fc0a7ab9eab2a16d">&#9670;&#160;</a></span>brix_maint_timer_conn</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_connection_t brix_maint_timer_conn = { .fd = (ngx_socket_t) -1 }</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00051">51</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>, <a class="el" href="uring__admin_8c_source.html#l00161">brix_uring_panicfile_arm()</a>, and <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
-
-</div>
-</div>
-<a id="a779f0746075bc3d25afce4e8eb1918de" name="a779f0746075bc3d25afce4e8eb1918de"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a779f0746075bc3d25afce4e8eb1918de">&#9670;&#160;</a></span>brix_pending_reap_timer</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_event_t brix_pending_reap_timer</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00111">111</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
-
-</div>
-</div>
-<a id="a470cd0ab69c0c03bbe5fc08aa79428c0" name="a470cd0ab69c0c03bbe5fc08aa79428c0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a470cd0ab69c0c03bbe5fc08aa79428c0">&#9670;&#160;</a></span>brix_stage_reap_timer</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_event_t brix_stage_reap_timer</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00139">139</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
-
-</div>
-</div>
-<a id="aa95dfecfdb75eb6abc9394f4aed1b0a8" name="aa95dfecfdb75eb6abc9394f4aed1b0a8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa95dfecfdb75eb6abc9394f4aed1b0a8">&#9670;&#160;</a></span>brix_stage_sched_timer</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_event_t brix_stage_sched_timer</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="process_8c_source.html#l00184">184</a> of file <a class="el" href="process_8c_source.html">process.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="lifecycle__worker_8c_source.html#l00076">brix_imp_init_worker()</a>, <a class="el" href="process_8c_source.html#l00085">brix_init_gsi_keypool()</a>, <a class="el" href="process__server__init_8c_source.html#l00342">brix_init_one_server()</a>, <a class="el" href="process__timers_8c_source.html#l00236">brix_init_pending_reap_timer()</a>, <a class="el" href="process_8c_source.html#l00051">brix_init_stage_engine_worker()</a>, <a class="el" href="process__timers_8c_source.html#l00266">brix_init_stage_reap_timer()</a>, <a class="el" href="process__timers_8c_source.html#l00207">brix_init_stage_sched_timer()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00068">brix_phase_mark()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00097">brix_phase_timer_log()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00035">brix_phase_timer_start()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00257">brix_proxy_pool_init()</a>, <a class="el" href="src_2core_2aio_2uring_8c_source.html#l00203">brix_uring_init_worker()</a>, <a class="el" href="process_8c_source.html#l00111">brix_warn_openat2_unavailable()</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
 </div>
 </div>

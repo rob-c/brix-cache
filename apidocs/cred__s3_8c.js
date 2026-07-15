@@ -2,6 +2,7 @@ var cred__s3_8c =
 [
     [ "_GNU_SOURCE", "cred__s3_8c.html#a369266c24eacffb87046522897a570d5", null ],
     [ "S3KEY_BUFSZ", "cred__s3_8c.html#a5564b74cb944894a40314dc600f19a11", null ],
+    [ "aws_extract_default_keys", "cred__s3_8c.html#a63df83a4f10f56def03b404c49ea6fa3", null ],
     [ "brix_cred_s3keys", "cred__s3_8c.html#a38e785c91d84abb06c88294fe7a7ebe9", null ],
     [ "discover_s3_keys", "cred__s3_8c.html#a814ae664409f95b1ee981e62958e6ca4", null ],
     [ "parse_aws_credentials_default", "cred__s3_8c.html#a63e158a27a1aae89d7f3d456bd71fd80", null ],

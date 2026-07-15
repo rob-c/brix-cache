@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('copy__local_8c.html',''); initResizabl
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">copy_local.c File Reference</div></div>
 </div><!--header-->
@@ -106,6 +107,13 @@ $(document).ready(function(){initNavTree('copy__local_8c.html',''); initResizabl
 </div>
 <p><a href="copy__local_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structcopy__stream__ctx__t.html">copy_stream_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdownload__job__t.html">download_job_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ae4dd34337e9af3a643dc6bf7bd917e77" id="r_ae4dd34337e9af3a643dc6bf7bd917e77"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#ae4dd34337e9af3a643dc6bf7bd917e77">make_temp_path</a> (const char *dst, char *out, size_t outsz)</td></tr>
@@ -114,12 +122,30 @@ Functions</h2></td></tr>
 <tr class="separator:a9e742fc357ba63dd35572d766cc867a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a45a0f2a85a43661e1a0015363695967a" id="r_a45a0f2a85a43661e1a0015363695967a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a45a0f2a85a43661e1a0015363695967a">atomic_dest_finish</a> (const char *tmp, const char *dest, int rc, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a45a0f2a85a43661e1a0015363695967a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2fc7019bd14daffe24254125a93bdc86" id="r_a2fc7019bd14daffe24254125a93bdc86"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a2fc7019bd14daffe24254125a93bdc86">download_stream_body</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structbrix__url.html">brix_url</a> *su, const <a class="el" href="structbrix__statinfo.html">brix_statinfo</a> *si, <a class="el" href="copy__internal_8h.html#a83f77008361065b4adc5eb66799bcd6a">pump_sink_fn</a> sink, void *sinkctx, const <a class="el" href="structbrix__copy__opts.html">brix_copy_opts</a> *o, <a class="el" href="structbrix__streamset.html">brix_streamset</a> *ss, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:a2fc7019bd14daffe24254125a93bdc86"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a144356f9c098f6a89b3da166fa56b462" id="r_a144356f9c098f6a89b3da166fa56b462"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a144356f9c098f6a89b3da166fa56b462">csctx_reopen_home</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a144356f9c098f6a89b3da166fa56b462"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa32989d8460d0075184940a111ca5d2a" id="r_aa32989d8460d0075184940a111ca5d2a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#aa32989d8460d0075184940a111ca5d2a">csctx_retry_gate</a> (const <a class="el" href="structbrix__status.html">brix_status</a> *st, uint64_t deadline_ns, unsigned *attempt)</td></tr>
+<tr class="separator:aa32989d8460d0075184940a111ca5d2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afc590ec1098d5a1c01ccd227255e8ada" id="r_afc590ec1098d5a1c01ccd227255e8ada"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#afc590ec1098d5a1c01ccd227255e8ada">download_open_resilient</a> (const <a class="el" href="structcopy__stream__ctx__t.html">copy_stream_ctx_t</a> *ctx, <a class="el" href="structbrix__file.html">brix_file</a> *f, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:afc590ec1098d5a1c01ccd227255e8ada"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9ff3fcc4dedf40ec01c4352fc8f43c1e" id="r_a9ff3fcc4dedf40ec01c4352fc8f43c1e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a9ff3fcc4dedf40ec01c4352fc8f43c1e">download_stream_body</a> (const <a class="el" href="structdownload__body__ctx.html">download_body_ctx</a> *j, <a class="el" href="copy__internal_8h.html#a83f77008361065b4adc5eb66799bcd6a">pump_sink_fn</a> sink, void *sinkctx, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a9ff3fcc4dedf40ec01c4352fc8f43c1e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adf422ab72353b3bc30497f65da01ae4e" id="r_adf422ab72353b3bc30497f65da01ae4e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#adf422ab72353b3bc30497f65da01ae4e">download_reconcile_cksum</a> (const <a class="el" href="structdownload__job__t.html">download_job_t</a> *job, const char *local_path, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:adf422ab72353b3bc30497f65da01ae4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a71ca62d84913b9d4356b08f2f8201940" id="r_a71ca62d84913b9d4356b08f2f8201940"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a71ca62d84913b9d4356b08f2f8201940">download_to_stdout</a> (const <a class="el" href="structdownload__job__t.html">download_job_t</a> *job, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a71ca62d84913b9d4356b08f2f8201940"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a82cef5f943046488e6bebc28afd089a1" id="r_a82cef5f943046488e6bebc28afd089a1"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a82cef5f943046488e6bebc28afd089a1">download_to_local_file</a> (const <a class="el" href="structdownload__job__t.html">download_job_t</a> *job, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a82cef5f943046488e6bebc28afd089a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae5e31a0585b939924e8d4b0d4e46e1dc" id="r_ae5e31a0585b939924e8d4b0d4e46e1dc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#ae5e31a0585b939924e8d4b0d4e46e1dc">copy_download</a> (const <a class="el" href="structbrix__url.html">brix_url</a> *su, const <a class="el" href="structbrix__url.html">brix_url</a> *du, const <a class="el" href="structbrix__copy__opts.html">brix_copy_opts</a> *o, const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:ae5e31a0585b939924e8d4b0d4e46e1dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7a0a6e00bfe2d86c38ec58a95522bf78" id="r_a7a0a6e00bfe2d86c38ec58a95522bf78"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a7a0a6e00bfe2d86c38ec58a95522bf78">upload_stream_body</a> (const <a class="el" href="structbrix__url.html">brix_url</a> *su, const <a class="el" href="structbrix__url.html">brix_url</a> *du, const <a class="el" href="structbrix__copy__opts.html">brix_copy_opts</a> *o, const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, <a class="el" href="copy__internal_8h.html#a2b879382499f67512e467cf20bfa800a">pump_src_fn</a> src, void *srcctx, int64_t total, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:a7a0a6e00bfe2d86c38ec58a95522bf78"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab12465ecbb1c548720932d5c7495f869" id="r_ab12465ecbb1c548720932d5c7495f869"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#ab12465ecbb1c548720932d5c7495f869">upload_open_resilient</a> (const <a class="el" href="structcopy__stream__ctx__t.html">copy_stream_ctx_t</a> *ctx, int force, int posc, <a class="el" href="structbrix__file.html">brix_file</a> *f, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:ab12465ecbb1c548720932d5c7495f869"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab68141bd4372b2fcace77ad401c99014" id="r_ab68141bd4372b2fcace77ad401c99014"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#ab68141bd4372b2fcace77ad401c99014">upload_close_commit_resilient</a> (<a class="el" href="structpump__remote__t.html">pump_remote_t</a> *sink, int64_t total, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:ab68141bd4372b2fcace77ad401c99014"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5eee03aa96ea16da35ccab0e51893586" id="r_a5eee03aa96ea16da35ccab0e51893586"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a5eee03aa96ea16da35ccab0e51893586">upload_reconcile_cksum</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structbrix__url.html">brix_url</a> *su, const <a class="el" href="structbrix__url.html">brix_url</a> *du, const <a class="el" href="structbrix__copy__opts.html">brix_copy_opts</a> *o, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a5eee03aa96ea16da35ccab0e51893586"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa093d6cb6cf4e0daf0d77c0f7e33ea65" id="r_aa093d6cb6cf4e0daf0d77c0f7e33ea65"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#aa093d6cb6cf4e0daf0d77c0f7e33ea65">upload_stream_body</a> (const <a class="el" href="structupload__body__ctx.html">upload_body_ctx</a> *j, <a class="el" href="copy__internal_8h.html#a2b879382499f67512e467cf20bfa800a">pump_src_fn</a> src, void *srcctx, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:aa093d6cb6cf4e0daf0d77c0f7e33ea65"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aad1f51798d9615656513ce211ec329a8" id="r_aad1f51798d9615656513ce211ec329a8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#aad1f51798d9615656513ce211ec329a8">copy_upload</a> (const <a class="el" href="structbrix__url.html">brix_url</a> *su, const <a class="el" href="structbrix__url.html">brix_url</a> *du, const <a class="el" href="structbrix__copy__opts.html">brix_copy_opts</a> *o, const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:aad1f51798d9615656513ce211ec329a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a22536c56b4cc264e806cceecd322f6f4" id="r_a22536c56b4cc264e806cceecd322f6f4"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="copy__local_8c.html#a22536c56b4cc264e806cceecd322f6f4">web_upload_src_vfs</a> (void *ctx, uint8_t *buf, int64_t off, size_t cap, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
@@ -172,7 +198,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__recursive_8c_source.html#l00723">copy_web_download()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__recursive_8c_source.html#l00932">copy_web_download()</a>.</p>
 
 </div>
 </div>
@@ -220,11 +246,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00181">181</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00412">412</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="streams_8c_source.html#l00052">brix_streams_close()</a>, <a class="el" href="vfs_8c_source.html#l00313">brix_vfs_abort()</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs_8c_source.html#l00300">brix_vfs_commit()</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix__ops_8h_source.html#l00467">brix_copy_opts::cksum</a>, <a class="el" href="copy__remote_8c_source.html#l00126">cksum_verify()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00087">copy_stall_ms()</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00061">brix_vfs_open_opts::cred</a>, <a class="el" href="copy__local_8c_source.html#l00110">download_stream_body()</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00060">brix_vfs_open_opts::expected_size</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="brix__ops_8h_source.html#l00462">brix_copy_opts::force</a>, <a class="el" href="brix__ops_8h_source.html#l00497">brix_copy_opts::io_uring</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00059">brix_vfs_open_opts::io_uring</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__net_8h_source.html#l00592">brix_streamset::n</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="copy__pump_8c_source.html#l00169">pump_sink_local()</a>, <a class="el" href="copy__pump_8c_source.html#l00195">pump_sink_local_vfs()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00107">resilient_setup()</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="copy__internal_8h_source.html#l00053">pump_local_t::vf</a>, <a class="el" href="copy__internal_8h_source.html#l00028">XRDC_CK_MISMATCH</a>, <a class="el" href="copy__internal_8h_source.html#l00029">XRDC_CK_UNVERIFIED</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00039">XRDC_VFS_FORCE</a>, and <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00037">XRDC_VFS_WRITE</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="streams_8c_source.html#l00052">brix_streams_close()</a>, <a class="el" href="copy__local_8c_source.html#l00284">download_job_t::c</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00087">copy_stall_ms()</a>, <a class="el" href="copy__local_8c_source.html#l00362">download_to_local_file()</a>, <a class="el" href="copy__local_8c_source.html#l00337">download_to_stdout()</a>, <a class="el" href="copy__local_8c_source.html#l00286">download_job_t::du</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="brix__ops_8h_source.html#l00462">brix_copy_opts::force</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix__net_8h_source.html#l00615">brix_streamset::n</a>, <a class="el" href="copy__local_8c_source.html#l00288">download_job_t::o</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00107">resilient_setup()</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="copy__local_8c_source.html#l00287">download_job_t::si</a>, <a class="el" href="copy__local_8c_source.html#l00289">download_job_t::ss</a>, <a class="el" href="copy__local_8c_source.html#l00285">download_job_t::su</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00237">brix_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00309">brix_copy_dispatch_r2l()</a>.</p>
 
 </div>
 </div>
@@ -272,11 +298,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00462">462</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00690">690</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs_8c_source.html#l00261">brix_vfs_fstat()</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00061">brix_vfs_open_opts::cred</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00060">brix_vfs_open_opts::expected_size</a>, <a class="el" href="brix__ops_8h_source.html#l00497">brix_copy_opts::io_uring</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00059">brix_vfs_open_opts::io_uring</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="copy__pump_8c_source.html#l00150">pump_src_local()</a>, <a class="el" href="copy__pump_8c_source.html#l00186">pump_src_local_vfs()</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00050">brix_vfs_stat::size</a>, <a class="el" href="copy__local_8c_source.html#l00310">upload_stream_body()</a>, <a class="el" href="copy__internal_8h_source.html#l00053">pump_local_t::vf</a>, <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>, and <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00036">XRDC_VFS_READ</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs_8c_source.html#l00261">brix_vfs_fstat()</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00061">brix_vfs_open_opts::cred</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00060">brix_vfs_open_opts::expected_size</a>, <a class="el" href="brix__ops_8h_source.html#l00497">brix_copy_opts::io_uring</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00059">brix_vfs_open_opts::io_uring</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="copy__pump_8c_source.html#l00150">pump_src_local()</a>, <a class="el" href="copy__pump_8c_source.html#l00186">pump_src_local_vfs()</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00050">brix_vfs_stat::size</a>, <a class="el" href="copy__local_8c_source.html#l00607">upload_stream_body()</a>, <a class="el" href="copy__internal_8h_source.html#l00053">pump_local_t::vf</a>, <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>, and <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00036">XRDC_VFS_READ</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00237">brix_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00398">brix_copy_route()</a>.</p>
 
 </div>
 </div>
@@ -324,11 +350,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00576">576</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00809">809</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
 
-<p class="reference">References <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="url_8c_source.html#l00280">brix_weburl_parse()</a>, <a class="el" href="copy__recursive_8c_source.html#l00723">copy_web_download()</a>, <a class="el" href="copy__local_8c_source.html#l00514">copy_web_upload()</a>, <a class="el" href="brix__ops_8h_source.html#l00478">brix_copy_opts::recursive</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00069">XRDC_SCHEME_LOCAL</a>, and <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>.</p>
+<p class="reference">References <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="copy__recursive_8c_source.html#l00932">copy_web_download()</a>, <a class="el" href="copy__local_8c_source.html#l00744">copy_web_upload()</a>, <a class="el" href="brix__ops_8h_source.html#l00478">brix_copy_opts::recursive</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00069">XRDC_SCHEME_LOCAL</a>, and <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00237">brix_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00433">brix_copy()</a>.</p>
 
 </div>
 </div>
@@ -376,22 +402,25 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00514">514</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00744">744</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__upload_8c_source.html#l00196">brix_http_upload_resumable()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs_8c_source.html#l00261">brix_vfs_fstat()</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="brix__net_8h_source.html#l00037">brix_opts::ca_dir</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00087">copy_stall_ms()</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00061">brix_vfs_open_opts::cred</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00060">brix_vfs_open_opts::expected_size</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="brix__ops_8h_source.html#l00497">brix_copy_opts::io_uring</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00059">brix_vfs_open_opts::io_uring</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00052">brix_vfs_stat::is_dir</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00050">brix_vfs_stat::size</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="copy__recursive_8c_source.html#l00645">web_auth_headers()</a>, <a class="el" href="copy__local_8c_source.html#l00506">web_upload_src_vfs()</a>, <a class="el" href="brix__net_8h_source.html#l00059">XRDC_DEFAULT_MAX_STALL_MS</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00036">XRDC_VFS_READ</a>, and <a class="el" href="copy__internal_8h_source.html#l00056">XRDC_WEB_TIMEOUT_MS</a>.</p>
+<p class="reference">References <a class="el" href="http__upload_8c_source.html#l00388">brix_http_upload_resumable()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs_8c_source.html#l00261">brix_vfs_fstat()</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="brix__net_8h_source.html#l00037">brix_opts::ca_dir</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00087">copy_stall_ms()</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00061">brix_vfs_open_opts::cred</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00060">brix_vfs_open_opts::expected_size</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="brix__ops_8h_source.html#l00497">brix_copy_opts::io_uring</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00059">brix_vfs_open_opts::io_uring</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00052">brix_vfs_stat::is_dir</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00050">brix_vfs_stat::size</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="copy__recursive_8c_source.html#l00897">web_auth_headers()</a>, <a class="el" href="copy__local_8c_source.html#l00736">web_upload_src_vfs()</a>, <a class="el" href="brix__net_8h_source.html#l00059">XRDC_DEFAULT_MAX_STALL_MS</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00036">XRDC_VFS_READ</a>, and <a class="el" href="copy__internal_8h_source.html#l00056">XRDC_WEB_TIMEOUT_MS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00576">copy_web()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00809">copy_web()</a>.</p>
 
 </div>
 </div>
-<a id="a2fc7019bd14daffe24254125a93bdc86" name="a2fc7019bd14daffe24254125a93bdc86"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2fc7019bd14daffe24254125a93bdc86">&#9670;&#160;</a></span>download_stream_body()</h2>
+<a id="a144356f9c098f6a89b3da166fa56b462" name="a144356f9c098f6a89b3da166fa56b462"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a144356f9c098f6a89b3da166fa56b462">&#9670;&#160;</a></span>csctx_reopen_home()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">int download_stream_body </td>
+          <td class="memname">static void csctx_reopen_home </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
           <td class="paramname"><em>c</em>, </td>
@@ -399,14 +428,185 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
-          <td class="paramname"><em>su</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00130">130</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00510">brix_reconnect()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00174">download_open_resilient()</a>, and <a class="el" href="copy__local_8c_source.html#l00482">upload_open_resilient()</a>.</p>
+
+</div>
+</div>
+<a id="aa32989d8460d0075184940a111ca5d2a" name="aa32989d8460d0075184940a111ca5d2a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa32989d8460d0075184940a111ca5d2a">&#9670;&#160;</a></span>csctx_retry_gate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int csctx_retry_gate </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__statinfo.html">brix_statinfo</a> *&#160;</td>
-          <td class="paramname"><em>si</em>, </td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>deadline_ns</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned *&#160;</td>
+          <td class="paramname"><em>attempt</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00151">151</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, and <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00069">brix_status_retryable()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00174">download_open_resilient()</a>, and <a class="el" href="copy__local_8c_source.html#l00482">upload_open_resilient()</a>.</p>
+
+</div>
+</div>
+<a id="afc590ec1098d5a1c01ccd227255e8ada" name="afc590ec1098d5a1c01ccd227255e8ada"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc590ec1098d5a1c01ccd227255e8ada">&#9670;&#160;</a></span>download_open_resilient()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int download_open_resilient </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structcopy__stream__ctx__t.html">copy_stream_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__file.html">brix_file</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00174">174</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ops__file_8c_source.html#l00132">brix_file_open_opaque()</a>, <a class="el" href="ops__file_8c_source.html#l00008">brix_file_open_read()</a>, <a class="el" href="copy__local_8c_source.html#l00110">copy_stream_ctx_t::c</a>, <a class="el" href="copy__local_8c_source.html#l00130">csctx_reopen_home()</a>, <a class="el" href="copy__local_8c_source.html#l00151">csctx_retry_gate()</a>, <a class="el" href="copy__local_8c_source.html#l00113">copy_stream_ctx_t::deadline_ns</a>, <a class="el" href="copy__local_8c_source.html#l00112">copy_stream_ctx_t::opaque</a>, and <a class="el" href="copy__local_8c_source.html#l00111">copy_stream_ctx_t::path</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00212">download_stream_body()</a>.</p>
+
+</div>
+</div>
+<a id="adf422ab72353b3bc30497f65da01ae4e" name="adf422ab72353b3bc30497f65da01ae4e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adf422ab72353b3bc30497f65da01ae4e">&#9670;&#160;</a></span>download_reconcile_cksum()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int download_reconcile_cksum </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structdownload__job__t.html">download_job_t</a> *&#160;</td>
+          <td class="paramname"><em>job</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>local_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00306">306</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="copy__local_8c_source.html#l00284">download_job_t::c</a>, <a class="el" href="brix__ops_8h_source.html#l00467">brix_copy_opts::cksum</a>, <a class="el" href="copy__remote_8c_source.html#l00269">cksum_verify()</a>, <a class="el" href="copy__local_8c_source.html#l00286">download_job_t::du</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="copy__local_8c_source.html#l00288">download_job_t::o</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="copy__local_8c_source.html#l00285">download_job_t::su</a>, <a class="el" href="copy__internal_8h_source.html#l00028">XRDC_CK_MISMATCH</a>, and <a class="el" href="copy__internal_8h_source.html#l00029">XRDC_CK_UNVERIFIED</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00362">download_to_local_file()</a>, and <a class="el" href="copy__local_8c_source.html#l00337">download_to_stdout()</a>.</p>
+
+</div>
+</div>
+<a id="a9ff3fcc4dedf40ec01c4352fc8f43c1e" name="a9ff3fcc4dedf40ec01c4352fc8f43c1e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9ff3fcc4dedf40ec01c4352fc8f43c1e">&#9670;&#160;</a></span>download_stream_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int download_stream_body </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structdownload__body__ctx.html">download_body_ctx</a> *&#160;</td>
+          <td class="paramname"><em>j</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -423,14 +623,39 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__copy__opts.html">brix_copy_opts</a> *&#160;</td>
-          <td class="paramname"><em>o</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
         </tr>
         <tr>
-          <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__streamset.html">brix_streamset</a> *&#160;</td>
-          <td class="paramname"><em>ss</em>, </td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00212">212</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="streams_8c_source.html#l00024">brix_streams_open()</a>, <a class="el" href="copy__internal_8h_source.html#l00040">pump_remote_t::c</a>, <a class="el" href="copy__internal_8h_source.html#l00111">download_body_ctx::c</a>, <a class="el" href="copy__local_8c_source.html#l00110">copy_stream_ctx_t::c</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__ops_8h_source.html#l00468">brix_copy_opts::compress</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00087">copy_stall_ms()</a>, <a class="el" href="copy__internal_8h_source.html#l00048">pump_remote_t::cur_chunk</a>, <a class="el" href="copy__local_8c_source.html#l00113">copy_stream_ctx_t::deadline_ns</a>, <a class="el" href="copy__local_8c_source.html#l00174">download_open_resilient()</a>, <a class="el" href="copy__internal_8h_source.html#l00041">pump_remote_t::f</a>, <a class="el" href="copy__internal_8h_source.html#l00047">pump_remote_t::max_stall_ms</a>, <a class="el" href="copy__internal_8h_source.html#l00114">download_body_ctx::o</a>, <a class="el" href="copy__internal_8h_source.html#l00046">pump_remote_t::opaque</a>, <a class="el" href="copy__local_8c_source.html#l00112">copy_stream_ctx_t::opaque</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="copy__internal_8h_source.html#l00045">pump_remote_t::path</a>, <a class="el" href="copy__local_8c_source.html#l00111">copy_stream_ctx_t::path</a>, <a class="el" href="brix__ops_8h_source.html#l00466">brix_copy_opts::pgrw</a>, <a class="el" href="copy__internal_8h_source.html#l00042">pump_remote_t::pgrw</a>, <a class="el" href="copy__pump_8c_source.html#l00061">pump_src_remote()</a>, <a class="el" href="copy__internal_8h_source.html#l00044">pump_remote_t::resilient</a>, <a class="el" href="copy__internal_8h_source.html#l00113">download_body_ctx::si</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="copy__internal_8h_source.html#l00115">download_body_ctx::ss</a>, <a class="el" href="brix__ops_8h_source.html#l00475">brix_copy_opts::streams</a>, <a class="el" href="copy__internal_8h_source.html#l00112">download_body_ctx::su</a>, <a class="el" href="copy__pump_8c_source.html#l00237">transfer_pump()</a>, and <a class="el" href="copy__internal_8h_source.html#l00026">XRDC_COPY_CHUNK</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__block_8c_source.html#l00023">copy_remote_to_block()</a>, <a class="el" href="copy__local_8c_source.html#l00362">download_to_local_file()</a>, and <a class="el" href="copy__local_8c_source.html#l00337">download_to_stdout()</a>.</p>
+
+</div>
+</div>
+<a id="a82cef5f943046488e6bebc28afd089a1" name="a82cef5f943046488e6bebc28afd089a1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a82cef5f943046488e6bebc28afd089a1">&#9670;&#160;</a></span>download_to_local_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int download_to_local_file </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structdownload__job__t.html">download_job_t</a> *&#160;</td>
+          <td class="paramname"><em>job</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -444,13 +669,60 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00110">110</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00362">362</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
 
-<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00061">brix_file_open_opaque()</a>, <a class="el" href="ops__file_8c_source.html#l00008">brix_file_open_read()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="conn_8c_source.html#l00504">brix_reconnect()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00069">brix_status_retryable()</a>, <a class="el" href="streams_8c_source.html#l00024">brix_streams_open()</a>, <a class="el" href="copy__internal_8h_source.html#l00040">pump_remote_t::c</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix__ops_8h_source.html#l00468">brix_copy_opts::compress</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00087">copy_stall_ms()</a>, <a class="el" href="copy__internal_8h_source.html#l00048">pump_remote_t::cur_chunk</a>, <a class="el" href="copy__internal_8h_source.html#l00041">pump_remote_t::f</a>, <a class="el" href="copy__internal_8h_source.html#l00047">pump_remote_t::max_stall_ms</a>, <a class="el" href="copy__internal_8h_source.html#l00046">pump_remote_t::opaque</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="copy__internal_8h_source.html#l00045">pump_remote_t::path</a>, <a class="el" href="brix__ops_8h_source.html#l00466">brix_copy_opts::pgrw</a>, <a class="el" href="copy__internal_8h_source.html#l00042">pump_remote_t::pgrw</a>, <a class="el" href="copy__pump_8c_source.html#l00061">pump_src_remote()</a>, <a class="el" href="copy__internal_8h_source.html#l00044">pump_remote_t::resilient</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="brix__ops_8h_source.html#l00475">brix_copy_opts::streams</a>, <a class="el" href="copy__pump_8c_source.html#l00212">transfer_pump()</a>, and <a class="el" href="copy__internal_8h_source.html#l00026">XRDC_COPY_CHUNK</a>.</p>
+<p class="reference">References <a class="el" href="vfs_8c_source.html#l00313">brix_vfs_abort()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs_8c_source.html#l00300">brix_vfs_commit()</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="copy__local_8c_source.html#l00284">download_job_t::c</a>, <a class="el" href="brix__ops_8h_source.html#l00467">brix_copy_opts::cksum</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00061">brix_vfs_open_opts::cred</a>, <a class="el" href="copy__local_8c_source.html#l00306">download_reconcile_cksum()</a>, <a class="el" href="copy__local_8c_source.html#l00212">download_stream_body()</a>, <a class="el" href="copy__local_8c_source.html#l00286">download_job_t::du</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00060">brix_vfs_open_opts::expected_size</a>, <a class="el" href="brix__ops_8h_source.html#l00462">brix_copy_opts::force</a>, <a class="el" href="brix__ops_8h_source.html#l00497">brix_copy_opts::io_uring</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00059">brix_vfs_open_opts::io_uring</a>, <a class="el" href="copy__local_8c_source.html#l00288">download_job_t::o</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="copy__pump_8c_source.html#l00195">pump_sink_local_vfs()</a>, <a class="el" href="copy__local_8c_source.html#l00287">download_job_t::si</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="copy__local_8c_source.html#l00289">download_job_t::ss</a>, <a class="el" href="copy__local_8c_source.html#l00285">download_job_t::su</a>, <a class="el" href="copy__internal_8h_source.html#l00053">pump_local_t::vf</a>, <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00039">XRDC_VFS_FORCE</a>, and <a class="el" href="client_2lib_2fs_2vfs_8h_source.html#l00037">XRDC_VFS_WRITE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00181">copy_download()</a>, and <a class="el" href="copy__block_8c_source.html#l00023">copy_remote_to_block()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00412">copy_download()</a>.</p>
+
+</div>
+</div>
+<a id="a71ca62d84913b9d4356b08f2f8201940" name="a71ca62d84913b9d4356b08f2f8201940"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a71ca62d84913b9d4356b08f2f8201940">&#9670;&#160;</a></span>download_to_stdout()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int download_to_stdout </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structdownload__job__t.html">download_job_t</a> *&#160;</td>
+          <td class="paramname"><em>job</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00337">337</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="copy__local_8c_source.html#l00284">download_job_t::c</a>, <a class="el" href="brix__ops_8h_source.html#l00467">brix_copy_opts::cksum</a>, <a class="el" href="copy__local_8c_source.html#l00306">download_reconcile_cksum()</a>, <a class="el" href="copy__local_8c_source.html#l00212">download_stream_body()</a>, <a class="el" href="copy__local_8c_source.html#l00288">download_job_t::o</a>, <a class="el" href="copy__pump_8c_source.html#l00169">pump_sink_local()</a>, <a class="el" href="copy__local_8c_source.html#l00287">download_job_t::si</a>, <a class="el" href="copy__local_8c_source.html#l00289">download_job_t::ss</a>, and <a class="el" href="copy__local_8c_source.html#l00285">download_job_t::su</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00412">copy_download()</a>.</p>
 
 </div>
 </div>
@@ -536,51 +808,24 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="copy__local_8c_source.html#l00019">make_temp_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__zip_8c_source.html#l00040">copy_unzip()</a>, and <a class="el" href="copy__recursive_8c_source.html#l00723">copy_web_download()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__zip_8c_source.html#l00056">copy_unzip_open_dest()</a>, and <a class="el" href="copy__recursive_8c_source.html#l00932">copy_web_download()</a>.</p>
 
 </div>
 </div>
-<a id="a7a0a6e00bfe2d86c38ec58a95522bf78" name="a7a0a6e00bfe2d86c38ec58a95522bf78"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7a0a6e00bfe2d86c38ec58a95522bf78">&#9670;&#160;</a></span>upload_stream_body()</h2>
+<a id="ab68141bd4372b2fcace77ad401c99014" name="ab68141bd4372b2fcace77ad401c99014"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab68141bd4372b2fcace77ad401c99014">&#9670;&#160;</a></span>upload_close_commit_resilient()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">int upload_stream_body </td>
+          <td class="memname">static int upload_close_commit_resilient </td>
           <td>(</td>
-          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
-          <td class="paramname"><em>su</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
-          <td class="paramname"><em>du</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__copy__opts.html">brix_copy_opts</a> *&#160;</td>
-          <td class="paramname"><em>o</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__opts.html">brix_opts</a> *&#160;</td>
-          <td class="paramname"><em>co</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="copy__internal_8h.html#a2b879382499f67512e467cf20bfa800a">pump_src_fn</a>&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>srcctx</em>, </td>
+          <td class="paramtype"><a class="el" href="structpump__remote__t.html">pump_remote_t</a> *&#160;</td>
+          <td class="paramname"><em>sink</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -600,13 +845,184 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00310">310</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00520">520</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
 
-<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="resilient_8c_source.html#l00070">brix_connect_resilient()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00061">brix_file_open_opaque()</a>, <a class="el" href="ops__file_8c_source.html#l00015">brix_file_open_write()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="conn_8c_source.html#l00504">brix_reconnect()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00069">brix_status_retryable()</a>, <a class="el" href="streams_8c_source.html#l00052">brix_streams_close()</a>, <a class="el" href="streams_8c_source.html#l00024">brix_streams_open()</a>, <a class="el" href="copy__internal_8h_source.html#l00040">pump_remote_t::c</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix__ops_8h_source.html#l00467">brix_copy_opts::cksum</a>, <a class="el" href="copy__remote_8c_source.html#l00126">cksum_verify()</a>, <a class="el" href="brix__ops_8h_source.html#l00468">brix_copy_opts::compress</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00087">copy_stall_ms()</a>, <a class="el" href="copy__internal_8h_source.html#l00041">pump_remote_t::f</a>, <a class="el" href="brix__ops_8h_source.html#l00462">brix_copy_opts::force</a>, <a class="el" href="copy__internal_8h_source.html#l00047">pump_remote_t::max_stall_ms</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__net_8h_source.html#l00592">brix_streamset::n</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="copy__internal_8h_source.html#l00045">pump_remote_t::path</a>, <a class="el" href="brix__ops_8h_source.html#l00466">brix_copy_opts::pgrw</a>, <a class="el" href="copy__internal_8h_source.html#l00042">pump_remote_t::pgrw</a>, <a class="el" href="brix__ops_8h_source.html#l00463">brix_copy_opts::posc</a>, <a class="el" href="copy__internal_8h_source.html#l00049">pump_remote_t::posc</a>, <a class="el" href="copy__pump_8c_source.html#l00114">pump_sink_remote()</a>, <a class="el" href="copy__pump_8c_source.html#l00097">pump_sink_reopen()</a>, <a class="el" href="copy__internal_8h_source.html#l00044">pump_remote_t::resilient</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="brix__ops_8h_source.html#l00475">brix_copy_opts::streams</a>, <a class="el" href="copy__pump_8c_source.html#l00212">transfer_pump()</a>, <a class="el" href="brix__ops_8h_source.html#l00030">brix_file::write_codec</a>, <a class="el" href="copy__internal_8h_source.html#l00028">XRDC_CK_MISMATCH</a>, <a class="el" href="copy__internal_8h_source.html#l00029">XRDC_CK_UNVERIFIED</a>, and <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>.</p>
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00069">brix_status_retryable()</a>, <a class="el" href="copy__internal_8h_source.html#l00040">pump_remote_t::c</a>, <a class="el" href="copy__internal_8h_source.html#l00041">pump_remote_t::f</a>, <a class="el" href="copy__internal_8h_source.html#l00047">pump_remote_t::max_stall_ms</a>, <a class="el" href="copy__internal_8h_source.html#l00045">pump_remote_t::path</a>, <a class="el" href="copy__pump_8c_source.html#l00097">pump_sink_reopen()</a>, and <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__block_8c_source.html#l00094">copy_block_to_remote()</a>, and <a class="el" href="copy__local_8c_source.html#l00462">copy_upload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00607">upload_stream_body()</a>.</p>
+
+</div>
+</div>
+<a id="ab12465ecbb1c548720932d5c7495f869" name="ab12465ecbb1c548720932d5c7495f869"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab12465ecbb1c548720932d5c7495f869">&#9670;&#160;</a></span>upload_open_resilient()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int upload_open_resilient </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structcopy__stream__ctx__t.html">copy_stream_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>force</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>posc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__file.html">brix_file</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00482">482</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ops__file_8c_source.html#l00132">brix_file_open_opaque()</a>, <a class="el" href="ops__file_8c_source.html#l00015">brix_file_open_write()</a>, <a class="el" href="copy__local_8c_source.html#l00110">copy_stream_ctx_t::c</a>, <a class="el" href="copy__local_8c_source.html#l00130">csctx_reopen_home()</a>, <a class="el" href="copy__local_8c_source.html#l00151">csctx_retry_gate()</a>, <a class="el" href="copy__local_8c_source.html#l00113">copy_stream_ctx_t::deadline_ns</a>, <a class="el" href="copy__local_8c_source.html#l00112">copy_stream_ctx_t::opaque</a>, and <a class="el" href="copy__local_8c_source.html#l00111">copy_stream_ctx_t::path</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00607">upload_stream_body()</a>.</p>
+
+</div>
+</div>
+<a id="a5eee03aa96ea16da35ccab0e51893586" name="a5eee03aa96ea16da35ccab0e51893586"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5eee03aa96ea16da35ccab0e51893586">&#9670;&#160;</a></span>upload_reconcile_cksum()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int upload_reconcile_cksum </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>su</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>du</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__copy__opts.html">brix_copy_opts</a> *&#160;</td>
+          <td class="paramname"><em>o</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00570">570</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__ops_8h_source.html#l00467">brix_copy_opts::cksum</a>, <a class="el" href="copy__remote_8c_source.html#l00269">cksum_verify()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="copy__internal_8h_source.html#l00028">XRDC_CK_MISMATCH</a>, <a class="el" href="copy__internal_8h_source.html#l00029">XRDC_CK_UNVERIFIED</a>, and <a class="el" href="brix_8h_source.html#l00070">XRDC_SCHEME_STDIO</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00607">upload_stream_body()</a>.</p>
+
+</div>
+</div>
+<a id="aa093d6cb6cf4e0daf0d77c0f7e33ea65" name="aa093d6cb6cf4e0daf0d77c0f7e33ea65"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa093d6cb6cf4e0daf0d77c0f7e33ea65">&#9670;&#160;</a></span>upload_stream_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int upload_stream_body </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structupload__body__ctx.html">upload_body_ctx</a> *&#160;</td>
+          <td class="paramname"><em>j</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="copy__internal_8h.html#a2b879382499f67512e467cf20bfa800a">pump_src_fn</a>&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>srcctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00607">607</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="resilient_8c_source.html#l00070">brix_connect_resilient()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="streams_8c_source.html#l00052">brix_streams_close()</a>, <a class="el" href="streams_8c_source.html#l00024">brix_streams_open()</a>, <a class="el" href="copy__internal_8h_source.html#l00040">pump_remote_t::c</a>, <a class="el" href="copy__local_8c_source.html#l00110">copy_stream_ctx_t::c</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__ops_8h_source.html#l00467">brix_copy_opts::cksum</a>, <a class="el" href="copy__internal_8h_source.html#l00145">upload_body_ctx::co</a>, <a class="el" href="brix__ops_8h_source.html#l00468">brix_copy_opts::compress</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00087">copy_stall_ms()</a>, <a class="el" href="copy__local_8c_source.html#l00113">copy_stream_ctx_t::deadline_ns</a>, <a class="el" href="copy__internal_8h_source.html#l00143">upload_body_ctx::du</a>, <a class="el" href="copy__internal_8h_source.html#l00041">pump_remote_t::f</a>, <a class="el" href="brix__ops_8h_source.html#l00462">brix_copy_opts::force</a>, <a class="el" href="copy__internal_8h_source.html#l00047">pump_remote_t::max_stall_ms</a>, <a class="el" href="brix__net_8h_source.html#l00615">brix_streamset::n</a>, <a class="el" href="copy__internal_8h_source.html#l00144">upload_body_ctx::o</a>, <a class="el" href="copy__local_8c_source.html#l00112">copy_stream_ctx_t::opaque</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="copy__internal_8h_source.html#l00045">pump_remote_t::path</a>, <a class="el" href="copy__local_8c_source.html#l00111">copy_stream_ctx_t::path</a>, <a class="el" href="brix__ops_8h_source.html#l00466">brix_copy_opts::pgrw</a>, <a class="el" href="copy__internal_8h_source.html#l00042">pump_remote_t::pgrw</a>, <a class="el" href="brix__ops_8h_source.html#l00463">brix_copy_opts::posc</a>, <a class="el" href="copy__internal_8h_source.html#l00049">pump_remote_t::posc</a>, <a class="el" href="copy__pump_8c_source.html#l00114">pump_sink_remote()</a>, <a class="el" href="copy__internal_8h_source.html#l00044">pump_remote_t::resilient</a>, <a class="el" href="brix__ops_8h_source.html#l00475">brix_copy_opts::streams</a>, <a class="el" href="copy__internal_8h_source.html#l00142">upload_body_ctx::su</a>, <a class="el" href="copy__internal_8h_source.html#l00146">upload_body_ctx::total</a>, <a class="el" href="copy__pump_8c_source.html#l00237">transfer_pump()</a>, <a class="el" href="copy__local_8c_source.html#l00520">upload_close_commit_resilient()</a>, <a class="el" href="copy__local_8c_source.html#l00482">upload_open_resilient()</a>, <a class="el" href="copy__local_8c_source.html#l00570">upload_reconcile_cksum()</a>, and <a class="el" href="brix__ops_8h_source.html#l00030">brix_file::write_codec</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="copy__block_8c_source.html#l00096">copy_block_to_remote()</a>, and <a class="el" href="copy__local_8c_source.html#l00690">copy_upload()</a>.</p>
 
 </div>
 </div>
@@ -662,11 +1078,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00506">506</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="copy__local_8c_source.html#l00736">736</a> of file <a class="el" href="copy__local_8c_source.html">copy_local.c</a>.</p>
 
 <p class="reference">References <a class="el" href="vfs_8c_source.html#l00233">brix_vfs_pread()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00514">copy_web_upload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00744">copy_web_upload()</a>.</p>
 
 </div>
 </div>

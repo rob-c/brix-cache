@@ -9,5 +9,7 @@ var xrdcp__transfer_8c =
     [ "relay_web_to_web", "xrdcp__transfer_8c.html#aededc3e66387f4538df08ad4d44dd655", null ],
     [ "remove_source_entry", "xrdcp__transfer_8c.html#aa0a08117a3f49f67f0d666291327e75f", null ],
     [ "sync_cksum_equal", "xrdcp__transfer_8c.html#a4fbff3aad329fb6150da8ab11af9d7d4", null ],
-    [ "transfer_one", "xrdcp__transfer_8c.html#ab60be43a049918bd99d9d77b9d0b3160", null ]
+    [ "transfer_filter_check", "xrdcp__transfer_8c.html#a81aa75ec45b6f5ba0e92182456a6d6e2", null ],
+    [ "transfer_one", "xrdcp__transfer_8c.html#ab60be43a049918bd99d9d77b9d0b3160", null ],
+    [ "transfer_sync_check", "xrdcp__transfer_8c.html#ac04ab7aa0d8bc974c0212c34c37bac2f", null ]
 ];

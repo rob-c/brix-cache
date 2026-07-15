@@ -462,7 +462,7 @@ var sectionId = 'dynsection-0';
 <!-- Node9 -->
 <g id="Node000009" class="node">
 <title>Node9</title>
-<g id="a_Node000009"><a xlink:href="protocol_8h.html" target="_top" xlink:title=" ">
+<g id="a_Node000009"><a xlink:href="root_2protocol_2protocol_8h.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="1375,-272 1248,-272 1248,-242 1375,-242 1375,-272"/>
 <text text-anchor="start" x="1256" y="-260" font-family="Helvetica,sans-Serif" font-size="10.00">protocols/root/protocol</text>
 <text text-anchor="middle" x="1311.5" y="-249" font-family="Helvetica,sans-Serif" font-size="10.00">/protocol.h</text>

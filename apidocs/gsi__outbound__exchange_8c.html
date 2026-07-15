@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('gsi__outbound__exchange_8c.html',''); 
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">gsi_outbound_exchange.c File Reference</div></div>
 </div><!--header-->
@@ -127,14 +128,65 @@ $(document).ready(function(){initNavTree('gsi__outbound__exchange_8c.html',''); 
 </div>
 <p><a href="gsi__outbound__exchange_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__gsi__round2__t.html">tpc_gsi_round2_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a988793dae8c314bf276cb2c2a3054486" id="r_a988793dae8c314bf276cb2c2a3054486"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a> (int rc, u_char *body, BIO *chain_bio, u_char *payload)</td></tr>
 <tr class="separator:a988793dae8c314bf276cb2c2a3054486"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4cee3e7e3ccd8e68235d6671515e97a3" id="r_a4cee3e7e3ccd8e68235d6671515e97a3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__outbound__exchange_8c.html#a4cee3e7e3ccd8e68235d6671515e97a3">tpc_gsi_verify_server_cert</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, const u_char *body, uint32_t dlen)</td></tr>
+<tr class="separator:a4cee3e7e3ccd8e68235d6671515e97a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0236db25ffecdd89e2dfa620e18cbfeb" id="r_a0236db25ffecdd89e2dfa620e18cbfeb"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__outbound__exchange_8c.html#a0236db25ffecdd89e2dfa620e18cbfeb">tpc_gsi_build_round2</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, <a class="el" href="structtpc__gsi__round2__t.html">tpc_gsi_round2_t</a> *r)</td></tr>
+<tr class="separator:a0236db25ffecdd89e2dfa620e18cbfeb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a93113eef20139a07ec07cffcc4e3ef0f" id="r_a93113eef20139a07ec07cffcc4e3ef0f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="gsi__outbound__exchange_8c.html#a93113eef20139a07ec07cffcc4e3ef0f">tpc_outbound_gsi_exchange</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd, u_char *body, uint32_t dlen, X509 *x, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain, EVP_PKEY *pkey, u_char *certreq, BIO *cbio, BIO *kbio)</td></tr>
 <tr class="separator:a93113eef20139a07ec07cffcc4e3ef0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a0236db25ffecdd89e2dfa620e18cbfeb" name="a0236db25ffecdd89e2dfa620e18cbfeb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0236db25ffecdd89e2dfa620e18cbfeb">&#9670;&#160;</a></span>tpc_gsi_build_round2()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tpc_gsi_build_round2 </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structtpc__gsi__round2__t.html">tpc_gsi_round2_t</a> *&#160;</td>
+          <td class="paramname"><em>r</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="gsi__outbound__exchange_8c_source.html#l00163">163</a> of file <a class="el" href="gsi__outbound__exchange_8c_source.html">gsi_outbound_exchange.c</a>.</p>
+
+<p class="reference">References <a class="el" href="gsi__outbound__exchange_8c_source.html#l00136">tpc_gsi_round2_t::body</a>, <a class="el" href="gsi__core__cresp_8c_source.html#l00493">brix_gsi_build_cert_response()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00137">tpc_gsi_round2_t::dlen</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="gsi__outbound__exchange_8c_source.html#l00203">tpc_outbound_gsi_exchange()</a>.</p>
+
+</div>
+</div>
 <a id="a988793dae8c314bf276cb2c2a3054486" name="a988793dae8c314bf276cb2c2a3054486"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a988793dae8c314bf276cb2c2a3054486">&#9670;&#160;</a></span>tpc_gsi_exchange_cleanup()</h2>
 
@@ -183,7 +235,55 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="gsi__outbound__exchange_8c_source.html#l00059">59</a> of file <a class="el" href="gsi__outbound__exchange_8c_source.html">gsi_outbound_exchange.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__outbound__exchange_8c_source.html#l00071">tpc_outbound_gsi_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__outbound__exchange_8c_source.html#l00203">tpc_outbound_gsi_exchange()</a>.</p>
+
+</div>
+</div>
+<a id="a4cee3e7e3ccd8e68235d6671515e97a3" name="a4cee3e7e3ccd8e68235d6671515e97a3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4cee3e7e3ccd8e68235d6671515e97a3">&#9670;&#160;</a></span>tpc_gsi_verify_server_cert()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tpc_gsi_verify_server_cert </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>body</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>dlen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="gsi__outbound__exchange_8c_source.html#l00082">82</a> of file <a class="el" href="gsi__outbound__exchange_8c_source.html">gsi_outbound_exchange.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="gsi_8h_source.html#l00049">kXRS_x509</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="gsi__outbound__exchange_8c_source.html#l00203">tpc_outbound_gsi_exchange()</a>.</p>
 
 </div>
 </div>
@@ -261,11 +361,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gsi__outbound__exchange_8c_source.html#l00071">71</a> of file <a class="el" href="gsi__outbound__exchange_8c_source.html">gsi_outbound_exchange.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gsi__outbound__exchange_8c_source.html#l00203">203</a> of file <a class="el" href="gsi__outbound__exchange_8c_source.html">gsi_outbound_exchange.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gsi__core_8c_source.html#l00447">brix_gsi_build_cert_response()</a>, <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::err_msg</a>, <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="types_2config_8h_source.html#l00161">ngx_stream_brix_srv_conf_t::gsi_store</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="gsi_8h_source.html#l00049">kXRS_x509</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00059">tpc_gsi_exchange_cleanup()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00119">tpc_recv_response()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00052">tpc_send_kxr_auth()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00117">brix_tpc_pull_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00163">tpc_gsi_build_round2()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00059">tpc_gsi_exchange_cleanup()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00082">tpc_gsi_verify_server_cert()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00119">tpc_recv_response()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00052">tpc_send_kxr_auth()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gsi__outbound__certreq_8c_source.html#l00345">tpc_outbound_gsi()</a>.</p>
 
 </div>
 </div>

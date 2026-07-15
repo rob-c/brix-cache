@@ -1,11 +1,12 @@
 var broker__internal_8h =
 [
+    [ "imp_op_ctx_t", "structimp__op__ctx__t.html", "structimp__op__ctx__t" ],
     [ "IMP_BROKER_MAXCONN", "broker__internal_8h.html#aa87c3a3b7b68f6d92fa507a8af85f791", null ],
     [ "IMP_REFUSE_PRIV", "broker__internal_8h.html#ab890652981d9b9e079ab05e6a5ac8e85", null ],
     [ "RENAME_NOREPLACE", "broker__internal_8h.html#a0741fdfdda953f7d620080980f0e0916", null ],
     [ "imp_become", "broker__internal_8h.html#a2fdd536872869823918be6bc458582a0", null ],
     [ "imp_capset_setuid_setgid", "broker__internal_8h.html#ae5513c6f3f913717ec7ffb0f7e67f78c", null ],
-    [ "imp_do_op", "broker__internal_8h.html#a7de3a7a15c3366b12e9c9b8e0f6c5c85", null ],
+    [ "imp_do_op", "broker__internal_8h.html#a0acf5b6e940dc1048bd841e809a83089", null ],
     [ "imp_do_rename", "broker__internal_8h.html#a70d802a966a95429b816e1b298bdcbec", null ],
     [ "imp_drop_to_service_user", "broker__internal_8h.html#a8d933d1edd30ec9d514db1399c0afa7b", null ],
     [ "imp_fill_stat", "broker__internal_8h.html#a42c75ff96b5c08496283cf522aeac6b1", null ],

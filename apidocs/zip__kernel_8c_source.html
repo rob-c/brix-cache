@@ -315,7 +315,7 @@ $(document).ready(function(){initNavTree('zip__kernel_8c_source.html',''); initR
 <div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>                *comp = <a class="code hl_function" href="zip__kernel_8c.html#a024ad4cb9a5b9e486ac59deabf46fa30">zip_rd64le</a>(d + q); q += 8;</div>
 <div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>            }</div>
 <div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>            <span class="keywordflow">if</span> (*lhdr_off == <a class="code hl_define" href="zip__kernel_8c.html#a6be67c595be38b34be44a3093dbe8025">ZIPK_U32_MAX</a> &amp;&amp; len - q &gt;= 8) {</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>                *lhdr_off = <a class="code hl_function" href="zip__kernel_8c.html#a024ad4cb9a5b9e486ac59deabf46fa30">zip_rd64le</a>(d + q); q += 8;</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>                *lhdr_off = <a class="code hl_function" href="zip__kernel_8c.html#a024ad4cb9a5b9e486ac59deabf46fa30">zip_rd64le</a>(d + q);</div>
 <div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>            }</div>
 <div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>            <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>        }</div>

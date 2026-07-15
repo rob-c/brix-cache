@@ -140,8 +140,204 @@ Functions</h2></td></tr>
 <tr class="separator:a6afd01c7c7e26035e55a4ba9382ad5ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a937f123147bd24d76d781e29ebc7427f" id="r_a937f123147bd24d76d781e29ebc7427f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__ns_8c.html#a937f123147bd24d76d781e29ebc7427f">brix_cache_origin_delfattr</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
 <tr class="separator:a937f123147bd24d76d781e29ebc7427f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53504a2299c0d08f921d083e07ae4086" id="r_a53504a2299c0d08f921d083e07ae4086"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__ns_8c.html#a53504a2299c0d08f921d083e07ae4086">brix_cache_dirlist_init</a> (<a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *dl)</td></tr>
+<tr class="separator:a53504a2299c0d08f921d083e07ae4086"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a586bb8935f4da70d14eba4bec20dad1e" id="r_a586bb8935f4da70d14eba4bec20dad1e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__ns_8c.html#a586bb8935f4da70d14eba4bec20dad1e">brix_cache_dirlist_free</a> (<a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *dl)</td></tr>
+<tr class="separator:a586bb8935f4da70d14eba4bec20dad1e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae022a4441b88dd6b5c8363d857c264e3" id="r_ae022a4441b88dd6b5c8363d857c264e3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__ns_8c.html#ae022a4441b88dd6b5c8363d857c264e3">brix_cache_dirlist_add</a> (<a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *dl, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t len)</td></tr>
+<tr class="separator:ae022a4441b88dd6b5c8363d857c264e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac24e10f9eaaed3836fcbe483323b48d6" id="r_ac24e10f9eaaed3836fcbe483323b48d6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__ns_8c.html#ac24e10f9eaaed3836fcbe483323b48d6">brix_cache_dirlist_name_is_dot</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t len)</td></tr>
+<tr class="separator:ac24e10f9eaaed3836fcbe483323b48d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a81b601b904b64b06132202c4d50c8bb5" id="r_a81b601b904b64b06132202c4d50c8bb5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__ns_8c.html#a81b601b904b64b06132202c4d50c8bb5">brix_cache_dirlist_split</a> (<a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *dl, const u_char *body, uint32_t dlen)</td></tr>
+<tr class="separator:a81b601b904b64b06132202c4d50c8bb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aad497d925f8d1cb74d658c27c966320b" id="r_aad497d925f8d1cb74d658c27c966320b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__ns_8c.html#aad497d925f8d1cb74d658c27c966320b">brix_cache_origin_dirlist</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const char *path, <a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *dl)</td></tr>
+<tr class="separator:aad497d925f8d1cb74d658c27c966320b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ae022a4441b88dd6b5c8363d857c264e3" name="ae022a4441b88dd6b5c8363d857c264e3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae022a4441b88dd6b5c8363d857c264e3">&#9670;&#160;</a></span>brix_cache_dirlist_add()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_cache_dirlist_add </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *&#160;</td>
+          <td class="paramname"><em>dl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="origin__ns_8c_source.html#l00417">417</a> of file <a class="el" href="origin__ns_8c_source.html">origin_ns.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cache__internal_8h_source.html#l00339">brix_cache_dirlist_t::cap</a>, <a class="el" href="cache__internal_8h_source.html#l00338">brix_cache_dirlist_t::count</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="cache__internal_8h_source.html#l00337">brix_cache_dirlist_t::names</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="origin__ns_8c_source.html#l00466">brix_cache_dirlist_split()</a>.</p>
+
+</div>
+</div>
+<a id="a586bb8935f4da70d14eba4bec20dad1e" name="a586bb8935f4da70d14eba4bec20dad1e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a586bb8935f4da70d14eba4bec20dad1e">&#9670;&#160;</a></span>brix_cache_dirlist_free()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_cache_dirlist_free </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *&#160;</td>
+          <td class="paramname"><em>dl</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="origin__ns_8c_source.html#l00398">398</a> of file <a class="el" href="origin__ns_8c_source.html">origin_ns.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cache__internal_8h_source.html#l00338">brix_cache_dirlist_t::count</a>, and <a class="el" href="cache__internal_8h_source.html#l00337">brix_cache_dirlist_t::names</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00714">sd_xroot_closedir()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00615">sd_xroot_opendir_common()</a>.</p>
+
+</div>
+</div>
+<a id="a53504a2299c0d08f921d083e07ae4086" name="a53504a2299c0d08f921d083e07ae4086"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a53504a2299c0d08f921d083e07ae4086">&#9670;&#160;</a></span>brix_cache_dirlist_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_cache_dirlist_init </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *&#160;</td>
+          <td class="paramname"><em>dl</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="origin__ns_8c_source.html#l00389">389</a> of file <a class="el" href="origin__ns_8c_source.html">origin_ns.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00615">sd_xroot_opendir_common()</a>.</p>
+
+</div>
+</div>
+<a id="ac24e10f9eaaed3836fcbe483323b48d6" name="ac24e10f9eaaed3836fcbe483323b48d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac24e10f9eaaed3836fcbe483323b48d6">&#9670;&#160;</a></span>brix_cache_dirlist_name_is_dot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_cache_dirlist_name_is_dot </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="origin__ns_8c_source.html#l00451">451</a> of file <a class="el" href="origin__ns_8c_source.html">origin_ns.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="origin__ns_8c_source.html#l00466">brix_cache_dirlist_split()</a>.</p>
+
+</div>
+</div>
+<a id="a81b601b904b64b06132202c4d50c8bb5" name="a81b601b904b64b06132202c4d50c8bb5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a81b601b904b64b06132202c4d50c8bb5">&#9670;&#160;</a></span>brix_cache_dirlist_split()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_cache_dirlist_split </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *&#160;</td>
+          <td class="paramname"><em>dl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>body</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>dlen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="origin__ns_8c_source.html#l00466">466</a> of file <a class="el" href="origin__ns_8c_source.html">origin_ns.c</a>.</p>
+
+<p class="reference">References <a class="el" href="origin__ns_8c_source.html#l00417">brix_cache_dirlist_add()</a>, and <a class="el" href="origin__ns_8c_source.html#l00451">brix_cache_dirlist_name_is_dot()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="origin__ns_8c_source.html#l00515">brix_cache_origin_dirlist()</a>.</p>
+
+</div>
+</div>
 <a id="a937f123147bd24d76d781e29ebc7427f" name="a937f123147bd24d76d781e29ebc7427f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a937f123147bd24d76d781e29ebc7427f">&#9670;&#160;</a></span>brix_cache_origin_delfattr()</h2>
 
@@ -184,7 +380,53 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00216">kXR_fattrDel</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="origin__ns_8c_source.html#l00324">origin_fattr_set_or_del()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00161">sd_xroot_removexattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00230">sd_xroot_removexattr()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00567">sd_xroot_removexattr_cred()</a>.</p>
+
+</div>
+</div>
+<a id="aad497d925f8d1cb74d658c27c966320b" name="aad497d925f8d1cb74d658c27c966320b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad497d925f8d1cb74d658c27c966320b">&#9670;&#160;</a></span>brix_cache_origin_dirlist()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_cache_origin_dirlist </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
+          <td class="paramname"><em>oc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__dirlist__t.html">brix_cache_dirlist_t</a> *&#160;</td>
+          <td class="paramname"><em>dl</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="origin__ns_8c_source.html#l00515">515</a> of file <a class="el" href="origin__ns_8c_source.html">origin_ns.c</a>.</p>
+
+<p class="reference">References <a class="el" href="wire__core__requests_8h_source.html#l00102">ClientRequestHdr::body</a>, <a class="el" href="origin__ns_8c_source.html#l00466">brix_cache_dirlist_split()</a>, <a class="el" href="cache__internal_8h_source.html#l00046">BRIX_CACHE_FETCH_CHUNK</a>, <a class="el" href="fs_2cache_2io_8c_source.html#l00015">brix_cache_io_send()</a>, <a class="el" href="origin__response_8c_source.html#l00031">brix_cache_read_response()</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="wire__core__requests_8h_source.html#l00103">ClientRequestHdr::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00049">kXR_dirlist</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00108">kXR_oksofar</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__codec_8h_source.html#l00116">xrdw_dirlist_req_t::options</a>, <a class="el" href="origin__ns_8c_source.html#l00065">origin_status_errno()</a>, <a class="el" href="wire__core__requests_8h_source.html#l00101">ClientRequestHdr::requestid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00100">ClientRequestHdr::streamid</a>, <a class="el" href="wire__codec_8h_source.html#l00036">XRDW_BODY_LEN</a>, and <a class="el" href="wire__codec__meta_8c_source.html#l00067">xrdw_dirlist_req_pack()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00615">sd_xroot_opendir_common()</a>.</p>
 
 </div>
 </div>
@@ -242,7 +484,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00065">kXR_fattr</a>, <a class="el" href="opcodes_8h_source.html#l00217">kXR_fattrGet</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="origin__ns_8c_source.html#l00204">origin_fattr_payload()</a>, <a class="el" href="origin__ns_8c_source.html#l00028">origin_request()</a>, <a class="el" href="origin__ns_8c_source.html#l00065">origin_status_errno()</a>, <a class="el" href="wire__codec_8h_source.html#l00142">xrdw_fattr_req_t::subcode</a>, <a class="el" href="fattr__codec_8c_source.html#l00010">xrdp_fattr_nvec_parse()</a>, <a class="el" href="wire__codec_8h_source.html#l00036">XRDW_BODY_LEN</a>, and <a class="el" href="wire__codec__meta_8c_source.html#l00138">xrdw_fattr_req_pack()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00074">sd_xroot_getxattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00143">sd_xroot_getxattr()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00479">sd_xroot_getxattr_cred()</a>.</p>
 
 </div>
 </div>
@@ -294,7 +536,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00065">kXR_fattr</a>, <a class="el" href="opcodes_8h_source.html#l00218">kXR_fattrList</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="origin__ns_8c_source.html#l00028">origin_request()</a>, <a class="el" href="origin__ns_8c_source.html#l00065">origin_status_errno()</a>, <a class="el" href="wire__codec_8h_source.html#l00142">xrdw_fattr_req_t::subcode</a>, <a class="el" href="wire__codec_8h_source.html#l00036">XRDW_BODY_LEN</a>, and <a class="el" href="wire__codec__meta_8c_source.html#l00138">xrdw_fattr_req_pack()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00094">sd_xroot_listxattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00163">sd_xroot_listxattr()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00500">sd_xroot_listxattr_cred()</a>.</p>
 
 </div>
 </div>
@@ -340,7 +582,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="wire__codec_8h_source.html#l00297">xrdw_twopath_req_t::arg1len</a>, <a class="el" href="opcodes_8h_source.html#l00054">kXR_mv</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="origin__ns_8c_source.html#l00028">origin_request()</a>, <a class="el" href="origin__ns_8c_source.html#l00065">origin_status_errno()</a>, <a class="el" href="wire__codec_8h_source.html#l00036">XRDW_BODY_LEN</a>, and <a class="el" href="wire__codec__ns_8c_source.html#l00087">xrdw_twopath_req_pack()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00179">sd_xroot_rename()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00248">sd_xroot_rename()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00422">sd_xroot_rename_cred()</a>.</p>
 
 </div>
 </div>
@@ -380,7 +622,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00059">kXR_rm</a>, <a class="el" href="origin__ns_8c_source.html#l00028">origin_request()</a>, <a class="el" href="origin__ns_8c_source.html#l00065">origin_status_errno()</a>, and <a class="el" href="wire__codec_8h_source.html#l00036">XRDW_BODY_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00204">sd_xroot_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00273">sd_xroot_unlink()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00400">sd_xroot_unlink_cred()</a>.</p>
 
 </div>
 </div>
@@ -420,7 +662,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00060">kXR_rmdir</a>, <a class="el" href="origin__ns_8c_source.html#l00028">origin_request()</a>, <a class="el" href="origin__ns_8c_source.html#l00065">origin_status_errno()</a>, and <a class="el" href="wire__codec_8h_source.html#l00036">XRDW_BODY_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00204">sd_xroot_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00273">sd_xroot_unlink()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00400">sd_xroot_unlink_cred()</a>.</p>
 
 </div>
 </div>
@@ -478,7 +720,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00219">kXR_fattrSet</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="origin__ns_8c_source.html#l00324">origin_fattr_set_or_del()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00141">sd_xroot_setxattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00210">sd_xroot_setxattr()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00545">sd_xroot_setxattr_cred()</a>.</p>
 
 </div>
 </div>
@@ -760,7 +1002,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00162">kXR_isDirectory</a>, <a class="el" href="opcodes_8h_source.html#l00164">kXR_ItExists</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, and <a class="el" href="frame__hdr_8h_source.html#l00115">xrd_error_body_decode()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="origin__ns_8c_source.html#l00231">brix_cache_origin_getfattr()</a>, <a class="el" href="origin__ns_8c_source.html#l00286">brix_cache_origin_listfattr()</a>, <a class="el" href="origin__ns_8c_source.html#l00086">brix_cache_origin_rename()</a>, <a class="el" href="origin__ns_8c_source.html#l00135">brix_cache_origin_rm()</a>, <a class="el" href="origin__ns_8c_source.html#l00171">brix_cache_origin_rmdir()</a>, and <a class="el" href="origin__ns_8c_source.html#l00324">origin_fattr_set_or_del()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="origin__ns_8c_source.html#l00515">brix_cache_origin_dirlist()</a>, <a class="el" href="origin__ns_8c_source.html#l00231">brix_cache_origin_getfattr()</a>, <a class="el" href="origin__ns_8c_source.html#l00286">brix_cache_origin_listfattr()</a>, <a class="el" href="origin__ns_8c_source.html#l00086">brix_cache_origin_rename()</a>, <a class="el" href="origin__ns_8c_source.html#l00135">brix_cache_origin_rm()</a>, <a class="el" href="origin__ns_8c_source.html#l00171">brix_cache_origin_rmdir()</a>, and <a class="el" href="origin__ns_8c_source.html#l00324">origin_fattr_set_or_del()</a>.</p>
 
 </div>
 </div>

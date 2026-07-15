@@ -91,13 +91,12 @@ $(document).ready(function(){initNavTree('fs__walk_8c.html',''); initResizable()
 
 <div class="header">
   <div class="summary">
+<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">fs_walk.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="fs__walk_8h_source.html">fs_walk.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="beneath_8h_source.html">fs/path/beneath.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
@@ -106,11 +105,19 @@ $(document).ready(function(){initNavTree('fs__walk_8c.html',''); initResizable()
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="fs__walk_8c__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><iframe scrolling="no" frameborder="0" src="fs__walk_8c__incl.svg" width="616" height="198"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div>
 <p><a href="fs__walk_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:a4a0d36c63def859901b01daa62530b77" id="r_a4a0d36c63def859901b01daa62530b77"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#a4a0d36c63def859901b01daa62530b77">brix_fs_walk_action_e</a> { <a class="el" href="fs__walk_8c.html#a4a0d36c63def859901b01daa62530b77a3a1f4fb5925a79c9454153bcd8975f52">BRIX_FS_WALK_CONTINUE</a> = 0
+, <a class="el" href="fs__walk_8c.html#a4a0d36c63def859901b01daa62530b77ac6a0fe9e1df79a846c0ca41b29f38177">BRIX_FS_WALK_MARK_ERROR</a>
+, <a class="el" href="fs__walk_8c.html#a4a0d36c63def859901b01daa62530b77a484b85136bd38bb028c89fd52e25efed">BRIX_FS_WALK_STOP</a>
+ }</td></tr>
+<tr class="separator:a4a0d36c63def859901b01daa62530b77"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a37f764dd8629a47dbb2eabddef7bc220" id="r_a37f764dd8629a47dbb2eabddef7bc220"><td class="memItemLeft" align="right" valign="top">ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#a37f764dd8629a47dbb2eabddef7bc220">brix_fs_is_dot_entry</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
@@ -121,11 +128,39 @@ Functions</h2></td></tr>
 <tr class="separator:a84e68c23a5a599986a31f399b3a72c7f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acbc6ebc492ff21a7dd06c30d5d15844a" id="r_acbc6ebc492ff21a7dd06c30d5d15844a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#acbc6ebc492ff21a7dd06c30d5d15844a">brix_fs_walk_dir</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *dir, const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *opts, <a class="el" href="fs__walk_8h.html#a673a0e1c89fc76aeb0b3c5aa3f7c5b0a">brix_fs_walk_pt</a> cb, void *data, ngx_uint_t depth)</td></tr>
 <tr class="separator:acbc6ebc492ff21a7dd06c30d5d15844a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abe8cb5e1000b27bb5d8a7733633b4825" id="r_abe8cb5e1000b27bb5d8a7733633b4825"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#abe8cb5e1000b27bb5d8a7733633b4825">brix_fs_walk_skip_name</a> (const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *opts, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="separator:abe8cb5e1000b27bb5d8a7733633b4825"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae0eb1c300bae6d32c5fa6313b610f5cf" id="r_ae0eb1c300bae6d32c5fa6313b610f5cf"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#ae0eb1c300bae6d32c5fa6313b610f5cf">brix_fs_walk_cb_wants</a> (const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *opts, ngx_flag_t is_dir)</td></tr>
+<tr class="separator:ae0eb1c300bae6d32c5fa6313b610f5cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef6106c48e29fadacb5a810dcca79668" id="r_aef6106c48e29fadacb5a810dcca79668"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#aef6106c48e29fadacb5a810dcca79668">brix_fs_walk_should_recurse</a> (const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *opts, ngx_flag_t is_dir, ngx_uint_t depth)</td></tr>
+<tr class="separator:aef6106c48e29fadacb5a810dcca79668"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a95c9704c4a7611a1f6afcaa57e36128e" id="r_a95c9704c4a7611a1f6afcaa57e36128e"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="fs__walk_8c.html#a4a0d36c63def859901b01daa62530b77">brix_fs_walk_action_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#a95c9704c4a7611a1f6afcaa57e36128e">brix_fs_walk_handle_entry</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *dir, const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *opts, <a class="el" href="fs__walk_8h.html#a673a0e1c89fc76aeb0b3c5aa3f7c5b0a">brix_fs_walk_pt</a> cb, void *data, ngx_uint_t depth, const struct dirent *de)</td></tr>
+<tr class="separator:a95c9704c4a7611a1f6afcaa57e36128e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a542567b7976d0d9ca475194cc78f26dc" id="r_a542567b7976d0d9ca475194cc78f26dc"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#a542567b7976d0d9ca475194cc78f26dc">brix_fs_walk</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *start_path, const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *opts, <a class="el" href="fs__walk_8h.html#a673a0e1c89fc76aeb0b3c5aa3f7c5b0a">brix_fs_walk_pt</a> cb, void *data)</td></tr>
 <tr class="separator:a542567b7976d0d9ca475194cc78f26dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab7c689145a905f214951c13eec523cf7" id="r_ab7c689145a905f214951c13eec523cf7"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk_8c.html#ab7c689145a905f214951c13eec523cf7">brix_fs_remove_tree_confined</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *path)</td></tr>
-<tr class="separator:ab7c689145a905f214951c13eec523cf7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="a4a0d36c63def859901b01daa62530b77" name="a4a0d36c63def859901b01daa62530b77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4a0d36c63def859901b01daa62530b77">&#9670;&#160;</a></span>brix_fs_walk_action_e</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="fs__walk_8c.html#a4a0d36c63def859901b01daa62530b77">brix_fs_walk_action_e</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a4a0d36c63def859901b01daa62530b77a3a1f4fb5925a79c9454153bcd8975f52" name="a4a0d36c63def859901b01daa62530b77a3a1f4fb5925a79c9454153bcd8975f52"></a>BRIX_FS_WALK_CONTINUE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a4a0d36c63def859901b01daa62530b77ac6a0fe9e1df79a846c0ca41b29f38177" name="a4a0d36c63def859901b01daa62530b77ac6a0fe9e1df79a846c0ca41b29f38177"></a>BRIX_FS_WALK_MARK_ERROR&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a4a0d36c63def859901b01daa62530b77a484b85136bd38bb028c89fd52e25efed" name="a4a0d36c63def859901b01daa62530b77a484b85136bd38bb028c89fd52e25efed"></a>BRIX_FS_WALK_STOP&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00127">127</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a84e68c23a5a599986a31f399b3a72c7f" name="a84e68c23a5a599986a31f399b3a72c7f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a84e68c23a5a599986a31f399b3a72c7f">&#9670;&#160;</a></span>brix_fs_dir_is_empty()</h2>
@@ -153,11 +188,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00085">85</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00083">83</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00038">brix_fs_is_dot_entry()</a>.</p>
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00036">brix_fs_is_dot_entry()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00157">brix_ns_delete()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00169">ns_delete_remove()</a>.</p>
 
 </div>
 </div>
@@ -177,11 +212,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00038">38</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00036">36</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00085">brix_fs_dir_is_empty()</a>, <a class="el" href="fs__walk_8c_source.html#l00255">brix_fs_remove_tree_confined()</a>, <a class="el" href="fs__walk_8c_source.html#l00130">brix_fs_walk_dir()</a>, <a class="el" href="vfs__walk_8c_source.html#l00368">brix_vfs_copytree()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00089">vfs_walk_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00083">brix_fs_dir_is_empty()</a>, <a class="el" href="fs__walk__remove_8c_source.html#l00051">brix_fs_remove_tree_entry()</a>, <a class="el" href="fs__walk_8c_source.html#l00154">brix_fs_walk_skip_name()</a>, <a class="el" href="vfs__walk_8c_source.html#l00505">vfs_copytree_entry()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00166">vfs_walk_entry()</a>.</p>
 
 </div>
 </div>
@@ -223,51 +258,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00059">59</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00057">57</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00255">brix_fs_remove_tree_confined()</a>, <a class="el" href="fs__walk_8c_source.html#l00130">brix_fs_walk_dir()</a>, <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>, and <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>.</p>
-
-</div>
-</div>
-<a id="ab7c689145a905f214951c13eec523cf7" name="ab7c689145a905f214951c13eec523cf7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab7c689145a905f214951c13eec523cf7">&#9670;&#160;</a></span>brix_fs_remove_tree_confined()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_fs_remove_tree_confined </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00255">255</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
-
-<p class="reference">References <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="fs__walk_8c_source.html#l00038">brix_fs_is_dot_entry()</a>, <a class="el" href="fs__walk_8c_source.html#l00059">brix_fs_join_path()</a>, <a class="el" href="fs__walk_8c_source.html#l00255">brix_fs_remove_tree_confined()</a>, <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00255">brix_fs_remove_tree_confined()</a>, <a class="el" href="namespace__ops_8c_source.html#l00157">brix_ns_delete()</a>, <a class="el" href="namespace__ops_8c_source.html#l00282">brix_ns_rename()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00139">mpu_rmdir_recursive()</a>, and <a class="el" href="namespace_8c_source.html#l00048">webdav_delete_path_recursive()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fs__walk__remove_8c_source.html#l00051">brix_fs_remove_tree_entry()</a>, <a class="el" href="fs__walk_8c_source.html#l00234">brix_fs_walk_handle_entry()</a>, <a class="el" href="propfind__walk_8c_source.html#l00153">propfind_walk_emit()</a>, and <a class="el" href="search_8c_source.html#l00340">webdav_search_scan_dir()</a>.</p>
 
 </div>
 </div>
@@ -315,11 +310,53 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00227">227</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00353">353</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00130">brix_fs_walk_dir()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00303">brix_fs_walk_dir()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00101">webdav_lock_startup_sweep()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lock__discovery_8c_source.html#l00083">webdav_lock_startup_sweep()</a>.</p>
+
+</div>
+</div>
+<a id="ae0eb1c300bae6d32c5fa6313b610f5cf" name="ae0eb1c300bae6d32c5fa6313b610f5cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae0eb1c300bae6d32c5fa6313b610f5cf">&#9670;&#160;</a></span>brix_fs_walk_cb_wants()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_fs_walk_cb_wants </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>is_dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00180">180</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs__walk_8h_source.html#l00044">brix_fs_walk_options_t::include_dirs</a>, and <a class="el" href="fs__walk_8h_source.html#l00043">brix_fs_walk_options_t::include_files</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00234">brix_fs_walk_handle_entry()</a>.</p>
 
 </div>
 </div>
@@ -381,11 +418,173 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00130">130</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00303">303</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00038">brix_fs_is_dot_entry()</a>, <a class="el" href="fs__walk_8c_source.html#l00059">brix_fs_join_path()</a>, <a class="el" href="fs__walk_8c_source.html#l00130">brix_fs_walk_dir()</a>, <a class="el" href="fs__walk_8h_source.html#l00044">brix_fs_walk_options_t::include_dirs</a>, <a class="el" href="fs__walk_8h_source.html#l00043">brix_fs_walk_options_t::include_files</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, <a class="el" href="fs__walk_8h_source.html#l00042">brix_fs_walk_options_t::max_depth</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="fs__walk_8h_source.html#l00047">brix_fs_walk_options_t::root_dev</a>, <a class="el" href="fs__walk_8h_source.html#l00045">brix_fs_walk_options_t::skip_hidden</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="fs__walk_8h_source.html#l00046">brix_fs_walk_options_t::stay_on_device</a>.</p>
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00234">brix_fs_walk_handle_entry()</a>, <a class="el" href="fs__walk_8c_source.html#l00129">BRIX_FS_WALK_MARK_ERROR</a>, <a class="el" href="fs__walk_8c_source.html#l00130">BRIX_FS_WALK_STOP</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00227">brix_fs_walk()</a>, and <a class="el" href="fs__walk_8c_source.html#l00130">brix_fs_walk_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00353">brix_fs_walk()</a>, and <a class="el" href="fs__walk_8c_source.html#l00234">brix_fs_walk_handle_entry()</a>.</p>
+
+</div>
+</div>
+<a id="a95c9704c4a7611a1f6afcaa57e36128e" name="a95c9704c4a7611a1f6afcaa57e36128e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a95c9704c4a7611a1f6afcaa57e36128e">&#9670;&#160;</a></span>brix_fs_walk_handle_entry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="fs__walk_8c.html#a4a0d36c63def859901b01daa62530b77">brix_fs_walk_action_e</a> brix_fs_walk_handle_entry </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="fs__walk_8h.html#a673a0e1c89fc76aeb0b3c5aa3f7c5b0a">brix_fs_walk_pt</a>&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>depth</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct dirent *&#160;</td>
+          <td class="paramname"><em>de</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00234">234</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00057">brix_fs_join_path()</a>, <a class="el" href="fs__walk_8c_source.html#l00180">brix_fs_walk_cb_wants()</a>, <a class="el" href="fs__walk_8c_source.html#l00128">BRIX_FS_WALK_CONTINUE</a>, <a class="el" href="fs__walk_8c_source.html#l00303">brix_fs_walk_dir()</a>, <a class="el" href="fs__walk_8c_source.html#l00129">BRIX_FS_WALK_MARK_ERROR</a>, <a class="el" href="fs__walk_8c_source.html#l00203">brix_fs_walk_should_recurse()</a>, <a class="el" href="fs__walk_8c_source.html#l00154">brix_fs_walk_skip_name()</a>, <a class="el" href="fs__walk_8c_source.html#l00130">BRIX_FS_WALK_STOP</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="fs__walk_8h_source.html#l00047">brix_fs_walk_options_t::root_dev</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="fs__walk_8h_source.html#l00046">brix_fs_walk_options_t::stay_on_device</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00303">brix_fs_walk_dir()</a>.</p>
+
+</div>
+</div>
+<a id="aef6106c48e29fadacb5a810dcca79668" name="aef6106c48e29fadacb5a810dcca79668"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aef6106c48e29fadacb5a810dcca79668">&#9670;&#160;</a></span>brix_fs_walk_should_recurse()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_fs_walk_should_recurse </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>is_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>depth</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00203">203</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs__walk_8h_source.html#l00042">brix_fs_walk_options_t::max_depth</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00234">brix_fs_walk_handle_entry()</a>.</p>
+
+</div>
+</div>
+<a id="abe8cb5e1000b27bb5d8a7733633b4825" name="abe8cb5e1000b27bb5d8a7733633b4825"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abe8cb5e1000b27bb5d8a7733633b4825">&#9670;&#160;</a></span>brix_fs_walk_skip_name()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_fs_walk_skip_name </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__fs__walk__options__t.html">brix_fs_walk_options_t</a> *&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs__walk_8c_source.html#l00154">154</a> of file <a class="el" href="fs__walk_8c_source.html">fs_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00036">brix_fs_is_dot_entry()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="fs__walk_8h_source.html#l00045">brix_fs_walk_options_t::skip_hidden</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs__walk_8c_source.html#l00234">brix_fs_walk_handle_entry()</a>.</p>
 
 </div>
 </div>

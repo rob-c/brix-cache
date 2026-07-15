@@ -119,12 +119,98 @@ Functions</h2></td></tr>
 <tr class="separator:a732adb1ae4806bcfc94ba2639a3763a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4f5f524dfb7df205218d66372a6f4c42" id="r_a4f5f524dfb7df205218d66372a6f4c42"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8c.html#a4f5f524dfb7df205218d66372a6f4c42">sss_parse_i64</a> (const char *text, int64_t *out)</td></tr>
 <tr class="separator:a4f5f524dfb7df205218d66372a6f4c42"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2cd4b0df6b0bf35d15dc199862b2e114" id="r_a2cd4b0df6b0bf35d15dc199862b2e114"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8c.html#a2cd4b0df6b0bf35d15dc199862b2e114">sss_entry_set_defaults</a> (<a class="el" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out)</td></tr>
+<tr class="separator:a2cd4b0df6b0bf35d15dc199862b2e114"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a362a1b55df3143e3bcc19e114c77991e" id="r_a362a1b55df3143e3bcc19e114c77991e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8c.html#a362a1b55df3143e3bcc19e114c77991e">sss_check_version_tag</a> (const char *field)</td></tr>
+<tr class="separator:a362a1b55df3143e3bcc19e114c77991e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa98d9052cc057d7887d281f56c17da39" id="r_aa98d9052cc057d7887d281f56c17da39"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8c.html#aa98d9052cc057d7887d281f56c17da39">sss_apply_field</a> (<a class="el" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out, char <a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *v)</td></tr>
+<tr class="separator:aa98d9052cc057d7887d281f56c17da39"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a146547d307bfeaf0918c30aeb43ce3a8" id="r_a146547d307bfeaf0918c30aeb43ce3a8"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8c.html#a146547d307bfeaf0918c30aeb43ce3a8">sss_parse_fields</a> (char **save, <a class="el" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out)</td></tr>
+<tr class="separator:a146547d307bfeaf0918c30aeb43ce3a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a51c2f7ddce15a9ac079d9f82db7a0b75" id="r_a51c2f7ddce15a9ac079d9f82db7a0b75"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8c.html#a51c2f7ddce15a9ac079d9f82db7a0b75">sss_keytab_parse_line</a> (char *line, <a class="el" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out, int64_t now)</td></tr>
 <tr class="separator:a51c2f7ddce15a9ac079d9f82db7a0b75"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae99a55309d3104b26240b3266b285213" id="r_ae99a55309d3104b26240b3266b285213"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8c.html#ae99a55309d3104b26240b3266b285213">sss_keytab_mode_ok</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int allow_dotgrp)</td></tr>
+<tr class="memitem:ae99a55309d3104b26240b3266b285213" id="r_ae99a55309d3104b26240b3266b285213"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8c.html#ae99a55309d3104b26240b3266b285213">sss_keytab_mode_ok</a> (const char *path, mode_t mode, int allow_dotgrp)</td></tr>
 <tr class="separator:ae99a55309d3104b26240b3266b285213"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="aa98d9052cc057d7887d281f56c17da39" name="aa98d9052cc057d7887d281f56c17da39"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa98d9052cc057d7887d281f56c17da39">&#9670;&#160;</a></span>sss_apply_field()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sss_apply_field </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>v</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00114">114</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sss__keytab__kernel_8h_source.html#l00044">sss_keytab_entry_t::exp</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00048">sss_keytab_entry_t::group</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00046">sss_keytab_entry_t::key</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00045">sss_keytab_entry_t::key_len</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00049">sss_keytab_entry_t::name</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00020">sss_copy_field()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00032">sss_decode_hex()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00053">sss_parse_i64()</a>, and <a class="el" href="sss__keytab__kernel_8h_source.html#l00047">sss_keytab_entry_t::user</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00144">sss_parse_fields()</a>.</p>
+
+</div>
+</div>
+<a id="a362a1b55df3143e3bcc19e114c77991e" name="a362a1b55df3143e3bcc19e114c77991e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a362a1b55df3143e3bcc19e114c77991e">&#9670;&#160;</a></span>sss_check_version_tag()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sss_check_version_tag </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>field</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00093">93</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00163">sss_keytab_parse_line()</a>.</p>
+
+</div>
+</div>
 <a id="ad65bed807bb08c43e081e999625622a0" name="ad65bed807bb08c43e081e999625622a0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad65bed807bb08c43e081e999625622a0">&#9670;&#160;</a></span>sss_copy_field()</h2>
 
@@ -167,7 +253,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00020">20</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00068">sss_keytab_parse_line()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00114">sss_apply_field()</a>.</p>
 
 </div>
 </div>
@@ -215,7 +301,39 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="hex_8c_source.html#l00034">brix_hex_from_char()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, and <a class="el" href="sss__keytab__kernel_8h_source.html#l00036">SSS_K_KEY_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00068">sss_keytab_parse_line()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00114">sss_apply_field()</a>.</p>
+
+</div>
+</div>
+<a id="a2cd4b0df6b0bf35d15dc199862b2e114" name="a2cd4b0df6b0bf35d15dc199862b2e114"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2cd4b0df6b0bf35d15dc199862b2e114">&#9670;&#160;</a></span>sss_entry_set_defaults()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void sss_entry_set_defaults </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00076">76</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sss__keytab__kernel_8h_source.html#l00048">sss_keytab_entry_t::group</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00049">sss_keytab_entry_t::name</a>, and <a class="el" href="sss__keytab__kernel_8h_source.html#l00047">sss_keytab_entry_t::user</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00163">sss_keytab_parse_line()</a>.</p>
 
 </div>
 </div>
@@ -251,9 +369,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00141">141</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
-
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00190">190</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sss__keytab_8c_source.html#l00129">brix_sss_keytab_read()</a>, and <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>.</p>
 
@@ -291,11 +407,53 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00068">68</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00163">163</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sss__keytab__kernel_8h_source.html#l00044">sss_keytab_entry_t::exp</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00048">sss_keytab_entry_t::group</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00046">sss_keytab_entry_t::key</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00045">sss_keytab_entry_t::key_len</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00049">sss_keytab_entry_t::name</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00020">sss_copy_field()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00032">sss_decode_hex()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00053">sss_parse_i64()</a>, and <a class="el" href="sss__keytab__kernel_8h_source.html#l00047">sss_keytab_entry_t::user</a>.</p>
+<p class="reference">References <a class="el" href="sss__keytab__kernel_8h_source.html#l00044">sss_keytab_entry_t::exp</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00045">sss_keytab_entry_t::key_len</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00093">sss_check_version_tag()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00076">sss_entry_set_defaults()</a>, and <a class="el" href="sss__keytab__kernel_8c_source.html#l00144">sss_parse_fields()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2sss_2config_8c_source.html#l00033">brix_sss_parse_key_line()</a>, <a class="el" href="origin__auth_8c_source.html#l00357">cache_origin_load_sss_key()</a>, and <a class="el" href="sss__keytab_8c_source.html#l00107">parse_line()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2sss_2config_8c_source.html#l00033">brix_sss_parse_key_line()</a>, <a class="el" href="origin__auth_8c_source.html#l00590">cache_origin_load_sss_key()</a>, and <a class="el" href="sss__keytab_8c_source.html#l00107">parse_line()</a>.</p>
+
+</div>
+</div>
+<a id="a146547d307bfeaf0918c30aeb43ce3a8" name="a146547d307bfeaf0918c30aeb43ce3a8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a146547d307bfeaf0918c30aeb43ce3a8">&#9670;&#160;</a></span>sss_parse_fields()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sss_parse_fields </td>
+          <td>(</td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>save</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00144">144</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sss__keytab__kernel_8c_source.html#l00114">sss_apply_field()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00163">sss_keytab_parse_line()</a>.</p>
 
 </div>
 </div>
@@ -335,7 +493,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00053">53</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00068">sss_keytab_parse_line()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sss__keytab__kernel_8c_source.html#l00114">sss_apply_field()</a>.</p>
 
 </div>
 </div>

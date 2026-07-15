@@ -281,7 +281,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="zip__kernel_8c_source.html#l00032">zip_rd16le()</a>, <a class="el" href="zip__kernel_8c_source.html#l00043">zip_rd64le()</a>, and <a class="el" href="zip__kernel_8c_source.html#l00025">ZIPK_U32_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00061">apply_zip64_extra()</a>, and <a class="el" href="zip__dir_8c_source.html#l00075">brix_zip_find_member()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00061">apply_zip64_extra()</a>, and <a class="el" href="zip__dir_8c_source.html#l00143">zip_build_member()</a>.</p>
 
 </div>
 </div>
@@ -351,7 +351,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="zip__kernel_8h_source.html#l00041">ZIP_K_ECORRUPT</a>, <a class="el" href="zip__kernel_8h_source.html#l00042">ZIP_K_EIO</a>, <a class="el" href="zip__kernel_8h_source.html#l00040">ZIP_K_ENOTZIP</a>, <a class="el" href="zip__kernel_8h_source.html#l00039">ZIP_K_OK</a>, <a class="el" href="zip__kernel_8c_source.html#l00077">zip_promote_zip64()</a>, <a class="el" href="zip__kernel_8c_source.html#l00032">zip_rd16le()</a>, <a class="el" href="zip__kernel_8c_source.html#l00037">zip_rd32le()</a>, <a class="el" href="zip__kernel_8c_source.html#l00051">zip_read_at()</a>, <a class="el" href="zip__kernel_8c_source.html#l00017">ZIPK_EOCD_BASE</a>, <a class="el" href="zip__kernel_8c_source.html#l00016">ZIPK_EOCD_SIG</a>, and <a class="el" href="zip__kernel_8c_source.html#l00028">ZIPK_MAX_COMMENT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__dir_8c_source.html#l00075">brix_zip_find_member()</a>, and <a class="el" href="zip_8c_source.html#l00049">find_eocd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00049">find_eocd()</a>, and <a class="el" href="zip__dir_8c_source.html#l00204">zip_load_cd()</a>.</p>
 
 </div>
 </div>
@@ -373,7 +373,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="zip__kernel_8c_source.html#l00032">32</a> of file <a class="el" href="zip__kernel_8c_source.html">zip_kernel.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__dir_8c_source.html#l00075">brix_zip_find_member()</a>, <a class="el" href="zip_8c_source.html#l00028">le16()</a>, <a class="el" href="zip__kernel_8c_source.html#l00184">zip_apply_zip64_extra()</a>, <a class="el" href="zip__kernel_8c_source.html#l00113">zip_locate_cd()</a>, and <a class="el" href="zip__kernel_8c_source.html#l00216">zip_resolve_data_off()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00028">le16()</a>, <a class="el" href="zip__kernel_8c_source.html#l00184">zip_apply_zip64_extra()</a>, <a class="el" href="zip__kernel_8c_source.html#l00113">zip_locate_cd()</a>, <a class="el" href="zip__dir_8c_source.html#l00109">zip_parse_cdfh()</a>, and <a class="el" href="zip__kernel_8c_source.html#l00216">zip_resolve_data_off()</a>.</p>
 
 </div>
 </div>
@@ -395,7 +395,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="zip__kernel_8c_source.html#l00037">37</a> of file <a class="el" href="zip__kernel_8c_source.html">zip_kernel.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__dir_8c_source.html#l00075">brix_zip_find_member()</a>, <a class="el" href="zip_8c_source.html#l00030">le32()</a>, <a class="el" href="zip__kernel_8c_source.html#l00113">zip_locate_cd()</a>, <a class="el" href="zip__kernel_8c_source.html#l00077">zip_promote_zip64()</a>, <a class="el" href="zip__kernel_8c_source.html#l00043">zip_rd64le()</a>, and <a class="el" href="zip__kernel_8c_source.html#l00216">zip_resolve_data_off()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00030">le32()</a>, <a class="el" href="zip__kernel_8c_source.html#l00113">zip_locate_cd()</a>, <a class="el" href="zip__dir_8c_source.html#l00109">zip_parse_cdfh()</a>, <a class="el" href="zip__kernel_8c_source.html#l00077">zip_promote_zip64()</a>, <a class="el" href="zip__kernel_8c_source.html#l00043">zip_rd64le()</a>, and <a class="el" href="zip__kernel_8c_source.html#l00216">zip_resolve_data_off()</a>.</p>
 
 </div>
 </div>
@@ -535,7 +535,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="zip__kernel_8h_source.html#l00041">ZIP_K_ECORRUPT</a>, <a class="el" href="zip__kernel_8h_source.html#l00039">ZIP_K_OK</a>, <a class="el" href="zip__kernel_8c_source.html#l00032">zip_rd16le()</a>, <a class="el" href="zip__kernel_8c_source.html#l00037">zip_rd32le()</a>, <a class="el" href="zip__kernel_8c_source.html#l00051">zip_read_at()</a>, <a class="el" href="zip__kernel_8c_source.html#l00023">ZIPK_LFH_BASE</a>, and <a class="el" href="zip__kernel_8c_source.html#l00022">ZIPK_LFH_SIG</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__dir_8c_source.html#l00075">brix_zip_find_member()</a>, and <a class="el" href="zip_8c_source.html#l00200">member_data_offset()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip_8c_source.html#l00275">member_data_offset()</a>, and <a class="el" href="zip__dir_8c_source.html#l00143">zip_build_member()</a>.</p>
 
 </div>
 </div>

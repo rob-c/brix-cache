@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('forward__rewrite__helpers_8c.html','')
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">forward_rewrite_helpers.c File Reference</div></div>
 </div><!--header-->
@@ -107,16 +108,261 @@ $(document).ready(function(){initNavTree('forward__rewrite__helpers_8c.html','')
 </div>
 <p><a href="forward__rewrite__helpers_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structproxy__prepare__rewrite__t.html">proxy_prepare_rewrite_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:af839c0f65fe4245b7dc08bbe159cb11b" id="r_af839c0f65fe4245b7dc08bbe159cb11b"><td class="memItemLeft" align="right" valign="top">u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#af839c0f65fe4245b7dc08bbe159cb11b">proxy_rewrite_path</a> (ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, u_char *req, size_t total, size_t path_off, size_t path_len, size_t *total_out)</td></tr>
+<tr class="memitem:af839c0f65fe4245b7dc08bbe159cb11b" id="r_af839c0f65fe4245b7dc08bbe159cb11b"><td class="memItemLeft" align="right" valign="top">u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#af839c0f65fe4245b7dc08bbe159cb11b">proxy_rewrite_path</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, u_char *req, size_t total, size_t path_off, size_t path_len, size_t *total_out)</td></tr>
 <tr class="separator:af839c0f65fe4245b7dc08bbe159cb11b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aad98a95c10078c4a9bcb187ca2a159c3" id="r_aad98a95c10078c4a9bcb187ca2a159c3"><td class="memItemLeft" align="right" valign="top">u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#aad98a95c10078c4a9bcb187ca2a159c3">proxy_rewrite_prepare_payload</a> (ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, u_char *req, size_t total, size_t *total_out)</td></tr>
+<tr class="memitem:a83729fec873c9b92522ca54bc49598dc" id="r_a83729fec873c9b92522ca54bc49598dc"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#a83729fec873c9b92522ca54bc49598dc">proxy_prepare_line_len</a> (const u_char *line_start, const u_char *p, const u_char *last)</td></tr>
+<tr class="separator:a83729fec873c9b92522ca54bc49598dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a876cecc621f7ca29896dbba69aca6bed" id="r_a876cecc621f7ca29896dbba69aca6bed"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#a876cecc621f7ca29896dbba69aca6bed">proxy_prepare_line_matches</a> (const <a class="el" href="structproxy__prepare__rewrite__t.html">proxy_prepare_rewrite_t</a> *rw, const u_char *line_start, size_t line_len)</td></tr>
+<tr class="separator:a876cecc621f7ca29896dbba69aca6bed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8ce1df4f0ad68f940ca940a1a6add587" id="r_a8ce1df4f0ad68f940ca940a1a6add587"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#a8ce1df4f0ad68f940ca940a1a6add587">proxy_prepare_measure</a> (const <a class="el" href="structproxy__prepare__rewrite__t.html">proxy_prepare_rewrite_t</a> *rw, ngx_uint_t *needs_rewrite)</td></tr>
+<tr class="separator:a8ce1df4f0ad68f940ca940a1a6add587"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b6ebd241bef071e62159ec4179fcf68" id="r_a9b6ebd241bef071e62159ec4179fcf68"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#a9b6ebd241bef071e62159ec4179fcf68">proxy_prepare_emit</a> (const <a class="el" href="structproxy__prepare__rewrite__t.html">proxy_prepare_rewrite_t</a> *rw, u_char *dst)</td></tr>
+<tr class="separator:a9b6ebd241bef071e62159ec4179fcf68"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aad98a95c10078c4a9bcb187ca2a159c3" id="r_aad98a95c10078c4a9bcb187ca2a159c3"><td class="memItemLeft" align="right" valign="top">u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#aad98a95c10078c4a9bcb187ca2a159c3">proxy_rewrite_prepare_payload</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, u_char *req, size_t total, size_t *total_out)</td></tr>
 <tr class="separator:aad98a95c10078c4a9bcb187ca2a159c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac4a5ec910b110320a8193af702a503eb" id="r_ac4a5ec910b110320a8193af702a503eb"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#ac4a5ec910b110320a8193af702a503eb">proxy_reject_request</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, u_char *req, uint16_t errcode, const char *msg)</td></tr>
+<tr class="separator:ac4a5ec910b110320a8193af702a503eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af8defca672193e67e838882d96e9c039" id="r_af8defca672193e67e838882d96e9c039"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__rewrite__helpers_8c.html#af8defca672193e67e838882d96e9c039">proxy_translate_fh</a> (brix_proxy_ctx_t *proxy, u_char *buf, size_t offset)</td></tr>
 <tr class="separator:af8defca672193e67e838882d96e9c039"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a9b6ebd241bef071e62159ec4179fcf68" name="a9b6ebd241bef071e62159ec4179fcf68"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9b6ebd241bef071e62159ec4179fcf68">&#9670;&#160;</a></span>proxy_prepare_emit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void proxy_prepare_emit </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structproxy__prepare__rewrite__t.html">proxy_prepare_rewrite_t</a> *&#160;</td>
+          <td class="paramname"><em>rw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>dst</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00178">178</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="forward__rewrite__helpers_8c_source.html#l00089">proxy_prepare_rewrite_t::add</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00090">proxy_prepare_rewrite_t::alen</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00091">proxy_prepare_rewrite_t::payload</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00092">proxy_prepare_rewrite_t::plen</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00105">proxy_prepare_line_len()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00121">proxy_prepare_line_matches()</a>, and <a class="el" href="forward__rewrite__helpers_8c_source.html#l00088">proxy_prepare_rewrite_t::slen</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__rewrite__helpers_8c_source.html#l00211">proxy_rewrite_prepare_payload()</a>.</p>
+
+</div>
+</div>
+<a id="a83729fec873c9b92522ca54bc49598dc" name="a83729fec873c9b92522ca54bc49598dc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a83729fec873c9b92522ca54bc49598dc">&#9670;&#160;</a></span>proxy_prepare_line_len()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t proxy_prepare_line_len </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>line_start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>p</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>last</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00105">105</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__rewrite__helpers_8c_source.html#l00178">proxy_prepare_emit()</a>, and <a class="el" href="forward__rewrite__helpers_8c_source.html#l00138">proxy_prepare_measure()</a>.</p>
+
+</div>
+</div>
+<a id="a876cecc621f7ca29896dbba69aca6bed" name="a876cecc621f7ca29896dbba69aca6bed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a876cecc621f7ca29896dbba69aca6bed">&#9670;&#160;</a></span>proxy_prepare_line_matches()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_uint_t proxy_prepare_line_matches </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structproxy__prepare__rewrite__t.html">proxy_prepare_rewrite_t</a> *&#160;</td>
+          <td class="paramname"><em>rw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>line_start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>line_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00121">121</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="forward__rewrite__helpers_8c_source.html#l00088">proxy_prepare_rewrite_t::slen</a>, and <a class="el" href="forward__rewrite__helpers_8c_source.html#l00087">proxy_prepare_rewrite_t::strip</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__rewrite__helpers_8c_source.html#l00178">proxy_prepare_emit()</a>, and <a class="el" href="forward__rewrite__helpers_8c_source.html#l00138">proxy_prepare_measure()</a>.</p>
+
+</div>
+</div>
+<a id="a8ce1df4f0ad68f940ca940a1a6add587" name="a8ce1df4f0ad68f940ca940a1a6add587"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8ce1df4f0ad68f940ca940a1a6add587">&#9670;&#160;</a></span>proxy_prepare_measure()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t proxy_prepare_measure </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structproxy__prepare__rewrite__t.html">proxy_prepare_rewrite_t</a> *&#160;</td>
+          <td class="paramname"><em>rw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>needs_rewrite</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00138">138</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="forward__rewrite__helpers_8c_source.html#l00090">proxy_prepare_rewrite_t::alen</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00091">proxy_prepare_rewrite_t::payload</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00092">proxy_prepare_rewrite_t::plen</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00105">proxy_prepare_line_len()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00121">proxy_prepare_line_matches()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00088">proxy_prepare_rewrite_t::slen</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__rewrite__helpers_8c_source.html#l00211">proxy_rewrite_prepare_payload()</a>.</p>
+
+</div>
+</div>
+<a id="ac4a5ec910b110320a8193af702a503eb" name="ac4a5ec910b110320a8193af702a503eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac4a5ec910b110320a8193af702a503eb">&#9670;&#160;</a></span>proxy_reject_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t proxy_reject_request </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>errcode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>msg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00274">274</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__fh__translate_8c_source.html#l00155">brix_proxy_fh_translate_single()</a>, <a class="el" href="forward__fh__translate_8c_source.html#l00284">brix_proxy_fh_translate_vector()</a>, <a class="el" href="forward__request_8c_source.html#l00298">brix_proxy_forward_clone()</a>, <a class="el" href="forward__request_8c_source.html#l00044">brix_proxy_forward_open()</a>, <a class="el" href="forward__request_8c_source.html#l00264">brix_proxy_forward_stat()</a>, <a class="el" href="forward__fh__translate_8c_source.html#l00117">translate_ckpxeq_sub_request()</a>, and <a class="el" href="forward__fh__translate_8c_source.html#l00078">translate_ckpxeq_writev_fhandles()</a>.</p>
+
+</div>
+</div>
 <a id="af839c0f65fe4245b7dc08bbe159cb11b" name="af839c0f65fe4245b7dc08bbe159cb11b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#af839c0f65fe4245b7dc08bbe159cb11b">&#9670;&#160;</a></span>proxy_rewrite_path()</h2>
 
@@ -175,9 +421,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00022">22</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="conf__structs_8h_source.html#l00160">brix_proxy_conf_t::path_add</a>, <a class="el" href="conf__structs_8h_source.html#l00159">brix_proxy_conf_t::path_strip</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00037">brix_proxy_forward_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00044">brix_proxy_forward_open()</a>, and <a class="el" href="forward__request_8c_source.html#l00147">brix_proxy_forward_pathop()</a>.</p>
 
 </div>
 </div>
@@ -225,11 +471,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00080">80</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00211">211</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="conf__structs_8h_source.html#l00160">brix_proxy_conf_t::path_add</a>, <a class="el" href="conf__structs_8h_source.html#l00159">brix_proxy_conf_t::path_strip</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+<p class="reference">References <a class="el" href="forward__rewrite__helpers_8c_source.html#l00089">proxy_prepare_rewrite_t::add</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00090">proxy_prepare_rewrite_t::alen</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00091">proxy_prepare_rewrite_t::payload</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00092">proxy_prepare_rewrite_t::plen</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00178">proxy_prepare_emit()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00138">proxy_prepare_measure()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00088">proxy_prepare_rewrite_t::slen</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00087">proxy_prepare_rewrite_t::strip</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00037">brix_proxy_forward_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00319">brix_proxy_forward_prepare()</a>.</p>
 
 </div>
 </div>
@@ -265,11 +511,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00182">182</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="forward__rewrite__helpers_8c_source.html#l00289">289</a> of file <a class="el" href="forward__rewrite__helpers_8c_source.html">forward_rewrite_helpers.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00033">BRIX_PROXY_FH_FREE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00037">brix_proxy_forward_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="forward__fh__translate_8c_source.html#l00155">brix_proxy_fh_translate_single()</a>, <a class="el" href="forward__fh__translate_8c_source.html#l00284">brix_proxy_fh_translate_vector()</a>, <a class="el" href="forward__request_8c_source.html#l00298">brix_proxy_forward_clone()</a>, <a class="el" href="forward__request_8c_source.html#l00264">brix_proxy_forward_stat()</a>, <a class="el" href="forward__fh__translate_8c_source.html#l00117">translate_ckpxeq_sub_request()</a>, and <a class="el" href="forward__fh__translate_8c_source.html#l00078">translate_ckpxeq_writev_fhandles()</a>.</p>
 
 </div>
 </div>

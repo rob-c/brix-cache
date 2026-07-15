@@ -161,123 +161,127 @@ $(document).ready(function(){initNavTree('fs_2path_2helpers_8c_source.html','');
 <div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    src = (<span class="keyword">const</span> u_char *) ((in != NULL) ? in : <span class="stringliteral">&quot;-&quot;</span>);</div>
 <div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    written = 0;</div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="keywordflow">while</span> (*src != <span class="charliteral">&#39;\0&#39;</span> &amp;&amp; written + 1 &lt; outsz) {</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        ch = *src++;</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>        <span class="keywordflow">if</span> (ch &gt;= 0x21 &amp;&amp; ch &lt;= 0x7e &amp;&amp; ch != <span class="charliteral">&#39;&quot;&#39;</span> &amp;&amp; ch != <span class="charliteral">&#39;\\&#39;</span>) {</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>            out[written++] = (char) ch;</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>        }</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        <span class="keywordflow">if</span> (written + 4 &gt;= outsz) {</div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>            <span class="keywordflow">break</span>;</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="comment">/* phase74-fp: security.ArrayBound loop-widening — the only literal here is</span></div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="comment">     * &quot;-&quot; (char[2]); `src` is dereferenced only while *src != &#39;\0&#39;, so it reads</span></div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment">     * indices 0 and 1 (the NUL) at most and never advances past the</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment">     * terminator (ch = *src++ happens strictly after the check). */</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <span class="keywordflow">while</span> (*src != <span class="charliteral">&#39;\0&#39;</span> &amp;&amp; written + 1 &lt; outsz) {  <span class="comment">/* NOLINT(clang-analyzer-security.ArrayBound) */</span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>        ch = *src++;</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>        <span class="keywordflow">if</span> (ch &gt;= 0x21 &amp;&amp; ch &lt;= 0x7e &amp;&amp; ch != <span class="charliteral">&#39;&quot;&#39;</span> &amp;&amp; ch != <span class="charliteral">&#39;\\&#39;</span>) {</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>            out[written++] = (char) ch;</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>            <span class="keywordflow">continue</span>;</div>
 <div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>        }</div>
 <div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span> </div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        out[written++] = <span class="charliteral">&#39;\\&#39;</span>;</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>        out[written++] = <span class="charliteral">&#39;x&#39;</span>;</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        out[written++] = (char) <a class="code hl_function" href="hex_8c.html#af1fd4a909f7c6711b86f941e24f88dd6">brix_hex_nibble</a>((u_char) (ch &gt;&gt; 4));</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        out[written++] = (char) <a class="code hl_function" href="hex_8c.html#af1fd4a909f7c6711b86f941e24f88dd6">brix_hex_nibble</a>((u_char) (ch &amp; 0x0f));</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    }</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span> </div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    out[written] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span> </div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="keywordflow">return</span> written;</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>}</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        <span class="keywordflow">if</span> (written + 4 &gt;= outsz) {</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>            <span class="keywordflow">break</span>;</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        }</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span> </div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        out[written++] = <span class="charliteral">&#39;\\&#39;</span>;</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>        out[written++] = <span class="charliteral">&#39;x&#39;</span>;</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        out[written++] = (char) <a class="code hl_function" href="hex_8c.html#af1fd4a909f7c6711b86f941e24f88dd6">brix_hex_nibble</a>((u_char) (ch &gt;&gt; 4));</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        out[written++] = (char) <a class="code hl_function" href="hex_8c.html#af1fd4a909f7c6711b86f941e24f88dd6">brix_hex_nibble</a>((u_char) (ch &amp; 0x0f));</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    }</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span> </div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    out[written] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span> </div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    <span class="keywordflow">return</span> written;</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>}</div>
 </div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span> </div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="comment">// Count path components by iterating through &#39;/&#39; separators — O(n) string scan.</span></div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="comment">// Returns NGX_ERROR if component count exceeds BRIX_MAX_WALK_DEPTH (32);</span></div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="comment">// returns NGX_OK otherwise. Leading slashes skipped; trailing empty</span></div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="comment">// components do not increment depth.</span></div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment">/* Return the number of (non-empty, slash-separated) components in `path`. */</span></div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00088" data-start="{" data-end="}">
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno"><a class="line" href="fs_2path_2helpers_8c.html#a02ec8bd21b6c4b741777076d962f536c">   88</a></span><a class="code hl_function" href="fs_2path_2helpers_8c.html#a02ec8bd21b6c4b741777076d962f536c">brix_count_path_depth</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path)</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>{</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>  *p = path;</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    ngx_uint_t   count;</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span> </div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    <span class="keywordflow">while</span> (*p == <span class="charliteral">&#39;/&#39;</span>) {</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        p++;</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    }</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span> </div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment">// Count path components by iterating through &#39;/&#39; separators — O(n) string scan.</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="comment">// Returns NGX_ERROR if component count exceeds BRIX_MAX_WALK_DEPTH (32);</span></div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="comment">// returns NGX_OK otherwise. Leading slashes skipped; trailing empty</span></div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="comment">// components do not increment depth.</span></div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="comment">/* Return the number of (non-empty, slash-separated) components in `path`. */</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00092" data-start="{" data-end="}">
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno"><a class="line" href="fs_2path_2helpers_8c.html#a02ec8bd21b6c4b741777076d962f536c">   92</a></span><a class="code hl_function" href="fs_2path_2helpers_8c.html#a02ec8bd21b6c4b741777076d962f536c">brix_count_path_depth</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path)</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>{</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>  *p = path;</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    ngx_uint_t   count;</div>
 <div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span> </div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    <span class="keywordflow">if</span> (*p == <span class="charliteral">&#39;\0&#39;</span>) {</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    <span class="keywordflow">while</span> (*p == <span class="charliteral">&#39;/&#39;</span>) {</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>        p++;</div>
 <div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    }</div>
 <div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span> </div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    count = 1;</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    <span class="keywordflow">while</span> (*p) {</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        <span class="keywordflow">if</span> (*p == <span class="charliteral">&#39;/&#39;</span>) {</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>            p++;</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>            <span class="keywordflow">if</span> (*p != <span class="charliteral">&#39;\0&#39;</span>) {</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>                count++;</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>            }</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>            p++;</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>        }</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    }</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span> </div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <span class="keywordflow">return</span> (count &gt; <a class="code hl_define" href="tunables_8h.html#a7b7e6ba5e3dd74af0d5d1b6366a11931">BRIX_MAX_WALK_DEPTH</a>) ? NGX_ERROR : NGX_OK;</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>}</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <span class="keywordflow">if</span> (*p == <span class="charliteral">&#39;\0&#39;</span>) {</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    }</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    count = 1;</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    <span class="keywordflow">while</span> (*p) {</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>        <span class="keywordflow">if</span> (*p == <span class="charliteral">&#39;/&#39;</span>) {</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>            p++;</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>            <span class="keywordflow">if</span> (*p != <span class="charliteral">&#39;\0&#39;</span>) {</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>                count++;</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>            }</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>        } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>            p++;</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>        }</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    }</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span> </div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    <span class="keywordflow">return</span> (count &gt; <a class="code hl_define" href="tunables_8h.html#a7b7e6ba5e3dd74af0d5d1b6366a11931">BRIX_MAX_WALK_DEPTH</a>) ? NGX_ERROR : NGX_OK;</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>}</div>
 </div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="comment">/* Generic postconfig finalizer: resolve the path field (at path_offset, with</span></div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment"> * element_size stride) of each rule-array entry against the export root. */</span></div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00118" data-start="{" data-end="}">
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno"><a class="line" href="fs_2path_2helpers_8c.html#a94960bc091338124edbc765266a189f4">  118</a></span><a class="code hl_function" href="fs_2path_2helpers_8c.html#a94960bc091338124edbc765266a189f4">brix_finalize_path_rules</a>(ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <span class="keyword">const</span> ngx_str_t *root,</div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    ngx_array_t *rules, <span class="keywordtype">size_t</span> element_size, <span class="keywordtype">size_t</span> path_offset,</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    <span class="keywordtype">size_t</span> resolved_offset, <span class="keywordtype">size_t</span> resolved_size)</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>{</div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    <span class="keywordtype">char</span>        root_canon[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    u_char     *elts;</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    ngx_uint_t  i;</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span> </div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    <span class="keywordflow">if</span> (rules == NULL) {</div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    }</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment">/* Generic postconfig finalizer: resolve the path field (at path_offset, with</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment"> * element_size stride) of each rule-array entry against the export root. */</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00122" data-start="{" data-end="}">
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno"><a class="line" href="fs_2path_2helpers_8c.html#a94960bc091338124edbc765266a189f4">  122</a></span><a class="code hl_function" href="fs_2path_2helpers_8c.html#a94960bc091338124edbc765266a189f4">brix_finalize_path_rules</a>(ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <span class="keyword">const</span> ngx_str_t *root,</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    ngx_array_t *rules, <span class="keywordtype">size_t</span> element_size, <span class="keywordtype">size_t</span> path_offset,</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    <span class="keywordtype">size_t</span> resolved_offset, <span class="keywordtype">size_t</span> resolved_size)</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>{</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    <span class="keywordtype">char</span>        root_canon[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    u_char     *elts;</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    ngx_uint_t  i;</div>
 <div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span> </div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="canonical_8c.html#aead053a1a06f3a5795c3be82e3fe94db">brix_get_canonical_root</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, root, root_canon, <span class="keyword">sizeof</span>(root_canon))) {</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    <span class="keywordflow">if</span> (rules == NULL) {</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    }</div>
 <div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span> </div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    elts = rules-&gt;elts;</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    <span class="keywordflow">for</span> (i = 0; i &lt; rules-&gt;nelts; i++) {</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>        ngx_str_t  *path;</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>        <span class="keywordtype">char</span>       *resolved;</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span> </div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        path = (ngx_str_t *) (elts + i * element_size + path_offset);</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        resolved = (<span class="keywordtype">char</span> *) (elts + i * element_size + resolved_offset);</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span> </div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <span class="keywordflow">if</span> (path-&gt;len == 1 &amp;&amp; path-&gt;data[0] == <span class="charliteral">&#39;/&#39;</span>) {</div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>            ngx_cpystrn((u_char *) resolved, (u_char *) root_canon,</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>                        resolved_size);</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        }</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span> </div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>        <span class="comment">/*</span></div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment">         * Config-time only, and deliberately NOT migrated to the beneath API.</span></div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment">         * This canonicalises a TRUSTED, admin-configured VO/group policy rule</span></div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment">         * path once at startup (not a client request path), so realpath(3) is</span></div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment">         * the right tool: it resolves the rule to its absolute form for later</span></div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment">         * prefix matching against resolved request paths.  There is no rootfd at</span></div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment">         * config-parse time and no untrusted input here, so openat2</span></div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment">         * RESOLVE_BENEATH would add nothing.</span></div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment">         */</span></div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        <span class="keywordflow">if</span> (!<a class="code hl_function" href="fs_2path_2path_8h.html#a70a40baa08f16d989d7e8cd2d7cf769e">brix_resolve_path_noexist</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, root,</div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>                                         (<span class="keyword">const</span> <span class="keywordtype">char</span> *) path-&gt;data,</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>                                         resolved, resolved_size))</div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>        {</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        }</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    }</div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span> </div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>}</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="canonical_8c.html#aead053a1a06f3a5795c3be82e3fe94db">brix_get_canonical_root</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, root, root_canon, <span class="keyword">sizeof</span>(root_canon))) {</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    }</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    elts = rules-&gt;elts;</div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    <span class="keywordflow">for</span> (i = 0; i &lt; rules-&gt;nelts; i++) {</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        ngx_str_t  *path;</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>        <span class="keywordtype">char</span>       *resolved;</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span> </div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        path = (ngx_str_t *) (elts + i * element_size + path_offset);</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>        resolved = (<span class="keywordtype">char</span> *) (elts + i * element_size + resolved_offset);</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span> </div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        <span class="keywordflow">if</span> (path-&gt;len == 1 &amp;&amp; path-&gt;data[0] == <span class="charliteral">&#39;/&#39;</span>) {</div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>            ngx_cpystrn((u_char *) resolved, (u_char *) root_canon,</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>                        resolved_size);</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        }</div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span> </div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        <span class="comment">/*</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment">         * Config-time only, and deliberately NOT migrated to the beneath API.</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment">         * This canonicalises a TRUSTED, admin-configured VO/group policy rule</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment">         * path once at startup (not a client request path), so realpath(3) is</span></div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment">         * the right tool: it resolves the rule to its absolute form for later</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="comment">         * prefix matching against resolved request paths.  There is no rootfd at</span></div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="comment">         * config-parse time and no untrusted input here, so openat2</span></div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="comment">         * RESOLVE_BENEATH would add nothing.</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment">         */</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        <span class="keywordflow">if</span> (!<a class="code hl_function" href="fs_2path_2path_8h.html#a70a40baa08f16d989d7e8cd2d7cf769e">brix_resolve_path_noexist</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, root,</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>                                         (<span class="keyword">const</span> <span class="keywordtype">char</span> *) path-&gt;data,</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>                                         resolved, resolved_size))</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        {</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>        }</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    }</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span> </div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>}</div>
 </div>
 <div class="ttc" id="acanonical_8c_html_aead053a1a06f3a5795c3be82e3fe94db"><div class="ttname"><a href="canonical_8c.html#aead053a1a06f3a5795c3be82e3fe94db">brix_get_canonical_root</a></div><div class="ttdeci">int brix_get_canonical_root(ngx_log_t *log, const ngx_str_t *root, char *root_canon, size_t root_canon_sz)</div><div class="ttdef"><b>Definition</b> <a href="canonical_8c_source.html#l00010">canonical.c:10</a></div></div>
-<div class="ttc" id="afs_2path_2helpers_8c_html_a02ec8bd21b6c4b741777076d962f536c"><div class="ttname"><a href="fs_2path_2helpers_8c.html#a02ec8bd21b6c4b741777076d962f536c">brix_count_path_depth</a></div><div class="ttdeci">ngx_int_t brix_count_path_depth(const char *path)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00088">helpers.c:88</a></div></div>
+<div class="ttc" id="afs_2path_2helpers_8c_html_a02ec8bd21b6c4b741777076d962f536c"><div class="ttname"><a href="fs_2path_2helpers_8c.html#a02ec8bd21b6c4b741777076d962f536c">brix_count_path_depth</a></div><div class="ttdeci">ngx_int_t brix_count_path_depth(const char *path)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00092">helpers.c:92</a></div></div>
 <div class="ttc" id="afs_2path_2helpers_8c_html_a3ce6ac564012a1a32cd83b78fc42a153"><div class="ttname"><a href="fs_2path_2helpers_8c.html#a3ce6ac564012a1a32cd83b78fc42a153">brix_path_component_forbidden</a></div><div class="ttdeci">int brix_path_component_forbidden(const char *comp, size_t comp_len)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00010">helpers.c:10</a></div></div>
-<div class="ttc" id="afs_2path_2helpers_8c_html_a94960bc091338124edbc765266a189f4"><div class="ttname"><a href="fs_2path_2helpers_8c.html#a94960bc091338124edbc765266a189f4">brix_finalize_path_rules</a></div><div class="ttdeci">ngx_int_t brix_finalize_path_rules(ngx_log_t *log, const ngx_str_t *root, ngx_array_t *rules, size_t element_size, size_t path_offset, size_t resolved_offset, size_t resolved_size)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00118">helpers.c:118</a></div></div>
+<div class="ttc" id="afs_2path_2helpers_8c_html_a94960bc091338124edbc765266a189f4"><div class="ttname"><a href="fs_2path_2helpers_8c.html#a94960bc091338124edbc765266a189f4">brix_finalize_path_rules</a></div><div class="ttdeci">ngx_int_t brix_finalize_path_rules(ngx_log_t *log, const ngx_str_t *root, ngx_array_t *rules, size_t element_size, size_t path_offset, size_t resolved_offset, size_t resolved_size)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00122">helpers.c:122</a></div></div>
 <div class="ttc" id="afs_2path_2helpers_8c_html_ade2ba9452b028791d351ff1b15877c43"><div class="ttname"><a href="fs_2path_2helpers_8c.html#ade2ba9452b028791d351ff1b15877c43">brix_sanitize_log_string</a></div><div class="ttdeci">size_t brix_sanitize_log_string(const char *in, char *out, size_t outsz)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00046">helpers.c:46</a></div></div>
 <div class="ttc" id="afs_2path_2helpers_8c_html_af30880b8b45079784969483855ece9c0"><div class="ttname"><a href="fs_2path_2helpers_8c.html#af30880b8b45079784969483855ece9c0">brix_path_has_dotdot</a></div><div class="ttdeci">int brix_path_has_dotdot(const char *path)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00017">helpers.c:17</a></div></div>
 <div class="ttc" id="afs_2path_2path_8h_html_a70a40baa08f16d989d7e8cd2d7cf769e"><div class="ttname"><a href="fs_2path_2path_8h.html#a70a40baa08f16d989d7e8cd2d7cf769e">brix_resolve_path_noexist</a></div><div class="ttdeci">int brix_resolve_path_noexist(ngx_log_t *log, const ngx_str_t *root, const char *reqpath, char *resolved, size_t resolvsz)</div><div class="ttdef"><b>Definition</b> <a href="resolve__path__variants_8c_source.html#l00052">resolve_path_variants.c:52</a></div></div>

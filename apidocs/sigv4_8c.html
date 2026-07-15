@@ -110,7 +110,7 @@ $(document).ready(function(){initNavTree('sigv4_8c.html',''); initResizable(); }
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a21db0d054686b6b219608afa98f7f17f" id="r_a21db0d054686b6b219608afa98f7f17f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sigv4_8c.html#a21db0d054686b6b219608afa98f7f17f">brix_sigv4_signing_key</a> (const uint8_t *secret, size_t secret_len, const char *<a class="el" href="auth__sigv4__verify_8c.html#a20d8c6b5428110e36cdf8d8c847d6dc9">date</a>, const char *<a class="el" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, const char *service, uint8_t out[32])</td></tr>
+<tr class="memitem:a21db0d054686b6b219608afa98f7f17f" id="r_a21db0d054686b6b219608afa98f7f17f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sigv4_8c.html#a21db0d054686b6b219608afa98f7f17f">brix_sigv4_signing_key</a> (const uint8_t *secret, size_t secret_len, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a20d8c6b5428110e36cdf8d8c847d6dc9">date</a>, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, const char *service, uint8_t out[32])</td></tr>
 <tr class="separator:a21db0d054686b6b219608afa98f7f17f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -166,9 +166,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sigv4_8c_source.html#l00014">14</a> of file <a class="el" href="sigv4_8c_source.html">sigv4.c</a>.</p>
 
-<p class="reference">References <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00239">date</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>.</p>
+<p class="reference">References <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00049">date</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00036">brix_s3_sign_v4_q()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00245">s3_sigv4_derive_signing_key_cached()</a>, <a class="el" href="sd__s3_8c_source.html#l00101">sd_s3_sign()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00114">sd_s3_sign_ext()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00140">brix_s3_sigv4_sign_and_emit()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00068">s3_sigv4_derive_signing_key_cached()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00251">sd_s3_derive_key_and_sign()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00104">sd_s3_sign()</a>, and <a class="el" href="sts__sign_8c_source.html#l00063">sts_sign_query()</a>.</p>
 
 </div>
 </div>

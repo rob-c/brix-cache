@@ -93,9 +93,9 @@ $(document).ready(function(){initNavTree('md_src_2fs_2xfer_2README.html',''); in
   <div class="headertitle"><div class="title">&lt;tt&gt;src/fs/xfer/&lt;/tt&gt; — unified durable-transfer engine</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md200"></a> One state machine that the four durable write/transfer paths are thin configurations of: <b>normal staging</b>, <b>tape stage-out</b>, <b>proxy write-through</b>, and <b>TPC</b>. It collapses four commit/abort implementations, two external-process execution models (only one crash-safe), four metric families, and a single access-log schema into one envelope.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md201"></a> One state machine that the four durable write/transfer paths are thin configurations of: <b>normal staging</b>, <b>tape stage-out</b>, <b>proxy write-through</b>, and <b>TPC</b>. It collapses four commit/abort implementations, two external-process execution models (only one crash-safe), four metric families, and a single access-log schema into one envelope.</p>
 <p>Design spec: `docs/superpowers/specs/2026-06-28-unified-durable-transfer-engine-design.md`.</p>
-<h1><a class="anchor" id="autotoc_md201"></a>
+<h1><a class="anchor" id="autotoc_md202"></a>
 Where it sits</h1>
 <p>This engine <b>composes</b> the VFS/SD seam — it is not an SD backend. All file byte I/O still flows through <code>src/fs/backend/</code> per the zero-data-POSIX-outside-the-backend invariant; the engine orchestrates <em>which</em> objects move, <em>when</em> (sync/async/deny), <em>how</em> (pump vs agent), and <em>records the audit</em>.</p>
 <div class="fragment"><div class="line">caller (S3/WebDAV/root PUT · FRM stage · WT close · TPC COPY)</div>
@@ -106,7 +106,7 @@ Where it sits</h1>
 <div class="line">       ledger   (xfer_ledger.c)   -&gt; existing per-kind metric + ONE access-log line</div>
 <div class="line">       journal  (xfer_journal.c)  -&gt; durable record for async/agent/resumable xfers</div>
 <div class="line">       reconcile(xfer_reconcile.c)-&gt; on restart: adopt / re-drive / register-resume</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md202"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md203"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -143,7 +143,7 @@ Files</h1>
 <li>**TTL sweep (<code><a class="el" href="xfer__resume__sweep_8c.html">xfer_resume_sweep.c</a></code>).** A worker-0 timer removes abandoned <code>*.xrdresume.part</code> partials from the stage dir once older than <code>$BRIX_UPLOAD_RESUME_TTL</code> (default 1 day; 0 disables), preserving fresh ones (age &lt; TTL) and ignoring non-resume files. Only the flat stage dir is swept (the adjacent-to-destination naming is intentionally left). <code>tests/test_xfer_resume_sweep.py</code>.</li>
 <li>**One reconcile scan (<code>xfer_reconcile.c</code>).** <code>brix_xfer_journal_foreach</code> (status + kind → per-record callback) is the single shared journal-recovery scan; WT replay (requeue + re-drive) and the tape in-flight count run through it. The tape QUEUED <em>claim</em> loop stays bespoke by design — it carries a copymax budget + early-break that a visit-every-record helper shouldn't.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md203"></a>
+<h1><a class="anchor" id="autotoc_md204"></a>
 STAGE audit coverage — every upload mode</h1>
 <p><code>brix_xfer_finish(BRIX_XFER_STAGE, …)</code> now fires for <b>every</b> upload commit:</p>
 <table class="markdownTable">
@@ -157,7 +157,7 @@ STAGE audit coverage — every upload mode</h1>
 <td class="markdownTableBodyNone">S3 <code>PUT</code> (chunked / aio)   </td><td class="markdownTableBodyNone"><code>s3_commit_put</code> (<code><a class="el" href="put__finalize_8c.html">s3/put_finalize.c</a></code>)   </td><td class="markdownTableBodyNone">follow-on   </td></tr>
 </table>
 <p>The S3 chunked/aio <code>PUT</code> path committed via the raw <code>brix_staged_commit</code> without an audit line (only S3 <code>POST</code> used the audited <code>vfs_staged</code> path); that gap is now closed — <code>s3_commit_put</code> emits the unified line (success + <code>commit_err</code>), byte count from a confined stat of the published object (the staged fd is closed by the body handler before commit). <code>tests/test_s3_checksums.py::test_put_emits_unified_stage_audit</code>.</p>
-<h1><a class="anchor" id="autotoc_md204"></a>
+<h1><a class="anchor" id="autotoc_md205"></a>
 Reload contract (§8b)</h1>
 <p>Reload is safe because the durable state is on disk and the SHM is a rebuildable cache:</p>
 <ul>
@@ -169,12 +169,12 @@ Reload contract (§8b)</h1>
 <p><b>Phase 4a (done).</b> Write-through's GSI origin upload moved off <code>posix_spawn</code> onto <code><a class="el" href="xfer__spawn_8c.html">xfer_spawn.c</a></code>'s reparented runner (nginx never reaps the child — closing the same SIGCHLD/SHM master-crash hazard the FRM agent was built for), and WT joined the unified ledger (<code>kind=wt</code>, sync + async). <code>tests/test_xfer_spawn.py</code> + <code>tests/test_cache_write_through.py</code>.</p>
 <p><b>Phase 4b (in progress).</b> <code><a class="el" href="xfer__core_8c.html">xfer_core.c</a></code>'s <code><a class="el" href="xfer_8h.html#a557a543c03c8e2c26fa837c2656c1572">brix_xfer_finish()</a></code> now is the single terminal chokepoint all kinds call (consolidated 7 inline ledger-emit blocks). Remaining 4b — the durable core — is the deepest, riskiest work and is sequenced as its own cycle (touches the on-disk reqfile format + master-crash recovery, needs kill-9 crash tests): generalize <code>frm/queue</code>→<code>xfer_journal</code> and <code>frm/reconcile</code>→<code>xfer_reconcile</code> <b>with WT async as the second consumer</b> (making WT async flush durable/crash-recoverable, today it is fire-and-forget), lift <code>writethrough_decision</code>→<code>xfer_policy</code>, and the reload contract.</p>
 <p><b>Sequencing (consumer-driven).</b> The audit chokepoint landed first (Phases 2–3: STAGE + TAPE on the unified ledger). The durable core — <code>xfer_core</code>, <code>xfer_policy</code>, <code>xfer_journal</code> (from <code>frm/queue</code>), <code>xfer_reconcile</code> (from <code>frm/reconcile</code>) — is built in <b>Phase 4</b>, when WT migration provides the <em>second</em> consumer that validates each abstraction (FRM already has working versions). This avoids generalizing the master-crash / crash-recovery path around a single consumer. See the spec §9.</p>
-<h2><a class="anchor" id="autotoc_md205"></a>
+<h2><a class="anchor" id="autotoc_md206"></a>
 The audit line (Phase 2)</h2>
 <p>Sink: <code>$BRIX_XFER_AUDIT_LOG</code>, else <code>&lt;prefix&gt;/logs/xfer_audit.log</code>. One append-only line per terminal transfer, atomic across workers (O_APPEND, sub-PIPE_BUF):</p>
 <div class="fragment"><div class="line">&lt;ts&gt; kind=stage dir=in result=ok bytes=29 errno=0 principal=- path=&quot;/data/obj&quot;</div>
 </div><!-- fragment --><p>Wired into STAGE commit (<code><a class="el" href="vfs__staged_8c.html">fs/vfs_staged.c</a></code>): <code>result=ok</code> on publish, <code>result=commit_err</code> on a failed publish. Metrics are unchanged (each caller still books its own — STAGE still books <code>OP_WRITE</code>); the ledger adds only the unified line. <code>principal=</code> is <code>-</code> until identity threading lands; abort-line emission lands with <code>xfer_core</code> in Phase 3 (proper terminal-cause vocabulary). Covered by <code>tests/test_xfer_ledger.py</code> (ok / commit_err / control-byte-escaping).</p>
-<h1><a class="anchor" id="autotoc_md206"></a>
+<h1><a class="anchor" id="autotoc_md207"></a>
 Durability (spec §7–§8)</h1>
 <ul>
 <li><b>Server-driven</b> (TAPE/WT/TPC): reqfile = truth; full crash → autonomous re-drive on restart. The agent writes its terminal result durably so a restart can always recover the outcome.</li>

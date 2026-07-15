@@ -18,6 +18,7 @@ var dir_68fb8e79c18f7d14f9093e77ee72f0ed =
     [ "cinfo_l1.h", "cinfo__l1_8h.html", "cinfo__l1_8h" ],
     [ "cstore.c", "cstore_8c.html", "cstore_8c" ],
     [ "cstore.h", "cstore_8h.html", "cstore_8h" ],
+    [ "cstore_scan.c", "cstore__scan_8c.html", "cstore__scan_8c" ],
     [ "directives.c", "fs_2cache_2directives_8c.html", "fs_2cache_2directives_8c" ],
     [ "errors.c", "errors_8c.html", "errors_8c" ],
     [ "evict_candidates.c", "evict__candidates_8c.html", "evict__candidates_8c" ],

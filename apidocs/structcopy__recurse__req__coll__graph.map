@@ -1,0 +1,19 @@
+<map id="copy_recurse_req" name="copy_recurse_req">
+<area shape="rect" id="Node000001" title=" " alt="" coords="93,372,229,397"/>
+<area shape="rect" id="Node000002" href="$structbrix__url.html" title=" " alt="" coords="5,269,76,295"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="66,301,149,370,145,374,63,305"/>
+<area shape="rect" id="Node000003" href="$structbrix__copy__opts.html" title=" " alt="" coords="101,269,221,295"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="163,309,163,372,158,372,158,309"/>
+<area shape="rect" id="Node000004" href="$structbrix__opts.html" title=" " alt="" coords="245,269,327,295"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="263,305,177,374,173,370,260,301"/>
+<area shape="rect" id="Node000005" href="$structbrix__cred__store.html" title=" " alt="" coords="225,181,347,207"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="289,221,289,269,283,269,283,221"/>
+<area shape="rect" id="Node000006" href="$structbrix__cred__config.html" title=" " alt="" coords="65,93,193,119"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="163,123,266,179,263,183,161,128"/>
+<area shape="rect" id="Node000007" href="$structbrix__cred__handler.html" title=" " alt="" coords="217,93,355,119"/>
+<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="289,133,289,181,283,181,283,133"/>
+<area shape="rect" id="Node000008" href="$structcred__slot.html" title=" " alt="" coords="380,93,461,119"/>
+<area shape="poly" id="edge7_Node000005_Node000008" title=" " alt="" coords="397,129,354,160,311,183,309,179,351,155,394,125"/>
+<area shape="rect" id="Node000009" href="$structbrix__cred__view.html" title=" " alt="" coords="361,5,481,31"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="423,45,423,93,418,93,418,45"/>
+</map>

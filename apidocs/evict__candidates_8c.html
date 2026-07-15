@@ -131,7 +131,7 @@ Functions</h2></td></tr>
 <tr class="separator:a2b21d9c20104b0272420936dcfe75a1b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0ed2129664999b7df0d95434bf20dc39" id="r_a0ed2129664999b7df0d95434bf20dc39"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="evict__candidates_8c.html#a0ed2129664999b7df0d95434bf20dc39">brix_cache_evict_unlock</a> (const char *lock_path)</td></tr>
 <tr class="separator:a0ed2129664999b7df0d95434bf20dc39"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad538420267041cbbf04cc210d70675a0" id="r_ad538420267041cbbf04cc210d70675a0"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="evict__candidates_8c.html#ad538420267041cbbf04cc210d70675a0">evict_collect_visit</a> (const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__cache__cinfo__t.html">brix_cache_cinfo_t</a> *ci, const <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *stx, void *ctx)</td></tr>
+<tr class="memitem:ad538420267041cbbf04cc210d70675a0" id="r_ad538420267041cbbf04cc210d70675a0"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="evict__candidates_8c.html#ad538420267041cbbf04cc210d70675a0">evict_collect_visit</a> (const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__cache__cinfo__t.html">brix_cache_cinfo_t</a> *ci, const <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *stx, void *ctx)</td></tr>
 <tr class="separator:ad538420267041cbbf04cc210d70675a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa26a08f5ff32bd65836a8a757243389d" id="r_aa26a08f5ff32bd65836a8a757243389d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="evict__candidates_8c.html#aa26a08f5ff32bd65836a8a757243389d">brix_cache_collect_dir</a> (<a class="el" href="structbrix__cache__evict__list__t.html">brix_cache_evict_list_t</a> *list, const char *keydir, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:aa26a08f5ff32bd65836a8a757243389d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -202,7 +202,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="evict__internal_8h_source.html#l00046">brix_cache_evict_candidate_t::atime</a>, <a class="el" href="evict__candidates_8c_source.html#l00008">BRIX_EVICT_MAX_CANDIDATES</a>, <a class="el" href="safe__size_8h_source.html#l00043">brix_size_mul()</a>, <a class="el" href="evict__internal_8h_source.html#l00056">brix_cache_evict_list_t::cap</a>, <a class="el" href="evict__internal_8h_source.html#l00054">brix_cache_evict_list_t::elts</a>, <a class="el" href="evict__internal_8h_source.html#l00061">brix_cache_evict_list_t::evicted</a>, <a class="el" href="evict__internal_8h_source.html#l00047">brix_cache_evict_candidate_t::mtime</a>, <a class="el" href="evict__internal_8h_source.html#l00055">brix_cache_evict_list_t::nelts</a>, <a class="el" href="evict__internal_8h_source.html#l00043">brix_cache_evict_candidate_t::path</a>, <a class="el" href="evict__internal_8h_source.html#l00059">brix_cache_evict_list_t::protect_path</a>, and <a class="el" href="evict__internal_8h_source.html#l00045">brix_cache_evict_candidate_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__candidates_8c_source.html#l00353">evict_collect_visit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__candidates_8c_source.html#l00356">evict_collect_visit()</a>.</p>
 
 </div>
 </div>
@@ -232,11 +232,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00443">443</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00446">446</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
 
 <p class="reference">References <a class="el" href="evict__internal_8h_source.html#l00046">brix_cache_evict_candidate_t::atime</a>, <a class="el" href="evict__internal_8h_source.html#l00047">brix_cache_evict_candidate_t::mtime</a>, and <a class="el" href="evict__internal_8h_source.html#l00043">brix_cache_evict_candidate_t::path</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00171">brix_cache_purge_to_target()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00242">brix_cache_purge_setup()</a>.</p>
 
 </div>
 </div>
@@ -272,11 +272,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00415">415</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00418">418</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cstore_8c_source.html#l00468">brix_cstore_scan()</a>, <a class="el" href="evict__internal_8h_source.html#l00068">brix_cache_evict_list_t::cstore</a>, <a class="el" href="evict__candidates_8c_source.html#l00353">evict_collect_visit()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="cstore__scan_8c_source.html#l00148">brix_cstore_scan()</a>, <a class="el" href="evict__internal_8h_source.html#l00068">brix_cache_evict_list_t::cstore</a>, <a class="el" href="evict__candidates_8c_source.html#l00356">evict_collect_visit()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00171">brix_cache_purge_to_target()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00242">brix_cache_purge_setup()</a>.</p>
 
 </div>
 </div>
@@ -298,7 +298,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00171">171</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00277">brix_cache_evict_if_needed()</a>, and <a class="el" href="reap__watermark_8c_source.html#l00012">brix_cache_watermark_purge()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00457">brix_cache_evict_if_needed()</a>, and <a class="el" href="reap__watermark_8c_source.html#l00012">brix_cache_watermark_purge()</a>.</p>
 
 </div>
 </div>
@@ -318,11 +318,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00456">456</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00459">459</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
 
 <p class="reference">References <a class="el" href="evict__internal_8h_source.html#l00056">brix_cache_evict_list_t::cap</a>, <a class="el" href="evict__internal_8h_source.html#l00054">brix_cache_evict_list_t::elts</a>, <a class="el" href="evict__internal_8h_source.html#l00061">brix_cache_evict_list_t::evicted</a>, <a class="el" href="evict__internal_8h_source.html#l00055">brix_cache_evict_list_t::nelts</a>, and <a class="el" href="evict__internal_8h_source.html#l00043">brix_cache_evict_candidate_t::path</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00171">brix_cache_purge_to_target()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00402">brix_cache_purge_to_target()</a>.</p>
 
 </div>
 </div>
@@ -354,7 +354,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00039">39</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>.</p>
+<p class="reference">References <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cache__fs__sampler_8c_source.html#l00061">brix_cache_fs_usage_sampled()</a>, and <a class="el" href="evict__candidates_8c_source.html#l00065">brix_cache_usage_measure()</a>.</p>
 
@@ -388,7 +388,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cache__internal_8h_source.html#l00051">BRIX_CACHE_EVICT_LOCK_NAME</a>, <a class="el" href="cache__internal_8h_source.html#l00050">BRIX_CACHE_LOCK_SUFFIX</a>, <a class="el" href="cache__internal_8h_source.html#l00049">BRIX_CACHE_PART_SUFFIX</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__candidates_8c_source.html#l00353">evict_collect_visit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__candidates_8c_source.html#l00356">evict_collect_visit()</a>.</p>
 
 </div>
 </div>
@@ -432,9 +432,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00106">106</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cache__internal_8h_source.html#l00051">BRIX_CACHE_EVICT_LOCK_NAME</a>, <a class="el" href="paths_8c_source.html#l00093">brix_cache_state_root()</a>, <a class="el" href="types_2config_8h_source.html#l00453">ngx_stream_brix_srv_conf_t::cache_lock_timeout</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="cache__internal_8h_source.html#l00051">BRIX_CACHE_EVICT_LOCK_NAME</a>, <a class="el" href="paths_8c_source.html#l00093">brix_cache_state_root()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00277">brix_cache_evict_if_needed()</a>, and <a class="el" href="reap__watermark_8c_source.html#l00012">brix_cache_watermark_purge()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00457">brix_cache_evict_if_needed()</a>, and <a class="el" href="reap__watermark_8c_source.html#l00012">brix_cache_watermark_purge()</a>.</p>
 
 </div>
 </div>
@@ -472,9 +472,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00065">65</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
 
-<p class="reference">References <a class="el" href="evict__candidates_8c_source.html#l00039">brix_cache_fs_usage()</a>, <a class="el" href="cstore_8c_source.html#l00499">brix_cstore_freespace()</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>.</p>
+<p class="reference">References <a class="el" href="evict__candidates_8c_source.html#l00039">brix_cache_fs_usage()</a>, <a class="el" href="cstore_8c_source.html#l00416">brix_cstore_freespace()</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00277">brix_cache_evict_if_needed()</a>, <a class="el" href="evict__policy_8c_source.html#l00046">brix_cache_evict_one()</a>, and <a class="el" href="evict__policy_8c_source.html#l00171">brix_cache_purge_to_target()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00457">brix_cache_evict_if_needed()</a>, <a class="el" href="evict__policy_8c_source.html#l00198">brix_cache_evict_one()</a>, and <a class="el" href="evict__policy_8c_source.html#l00242">brix_cache_purge_setup()</a>.</p>
 
 </div>
 </div>
@@ -524,11 +524,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00353">353</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="evict__candidates_8c_source.html#l00356">356</a> of file <a class="el" href="evict__candidates_8c_source.html">evict_candidates.c</a>.</p>
 
-<p class="reference">References <a class="el" href="evict__candidates_8c_source.html#l00260">brix_cache_add_candidate()</a>, <a class="el" href="cinfo_8c_source.html#l00508">brix_cache_cinfo_dirty_extent()</a>, <a class="el" href="cache__storage_8c_source.html#l00119">brix_cache_sidecar_path()</a>, <a class="el" href="evict__candidates_8c_source.html#l00208">brix_cache_skip_name()</a>, <a class="el" href="evict__internal_8h_source.html#l00072">brix_cache_evict_list_t::cache_root</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="sd_8h_source.html#l00159">brix_sd_stat_t::mtime</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="sd_8h_source.html#l00158">brix_sd_stat_t::size</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="evict__internal_8h_source.html#l00073">brix_cache_evict_list_t::state_root</a>.</p>
+<p class="reference">References <a class="el" href="evict__candidates_8c_source.html#l00260">brix_cache_add_candidate()</a>, <a class="el" href="cinfo_8c_source.html#l00508">brix_cache_cinfo_dirty_extent()</a>, <a class="el" href="cache__storage_8c_source.html#l00119">brix_cache_sidecar_path()</a>, <a class="el" href="evict__candidates_8c_source.html#l00208">brix_cache_skip_name()</a>, <a class="el" href="evict__internal_8h_source.html#l00072">brix_cache_evict_list_t::cache_root</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd_8h_source.html#l00252">brix_sd_stat_t::mtime</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="evict__internal_8h_source.html#l00073">brix_cache_evict_list_t::state_root</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__candidates_8c_source.html#l00415">brix_cache_collect_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__candidates_8c_source.html#l00418">brix_cache_collect_dir()</a>.</p>
 
 </div>
 </div>

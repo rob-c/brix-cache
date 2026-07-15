@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('events__read_8c.html',''); initResizab
 
 <div class="header">
   <div class="summary">
+<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">events_read.c File Reference</div></div>
 </div><!--header-->
@@ -108,11 +109,57 @@ $(document).ready(function(){initNavTree('events__read_8c.html',''); initResizab
 </div>
 <p><a href="events__read_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:a8943b80798ee306153c616cf618ec31d" id="r_a8943b80798ee306153c616cf618ec31d"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> { <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31da4dfe229c9095a6bd204840e18a31f8c0">BRIX_PXR_DONE</a>
+, <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31da6793f203433b08f82c78d5dd5ee521e9">BRIX_PXR_CONTINUE</a>
+, <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31dac6b884de0f2794a621a11d3b2be5bde8">BRIX_PXR_PROCEED</a>
+ }</td></tr>
+<tr class="separator:a8943b80798ee306153c616cf618ec31d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a7d303295b9810c878f5c66de8bdfb1aa" id="r_a7d303295b9810c878f5c66de8bdfb1aa"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#a7d303295b9810c878f5c66de8bdfb1aa">proxy_read_arm</a> (ngx_event_t *rev, brix_proxy_ctx_t *proxy, const char *abort_msg)</td></tr>
+<tr class="separator:a7d303295b9810c878f5c66de8bdfb1aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0ffeee7bfec031aae4a80e1ef940ddad" id="r_a0ffeee7bfec031aae4a80e1ef940ddad"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#a0ffeee7bfec031aae4a80e1ef940ddad">proxy_read_hdr_complete</a> (brix_proxy_ctx_t *proxy, ngx_connection_t *uconn)</td></tr>
+<tr class="separator:a0ffeee7bfec031aae4a80e1ef940ddad"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aac7e4fb104fe7434a60a190f9e1806a9" id="r_aac7e4fb104fe7434a60a190f9e1806a9"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#aac7e4fb104fe7434a60a190f9e1806a9">proxy_read_fill_hdr</a> (brix_proxy_ctx_t *proxy, ngx_event_t *rev)</td></tr>
+<tr class="separator:aac7e4fb104fe7434a60a190f9e1806a9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a23acfebdf65eae6cbb6f467b4bd892b8" id="r_a23acfebdf65eae6cbb6f467b4bd892b8"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#a23acfebdf65eae6cbb6f467b4bd892b8">proxy_read_fill_body</a> (brix_proxy_ctx_t *proxy, ngx_event_t *rev)</td></tr>
+<tr class="separator:a23acfebdf65eae6cbb6f467b4bd892b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae86b4a4a920118ea9b7495812b8be469" id="r_ae86b4a4a920118ea9b7495812b8be469"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#ae86b4a4a920118ea9b7495812b8be469">proxy_read_expand_status</a> (brix_proxy_ctx_t *proxy, ngx_connection_t *uconn)</td></tr>
+<tr class="separator:ae86b4a4a920118ea9b7495812b8be469"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef546cfb1e75044c7471d190d9062e0f" id="r_aef546cfb1e75044c7471d190d9062e0f"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#aef546cfb1e75044c7471d190d9062e0f">proxy_read_relay_attn</a> (brix_proxy_ctx_t *proxy)</td></tr>
+<tr class="separator:aef546cfb1e75044c7471d190d9062e0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa18994e3deb9a71a53b596f772c6b009" id="r_aa18994e3deb9a71a53b596f772c6b009"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#aa18994e3deb9a71a53b596f772c6b009">proxy_read_dispatch</a> (brix_proxy_ctx_t *proxy, ngx_event_t *rev)</td></tr>
+<tr class="separator:aa18994e3deb9a71a53b596f772c6b009"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb69484b59fbdba3640e1ea1af22689a" id="r_afb69484b59fbdba3640e1ea1af22689a"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#afb69484b59fbdba3640e1ea1af22689a">proxy_read_step</a> (brix_proxy_ctx_t *proxy, ngx_event_t *rev)</td></tr>
+<tr class="separator:afb69484b59fbdba3640e1ea1af22689a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aad4cb92986ea22688b77bc6e1b6cc4c1" id="r_aad4cb92986ea22688b77bc6e1b6cc4c1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__read_8c.html#aad4cb92986ea22688b77bc6e1b6cc4c1">brix_proxy_read_handler</a> (ngx_event_t *rev)</td></tr>
 <tr class="separator:aad4cb92986ea22688b77bc6e1b6cc4c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="a8943b80798ee306153c616cf618ec31d" name="a8943b80798ee306153c616cf618ec31d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8943b80798ee306153c616cf618ec31d">&#9670;&#160;</a></span>brix_pxr_verdict_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a8943b80798ee306153c616cf618ec31da4dfe229c9095a6bd204840e18a31f8c0" name="a8943b80798ee306153c616cf618ec31da4dfe229c9095a6bd204840e18a31f8c0"></a>BRIX_PXR_DONE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a8943b80798ee306153c616cf618ec31da6793f203433b08f82c78d5dd5ee521e9" name="a8943b80798ee306153c616cf618ec31da6793f203433b08f82c78d5dd5ee521e9"></a>BRIX_PXR_CONTINUE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a8943b80798ee306153c616cf618ec31dac6b884de0f2794a621a11d3b2be5bde8" name="a8943b80798ee306153c616cf618ec31dac6b884de0f2794a621a11d3b2be5bde8"></a>BRIX_PXR_PROCEED&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00019">19</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="aad4cb92986ea22688b77bc6e1b6cc4c1" name="aad4cb92986ea22688b77bc6e1b6cc4c1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aad4cb92986ea22688b77bc6e1b6cc4c1">&#9670;&#160;</a></span>brix_proxy_read_handler()</h2>
@@ -130,11 +177,343 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00018">18</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00423">423</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
 
-<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00146">brix_proxy_cleanup()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00476">brix_proxy_handle_bootstrap()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00030">BRIX_PROXY_MAX_BODY</a>, <a class="el" href="forward__relay__response_8c_source.html#l00291">brix_proxy_relay_to_client()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h.html#a74ca0d02a625cfde42855f0bedd0707b">brix_proxy_splice_fallback_finish()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h.html#a2cfcb0221587a3c1bac63a6183eab3fe">brix_proxy_splice_pump()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h.html#abc68699e5c81dc3e656d0729e7c0dc47">brix_proxy_try_splice()</a>, <a class="el" href="write__helpers_8c_source.html#l00186">brix_queue_response()</a>, <a class="el" href="context_8h_source.html#l00204">brix_ctx_t::destroyed</a>, <a class="el" href="wire__core__requests_8h_source.html#l00120">ServerResponseHdr::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00109">kXR_attn</a>, <a class="el" href="opcodes_8h_source.html#l00136">kXR_status</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="context_8h_source.html#l00218">brix_ctx_t::proxy</a>, <a class="el" href="wire__core__requests_8h_source.html#l00119">ServerResponseHdr::status</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00075">XRD_PX_BOOTSTRAP</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00077">XRD_PX_FORWARDING</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00332">brix_proxy_cleanup()</a>, <a class="el" href="events__read_8c_source.html#l00020">BRIX_PXR_DONE</a>, <a class="el" href="context_8h_source.html#l00204">brix_ctx_t::destroyed</a>, <a class="el" href="context_8h_source.html#l00218">brix_ctx_t::proxy</a>, and <a class="el" href="events__read_8c_source.html#l00389">proxy_read_step()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00186">brix_proxy_connect()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00263">brix_proxy_pool_get()</a>, and <a class="el" href="gsi__upstream__login_8c_source.html#l00098">proxy_gsi_promote_fd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00270">brix_proxy_pool_get()</a>, <a class="el" href="connect__upstream_8c_source.html#l00420">pc_open_socket()</a>, and <a class="el" href="gsi__upstream__login_8c_source.html#l00098">proxy_gsi_promote_fd()</a>.</p>
+
+</div>
+</div>
+<a id="a7d303295b9810c878f5c66de8bdfb1aa" name="a7d303295b9810c878f5c66de8bdfb1aa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7d303295b9810c878f5c66de8bdfb1aa">&#9670;&#160;</a></span>proxy_read_arm()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> proxy_read_arm </td>
+          <td>(</td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>rev</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>abort_msg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00034">34</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, and <a class="el" href="events__read_8c_source.html#l00020">BRIX_PXR_DONE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00163">proxy_read_fill_body()</a>, and <a class="el" href="events__read_8c_source.html#l00122">proxy_read_fill_hdr()</a>.</p>
+
+</div>
+</div>
+<a id="aa18994e3deb9a71a53b596f772c6b009" name="aa18994e3deb9a71a53b596f772c6b009"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa18994e3deb9a71a53b596f772c6b009">&#9670;&#160;</a></span>proxy_read_dispatch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> proxy_read_dispatch </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>rev</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00321">321</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00162">brix_proxy_handle_bootstrap()</a>, <a class="el" href="forward__relay__response_8c_source.html#l00376">brix_proxy_relay_to_client()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h.html#a74ca0d02a625cfde42855f0bedd0707b">brix_proxy_splice_fallback_finish()</a>, <a class="el" href="events__read_8c_source.html#l00021">BRIX_PXR_CONTINUE</a>, <a class="el" href="events__read_8c_source.html#l00020">BRIX_PXR_DONE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00075">XRD_PX_BOOTSTRAP</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00077">XRD_PX_FORWARDING</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00389">proxy_read_step()</a>.</p>
+
+</div>
+</div>
+<a id="ae86b4a4a920118ea9b7495812b8be469" name="ae86b4a4a920118ea9b7495812b8be469"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae86b4a4a920118ea9b7495812b8be469">&#9670;&#160;</a></span>proxy_read_expand_status()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> proxy_read_expand_status </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>uconn</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00215">215</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00030">BRIX_PROXY_MAX_BODY</a>, <a class="el" href="events__read_8c_source.html#l00021">BRIX_PXR_CONTINUE</a>, <a class="el" href="events__read_8c_source.html#l00020">BRIX_PXR_DONE</a>, <a class="el" href="events__read_8c_source.html#l00022">BRIX_PXR_PROCEED</a>, <a class="el" href="opcodes_8h_source.html#l00136">kXR_status</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00389">proxy_read_step()</a>.</p>
+
+</div>
+</div>
+<a id="a23acfebdf65eae6cbb6f467b4bd892b8" name="a23acfebdf65eae6cbb6f467b4bd892b8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a23acfebdf65eae6cbb6f467b4bd892b8">&#9670;&#160;</a></span>proxy_read_fill_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> proxy_read_fill_body </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>rev</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00163">163</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h.html#a2cfcb0221587a3c1bac63a6183eab3fe">brix_proxy_splice_pump()</a>, <a class="el" href="events__read_8c_source.html#l00021">BRIX_PXR_CONTINUE</a>, <a class="el" href="events__read_8c_source.html#l00020">BRIX_PXR_DONE</a>, <a class="el" href="events__read_8c_source.html#l00022">BRIX_PXR_PROCEED</a>, and <a class="el" href="events__read_8c_source.html#l00034">proxy_read_arm()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00389">proxy_read_step()</a>.</p>
+
+</div>
+</div>
+<a id="aac7e4fb104fe7434a60a190f9e1806a9" name="aac7e4fb104fe7434a60a190f9e1806a9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aac7e4fb104fe7434a60a190f9e1806a9">&#9670;&#160;</a></span>proxy_read_fill_hdr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> proxy_read_fill_hdr </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>rev</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00122">122</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="events__read_8c_source.html#l00021">BRIX_PXR_CONTINUE</a>, <a class="el" href="events__read_8c_source.html#l00020">BRIX_PXR_DONE</a>, <a class="el" href="events__read_8c_source.html#l00022">BRIX_PXR_PROCEED</a>, <a class="el" href="events__read_8c_source.html#l00034">proxy_read_arm()</a>, <a class="el" href="events__read_8c_source.html#l00058">proxy_read_hdr_complete()</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00389">proxy_read_step()</a>.</p>
+
+</div>
+</div>
+<a id="a0ffeee7bfec031aae4a80e1ef940ddad" name="a0ffeee7bfec031aae4a80e1ef940ddad"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0ffeee7bfec031aae4a80e1ef940ddad">&#9670;&#160;</a></span>proxy_read_hdr_complete()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> proxy_read_hdr_complete </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>uconn</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00058">58</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00030">BRIX_PROXY_MAX_BODY</a>, <a class="el" href="net_2proxy_2proxy__internal_8h.html#abc68699e5c81dc3e656d0729e7c0dc47">brix_proxy_try_splice()</a>, <a class="el" href="events__read_8c_source.html#l00020">BRIX_PXR_DONE</a>, <a class="el" href="events__read_8c_source.html#l00022">BRIX_PXR_PROCEED</a>, <a class="el" href="wire__core__requests_8h_source.html#l00120">ServerResponseHdr::dlen</a>, <a class="el" href="wire__core__requests_8h_source.html#l00119">ServerResponseHdr::status</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00077">XRD_PX_FORWARDING</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00122">proxy_read_fill_hdr()</a>.</p>
+
+</div>
+</div>
+<a id="aef546cfb1e75044c7471d190d9062e0f" name="aef546cfb1e75044c7471d190d9062e0f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aef546cfb1e75044c7471d190d9062e0f">&#9670;&#160;</a></span>proxy_read_relay_attn()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> proxy_read_relay_attn </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00272">272</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="events__read_8c_source.html#l00021">BRIX_PXR_CONTINUE</a>, <a class="el" href="events__read_8c_source.html#l00022">BRIX_PXR_PROCEED</a>, <a class="el" href="write__helpers_8c_source.html#l00189">brix_queue_response()</a>, <a class="el" href="opcodes_8h_source.html#l00109">kXR_attn</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00389">proxy_read_step()</a>.</p>
+
+</div>
+</div>
+<a id="afb69484b59fbdba3640e1ea1af22689a" name="afb69484b59fbdba3640e1ea1af22689a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afb69484b59fbdba3640e1ea1af22689a">&#9670;&#160;</a></span>proxy_read_step()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__read_8c.html#a8943b80798ee306153c616cf618ec31d">brix_pxr_verdict_t</a> proxy_read_step </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>rev</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__read_8c_source.html#l00389">389</a> of file <a class="el" href="events__read_8c_source.html">events_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="events__read_8c_source.html#l00022">BRIX_PXR_PROCEED</a>, <a class="el" href="events__read_8c_source.html#l00321">proxy_read_dispatch()</a>, <a class="el" href="events__read_8c_source.html#l00215">proxy_read_expand_status()</a>, <a class="el" href="events__read_8c_source.html#l00163">proxy_read_fill_body()</a>, <a class="el" href="events__read_8c_source.html#l00122">proxy_read_fill_hdr()</a>, and <a class="el" href="events__read_8c_source.html#l00272">proxy_read_relay_attn()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00423">brix_proxy_read_handler()</a>.</p>
 
 </div>
 </div>

@@ -92,8 +92,7 @@ $(document).ready(function(){initNavTree('config__download_8c.html',''); initRes
 <div class="header">
   <div class="summary">
 <a href="#define-members">Macros</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">config_download.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -103,6 +102,7 @@ $(document).ready(function(){initNavTree('config__download_8c.html',''); initRes
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;sys/stat.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
+<code>#include &quot;<a class="el" href="config__download__internal_8h_source.html">config_download_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for config_download.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -117,27 +117,17 @@ $(document).ready(function(){initNavTree('config__download_8c.html',''); initRes
 Macros</h2></td></tr>
 <tr class="memitem:a986c8e5b914bfc615b655fd3a7126f5e" id="r_a986c8e5b914bfc615b655fd3a7126f5e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a986c8e5b914bfc615b655fd3a7126f5e">DASHBOARD_CONFIG_MAX_BYTES</a>&#160;&#160;&#160;(1 &lt;&lt; 20)   /* 1 MiB cap (fail-safe) */</td></tr>
 <tr class="separator:a986c8e5b914bfc615b655fd3a7126f5e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3b8c176927420f47392df0174ab4587f" id="r_a3b8c176927420f47392df0174ab4587f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a3b8c176927420f47392df0174ab4587f">DASHBOARD_REDACTED</a>&#160;&#160;&#160;&quot;[redacted]&quot;</td></tr>
-<tr class="separator:a3b8c176927420f47392df0174ab4587f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:aae4423754082219d7efe3e3ba2640ca8" id="r_aae4423754082219d7efe3e3ba2640ca8"><td class="memItemLeft" align="right" valign="top">static u_char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#aae4423754082219d7efe3e3ba2640ca8">dashboard_lc</a> (u_char <a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
-<tr class="separator:aae4423754082219d7efe3e3ba2640ca8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a63792389549b264a0f17ecf8539cceaa" id="r_a63792389549b264a0f17ecf8539cceaa"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a63792389549b264a0f17ecf8539cceaa">dashboard_name_eq</a> (const u_char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t len, const char *lit)</td></tr>
-<tr class="separator:a63792389549b264a0f17ecf8539cceaa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af0ae24e9cfa0469538b21591942e00af" id="r_af0ae24e9cfa0469538b21591942e00af"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#af0ae24e9cfa0469538b21591942e00af">dashboard_name_in</a> (const u_char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t len, const char *const *set)</td></tr>
-<tr class="separator:af0ae24e9cfa0469538b21591942e00af"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9f84711eef1428a33f29478ecda87a8f" id="r_a9f84711eef1428a33f29478ecda87a8f"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a9f84711eef1428a33f29478ecda87a8f">dashboard_name_contains</a> (const u_char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t len, const char *sub)</td></tr>
-<tr class="separator:a9f84711eef1428a33f29478ecda87a8f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af398e029890384bb5fed476032c5aa61" id="r_af398e029890384bb5fed476032c5aa61"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#af398e029890384bb5fed476032c5aa61">dashboard_name_is_secret</a> (const u_char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t len)</td></tr>
-<tr class="separator:af398e029890384bb5fed476032c5aa61"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6c15c4c04012bcb1a62ab47acbf4912c" id="r_a6c15c4c04012bcb1a62ab47acbf4912c"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a6c15c4c04012bcb1a62ab47acbf4912c">dashboard_keep_value</a> (const u_char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t len)</td></tr>
-<tr class="separator:a6c15c4c04012bcb1a62ab47acbf4912c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3b3d0c100a2e01aca0ba53df11c58f63" id="r_a3b3d0c100a2e01aca0ba53df11c58f63"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a3b3d0c100a2e01aca0ba53df11c58f63">dashboard_scrub_value_creds</a> (u_char *p, u_char *end)</td></tr>
-<tr class="separator:a3b3d0c100a2e01aca0ba53df11c58f63"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0c3a124634f45b9105811ecb72cf31ac" id="r_a0c3a124634f45b9105811ecb72cf31ac"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a0c3a124634f45b9105811ecb72cf31ac">dashboard_emit_masked</a> (u_char *out, const u_char *line, const u_char *line_end, const u_char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const u_char *name_end)</td></tr>
 <tr class="separator:a0c3a124634f45b9105811ecb72cf31ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1bf9fc384a0415ccea5c3160d8e3e678" id="r_a1bf9fc384a0415ccea5c3160d8e3e678"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a1bf9fc384a0415ccea5c3160d8e3e678">dashboard_emit_scrubbed</a> (u_char *w, const u_char *line, const u_char *line_end)</td></tr>
+<tr class="separator:a1bf9fc384a0415ccea5c3160d8e3e678"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2ad87f98170b2e9aeec0b6377fd66849" id="r_a2ad87f98170b2e9aeec0b6377fd66849"><td class="memItemLeft" align="right" valign="top">static const u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a2ad87f98170b2e9aeec0b6377fd66849">dashboard_name_token_end</a> (const u_char *q, const u_char *line_end)</td></tr>
+<tr class="separator:a2ad87f98170b2e9aeec0b6377fd66849"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb9b16273d39972b60709c397967880b" id="r_afb9b16273d39972b60709c397967880b"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#afb9b16273d39972b60709c397967880b">dashboard_redact_line</a> (u_char *w, const u_char *line, const u_char *line_end)</td></tr>
+<tr class="separator:afb9b16273d39972b60709c397967880b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afc188a93be39647adb8a770010cd7484" id="r_afc188a93be39647adb8a770010cd7484"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#afc188a93be39647adb8a770010cd7484">dashboard_redact_config</a> (ngx_http_request_t *r, const u_char *in, size_t in_len, u_char **out_buf, size_t *out_len)</td></tr>
 <tr class="separator:afc188a93be39647adb8a770010cd7484"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2ace197baea539471f64abd25d948ff6" id="r_a2ace197baea539471f64abd25d948ff6"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a2ace197baea539471f64abd25d948ff6">dashboard_read_config_file</a> (ngx_http_request_t *r, u_char **buf, size_t *len)</td></tr>
@@ -146,17 +136,6 @@ Functions</h2></td></tr>
 <tr class="separator:a96c71436bd5e76fdd5cdde5b63a54180"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab352180b62cae00ba31dda68e20aa6fb" id="r_ab352180b62cae00ba31dda68e20aa6fb"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#ab352180b62cae00ba31dda68e20aa6fb">ngx_http_brix_dashboard_config_download_handler</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:ab352180b62cae00ba31dda68e20aa6fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:ac2d1d97bae72b3c6c234fda92af600fd" id="r_ac2d1d97bae72b3c6c234fda92af600fd"><td class="memItemLeft" align="right" valign="top">static const char *const&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#ac2d1d97bae72b3c6c234fda92af600fd">dashboard_secret_directives</a> []</td></tr>
-<tr class="separator:ac2d1d97bae72b3c6c234fda92af600fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0bc7efd5e546538ae6744096d3e99c54" id="r_a0bc7efd5e546538ae6744096d3e99c54"><td class="memItemLeft" align="right" valign="top">static const char *const&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a0bc7efd5e546538ae6744096d3e99c54">dashboard_secret_name_substrings</a> []</td></tr>
-<tr class="separator:a0bc7efd5e546538ae6744096d3e99c54"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a83b4e4f4d53911d5da9362db16b548cd" id="r_a83b4e4f4d53911d5da9362db16b548cd"><td class="memItemLeft" align="right" valign="top">static const char *const&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a83b4e4f4d53911d5da9362db16b548cd">dashboard_secret_exceptions</a> []</td></tr>
-<tr class="separator:a83b4e4f4d53911d5da9362db16b548cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a27d09ec23d4022f8d265bcd833c0dd4e" id="r_a27d09ec23d4022f8d265bcd833c0dd4e"><td class="memItemLeft" align="right" valign="top">static const char *const&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__download_8c.html#a27d09ec23d4022f8d265bcd833c0dd4e">dashboard_safe_stock_directives</a> []</td></tr>
-<tr class="separator:a27d09ec23d4022f8d265bcd833c0dd4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a986c8e5b914bfc615b655fd3a7126f5e" name="a986c8e5b914bfc615b655fd3a7126f5e"></a>
@@ -171,23 +150,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00044">44</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-</div>
-</div>
-<a id="a3b8c176927420f47392df0174ab4587f" name="a3b8c176927420f47392df0174ab4587f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3b8c176927420f47392df0174ab4587f">&#9670;&#160;</a></span>DASHBOARD_REDACTED</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define DASHBOARD_REDACTED&#160;&#160;&#160;&quot;[redacted]&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00045">45</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00046">46</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
 </div>
 </div>
@@ -244,16 +207,16 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00347">347</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00056">56</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
-<p class="reference">References <a class="el" href="config__download_8c_source.html#l00045">DASHBOARD_REDACTED</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="config__download__internal_8h_source.html#l00016">DASHBOARD_REDACTED</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00393">dashboard_redact_config()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00126">dashboard_redact_line()</a>.</p>
 
 </div>
 </div>
-<a id="a6c15c4c04012bcb1a62ab47acbf4912c" name="a6c15c4c04012bcb1a62ab47acbf4912c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6c15c4c04012bcb1a62ab47acbf4912c">&#9670;&#160;</a></span>dashboard_keep_value()</h2>
+<a id="a1bf9fc384a0415ccea5c3160d8e3e678" name="a1bf9fc384a0415ccea5c3160d8e3e678"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1bf9fc384a0415ccea5c3160d8e3e678">&#9670;&#160;</a></span>dashboard_emit_scrubbed()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -262,16 +225,22 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_uint_t dashboard_keep_value </td>
+          <td class="memname">static u_char * dashboard_emit_scrubbed </td>
           <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>line</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>line_end</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -286,16 +255,16 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00243">243</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00097">97</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
-<p class="reference">References <a class="el" href="config__download_8c_source.html#l00160">dashboard_name_eq()</a>, <a class="el" href="config__download_8c_source.html#l00174">dashboard_name_in()</a>, <a class="el" href="config__download_8c_source.html#l00212">dashboard_name_is_secret()</a>, <a class="el" href="config__download_8c_source.html#l00128">dashboard_safe_stock_directives</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="config__download__scrub_8c_source.html#l00152">dashboard_scrub_value_creds()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00393">dashboard_redact_config()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00126">dashboard_redact_line()</a>.</p>
 
 </div>
 </div>
-<a id="aae4423754082219d7efe3e3ba2640ca8" name="aae4423754082219d7efe3e3ba2640ca8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aae4423754082219d7efe3e3ba2640ca8">&#9670;&#160;</a></span>dashboard_lc()</h2>
+<a id="a2ad87f98170b2e9aeec0b6377fd66849" name="a2ad87f98170b2e9aeec0b6377fd66849"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2ad87f98170b2e9aeec0b6377fd66849">&#9670;&#160;</a></span>dashboard_name_token_end()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -304,54 +273,16 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static u_char dashboard_lc </td>
-          <td>(</td>
-          <td class="paramtype">u_char&#160;</td>
-          <td class="paramname"><em>c</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00153">153</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00188">dashboard_name_contains()</a>, and <a class="el" href="config__download_8c_source.html#l00160">dashboard_name_eq()</a>.</p>
-
-</div>
-</div>
-<a id="a9f84711eef1428a33f29478ecda87a8f" name="a9f84711eef1428a33f29478ecda87a8f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9f84711eef1428a33f29478ecda87a8f">&#9670;&#160;</a></span>dashboard_name_contains()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_uint_t dashboard_name_contains </td>
+          <td class="memname">static const u_char * dashboard_name_token_end </td>
           <td>(</td>
           <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
+          <td class="paramname"><em>q</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>sub</em>&#160;</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>line_end</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -366,149 +297,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00188">188</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00110">110</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
-<p class="reference">References <a class="el" href="config__download_8c_source.html#l00153">dashboard_lc()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00212">dashboard_name_is_secret()</a>.</p>
-
-</div>
-</div>
-<a id="a63792389549b264a0f17ecf8539cceaa" name="a63792389549b264a0f17ecf8539cceaa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a63792389549b264a0f17ecf8539cceaa">&#9670;&#160;</a></span>dashboard_name_eq()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_uint_t dashboard_name_eq </td>
-          <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>lit</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00160">160</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-<p class="reference">References <a class="el" href="config__download_8c_source.html#l00153">dashboard_lc()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00243">dashboard_keep_value()</a>, <a class="el" href="config__download_8c_source.html#l00174">dashboard_name_in()</a>, <a class="el" href="config__download_8c_source.html#l00212">dashboard_name_is_secret()</a>, and <a class="el" href="config__download_8c_source.html#l00265">dashboard_scrub_value_creds()</a>.</p>
-
-</div>
-</div>
-<a id="af0ae24e9cfa0469538b21591942e00af" name="af0ae24e9cfa0469538b21591942e00af"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af0ae24e9cfa0469538b21591942e00af">&#9670;&#160;</a></span>dashboard_name_in()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_uint_t dashboard_name_in </td>
-          <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *const *&#160;</td>
-          <td class="paramname"><em>set</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00174">174</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-<p class="reference">References <a class="el" href="config__download_8c_source.html#l00160">dashboard_name_eq()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00243">dashboard_keep_value()</a>, and <a class="el" href="config__download_8c_source.html#l00212">dashboard_name_is_secret()</a>.</p>
-
-</div>
-</div>
-<a id="af398e029890384bb5fed476032c5aa61" name="af398e029890384bb5fed476032c5aa61"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af398e029890384bb5fed476032c5aa61">&#9670;&#160;</a></span>dashboard_name_is_secret()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_uint_t dashboard_name_is_secret </td>
-          <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00212">212</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-<p class="reference">References <a class="el" href="config__download_8c_source.html#l00188">dashboard_name_contains()</a>, <a class="el" href="config__download_8c_source.html#l00160">dashboard_name_eq()</a>, <a class="el" href="config__download_8c_source.html#l00174">dashboard_name_in()</a>, <a class="el" href="config__download_8c_source.html#l00054">dashboard_secret_directives</a>, <a class="el" href="config__download_8c_source.html#l00110">dashboard_secret_exceptions</a>, <a class="el" href="config__download_8c_source.html#l00096">dashboard_secret_name_substrings</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00243">dashboard_keep_value()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00126">dashboard_redact_line()</a>.</p>
 
 </div>
 </div>
@@ -552,11 +343,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00481">481</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00219">219</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="config__download_8c_source.html#l00044">DASHBOARD_CONFIG_MAX_BYTES</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="config__download_8c_source.html#l00046">DASHBOARD_CONFIG_MAX_BYTES</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00577">ngx_http_brix_dashboard_config_download_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00315">ngx_http_brix_dashboard_config_download_handler()</a>.</p>
 
 </div>
 </div>
@@ -612,16 +403,16 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00393">393</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00162">162</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
-<p class="reference">References <a class="el" href="config__download_8c_source.html#l00347">dashboard_emit_masked()</a>, <a class="el" href="config__download_8c_source.html#l00243">dashboard_keep_value()</a>, <a class="el" href="config__download_8c_source.html#l00265">dashboard_scrub_value_creds()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="config__download_8c_source.html#l00126">dashboard_redact_line()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00577">ngx_http_brix_dashboard_config_download_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00315">ngx_http_brix_dashboard_config_download_handler()</a>.</p>
 
 </div>
 </div>
-<a id="a3b3d0c100a2e01aca0ba53df11c58f63" name="a3b3d0c100a2e01aca0ba53df11c58f63"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3b3d0c100a2e01aca0ba53df11c58f63">&#9670;&#160;</a></span>dashboard_scrub_value_creds()</h2>
+<a id="afb9b16273d39972b60709c397967880b" name="afb9b16273d39972b60709c397967880b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afb9b16273d39972b60709c397967880b">&#9670;&#160;</a></span>dashboard_redact_line()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -630,16 +421,22 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static u_char * dashboard_scrub_value_creds </td>
+          <td class="memname">static u_char * dashboard_redact_line </td>
           <td>(</td>
           <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>p</em>, </td>
+          <td class="paramname"><em>w</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>end</em>&#160;</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>line</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>line_end</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -654,11 +451,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00265">265</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00126">126</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
-<p class="reference">References <a class="el" href="config__download_8c_source.html#l00160">dashboard_name_eq()</a>, <a class="el" href="config__download_8c_source.html#l00045">DASHBOARD_REDACTED</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="config__download_8c_source.html#l00056">dashboard_emit_masked()</a>, <a class="el" href="config__download_8c_source.html#l00097">dashboard_emit_scrubbed()</a>, <a class="el" href="config__download__classify_8c_source.html#l00217">dashboard_keep_value()</a>, <a class="el" href="config__download_8c_source.html#l00110">dashboard_name_token_end()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00393">dashboard_redact_config()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00162">dashboard_redact_config()</a>.</p>
 
 </div>
 </div>
@@ -702,11 +499,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00535">535</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00273">273</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
 <p class="reference">References <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00577">ngx_http_brix_dashboard_config_download_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00315">ngx_http_brix_dashboard_config_download_handler()</a>.</p>
 
 </div>
 </div>
@@ -726,158 +523,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00577">577</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00315">315</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00378">brix_http_source_offer()</a>, <a class="el" href="config__download_8c_source.html#l00481">dashboard_read_config_file()</a>, <a class="el" href="config__download_8c_source.html#l00393">dashboard_redact_config()</a>, <a class="el" href="config__download_8c_source.html#l00535">dashboard_send_config()</a>, <a class="el" href="src_2observability_2dashboard_2auth_8c_source.html#l00364">ngx_http_brix_dashboard_check_auth()</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00501">ngx_http_brix_dashboard_module</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00520">ngx_http_brix_dashboard_main_handler()</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="a27d09ec23d4022f8d265bcd833c0dd4e" name="a27d09ec23d4022f8d265bcd833c0dd4e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a27d09ec23d4022f8d265bcd833c0dd4e">&#9670;&#160;</a></span>dashboard_safe_stock_directives</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* const dashboard_safe_stock_directives[]</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
-<div class="line">    <span class="stringliteral">&quot;user&quot;</span>, <span class="stringliteral">&quot;worker_processes&quot;</span>, <span class="stringliteral">&quot;worker_connections&quot;</span>, <span class="stringliteral">&quot;worker_rlimit_nofile&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;pid&quot;</span>, <span class="stringliteral">&quot;daemon&quot;</span>, <span class="stringliteral">&quot;master_process&quot;</span>, <span class="stringliteral">&quot;events&quot;</span>, <span class="stringliteral">&quot;use&quot;</span>, <span class="stringliteral">&quot;multi_accept&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;http&quot;</span>, <span class="stringliteral">&quot;stream&quot;</span>, <span class="stringliteral">&quot;server&quot;</span>, <span class="stringliteral">&quot;location&quot;</span>, <span class="stringliteral">&quot;upstream&quot;</span>, <span class="stringliteral">&quot;types&quot;</span>, <span class="stringliteral">&quot;include_off&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;default_type&quot;</span>, <span class="stringliteral">&quot;server_name&quot;</span>, <span class="stringliteral">&quot;listen&quot;</span>, <span class="stringliteral">&quot;root&quot;</span>, <span class="stringliteral">&quot;alias&quot;</span>, <span class="stringliteral">&quot;index&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;sendfile&quot;</span>, <span class="stringliteral">&quot;tcp_nopush&quot;</span>, <span class="stringliteral">&quot;tcp_nodelay&quot;</span>, <span class="stringliteral">&quot;keepalive_timeout&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;keepalive_requests&quot;</span>, <span class="stringliteral">&quot;client_max_body_size&quot;</span>, <span class="stringliteral">&quot;client_body_buffer_size&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;client_body_temp_path&quot;</span>, <span class="stringliteral">&quot;proxy_temp_path&quot;</span>, <span class="stringliteral">&quot;fastcgi_temp_path&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;uwsgi_temp_path&quot;</span>, <span class="stringliteral">&quot;scgi_temp_path&quot;</span>, <span class="stringliteral">&quot;output_buffers&quot;</span>, <span class="stringliteral">&quot;thread_pool&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;access_log&quot;</span>, <span class="stringliteral">&quot;error_log&quot;</span>, <span class="stringliteral">&quot;log_format&quot;</span>, <span class="stringliteral">&quot;log_not_found&quot;</span>, <span class="stringliteral">&quot;autoindex&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;gzip&quot;</span>, <span class="stringliteral">&quot;gzip_types&quot;</span>, <span class="stringliteral">&quot;gzip_min_length&quot;</span>, <span class="stringliteral">&quot;dav_methods&quot;</span>, <span class="stringliteral">&quot;dav_ext_methods&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;ssl_certificate&quot;</span>, <span class="stringliteral">&quot;ssl_protocols&quot;</span>, <span class="stringliteral">&quot;ssl_ciphers&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;ssl_prefer_server_ciphers&quot;</span>, <span class="stringliteral">&quot;ssl_verify_client&quot;</span>, <span class="stringliteral">&quot;ssl_verify_depth&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;ssl_buffer_size&quot;</span>, <span class="stringliteral">&quot;ssl_session_cache&quot;</span>, <span class="stringliteral">&quot;ssl_session_timeout&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;ssl_conf_command&quot;</span>, <span class="stringliteral">&quot;ssl_ecdh_curve&quot;</span>, <span class="stringliteral">&quot;ssl_dhparam&quot;</span>, <span class="stringliteral">&quot;ssl_trusted_certificate&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;ssl_client_certificate&quot;</span>, <span class="stringliteral">&quot;ssl_crl&quot;</span>, <span class="stringliteral">&quot;resolver&quot;</span>, <span class="stringliteral">&quot;resolver_timeout&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;limit_rate&quot;</span>, <span class="stringliteral">&quot;limit_conn&quot;</span>, <span class="stringliteral">&quot;limit_req&quot;</span>, <span class="stringliteral">&quot;expires&quot;</span>, <span class="stringliteral">&quot;etag&quot;</span>, <span class="stringliteral">&quot;charset&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;merge_slashes&quot;</span>, <span class="stringliteral">&quot;server_tokens&quot;</span>, <span class="stringliteral">&quot;reset_timedout_connection&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;send_timeout&quot;</span>, <span class="stringliteral">&quot;proxy_connect_timeout&quot;</span>, <span class="stringliteral">&quot;proxy_read_timeout&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;proxy_send_timeout&quot;</span>, <span class="stringliteral">&quot;proxy_buffering&quot;</span>, <span class="stringliteral">&quot;proxy_request_buffering&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;underscores_in_headers&quot;</span>, <span class="stringliteral">&quot;large_client_header_buffers&quot;</span>,</div>
-<div class="line">    NULL</div>
-<div class="line">}</div>
-</div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00128">128</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00243">dashboard_keep_value()</a>.</p>
-
-</div>
-</div>
-<a id="ac2d1d97bae72b3c6c234fda92af600fd" name="ac2d1d97bae72b3c6c234fda92af600fd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac2d1d97bae72b3c6c234fda92af600fd">&#9670;&#160;</a></span>dashboard_secret_directives</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* const dashboard_secret_directives[]</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00054">54</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00212">dashboard_name_is_secret()</a>.</p>
-
-</div>
-</div>
-<a id="a83b4e4f4d53911d5da9362db16b548cd" name="a83b4e4f4d53911d5da9362db16b548cd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a83b4e4f4d53911d5da9362db16b548cd">&#9670;&#160;</a></span>dashboard_secret_exceptions</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* const dashboard_secret_exceptions[]</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
-<div class="line">    <span class="stringliteral">&quot;brix_token_issuer&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;brix_token_audience&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;brix_token_jwks_refresh_interval&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;brix_token_cache&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;brix_webdav_token_issuer&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;brix_webdav_token_audience&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;brix_webdav_token_introspect_ttl&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;brix_webdav_token_introspect_loc&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;brix_webdav_token_introspect_fail_open&quot;</span>,</div>
-<div class="line">    NULL</div>
-<div class="line">}</div>
-</div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00110">110</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00212">dashboard_name_is_secret()</a>.</p>
-
-</div>
-</div>
-<a id="a0bc7efd5e546538ae6744096d3e99c54" name="a0bc7efd5e546538ae6744096d3e99c54"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0bc7efd5e546538ae6744096d3e99c54">&#9670;&#160;</a></span>dashboard_secret_name_substrings</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* const dashboard_secret_name_substrings[]</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
-<div class="line">    <span class="stringliteral">&quot;secret&quot;</span>, <span class="stringliteral">&quot;passwd&quot;</span>, <span class="stringliteral">&quot;password&quot;</span>, <span class="stringliteral">&quot;passphrase&quot;</span>, <span class="stringliteral">&quot;keytab&quot;</span>, <span class="stringliteral">&quot;privatekey&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;private_key&quot;</span>, <span class="stringliteral">&quot;accesskey&quot;</span>, <span class="stringliteral">&quot;access_key&quot;</span>, <span class="stringliteral">&quot;secretkey&quot;</span>, <span class="stringliteral">&quot;secret_key&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;apikey&quot;</span>, <span class="stringliteral">&quot;api_key&quot;</span>, <span class="stringliteral">&quot;client_secret&quot;</span>, <span class="stringliteral">&quot;credential&quot;</span>, <span class="stringliteral">&quot;bearer&quot;</span>, <span class="stringliteral">&quot;macaroon&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;hmac&quot;</span>, <span class="stringliteral">&quot;jwks&quot;</span>,</div>
-<div class="line">    NULL</div>
-<div class="line">}</div>
-</div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="config__download_8c_source.html#l00096">96</a> of file <a class="el" href="config__download_8c_source.html">config_download.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00212">dashboard_name_is_secret()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers__set_8c_source.html#l00163">brix_http_source_offer()</a>, <a class="el" href="config__download_8c_source.html#l00219">dashboard_read_config_file()</a>, <a class="el" href="config__download_8c_source.html#l00162">dashboard_redact_config()</a>, <a class="el" href="config__download_8c_source.html#l00273">dashboard_send_config()</a>, <a class="el" href="src_2observability_2dashboard_2auth_8c_source.html#l00221">ngx_http_brix_dashboard_check_auth()</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00431">ngx_http_brix_dashboard_module</a>.</p>
 
 </div>
 </div>

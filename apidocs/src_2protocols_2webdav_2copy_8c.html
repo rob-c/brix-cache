@@ -121,27 +121,91 @@ $(document).ready(function(){initNavTree('src_2protocols_2webdav_2copy_8c.html',
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structwebdav__copy__collection__task__t.html">webdav_copy_collection_task_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a9c1f519734f0a32f3dd90a79b2cbb7f4" id="r_a9c1f519734f0a32f3dd90a79b2cbb7f4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a9c1f519734f0a32f3dd90a79b2cbb7f4">webdav_copy_errno_to_status</a> (int err)</td></tr>
 <tr class="separator:a9c1f519734f0a32f3dd90a79b2cbb7f4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3b3313ade31253791c8ec694a15a7b6e" id="r_a3b3313ade31253791c8ec694a15a7b6e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a3b3313ade31253791c8ec694a15a7b6e">webdav_copy_collection_execute</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *src_path, const char *dst_path, mode_t src_mode, ngx_flag_t dst_existed, ngx_flag_t dst_was_dir, ngx_flag_t depth_infinity)</td></tr>
-<tr class="separator:a3b3313ade31253791c8ec694a15a7b6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2950779e0a02948dcbffd4bbee1cd631" id="r_a2950779e0a02948dcbffd4bbee1cd631"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a2950779e0a02948dcbffd4bbee1cd631">webdav_copy_job_init</a> (<a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *job, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const <a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *req)</td></tr>
+<tr class="separator:a2950779e0a02948dcbffd4bbee1cd631"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2fb0571f9562327449897317dc578d4e" id="r_a2fb0571f9562327449897317dc578d4e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a2fb0571f9562327449897317dc578d4e">webdav_copy_collection_stage</a> (const <a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *job, char *tmp_path, size_t tmp_path_size)</td></tr>
+<tr class="separator:a2fb0571f9562327449897317dc578d4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a92feb53880fe1e234543cb6c7fae1e22" id="r_a92feb53880fe1e234543cb6c7fae1e22"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a92feb53880fe1e234543cb6c7fae1e22">webdav_copy_collection_commit</a> (const <a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *job, const char *tmp_path)</td></tr>
+<tr class="separator:a92feb53880fe1e234543cb6c7fae1e22"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afa706c85d34f261862d0ec9d0b0db443" id="r_afa706c85d34f261862d0ec9d0b0db443"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#afa706c85d34f261862d0ec9d0b0db443">webdav_copy_collection_execute</a> (const <a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *job)</td></tr>
+<tr class="separator:afa706c85d34f261862d0ec9d0b0db443"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7bf14fb97de2c542057391174385d111" id="r_a7bf14fb97de2c542057391174385d111"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a7bf14fb97de2c542057391174385d111">webdav_copy_collection_thread</a> (void *data, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a7bf14fb97de2c542057391174385d111"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a85cfbbdf8c6dd9b9320f8854f20bd1fd" id="r_a85cfbbdf8c6dd9b9320f8854f20bd1fd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a85cfbbdf8c6dd9b9320f8854f20bd1fd">webdav_copy_collection_done</a> (ngx_event_t *ev)</td></tr>
 <tr class="separator:a85cfbbdf8c6dd9b9320f8854f20bd1fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0e1d3ebce96a6b0ea1d23dbc4e500bf6" id="r_a0e1d3ebce96a6b0ea1d23dbc4e500bf6"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a0e1d3ebce96a6b0ea1d23dbc4e500bf6">webdav_copy_collection_post_task</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *src_path, const char *dst_path, mode_t src_mode, ngx_flag_t dst_existed, ngx_flag_t dst_was_dir, ngx_flag_t depth_infinity)</td></tr>
-<tr class="separator:a0e1d3ebce96a6b0ea1d23dbc4e500bf6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a441c49339983724a0804f85f846311c5" id="r_a441c49339983724a0804f85f846311c5"><td class="memItemLeft" align="right" valign="top">static ngx_thread_pool_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a441c49339983724a0804f85f846311c5">webdav_copy_thread_pool</a> (<a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf)</td></tr>
+<tr class="separator:a441c49339983724a0804f85f846311c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3306ee2356c9d822747d82d194b46c4b" id="r_a3306ee2356c9d822747d82d194b46c4b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a3306ee2356c9d822747d82d194b46c4b">webdav_copy_collection_post_task</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const <a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *job)</td></tr>
+<tr class="separator:a3306ee2356c9d822747d82d194b46c4b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a43c42942f503eece30111d3fc6884fd2" id="r_a43c42942f503eece30111d3fc6884fd2"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a43c42942f503eece30111d3fc6884fd2">webdav_copy_probe</a> (ngx_http_request_t *r, const char *path, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *sb)</td></tr>
 <tr class="separator:a43c42942f503eece30111d3fc6884fd2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b6c173412895c80af66d1f537254d03" id="r_a6b6c173412895c80af66d1f537254d03"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a6b6c173412895c80af66d1f537254d03">webdav_copy_parse_request</a> (ngx_http_request_t *r, <a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *req)</td></tr>
+<tr class="separator:a6b6c173412895c80af66d1f537254d03"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a87be15082ab9a16931c42ce2d39eaa82" id="r_a87be15082ab9a16931c42ce2d39eaa82"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a87be15082ab9a16931c42ce2d39eaa82">webdav_copy_resolve_pair</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, <a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *req)</td></tr>
+<tr class="separator:a87be15082ab9a16931c42ce2d39eaa82"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0af1adc14b66cd47b0a840adb1a9b48f" id="r_a0af1adc14b66cd47b0a840adb1a9b48f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a0af1adc14b66cd47b0a840adb1a9b48f">webdav_copy_do_collection</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const <a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *req)</td></tr>
+<tr class="separator:a0af1adc14b66cd47b0a840adb1a9b48f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4bf0d51b7bb40d2d2e5a6935d48aea86" id="r_a4bf0d51b7bb40d2d2e5a6935d48aea86"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a4bf0d51b7bb40d2d2e5a6935d48aea86">webdav_copy_file_vfs_init</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *src_path, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx)</td></tr>
+<tr class="separator:a4bf0d51b7bb40d2d2e5a6935d48aea86"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa433ae5c6e4156f216ea7f9fd10b3225" id="r_aa433ae5c6e4156f216ea7f9fd10b3225"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#aa433ae5c6e4156f216ea7f9fd10b3225">webdav_copy_do_file</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const <a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *req)</td></tr>
+<tr class="separator:aa433ae5c6e4156f216ea7f9fd10b3225"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a450bdb10890e4aecf04ab162b3bcd34c" id="r_a450bdb10890e4aecf04ab162b3bcd34c"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2copy_8c.html#a450bdb10890e4aecf04ab162b3bcd34c">webdav_handle_copy</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a450bdb10890e4aecf04ab162b3bcd34c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a92feb53880fe1e234543cb6c7fae1e22" name="a92feb53880fe1e234543cb6c7fae1e22"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a92feb53880fe1e234543cb6c7fae1e22">&#9670;&#160;</a></span>webdav_copy_collection_commit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_copy_collection_commit </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *&#160;</td>
+          <td class="paramname"><em>job</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>tmp_path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00202">202</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00323">brix_rename_confined_canon()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00077">webdav_copy_job_t::dst_existed</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00075">webdav_copy_job_t::dst_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00078">webdav_copy_job_t::dst_was_dir</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00072">webdav_copy_job_t::log</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00073">webdav_copy_job_t::root_canon</a>, and <a class="el" href="namespace_8c_source.html#l00055">webdav_delete_path_recursive()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00238">webdav_copy_collection_execute()</a>.</p>
+
+</div>
+</div>
 <a id="a85cfbbdf8c6dd9b9320f8854f20bd1fd" name="a85cfbbdf8c6dd9b9320f8854f20bd1fd"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a85cfbbdf8c6dd9b9320f8854f20bd1fd">&#9670;&#160;</a></span>webdav_copy_collection_done()</h2>
 
@@ -166,16 +230,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00159">159</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00272">272</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00064">webdav_copy_collection_task_t::http_status</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00055">webdav_copy_collection_task_t::r</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">webdav_send_status_only()</a>.</p>
+<p class="reference">References <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00085">webdav_copy_collection_task_t::http_status</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00084">webdav_copy_collection_task_t::r</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">webdav_send_status_only()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00182">webdav_copy_collection_post_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00325">webdav_copy_collection_post_task()</a>.</p>
 
 </div>
 </div>
-<a id="a3b3313ade31253791c8ec694a15a7b6e" name="a3b3313ade31253791c8ec694a15a7b6e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3b3313ade31253791c8ec694a15a7b6e">&#9670;&#160;</a></span>webdav_copy_collection_execute()</h2>
+<a id="afa706c85d34f261862d0ec9d0b0db443" name="afa706c85d34f261862d0ec9d0b0db443"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afa706c85d34f261862d0ec9d0b0db443">&#9670;&#160;</a></span>webdav_copy_collection_execute()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -186,55 +250,9 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">static ngx_int_t webdav_copy_collection_execute </td>
           <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
+          <td class="paramtype">const <a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *&#160;</td>
+          <td class="paramname"><em>job</em></td><td>)</td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>src_mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>dst_existed</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>dst_was_dir</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>depth_infinity</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -244,16 +262,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00082">82</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00238">238</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="tmp__path_8c_source.html#l00044">brix_make_tmp_path()</a>, <a class="el" href="namespace__ops_8c_source.html#l00149">brix_ns_copy_fattrs()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00323">brix_rename_confined_canon()</a>, <a class="el" href="vfs__walk_8c_source.html#l00261">brix_vfs_mkdir_path()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="copy__engine_8c_source.html#l00052">webdav_copy_dir_recursive()</a>, <a class="el" href="dead__props_8c_source.html#l00498">webdav_dead_props_copy()</a>, <a class="el" href="namespace_8c_source.html#l00048">webdav_delete_path_recursive()</a>, and <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>.</p>
+<p class="reference">References <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00202">webdav_copy_collection_commit()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00158">webdav_copy_collection_stage()</a>, and <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00139">webdav_copy_collection_thread()</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00302">webdav_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00257">webdav_copy_collection_thread()</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00551">webdav_copy_do_collection()</a>.</p>
 
 </div>
 </div>
-<a id="a0e1d3ebce96a6b0ea1d23dbc4e500bf6" name="a0e1d3ebce96a6b0ea1d23dbc4e500bf6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0e1d3ebce96a6b0ea1d23dbc4e500bf6">&#9670;&#160;</a></span>webdav_copy_collection_post_task()</h2>
+<a id="a3306ee2356c9d822747d82d194b46c4b" name="a3306ee2356c9d822747d82d194b46c4b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3306ee2356c9d822747d82d194b46c4b">&#9670;&#160;</a></span>webdav_copy_collection_post_task()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -276,38 +294,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>src_mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>dst_existed</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>dst_was_dir</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>depth_infinity</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *&#160;</td>
+          <td class="paramname"><em>job</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -322,11 +310,59 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00182">182</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00325">325</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00136">brix_imp_enabled()</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00063">webdav_copy_collection_task_t::depth_infinity</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00061">webdav_copy_collection_task_t::dst_existed</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00059">webdav_copy_collection_task_t::dst_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00062">webdav_copy_collection_task_t::dst_was_dir</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00064">webdav_copy_collection_task_t::http_status</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00056">webdav_copy_collection_task_t::log</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00055">webdav_copy_collection_task_t::r</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00057">webdav_copy_collection_task_t::root_canon</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00060">webdav_copy_collection_task_t::src_mode</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00058">webdav_copy_collection_task_t::src_path</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="shared__conf_8h_source.html#l00116">ngx_http_brix_shared_conf_t::thread_pool_name</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00159">webdav_copy_collection_done()</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00139">webdav_copy_collection_thread()</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00136">brix_imp_enabled()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00085">webdav_copy_collection_task_t::http_status</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00083">webdav_copy_collection_task_t::job</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00072">webdav_copy_job_t::log</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00084">webdav_copy_collection_task_t::r</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00272">webdav_copy_collection_done()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00257">webdav_copy_collection_thread()</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00300">webdav_copy_thread_pool()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00302">webdav_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00551">webdav_copy_do_collection()</a>.</p>
+
+</div>
+</div>
+<a id="a2fb0571f9562327449897317dc578d4e" name="a2fb0571f9562327449897317dc578d4e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2fb0571f9562327449897317dc578d4e">&#9670;&#160;</a></span>webdav_copy_collection_stage()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_copy_collection_stage </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *&#160;</td>
+          <td class="paramname"><em>job</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>tmp_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>tmp_path_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00158">158</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tmp__path_8c_source.html#l00044">brix_make_tmp_path()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00104">brix_ns_copy_fattrs()</a>, <a class="el" href="vfs__walk_8c_source.html#l00337">brix_vfs_mkdir_path()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00079">webdav_copy_job_t::depth_infinity</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00075">webdav_copy_job_t::dst_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00072">webdav_copy_job_t::log</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00073">webdav_copy_job_t::root_canon</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00076">webdav_copy_job_t::src_mode</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00074">webdav_copy_job_t::src_path</a>, <a class="el" href="copy__engine_8c_source.html#l00052">webdav_copy_dir_recursive()</a>, <a class="el" href="dead__props_8c_source.html#l00379">webdav_dead_props_copy()</a>, and <a class="el" href="namespace_8c_source.html#l00055">webdav_delete_path_recursive()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00238">webdav_copy_collection_execute()</a>.</p>
 
 </div>
 </div>
@@ -364,11 +400,107 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00139">139</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00257">257</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00063">webdav_copy_collection_task_t::depth_infinity</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00061">webdav_copy_collection_task_t::dst_existed</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00059">webdav_copy_collection_task_t::dst_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00062">webdav_copy_collection_task_t::dst_was_dir</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00064">webdav_copy_collection_task_t::http_status</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00056">webdav_copy_collection_task_t::log</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00057">webdav_copy_collection_task_t::root_canon</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00060">webdav_copy_collection_task_t::src_mode</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00058">webdav_copy_collection_task_t::src_path</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00082">webdav_copy_collection_execute()</a>.</p>
+<p class="reference">References <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00085">webdav_copy_collection_task_t::http_status</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00083">webdav_copy_collection_task_t::job</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00238">webdav_copy_collection_execute()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00182">webdav_copy_collection_post_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00325">webdav_copy_collection_post_task()</a>.</p>
+
+</div>
+</div>
+<a id="a0af1adc14b66cd47b0a840adb1a9b48f" name="a0af1adc14b66cd47b0a840adb1a9b48f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0af1adc14b66cd47b0a840adb1a9b48f">&#9670;&#160;</a></span>webdav_copy_do_collection()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_copy_do_collection </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00551">551</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00111">webdav_copy_req_t::depth_infinity</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00072">webdav_copy_job_t::log</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00238">webdav_copy_collection_execute()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00325">webdav_copy_collection_post_task()</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00128">webdav_copy_job_init()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00683">webdav_handle_copy()</a>.</p>
+
+</div>
+</div>
+<a id="aa433ae5c6e4156f216ea7f9fd10b3225" name="aa433ae5c6e4156f216ea7f9fd10b3225"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa433ae5c6e4156f216ea7f9fd10b3225">&#9670;&#160;</a></span>webdav_copy_do_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_copy_do_file </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00632">632</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__copy_8c_source.html#l00194">brix_vfs_copy()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00109">webdav_copy_req_t::dst_existed</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00105">webdav_copy_req_t::dst_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00108">webdav_copy_req_t::dst_sb</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00064">brix_vfs_copy_opts_t::overwrite</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00110">webdav_copy_req_t::overwrite</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00066">brix_vfs_copy_opts_t::preserve_xattrs</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00104">webdav_copy_req_t::src_path</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00067">brix_vfs_copy_opts_t::staged_commit</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00031">webdav_copy_errno_to_status()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00593">webdav_copy_file_vfs_init()</a>, <a class="el" href="dead__props_8c_source.html#l00379">webdav_dead_props_copy()</a>, and <a class="el" href="namespace_8c_source.html#l00055">webdav_delete_path_recursive()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00683">webdav_handle_copy()</a>.</p>
 
 </div>
 </div>
@@ -398,9 +530,159 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00031">31</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="error__mapping_8c_source.html#l00217">brix_http_map_ns_status()</a>, <a class="el" href="ns__status_8h_source.html#l00022">BRIX_NS_CONFLICT</a>, <a class="el" href="ns__status_8h_source.html#l00020">BRIX_NS_DENIED</a>, <a class="el" href="ns__status_8h_source.html#l00021">BRIX_NS_EXISTS</a>, <a class="el" href="ns__status_8h_source.html#l00026">BRIX_NS_IO_ERROR</a>, <a class="el" href="ns__status_8h_source.html#l00025">BRIX_NS_NO_SPACE</a>, <a class="el" href="ns__status_8h_source.html#l00023">BRIX_NS_NOT_EMPTY</a>, <a class="el" href="ns__status_8h_source.html#l00019">BRIX_NS_NOT_FOUND</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, and <a class="el" href="ns__status_8h_source.html#l00024">BRIX_NS_TOO_LONG</a>.</p>
+<p class="reference">References <a class="el" href="error__mapping_8c_source.html#l00240">brix_http_map_ns_status()</a>, <a class="el" href="ns__status_8h_source.html#l00022">BRIX_NS_CONFLICT</a>, <a class="el" href="ns__status_8h_source.html#l00020">BRIX_NS_DENIED</a>, <a class="el" href="ns__status_8h_source.html#l00021">BRIX_NS_EXISTS</a>, <a class="el" href="ns__status_8h_source.html#l00026">BRIX_NS_IO_ERROR</a>, <a class="el" href="ns__status_8h_source.html#l00025">BRIX_NS_NO_SPACE</a>, <a class="el" href="ns__status_8h_source.html#l00023">BRIX_NS_NOT_EMPTY</a>, <a class="el" href="ns__status_8h_source.html#l00019">BRIX_NS_NOT_FOUND</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, and <a class="el" href="ns__status_8h_source.html#l00024">BRIX_NS_TOO_LONG</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00302">webdav_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00632">webdav_copy_do_file()</a>.</p>
+
+</div>
+</div>
+<a id="a4bf0d51b7bb40d2d2e5a6935d48aea86" name="a4bf0d51b7bb40d2d2e5a6935d48aea86"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4bf0d51b7bb40d2d2e5a6935d48aea86">&#9670;&#160;</a></span>webdav_copy_file_vfs_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void webdav_copy_file_vfs_init </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>vctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00593">593</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__cred_8c_source.html#l00090">brix_vfs_ctx_bind_backend_mint()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00020">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, <a class="el" href="shared__conf_8h_source.html#l00060">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_cert</a>, <a class="el" href="shared__conf_8h_source.html#l00068">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_key</a>, <a class="el" href="shared__conf_8h_source.html#l00072">ngx_http_brix_shared_conf_t::storage_credential_mint_ttl</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00607">webdav_vfs_bind_deleg()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00632">webdav_copy_do_file()</a>.</p>
+
+</div>
+</div>
+<a id="a2950779e0a02948dcbffd4bbee1cd631" name="a2950779e0a02948dcbffd4bbee1cd631"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2950779e0a02948dcbffd4bbee1cd631">&#9670;&#160;</a></span>webdav_copy_job_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void webdav_copy_job_init </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structwebdav__copy__job__t.html">webdav_copy_job_t</a> *&#160;</td>
+          <td class="paramname"><em>job</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00128">128</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00079">webdav_copy_job_t::depth_infinity</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00111">webdav_copy_req_t::depth_infinity</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00077">webdav_copy_job_t::dst_existed</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00109">webdav_copy_req_t::dst_existed</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00075">webdav_copy_job_t::dst_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00105">webdav_copy_req_t::dst_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00108">webdav_copy_req_t::dst_sb</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00078">webdav_copy_job_t::dst_was_dir</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00072">webdav_copy_job_t::log</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00073">webdav_copy_job_t::root_canon</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00076">webdav_copy_job_t::src_mode</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00074">webdav_copy_job_t::src_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00104">webdav_copy_req_t::src_path</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00107">webdav_copy_req_t::src_sb</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00551">webdav_copy_do_collection()</a>.</p>
+
+</div>
+</div>
+<a id="a6b6c173412895c80af66d1f537254d03" name="a6b6c173412895c80af66d1f537254d03"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b6c173412895c80af66d1f537254d03">&#9670;&#160;</a></span>webdav_copy_parse_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_copy_parse_request </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00434">434</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__conditionals_8c_source.html#l00418">brix_http_overwrite_forbidden()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00111">webdav_copy_req_t::depth_infinity</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00106">webdav_copy_req_t::dest_decoded</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00110">webdav_copy_req_t::overwrite</a>, <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00057">webdav_destination_extract_path()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00070">webdav_tpc_find_header</a>, and <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00044">webdav_urldecode()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00683">webdav_handle_copy()</a>.</p>
 
 </div>
 </div>
@@ -444,11 +726,91 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00263">263</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00383">383</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00172">brix_vfs_probe()</a>, <a class="el" href="webdav_8h_source.html#l00140">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00068">brix_vfs_stat_t::dev</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00067">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00066">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00062">brix_vfs_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00020">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00077">brix_vfs_stat_t::dev</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00075">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00607">webdav_vfs_bind_deleg()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00302">webdav_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00487">webdav_copy_resolve_pair()</a>.</p>
+
+</div>
+</div>
+<a id="a87be15082ab9a16931c42ce2d39eaa82" name="a87be15082ab9a16931c42ce2d39eaa82"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a87be15082ab9a16931c42ce2d39eaa82">&#9670;&#160;</a></span>webdav_copy_resolve_pair()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_copy_resolve_pair </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structwebdav__copy__req__t.html">webdav_copy_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00487">487</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00106">webdav_copy_req_t::dest_decoded</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00109">webdav_copy_req_t::dst_existed</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00105">webdav_copy_req_t::dst_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00108">webdav_copy_req_t::dst_sb</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00058">ngx_http_brix_webdav_resolve_path()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00110">webdav_copy_req_t::overwrite</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00104">webdav_copy_req_t::src_path</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00107">webdav_copy_req_t::src_sb</a>, <a class="el" href="copy__conditionals_8c_source.html#l00037">webdav_check_copy_conditionals()</a>, <a class="el" href="lock__check_8c_source.html#l00267">webdav_check_locks_tree()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00383">webdav_copy_probe()</a>, and <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00028">webdav_resolve_destination_path()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00683">webdav_handle_copy()</a>.</p>
+
+</div>
+</div>
+<a id="a441c49339983724a0804f85f846311c5" name="a441c49339983724a0804f85f846311c5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a441c49339983724a0804f85f846311c5">&#9670;&#160;</a></span>webdav_copy_thread_pool()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_thread_pool_t * webdav_copy_thread_pool </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00300">300</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00183">ngx_http_brix_shared_conf_t::thread_pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00182">ngx_http_brix_shared_conf_t::thread_pool_name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00325">webdav_copy_collection_post_task()</a>.</p>
 
 </div>
 </div>
@@ -468,11 +830,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00302">302</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00683">683</a> of file <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html">copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="http__conditionals_8c_source.html#l00282">brix_http_overwrite_forbidden()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__copy_8c_source.html#l00029">brix_vfs_copy()</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="webdav_8h_source.html#l00140">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00058">ngx_http_brix_webdav_resolve_path()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00055">brix_vfs_copy_opts_t::overwrite</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00057">brix_vfs_copy_opts_t::preserve_xattrs</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00058">brix_vfs_copy_opts_t::staged_commit</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="copy__conditionals_8c_source.html#l00037">webdav_check_copy_conditionals()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00431">webdav_check_locks_tree()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00082">webdav_copy_collection_execute()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00182">webdav_copy_collection_post_task()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00031">webdav_copy_errno_to_status()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00263">webdav_copy_probe()</a>, <a class="el" href="dead__props_8c_source.html#l00498">webdav_dead_props_copy()</a>, <a class="el" href="namespace_8c_source.html#l00048">webdav_delete_path_recursive()</a>, <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00057">webdav_destination_extract_path()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00028">webdav_resolve_destination_path()</a>, <a class="el" href="webdav_8h_source.html#l00511">webdav_send_no_body()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00046">webdav_tpc_find_header</a>, and <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00044">webdav_urldecode()</a>.</p>
+<p class="reference">References <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00111">webdav_copy_req_t::depth_infinity</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00109">webdav_copy_req_t::dst_existed</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00107">webdav_copy_req_t::src_sb</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00551">webdav_copy_do_collection()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00632">webdav_copy_do_file()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00434">webdav_copy_parse_request()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00487">webdav_copy_resolve_pair()</a>, and <a class="el" href="webdav_8h_source.html#l00338">webdav_send_no_body()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00219">webdav_dispatch_copy()</a>.</p>
 
 </div>
 </div>

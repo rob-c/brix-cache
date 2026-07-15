@@ -405,114 +405,181 @@ $(document).ready(function(){initNavTree('aio__io_8c_source.html',''); initResiz
 </div>
 <div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span> </div>
 <div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span> </div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span><span class="comment">/* Read everything available into rbuf, then parse. Non-blocking; tolerates TLS. */</span></div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00294" data-start="{" data-end="}">
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno"><a class="line" href="aio__internal_8h.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">  294</a></span><a class="code hl_function" href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a>(<a class="code hl_struct" href="structbrix__aconn.html">brix_aconn</a> *ac)</div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>{</div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>    ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a989f07996431d98dfdf10702a45d9b86">tls_want_write_on_read</a> = 0;</div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span> </div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>    <span class="keywordflow">for</span> (;;) {</div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="aio__buffers_8c.html#a333c28c854e6c8ab115ad597f5df0c9e">xbuf_reserve</a>(&amp;ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>, <a class="code hl_define" href="aio__internal_8h.html#ad08dbff9b29c5f3f1f91617104ca3fca">AIO_READ_CHUNK</a>) != 0) {</div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>            <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>            <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#adee8ddccba5b50837d031b0501a879e0">XRDC_EPROTO</a>, 0, <span class="stringliteral">&quot;out of memory (read buffer)&quot;</span>);</div>
-<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>            <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>            <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>        }</div>
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>        uint8_t *dst = ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#afa4c719ea95e1ec221d35abea01b7624">buf</a> + ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#aaebf7f8ce58ab4dad8f28a6b3cd06004">len</a>;</div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>        <span class="keywordtype">size_t</span>   room = ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#ada2f3ce5462c5ea60d30f2ec3c892deb">cap</a> - ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#aaebf7f8ce58ab4dad8f28a6b3cd06004">len</a>;</div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span> </div>
-<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>        <span class="keywordflow">if</span> (ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a41da93e428e85466fbca605b0fdefb7b">ssl</a> != NULL) {</div>
-<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>            ERR_clear_error();</div>
-<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>            <span class="keywordtype">int</span> ret = SSL_read(ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a41da93e428e85466fbca605b0fdefb7b">ssl</a>, dst, (<span class="keywordtype">int</span>) (room &gt; INT32_MAX ? INT32_MAX : room));</div>
-<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>            <span class="keywordflow">if</span> (ret &gt; 0) {</div>
-<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>                ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#aaebf7f8ce58ab4dad8f28a6b3cd06004">len</a> += (size_t) ret;</div>
-<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>                <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>            }</div>
-<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>            <span class="keywordtype">int</span> err = SSL_get_error(ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a41da93e428e85466fbca605b0fdefb7b">ssl</a>, ret);</div>
-<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>            <span class="keywordflow">if</span> (err == SSL_ERROR_WANT_READ) {</div>
-<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>                <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>            }</div>
-<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>            <span class="keywordflow">if</span> (err == SSL_ERROR_WANT_WRITE) {</div>
-<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>                ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a989f07996431d98dfdf10702a45d9b86">tls_want_write_on_read</a> = 1;  <span class="comment">/* retry on EPOLLOUT */</span></div>
-<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>                <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>            }</div>
-<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>            {</div>
-<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>                <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
-<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>                <span class="keywordflow">if</span> (err == SSL_ERROR_ZERO_RETURN) {</div>
-<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>                    <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, 0, <span class="stringliteral">&quot;connection closed by peer (TLS)&quot;</span>);</div>
-<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>                } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>                    <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, 0, <span class="stringliteral">&quot;TLS read failed (ssl err %d)&quot;</span>, err);</div>
-<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>                }</div>
-<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>                <a class="code hl_function" href="aio__io_8c.html#ab62b195fc4a9115108b370798c2cfba4">aconn_parse</a>(ac);             <span class="comment">/* deliver any complete frames first */</span></div>
-<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>                <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
-<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>                    <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
-<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>                }</div>
-<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>            }</div>
-<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>            <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>        }</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span><span class="comment">/* Outcome of one read-loop iteration, shared by the TLS and plaintext read</span></div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span><span class="comment"> * helpers so aconn_do_read can drive both through the same three-way branch</span></div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span><span class="comment"> * without duplicating the loop or the terminal-parse logic. */</span></div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno"><a class="line" href="aio__io_8c.html#ad02f8ac6b8bf248b97749b1ea01fddcd">  295</a></span><span class="preprocessor">#define AIO_RD_CONTINUE 0   </span><span class="comment">/* bytes appended (or benign EINTR): keep pulling */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno"><a class="line" href="aio__io_8c.html#a8aa0dc56e94bd080788d5eb62c6ab9ca">  296</a></span><span class="preprocessor">#define AIO_RD_BREAK    1   </span><span class="comment">/* would-block: stop the loop and parse what we have */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno"><a class="line" href="aio__io_8c.html#a63e36f6b61fd8a33de764c52fc3d2e07">  297</a></span><span class="preprocessor">#define AIO_RD_RETURN   2   </span><span class="comment">/* terminal (peer close / error): fully handled, return */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span> </div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span> </div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span><span class="comment">/* ---- Attempt one TLS read into rbuf ----</span></div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span><span class="comment"> * WHAT: Performs a single non-blocking SSL_read of up to `room` bytes into</span></div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span><span class="comment"> * `dst` (which must be ac-&gt;rbuf.buf + ac-&gt;rbuf.len). On success advances</span></div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span><span class="comment"> * ac-&gt;rbuf.len and returns AIO_RD_CONTINUE. On WANT_READ/WANT_WRITE returns</span></div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span><span class="comment"> * AIO_RD_BREAK (setting tls_want_write_on_read for the WANT_WRITE case). On a</span></div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span><span class="comment"> * hard error or peer close it delivers any already-buffered frames, fails the</span></div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span><span class="comment"> * connection unless it died during that delivery, and returns AIO_RD_RETURN.</span></div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span><span class="comment"> * WHY: Isolates the OpenSSL error ladder so the read loop stays under the</span></div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span><span class="comment"> * complexity cap while preserving the exact &quot;parse first, then fail&quot; ordering</span></div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span><span class="comment"> * (a clean close may still carry a final complete frame in rbuf).</span></div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span><span class="comment"> *   1. Clear the OpenSSL error queue and read at most INT32_MAX bytes.</span></div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span><span class="comment"> *   2. ret &gt; 0: grow rbuf.len by ret and signal CONTINUE.</span></div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span><span class="comment"> *   3. WANT_READ: signal BREAK; WANT_WRITE: arm EPOLLOUT retry, signal BREAK.</span></div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span><span class="comment"> *   4. Otherwise build a status (ZERO_RETURN vs generic), parse buffered frames,</span></div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span><span class="comment"> *      fail the connection if still alive, and signal RETURN.</span></div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00321" data-start="{" data-end="}">
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno"><a class="line" href="aio__io_8c.html#a7656ef6b33e5d21f117790ef0a9d373a">  321</a></span><a class="code hl_function" href="aio__io_8c.html#a7656ef6b33e5d21f117790ef0a9d373a">aconn_read_tls</a>(<a class="code hl_struct" href="structbrix__aconn.html">brix_aconn</a> *ac, uint8_t *dst, <span class="keywordtype">size_t</span> room)</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>{</div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>    ERR_clear_error();</div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    <span class="keywordtype">int</span> ret = SSL_read(ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a41da93e428e85466fbca605b0fdefb7b">ssl</a>, dst, (<span class="keywordtype">int</span>) (room &gt; INT32_MAX ? INT32_MAX : room));</div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>    <span class="keywordflow">if</span> (ret &gt; 0) {</div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>        ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#aaebf7f8ce58ab4dad8f28a6b3cd06004">len</a> += (size_t) ret;</div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>        <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#ad02f8ac6b8bf248b97749b1ea01fddcd">AIO_RD_CONTINUE</a>;</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>    }</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>    <span class="keywordtype">int</span> err = SSL_get_error(ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a41da93e428e85466fbca605b0fdefb7b">ssl</a>, ret);</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>    <span class="keywordflow">if</span> (err == SSL_ERROR_WANT_READ) {</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>        <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#a8aa0dc56e94bd080788d5eb62c6ab9ca">AIO_RD_BREAK</a>;</div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>    }</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>    <span class="keywordflow">if</span> (err == SSL_ERROR_WANT_WRITE) {</div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>        ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a989f07996431d98dfdf10702a45d9b86">tls_want_write_on_read</a> = 1;      <span class="comment">/* retry on EPOLLOUT */</span></div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>        <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#a8aa0dc56e94bd080788d5eb62c6ab9ca">AIO_RD_BREAK</a>;</div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>    }</div>
 <div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span> </div>
-<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>        ssize_t r = <a class="code hl_function" href="brixposix__preload_8c.html#af32a16ad2dd9e48482f8f790db7dbbd2">read</a>(ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a6c7e68bc74cf86084b11bba247bd2f79">fd</a>, dst, room);</div>
-<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>        <span class="keywordflow">if</span> (r &gt; 0) {</div>
-<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>            ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#aaebf7f8ce58ab4dad8f28a6b3cd06004">len</a> += (size_t) r;</div>
-<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>        }</div>
-<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>        <span class="keywordflow">if</span> (r == 0) {</div>
-<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>            <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
-<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>            <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, 0, <span class="stringliteral">&quot;connection closed by peer&quot;</span>);</div>
-<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>            <a class="code hl_function" href="aio__io_8c.html#ab62b195fc4a9115108b370798c2cfba4">aconn_parse</a>(ac);</div>
-<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>            <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
-<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>                <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>            }</div>
-<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>            <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>        }</div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>        <span class="keywordflow">if</span> (errno == EINTR) {</div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>        }</div>
-<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>        <span class="keywordflow">if</span> (errno == EAGAIN || errno == EWOULDBLOCK) {</div>
-<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>        }</div>
-<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>        {</div>
-<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>            <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
-<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>            <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, errno, <span class="stringliteral">&quot;read: %s&quot;</span>, strerror(errno));</div>
-<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>            <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
-<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>        }</div>
-<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    }</div>
-<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span> </div>
-<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>    <a class="code hl_function" href="aio__io_8c.html#ab62b195fc4a9115108b370798c2cfba4">aconn_parse</a>(ac);</div>
-<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>}</div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>    <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>    <span class="keywordflow">if</span> (err == SSL_ERROR_ZERO_RETURN) {</div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>        <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, 0, <span class="stringliteral">&quot;connection closed by peer (TLS)&quot;</span>);</div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>    } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>        <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, 0, <span class="stringliteral">&quot;TLS read failed (ssl err %d)&quot;</span>, err);</div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>    }</div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>    <a class="code hl_function" href="aio__io_8c.html#ab62b195fc4a9115108b370798c2cfba4">aconn_parse</a>(ac);                         <span class="comment">/* deliver any complete frames first */</span></div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>    <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>        <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>    }</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>    <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#a63e36f6b61fd8a33de764c52fc3d2e07">AIO_RD_RETURN</a>;</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>}</div>
 </div>
-<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span> </div>
-<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span> </div>
-<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span><span class="comment">/* React to epoll readiness for one connection. */</span></div>
-<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span><span class="keywordtype">void</span></div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span> </div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span> </div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span><span class="comment">/* ---- Attempt one plaintext read into rbuf ----</span></div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span><span class="comment"> * WHAT: Performs a single non-blocking read(2) of up to `room` bytes into</span></div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span><span class="comment"> * `dst` (which must be ac-&gt;rbuf.buf + ac-&gt;rbuf.len). On success advances</span></div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span><span class="comment"> * ac-&gt;rbuf.len and returns AIO_RD_CONTINUE (also for a benign EINTR). On</span></div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span><span class="comment"> * EAGAIN/EWOULDBLOCK returns AIO_RD_BREAK. On EOF (r == 0) or a hard errno it</span></div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span><span class="comment"> * delivers any already-buffered frames (EOF path), fails the connection unless</span></div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span><span class="comment"> * it died during that delivery, and returns AIO_RD_RETURN.</span></div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span><span class="comment"> * WHY: Isolates the read(2)/errno ladder so the read loop stays under the</span></div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span><span class="comment"> * complexity cap while preserving the exact EOF &quot;parse first, then fail&quot;</span></div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span><span class="comment"> * ordering (a peer close may still carry a final complete frame in rbuf).</span></div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span><span class="comment"> *   1. read() into dst; r &gt; 0: grow rbuf.len by r and signal CONTINUE.</span></div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span><span class="comment"> *   2. r == 0 (EOF): parse buffered frames, fail if still alive, signal RETURN.</span></div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span><span class="comment"> *   3. EINTR: signal CONTINUE; EAGAIN/EWOULDBLOCK: signal BREAK.</span></div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span><span class="comment"> *   4. Any other errno: fail the connection and signal RETURN.</span></div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
 <div class="foldopen" id="foldopen00372" data-start="{" data-end="}">
-<div class="line"><a id="l00372" name="l00372"></a><span class="lineno"><a class="line" href="aio__internal_8h.html#a9a25395c92334030c9e189baa08f9dde">  372</a></span><a class="code hl_function" href="aio__io_8c.html#a9a25395c92334030c9e189baa08f9dde">aconn_handle_io</a>(<a class="code hl_struct" href="structbrix__aconn.html">brix_aconn</a> *ac, uint32_t events)</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno"><a class="line" href="aio__io_8c.html#ab7aea64ed48cff7235f52a2e037ebd29">  372</a></span><a class="code hl_function" href="aio__io_8c.html#ab7aea64ed48cff7235f52a2e037ebd29">aconn_read_plain</a>(<a class="code hl_struct" href="structbrix__aconn.html">brix_aconn</a> *ac, uint8_t *dst, <span class="keywordtype">size_t</span> room)</div>
 <div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>{</div>
-<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    <span class="keywordflow">if</span> (ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
-<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>    }</div>
-<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>    <span class="keywordflow">if</span> (events &amp; (EPOLLERR | EPOLLHUP)) {</div>
-<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>        <span class="comment">/* still try to drain any final readable bytes before failing */</span></div>
-<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>        <a class="code hl_function" href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a>(ac);</div>
-<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>        <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
-<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>            <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
-<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>            <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, 0, <span class="stringliteral">&quot;socket error/hangup&quot;</span>);</div>
-<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>            <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
-<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>        }</div>
-<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>    }</div>
-<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    <span class="keywordflow">if</span> ((events &amp; EPOLLOUT) || ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a9f2f750f8e5960d6ab35d25f5d69f755">tls_want_read_on_write</a>) {</div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>        <a class="code hl_function" href="aio__io_8c.html#a209235a325f5ea55c02ff88b934fd886">aconn_do_write</a>(ac);</div>
-<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    }</div>
-<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>    <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a> &amp;&amp; ((events &amp; EPOLLIN) || ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a989f07996431d98dfdf10702a45d9b86">tls_want_write_on_read</a>)) {</div>
-<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>        <a class="code hl_function" href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a>(ac);</div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    }</div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>        <a class="code hl_function" href="aio__conn_8c.html#a95d912564f618626405f33f6046c0354">aconn_update_epoll</a>(ac);</div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    }</div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>}</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    ssize_t r = <a class="code hl_function" href="brixposix__preload_8c.html#af32a16ad2dd9e48482f8f790db7dbbd2">read</a>(ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a6c7e68bc74cf86084b11bba247bd2f79">fd</a>, dst, room);</div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>    <span class="keywordflow">if</span> (r &gt; 0) {</div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>        ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#aaebf7f8ce58ab4dad8f28a6b3cd06004">len</a> += (size_t) r;</div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>        <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#ad02f8ac6b8bf248b97749b1ea01fddcd">AIO_RD_CONTINUE</a>;</div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>    }</div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>    <span class="keywordflow">if</span> (r == 0) {</div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>        <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>        <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, 0, <span class="stringliteral">&quot;connection closed by peer&quot;</span>);</div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>        <a class="code hl_function" href="aio__io_8c.html#ab62b195fc4a9115108b370798c2cfba4">aconn_parse</a>(ac);</div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>        <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>            <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>        }</div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>        <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#a63e36f6b61fd8a33de764c52fc3d2e07">AIO_RD_RETURN</a>;</div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    }</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    <span class="keywordflow">if</span> (errno == EINTR) {</div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>        <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#ad02f8ac6b8bf248b97749b1ea01fddcd">AIO_RD_CONTINUE</a>;</div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>    }</div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>    <span class="keywordflow">if</span> (errno == EAGAIN || errno == EWOULDBLOCK) {</div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>        <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#a8aa0dc56e94bd080788d5eb62c6ab9ca">AIO_RD_BREAK</a>;</div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    }</div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span> </div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, errno, <span class="stringliteral">&quot;read: %s&quot;</span>, strerror(errno));</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>    <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    <span class="keywordflow">return</span> <a class="code hl_define" href="aio__io_8c.html#a63e36f6b61fd8a33de764c52fc3d2e07">AIO_RD_RETURN</a>;</div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>}</div>
+</div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span> </div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span> </div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span><span class="comment">/* Read everything available into rbuf, then parse. Non-blocking; tolerates TLS. */</span></div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00404" data-start="{" data-end="}">
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno"><a class="line" href="aio__internal_8h.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">  404</a></span><a class="code hl_function" href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a>(<a class="code hl_struct" href="structbrix__aconn.html">brix_aconn</a> *ac)</div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>{</div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a989f07996431d98dfdf10702a45d9b86">tls_want_write_on_read</a> = 0;</div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span> </div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>    <span class="keywordflow">for</span> (;;) {</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="aio__buffers_8c.html#a333c28c854e6c8ab115ad597f5df0c9e">xbuf_reserve</a>(&amp;ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>, <a class="code hl_define" href="aio__internal_8h.html#ad08dbff9b29c5f3f1f91617104ca3fca">AIO_READ_CHUNK</a>) != 0) {</div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>            <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>            <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#adee8ddccba5b50837d031b0501a879e0">XRDC_EPROTO</a>, 0, <span class="stringliteral">&quot;out of memory (read buffer)&quot;</span>);</div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>            <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>            <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>        }</div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>        uint8_t *dst = ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#afa4c719ea95e1ec221d35abea01b7624">buf</a> + ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#aaebf7f8ce58ab4dad8f28a6b3cd06004">len</a>;</div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>        <span class="keywordtype">size_t</span>   room = ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#ada2f3ce5462c5ea60d30f2ec3c892deb">cap</a> - ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a807cb5e4979efc770573e401152bd9dc">rbuf</a>.<a class="code hl_variable" href="structxbuf.html#aaebf7f8ce58ab4dad8f28a6b3cd06004">len</a>;</div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span> </div>
+<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>        <span class="keywordtype">int</span> step = (ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a41da93e428e85466fbca605b0fdefb7b">ssl</a> != NULL) ? <a class="code hl_function" href="aio__io_8c.html#a7656ef6b33e5d21f117790ef0a9d373a">aconn_read_tls</a>(ac, dst, room)</div>
+<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>                                     : <a class="code hl_function" href="aio__io_8c.html#ab7aea64ed48cff7235f52a2e037ebd29">aconn_read_plain</a>(ac, dst, room);</div>
+<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span>        <span class="keywordflow">if</span> (step == <a class="code hl_define" href="aio__io_8c.html#ad02f8ac6b8bf248b97749b1ea01fddcd">AIO_RD_CONTINUE</a>) {</div>
+<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>        }</div>
+<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span>        <span class="keywordflow">if</span> (step == <a class="code hl_define" href="aio__io_8c.html#a63e36f6b61fd8a33de764c52fc3d2e07">AIO_RD_RETURN</a>) {</div>
+<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>            <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00425" name="l00425"></a><span class="lineno">  425</span>        }</div>
+<div class="line"><a id="l00426" name="l00426"></a><span class="lineno">  426</span>        <span class="keywordflow">break</span>;                               <span class="comment">/* AIO_RD_BREAK: socket would block */</span></div>
+<div class="line"><a id="l00427" name="l00427"></a><span class="lineno">  427</span>    }</div>
+<div class="line"><a id="l00428" name="l00428"></a><span class="lineno">  428</span> </div>
+<div class="line"><a id="l00429" name="l00429"></a><span class="lineno">  429</span>    <a class="code hl_function" href="aio__io_8c.html#ab62b195fc4a9115108b370798c2cfba4">aconn_parse</a>(ac);</div>
+<div class="line"><a id="l00430" name="l00430"></a><span class="lineno">  430</span>}</div>
+</div>
+<div class="line"><a id="l00431" name="l00431"></a><span class="lineno">  431</span> </div>
+<div class="line"><a id="l00432" name="l00432"></a><span class="lineno">  432</span> </div>
+<div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span><span class="comment">/* React to epoll readiness for one connection. */</span></div>
+<div class="line"><a id="l00434" name="l00434"></a><span class="lineno">  434</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00435" data-start="{" data-end="}">
+<div class="line"><a id="l00435" name="l00435"></a><span class="lineno"><a class="line" href="aio__internal_8h.html#a9a25395c92334030c9e189baa08f9dde">  435</a></span><a class="code hl_function" href="aio__io_8c.html#a9a25395c92334030c9e189baa08f9dde">aconn_handle_io</a>(<a class="code hl_struct" href="structbrix__aconn.html">brix_aconn</a> *ac, uint32_t events)</div>
+<div class="line"><a id="l00436" name="l00436"></a><span class="lineno">  436</span>{</div>
+<div class="line"><a id="l00437" name="l00437"></a><span class="lineno">  437</span>    <span class="keywordflow">if</span> (ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
+<div class="line"><a id="l00438" name="l00438"></a><span class="lineno">  438</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00439" name="l00439"></a><span class="lineno">  439</span>    }</div>
+<div class="line"><a id="l00440" name="l00440"></a><span class="lineno">  440</span>    <span class="keywordflow">if</span> (events &amp; (EPOLLERR | EPOLLHUP)) {</div>
+<div class="line"><a id="l00441" name="l00441"></a><span class="lineno">  441</span>        <span class="comment">/* still try to drain any final readable bytes before failing */</span></div>
+<div class="line"><a id="l00442" name="l00442"></a><span class="lineno">  442</span>        <a class="code hl_function" href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a>(ac);</div>
+<div class="line"><a id="l00443" name="l00443"></a><span class="lineno">  443</span>        <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
+<div class="line"><a id="l00444" name="l00444"></a><span class="lineno">  444</span>            <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
+<div class="line"><a id="l00445" name="l00445"></a><span class="lineno">  445</span>            <a class="code hl_function" href="brix__net_8h.html#aef810a64fb6e31dbe0614b091e1fce2f">brix_status_set</a>(&amp;st, <a class="code hl_define" href="brix_8h.html#a141192625ba7ded2c42fc3ea84f496dd">XRDC_ESOCK</a>, 0, <span class="stringliteral">&quot;socket error/hangup&quot;</span>);</div>
+<div class="line"><a id="l00446" name="l00446"></a><span class="lineno">  446</span>            <a class="code hl_function" href="aio__conn_8c.html#a0a2265f548441e6f3c82f72f98cd0806">aconn_on_transport_error</a>(ac, &amp;st);</div>
+<div class="line"><a id="l00447" name="l00447"></a><span class="lineno">  447</span>        }</div>
+<div class="line"><a id="l00448" name="l00448"></a><span class="lineno">  448</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00449" name="l00449"></a><span class="lineno">  449</span>    }</div>
+<div class="line"><a id="l00450" name="l00450"></a><span class="lineno">  450</span>    <span class="keywordflow">if</span> ((events &amp; EPOLLOUT) || ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a9f2f750f8e5960d6ab35d25f5d69f755">tls_want_read_on_write</a>) {</div>
+<div class="line"><a id="l00451" name="l00451"></a><span class="lineno">  451</span>        <a class="code hl_function" href="aio__io_8c.html#a209235a325f5ea55c02ff88b934fd886">aconn_do_write</a>(ac);</div>
+<div class="line"><a id="l00452" name="l00452"></a><span class="lineno">  452</span>    }</div>
+<div class="line"><a id="l00453" name="l00453"></a><span class="lineno">  453</span>    <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a> &amp;&amp; ((events &amp; EPOLLIN) || ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#a989f07996431d98dfdf10702a45d9b86">tls_want_write_on_read</a>)) {</div>
+<div class="line"><a id="l00454" name="l00454"></a><span class="lineno">  454</span>        <a class="code hl_function" href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a>(ac);</div>
+<div class="line"><a id="l00455" name="l00455"></a><span class="lineno">  455</span>    }</div>
+<div class="line"><a id="l00456" name="l00456"></a><span class="lineno">  456</span>    <span class="keywordflow">if</span> (!ac-&gt;<a class="code hl_variable" href="structbrix__aconn.html#ac22e1e65f019b6a08815d5884197a2ba">dead</a>) {</div>
+<div class="line"><a id="l00457" name="l00457"></a><span class="lineno">  457</span>        <a class="code hl_function" href="aio__conn_8c.html#a95d912564f618626405f33f6046c0354">aconn_update_epoll</a>(ac);</div>
+<div class="line"><a id="l00458" name="l00458"></a><span class="lineno">  458</span>    }</div>
+<div class="line"><a id="l00459" name="l00459"></a><span class="lineno">  459</span>}</div>
 </div>
 <div class="ttc" id="aaio__buffers_8c_html_a333c28c854e6c8ab115ad597f5df0c9e"><div class="ttname"><a href="aio__buffers_8c.html#a333c28c854e6c8ab115ad597f5df0c9e">xbuf_reserve</a></div><div class="ttdeci">int xbuf_reserve(xbuf *b, size_t need)</div><div class="ttdef"><b>Definition</b> <a href="aio__buffers_8c_source.html#l00008">aio_buffers.c:8</a></div></div>
 <div class="ttc" id="aaio__buffers_8c_html_a35e2b04fb056b9565a22d126d56fe3a2"><div class="ttname"><a href="aio__buffers_8c.html#a35e2b04fb056b9565a22d126d56fe3a2">reqmap_del</a></div><div class="ttdeci">void reqmap_del(reqmap *m, uint16_t sid)</div><div class="ttdef"><b>Definition</b> <a href="aio__buffers_8c_source.html#l00214">aio_buffers.c:214</a></div></div>
@@ -525,12 +592,17 @@ $(document).ready(function(){initNavTree('aio__io_8c_source.html',''); initResiz
 <div class="ttc" id="aaio__internal_8h_html"><div class="ttname"><a href="aio__internal_8h.html">aio_internal.h</a></div></div>
 <div class="ttc" id="aaio__internal_8h_html_ad08dbff9b29c5f3f1f91617104ca3fca"><div class="ttname"><a href="aio__internal_8h.html#ad08dbff9b29c5f3f1f91617104ca3fca">AIO_READ_CHUNK</a></div><div class="ttdeci">#define AIO_READ_CHUNK</div><div class="ttdef"><b>Definition</b> <a href="aio__internal_8h_source.html#l00030">aio_internal.h:30</a></div></div>
 <div class="ttc" id="aaio__io_8c_html_a209235a325f5ea55c02ff88b934fd886"><div class="ttname"><a href="aio__io_8c.html#a209235a325f5ea55c02ff88b934fd886">aconn_do_write</a></div><div class="ttdeci">void aconn_do_write(brix_aconn *ac)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00025">aio_io.c:25</a></div></div>
+<div class="ttc" id="aaio__io_8c_html_a63e36f6b61fd8a33de764c52fc3d2e07"><div class="ttname"><a href="aio__io_8c.html#a63e36f6b61fd8a33de764c52fc3d2e07">AIO_RD_RETURN</a></div><div class="ttdeci">#define AIO_RD_RETURN</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00297">aio_io.c:297</a></div></div>
+<div class="ttc" id="aaio__io_8c_html_a7656ef6b33e5d21f117790ef0a9d373a"><div class="ttname"><a href="aio__io_8c.html#a7656ef6b33e5d21f117790ef0a9d373a">aconn_read_tls</a></div><div class="ttdeci">static int aconn_read_tls(brix_aconn *ac, uint8_t *dst, size_t room)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00321">aio_io.c:321</a></div></div>
+<div class="ttc" id="aaio__io_8c_html_a8aa0dc56e94bd080788d5eb62c6ab9ca"><div class="ttname"><a href="aio__io_8c.html#a8aa0dc56e94bd080788d5eb62c6ab9ca">AIO_RD_BREAK</a></div><div class="ttdeci">#define AIO_RD_BREAK</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00296">aio_io.c:296</a></div></div>
 <div class="ttc" id="aaio__io_8c_html_a944c2dde2b4b53f719e343de832baee2"><div class="ttname"><a href="aio__io_8c.html#a944c2dde2b4b53f719e343de832baee2">aconn_dispatch_response</a></div><div class="ttdeci">static void aconn_dispatch_response(brix_aconn *ac, uint16_t sid, uint16_t stat, const uint8_t *body, uint32_t dlen)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00158">aio_io.c:158</a></div></div>
-<div class="ttc" id="aaio__io_8c_html_a9a25395c92334030c9e189baa08f9dde"><div class="ttname"><a href="aio__io_8c.html#a9a25395c92334030c9e189baa08f9dde">aconn_handle_io</a></div><div class="ttdeci">void aconn_handle_io(brix_aconn *ac, uint32_t events)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00372">aio_io.c:372</a></div></div>
+<div class="ttc" id="aaio__io_8c_html_a9a25395c92334030c9e189baa08f9dde"><div class="ttname"><a href="aio__io_8c.html#a9a25395c92334030c9e189baa08f9dde">aconn_handle_io</a></div><div class="ttdeci">void aconn_handle_io(brix_aconn *ac, uint32_t events)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00435">aio_io.c:435</a></div></div>
 <div class="ttc" id="aaio__io_8c_html_aaad92bc8d36d71c819dab3c5eb14fdc6"><div class="ttname"><a href="aio__io_8c.html#aaad92bc8d36d71c819dab3c5eb14fdc6">aconn_handle_attn</a></div><div class="ttdeci">static void aconn_handle_attn(brix_aconn *ac, const uint8_t *body, uint32_t dlen)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00223">aio_io.c:223</a></div></div>
-<div class="ttc" id="aaio__io_8c_html_ab0a942f5ca5d43bbee0ed18bf1d430a6"><div class="ttname"><a href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a></div><div class="ttdeci">void aconn_do_read(brix_aconn *ac)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00294">aio_io.c:294</a></div></div>
+<div class="ttc" id="aaio__io_8c_html_ab0a942f5ca5d43bbee0ed18bf1d430a6"><div class="ttname"><a href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a></div><div class="ttdeci">void aconn_do_read(brix_aconn *ac)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00404">aio_io.c:404</a></div></div>
 <div class="ttc" id="aaio__io_8c_html_ab62b195fc4a9115108b370798c2cfba4"><div class="ttname"><a href="aio__io_8c.html#ab62b195fc4a9115108b370798c2cfba4">aconn_parse</a></div><div class="ttdeci">void aconn_parse(brix_aconn *ac)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00261">aio_io.c:261</a></div></div>
+<div class="ttc" id="aaio__io_8c_html_ab7aea64ed48cff7235f52a2e037ebd29"><div class="ttname"><a href="aio__io_8c.html#ab7aea64ed48cff7235f52a2e037ebd29">aconn_read_plain</a></div><div class="ttdeci">static int aconn_read_plain(brix_aconn *ac, uint8_t *dst, size_t room)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00372">aio_io.c:372</a></div></div>
 <div class="ttc" id="aaio__io_8c_html_ac60cb34dfba76ab83c192f4ffa9462a3"><div class="ttname"><a href="aio__io_8c.html#ac60cb34dfba76ab83c192f4ffa9462a3">areq_note_deferral</a></div><div class="ttdeci">static void areq_note_deferral(brix_areq *r, const uint8_t *body, uint32_t dlen)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00138">aio_io.c:138</a></div></div>
+<div class="ttc" id="aaio__io_8c_html_ad02f8ac6b8bf248b97749b1ea01fddcd"><div class="ttname"><a href="aio__io_8c.html#ad02f8ac6b8bf248b97749b1ea01fddcd">AIO_RD_CONTINUE</a></div><div class="ttdeci">#define AIO_RD_CONTINUE</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00295">aio_io.c:295</a></div></div>
 <div class="ttc" id="aaio__io_8c_html_ad20cf769a1618196b6b32746c41edb52"><div class="ttname"><a href="aio__io_8c.html#ad20cf769a1618196b6b32746c41edb52">aconn_note_rtt</a></div><div class="ttdeci">void aconn_note_rtt(brix_aconn *ac, const brix_areq *r)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00090">aio_io.c:90</a></div></div>
 <div class="ttc" id="aaio__io_8c_html_ae19f2658aa18ad2472fe1e81f5a31bf7"><div class="ttname"><a href="aio__io_8c.html#ae19f2658aa18ad2472fe1e81f5a31bf7">aconn_rto_ns</a></div><div class="ttdeci">uint64_t aconn_rto_ns(const brix_aconn *ac)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00114">aio_io.c:114</a></div></div>
 <div class="ttc" id="aaio__io_8c_html_aff964f94ce6a93fc952d687f27838889"><div class="ttname"><a href="aio__io_8c.html#aff964f94ce6a93fc952d687f27838889">aconn_dispatch_frame</a></div><div class="ttdeci">void aconn_dispatch_frame(brix_aconn *ac, uint16_t sid, uint16_t stat, const uint8_t *body, uint32_t dlen)</div><div class="ttdef"><b>Definition</b> <a href="aio__io_8c_source.html#l00246">aio_io.c:246</a></div></div>

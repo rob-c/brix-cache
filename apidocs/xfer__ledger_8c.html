@@ -123,6 +123,10 @@ Functions</h2></td></tr>
 <tr class="separator:a1a3e8c00b3a3c06c0a78106d6240b0c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2214700867f9d6e1c7362819ebd3b164" id="r_a2214700867f9d6e1c7362819ebd3b164"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xfer__ledger_8c.html#a2214700867f9d6e1c7362819ebd3b164">xfer_audit_resolve_path</a> (char *out, size_t outsz)</td></tr>
 <tr class="separator:a2214700867f9d6e1c7362819ebd3b164"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1ae818717d28e2710bc83cbbf251029d" id="r_a1ae818717d28e2710bc83cbbf251029d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xfer__ledger_8c.html#a1ae818717d28e2710bc83cbbf251029d">xfer_audit_errorlog_sibling</a> (char *out, size_t outsz)</td></tr>
+<tr class="separator:a1ae818717d28e2710bc83cbbf251029d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a62ce065cfceefaad86c66bc392e7f8b8" id="r_a62ce065cfceefaad86c66bc392e7f8b8"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xfer__ledger_8c.html#a62ce065cfceefaad86c66bc392e7f8b8">xfer_audit_try_open</a> (const char *path)</td></tr>
+<tr class="separator:a62ce065cfceefaad86c66bc392e7f8b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a84596fa23ab0d92daf604a8ab1c59580" id="r_a84596fa23ab0d92daf604a8ab1c59580"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xfer__ledger_8c.html#a84596fa23ab0d92daf604a8ab1c59580">xfer_audit_fd_get</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a84596fa23ab0d92daf604a8ab1c59580"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aba83e7c55b70035ebaf53c004d7b7e03" id="r_aba83e7c55b70035ebaf53c004d7b7e03"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xfer__ledger_8c.html#aba83e7c55b70035ebaf53c004d7b7e03">brix_xfer_ledger_record</a> (const <a class="el" href="structbrix__xfer__audit__t.html">brix_xfer_audit_t</a> *ev)</td></tr>
@@ -152,11 +156,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00038">38</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00041">41</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
 
 <p class="reference">References <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, <a class="el" href="xfer_8h_source.html#l00038">BRIX_XFER_TAPE</a>, <a class="el" href="xfer_8h_source.html#l00040">BRIX_XFER_TPC</a>, and <a class="el" href="xfer_8h_source.html#l00039">BRIX_XFER_WT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00115">brix_xfer_ledger_record()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00186">brix_xfer_ledger_record()</a>.</p>
 
 </div>
 </div>
@@ -176,9 +180,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00115">115</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00186">186</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="xfer__ledger_8c_source.html#l00038">brix_xfer_kind_str()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer__ledger_8c_source.html#l00050">brix_xfer_result_str()</a>, <a class="el" href="xfer_8h_source.html#l00147">brix_xfer_audit_t::bytes</a>, <a class="el" href="xfer_8h_source.html#l00144">brix_xfer_audit_t::direction</a>, <a class="el" href="xfer_8h_source.html#l00143">brix_xfer_audit_t::kind</a>, <a class="el" href="xfer_8h_source.html#l00150">brix_xfer_audit_t::log</a>, <a class="el" href="xfer_8h_source.html#l00145">brix_xfer_audit_t::path</a>, <a class="el" href="xfer_8h_source.html#l00146">brix_xfer_audit_t::principal</a>, <a class="el" href="xfer_8h_source.html#l00148">brix_xfer_audit_t::result</a>, <a class="el" href="xfer_8h_source.html#l00149">brix_xfer_audit_t::sys_errno</a>, and <a class="el" href="xfer__ledger_8c_source.html#l00089">xfer_audit_fd_get()</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="xfer__ledger_8c_source.html#l00041">brix_xfer_kind_str()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer__ledger_8c_source.html#l00053">brix_xfer_result_str()</a>, <a class="el" href="xfer_8h_source.html#l00147">brix_xfer_audit_t::bytes</a>, <a class="el" href="xfer_8h_source.html#l00144">brix_xfer_audit_t::direction</a>, <a class="el" href="xfer_8h_source.html#l00143">brix_xfer_audit_t::kind</a>, <a class="el" href="xfer_8h_source.html#l00150">brix_xfer_audit_t::log</a>, <a class="el" href="xfer_8h_source.html#l00145">brix_xfer_audit_t::path</a>, <a class="el" href="xfer_8h_source.html#l00146">brix_xfer_audit_t::principal</a>, <a class="el" href="xfer_8h_source.html#l00148">brix_xfer_audit_t::result</a>, <a class="el" href="xfer_8h_source.html#l00149">brix_xfer_audit_t::sys_errno</a>, and <a class="el" href="xfer__ledger_8c_source.html#l00133">xfer_audit_fd_get()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>.</p>
 
@@ -200,11 +204,53 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00050">50</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00053">53</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
 
 <p class="reference">References <a class="el" href="xfer_8h_source.html#l00067">BRIX_XFER_AGENT_FAIL</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer_8h_source.html#l00062">BRIX_XFER_DEFERRED</a>, <a class="el" href="xfer_8h_source.html#l00063">BRIX_XFER_DENIED</a>, <a class="el" href="xfer_8h_source.html#l00065">BRIX_XFER_DST_ERR</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, and <a class="el" href="xfer_8h_source.html#l00064">BRIX_XFER_SRC_ERR</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00115">brix_xfer_ledger_record()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00186">brix_xfer_ledger_record()</a>.</p>
+
+</div>
+</div>
+<a id="a1ae818717d28e2710bc83cbbf251029d" name="a1ae818717d28e2710bc83cbbf251029d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ae818717d28e2710bc83cbbf251029d">&#9670;&#160;</a></span>xfer_audit_errorlog_sibling()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xfer_audit_errorlog_sibling </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00088">88</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00133">xfer_audit_fd_get()</a>.</p>
 
 </div>
 </div>
@@ -232,11 +278,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00089">89</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00133">133</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="xfer__ledger_8c_source.html#l00067">xfer_audit_failed</a>, <a class="el" href="xfer__ledger_8c_source.html#l00066">xfer_audit_fd</a>, and <a class="el" href="xfer__ledger_8c_source.html#l00071">xfer_audit_resolve_path()</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="xfer__ledger_8c_source.html#l00088">xfer_audit_errorlog_sibling()</a>, <a class="el" href="xfer__ledger_8c_source.html#l00070">xfer_audit_failed</a>, <a class="el" href="xfer__ledger_8c_source.html#l00069">xfer_audit_fd</a>, <a class="el" href="xfer__ledger_8c_source.html#l00074">xfer_audit_resolve_path()</a>, and <a class="el" href="xfer__ledger_8c_source.html#l00123">xfer_audit_try_open()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00115">brix_xfer_ledger_record()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00186">brix_xfer_ledger_record()</a>.</p>
 
 </div>
 </div>
@@ -274,9 +320,41 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00071">71</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00074">74</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00089">xfer_audit_fd_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00133">xfer_audit_fd_get()</a>.</p>
+
+</div>
+</div>
+<a id="a62ce065cfceefaad86c66bc392e7f8b8" name="a62ce065cfceefaad86c66bc392e7f8b8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a62ce065cfceefaad86c66bc392e7f8b8">&#9670;&#160;</a></span>xfer_audit_try_open()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xfer_audit_try_open </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00123">123</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00133">xfer_audit_fd_get()</a>.</p>
 
 </div>
 </div>
@@ -301,9 +379,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00067">67</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00070">70</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00089">xfer_audit_fd_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00133">xfer_audit_fd_get()</a>.</p>
 
 </div>
 </div>
@@ -327,9 +405,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00066">66</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xfer__ledger_8c_source.html#l00069">69</a> of file <a class="el" href="xfer__ledger_8c_source.html">xfer_ledger.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00089">xfer_audit_fd_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xfer__ledger_8c_source.html#l00133">xfer_audit_fd_get()</a>.</p>
 
 </div>
 </div>

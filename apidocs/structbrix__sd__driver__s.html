@@ -104,11 +104,13 @@ Data Fields</h2></td></tr>
 <tr class="separator:acdec430b14c7a4eb5c6974bfc89de54b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af1ad5a4da10b89159dc0e72b996f4cb9" id="r_af1ad5a4da10b89159dc0e72b996f4cb9"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#af1ad5a4da10b89159dc0e72b996f4cb9">caps</a></td></tr>
 <tr class="separator:af1ad5a4da10b89159dc0e72b996f4cb9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0dd31e3f6fc8627f71585797ee7e10af" id="r_a0dd31e3f6fc8627f71585797ee7e10af"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a0dd31e3f6fc8627f71585797ee7e10af">cred_accept</a></td></tr>
+<tr class="separator:a0dd31e3f6fc8627f71585797ee7e10af"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae3b6e759e50d202b980ef241a4ce47f5" id="r_ae3b6e759e50d202b980ef241a4ce47f5"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ae3b6e759e50d202b980ef241a4ce47f5">init</a> )(brix_sd_instance_t *inst, void *driver_conf)</td></tr>
 <tr class="separator:ae3b6e759e50d202b980ef241a4ce47f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aac92ef8ce55502ebd3fc453a1d33d87b" id="r_aac92ef8ce55502ebd3fc453a1d33d87b"><td class="memItemLeft" align="right" valign="top">void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#aac92ef8ce55502ebd3fc453a1d33d87b">cleanup</a> )(brix_sd_instance_t *inst)</td></tr>
 <tr class="separator:aac92ef8ce55502ebd3fc453a1d33d87b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9dd0429b8cbe5a464358a6edf6e5129f" id="r_a9dd0429b8cbe5a464358a6edf6e5129f"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a9dd0429b8cbe5a464358a6edf6e5129f">open</a> )(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td></tr>
+<tr class="memitem:a9dd0429b8cbe5a464358a6edf6e5129f" id="r_a9dd0429b8cbe5a464358a6edf6e5129f"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a9dd0429b8cbe5a464358a6edf6e5129f">open</a> )(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</td></tr>
 <tr class="separator:a9dd0429b8cbe5a464358a6edf6e5129f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad93b9e924efb509b926d926a27925a60" id="r_ad93b9e924efb509b926d926a27925a60"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ad93b9e924efb509b926d926a27925a60">close</a> )(brix_sd_obj_t *obj)</td></tr>
 <tr class="separator:ad93b9e924efb509b926d926a27925a60"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -134,7 +136,7 @@ Data Fields</h2></td></tr>
 <tr class="separator:ad206ca885f16552d5c34d99bae93ca5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5e3c536046b649ecc2fc646cb4e1ecba" id="r_a5e3c536046b649ecc2fc646cb4e1ecba"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a5e3c536046b649ecc2fc646cb4e1ecba">unlink</a> )(brix_sd_instance_t *inst, const char *path, int is_dir)</td></tr>
 <tr class="separator:a5e3c536046b649ecc2fc646cb4e1ecba"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0fa3aae93251d360cd4047919c188b24" id="r_a0fa3aae93251d360cd4047919c188b24"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a0fa3aae93251d360cd4047919c188b24">mkdir</a> )(brix_sd_instance_t *inst, const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a0fa3aae93251d360cd4047919c188b24" id="r_a0fa3aae93251d360cd4047919c188b24"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a0fa3aae93251d360cd4047919c188b24">mkdir</a> )(brix_sd_instance_t *inst, const char *path, mode_t mode)</td></tr>
 <tr class="separator:a0fa3aae93251d360cd4047919c188b24"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab4f3f05b7f5f2bb212097d926448bb57" id="r_ab4f3f05b7f5f2bb212097d926448bb57"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ab4f3f05b7f5f2bb212097d926448bb57">rename</a> )(brix_sd_instance_t *inst, const char *src, const char *dst, int noreplace)</td></tr>
 <tr class="separator:ab4f3f05b7f5f2bb212097d926448bb57"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -156,7 +158,7 @@ Data Fields</h2></td></tr>
 <tr class="separator:af21a383869ae67d602ec4f44aeeabdc9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a91870067895a25627888256006d34102" id="r_a91870067895a25627888256006d34102"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a91870067895a25627888256006d34102">removexattr</a> )(brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="structbrix__sd__driver__s.html#acdec430b14c7a4eb5c6974bfc89de54b">name</a>)</td></tr>
 <tr class="separator:a91870067895a25627888256006d34102"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae0301e8f1ac8d78e1d69c30f191e483d" id="r_ae0301e8f1ac8d78e1d69c30f191e483d"><td class="memItemLeft" align="right" valign="top">brix_sd_staged_t *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ae0301e8f1ac8d78e1d69c30f191e483d">staged_open</a> )(brix_sd_instance_t *inst, const char *final_path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td></tr>
+<tr class="memitem:ae0301e8f1ac8d78e1d69c30f191e483d" id="r_ae0301e8f1ac8d78e1d69c30f191e483d"><td class="memItemLeft" align="right" valign="top">brix_sd_staged_t *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ae0301e8f1ac8d78e1d69c30f191e483d">staged_open</a> )(brix_sd_instance_t *inst, const char *final_path, mode_t mode, int *err_out)</td></tr>
 <tr class="separator:ae0301e8f1ac8d78e1d69c30f191e483d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa1d923d5021cc92d618ec9fc3716ca69" id="r_aa1d923d5021cc92d618ec9fc3716ca69"><td class="memItemLeft" align="right" valign="top">ssize_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#aa1d923d5021cc92d618ec9fc3716ca69">staged_write</a> )(brix_sd_staged_t *st, const void *buf, size_t len, off_t off)</td></tr>
 <tr class="separator:aa1d923d5021cc92d618ec9fc3716ca69"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -166,16 +168,42 @@ Data Fields</h2></td></tr>
 <tr class="separator:ae70fe4993b1b206945049de64cb1318b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae885c9e75457c51ae7030e5cbc4521c1" id="r_ae885c9e75457c51ae7030e5cbc4521c1"><td class="memItemLeft" align="right" valign="top">const char *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ae885c9e75457c51ae7030e5cbc4521c1">staged_path</a> )(const brix_sd_staged_t *st)</td></tr>
 <tr class="separator:ae885c9e75457c51ae7030e5cbc4521c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a73bd75044a721ce9a92be8bf86f0912a" id="r_a73bd75044a721ce9a92be8bf86f0912a"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a73bd75044a721ce9a92be8bf86f0912a">recall</a> )(brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char reqid_out[40])</td></tr>
+<tr class="memitem:a73bd75044a721ce9a92be8bf86f0912a" id="r_a73bd75044a721ce9a92be8bf86f0912a"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a73bd75044a721ce9a92be8bf86f0912a">recall</a> )(brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char reqid_out[40])</td></tr>
 <tr class="separator:a73bd75044a721ce9a92be8bf86f0912a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:add07a8ad995df03ec142448047a0daa9" id="r_add07a8ad995df03ec142448047a0daa9"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#add07a8ad995df03ec142448047a0daa9">residency</a> )(brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="sd_8h.html#adcf5163d1b44e53391d7876814133d2e">brix_sd_residency_t</a> *out)</td></tr>
+<tr class="memitem:add07a8ad995df03ec142448047a0daa9" id="r_add07a8ad995df03ec142448047a0daa9"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#add07a8ad995df03ec142448047a0daa9">residency</a> )(brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="sd_8h.html#adcf5163d1b44e53391d7876814133d2e">brix_sd_residency_t</a> *out)</td></tr>
 <tr class="separator:add07a8ad995df03ec142448047a0daa9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4be5f5d7033ec656e28a585fd2091165" id="r_a4be5f5d7033ec656e28a585fd2091165"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a4be5f5d7033ec656e28a585fd2091165">enumerate</a> )(brix_sd_instance_t *inst, int want_stat, <a class="el" href="sd_8h.html#a5647884fbc8754c827f5351a0fe2c57d">brix_sd_catalog_cb</a> cb, void *ctx)</td></tr>
 <tr class="separator:a4be5f5d7033ec656e28a585fd2091165"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae52365edaad271e4ae894df99594b14e" id="r_ae52365edaad271e4ae894df99594b14e"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ae52365edaad271e4ae894df99594b14e">open_cred</a> )(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:ae52365edaad271e4ae894df99594b14e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4903df1309d392a486cc23df8fc125a1" id="r_a4903df1309d392a486cc23df8fc125a1"><td class="memItemLeft" align="right" valign="top">brix_sd_staged_t *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a4903df1309d392a486cc23df8fc125a1">staged_open_cred</a> )(brix_sd_instance_t *inst, const char *final_path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:a4903df1309d392a486cc23df8fc125a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab41a382659ce764e5100a7557b476a73" id="r_ab41a382659ce764e5100a7557b476a73"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ab41a382659ce764e5100a7557b476a73">stat_cred</a> )(brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:ab41a382659ce764e5100a7557b476a73"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aecdd228de0a8b6f0d6f132bed7a861d0" id="r_aecdd228de0a8b6f0d6f132bed7a861d0"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#aecdd228de0a8b6f0d6f132bed7a861d0">unlink_cred</a> )(brix_sd_instance_t *inst, const char *path, int is_dir, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:aecdd228de0a8b6f0d6f132bed7a861d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a36276e42135606a9ab8d18ea7ef1e226" id="r_a36276e42135606a9ab8d18ea7ef1e226"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a36276e42135606a9ab8d18ea7ef1e226">mkdir_cred</a> )(brix_sd_instance_t *inst, const char *path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a36276e42135606a9ab8d18ea7ef1e226"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aefe61697af51268f873d6587328addd7" id="r_aefe61697af51268f873d6587328addd7"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#aefe61697af51268f873d6587328addd7">rename_cred</a> )(brix_sd_instance_t *inst, const char *src, const char *dst, int noreplace, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:aefe61697af51268f873d6587328addd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab39d90bbcfc36c85bfc4709e62a1908e" id="r_ab39d90bbcfc36c85bfc4709e62a1908e"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ab39d90bbcfc36c85bfc4709e62a1908e">setattr_cred</a> )(brix_sd_instance_t *inst, const char *path, const <a class="el" href="structbrix__sd__setattr__t.html">brix_sd_setattr_t</a> *attr, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:ab39d90bbcfc36c85bfc4709e62a1908e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3acbec3959a552298076923ad6f9a3e3" id="r_a3acbec3959a552298076923ad6f9a3e3"><td class="memItemLeft" align="right" valign="top">ssize_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a3acbec3959a552298076923ad6f9a3e3">getxattr_cred</a> )(brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="structbrix__sd__driver__s.html#acdec430b14c7a4eb5c6974bfc89de54b">name</a>, void *buf, size_t cap, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a3acbec3959a552298076923ad6f9a3e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab87da91eb6ea65d3b86d9a2397fc3256" id="r_ab87da91eb6ea65d3b86d9a2397fc3256"><td class="memItemLeft" align="right" valign="top">ssize_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ab87da91eb6ea65d3b86d9a2397fc3256">listxattr_cred</a> )(brix_sd_instance_t *inst, const char *path, void *buf, size_t cap, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:ab87da91eb6ea65d3b86d9a2397fc3256"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac03e578d16ece899f4641aad18bb8840" id="r_ac03e578d16ece899f4641aad18bb8840"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#ac03e578d16ece899f4641aad18bb8840">setxattr_cred</a> )(brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="structbrix__sd__driver__s.html#acdec430b14c7a4eb5c6974bfc89de54b">name</a>, const void *val, size_t len, int flags, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:ac03e578d16ece899f4641aad18bb8840"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53a733aa7c8faab38c3f9257370368f3" id="r_a53a733aa7c8faab38c3f9257370368f3"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a53a733aa7c8faab38c3f9257370368f3">removexattr_cred</a> )(brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="structbrix__sd__driver__s.html#acdec430b14c7a4eb5c6974bfc89de54b">name</a>, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a53a733aa7c8faab38c3f9257370368f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adab90a3778851f919ac3e31dfc988aba" id="r_adab90a3778851f919ac3e31dfc988aba"><td class="memItemLeft" align="right" valign="top">ngx_int_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#adab90a3778851f919ac3e31dfc988aba">server_copy_cred</a> )(brix_sd_instance_t *inst, const char *src, const char *dst, off_t *bytes_out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:adab90a3778851f919ac3e31dfc988aba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a16a7a984da3dfe9631353d14478824c5" id="r_a16a7a984da3dfe9631353d14478824c5"><td class="memItemLeft" align="right" valign="top">brix_sd_dir_t *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__driver__s.html#a16a7a984da3dfe9631353d14478824c5">opendir_cred</a> )(brix_sd_instance_t *inst, const char *path, int *err_out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a16a7a984da3dfe9631353d14478824c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00231">231</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00324">324</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
 <a id="af1ad5a4da10b89159dc0e72b996f4cb9" name="af1ad5a4da10b89159dc0e72b996f4cb9"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#af1ad5a4da10b89159dc0e72b996f4cb9">&#9670;&#160;</a></span>caps</h2>
@@ -189,7 +217,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00233">233</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00326">326</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -205,7 +233,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00237">237</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00331">331</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -221,7 +249,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00242">242</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00336">336</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -237,7 +265,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00287">287</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00381">381</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -253,7 +281,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00251">251</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00345">345</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="a0dd31e3f6fc8627f71585797ee7e10af" name="a0dd31e3f6fc8627f71585797ee7e10af"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0dd31e3f6fc8627f71585797ee7e10af">&#9670;&#160;</a></span>cred_accept</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint32_t brix_sd_driver_t::cred_accept</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00327">327</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -269,7 +313,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00338">338</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00432">432</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -285,7 +329,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00264">264</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00358">358</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -301,7 +345,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00263">263</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00357">357</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -317,7 +361,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00262">262</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00356">356</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -333,7 +377,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00290">290</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00384">384</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="a3acbec3959a552298076923ad6f9a3e3" name="a3acbec3959a552298076923ad6f9a3e3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3acbec3959a552298076923ad6f9a3e3">&#9670;&#160;</a></span>getxattr_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ssize_t(* brix_sd_driver_t::getxattr_cred) (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="structbrix__sd__driver__s.html#acdec430b14c7a4eb5c6974bfc89de54b">name</a>, void *buf, size_t cap, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00494">494</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -349,7 +409,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00236">236</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00330">330</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -365,7 +425,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00292">292</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00386">386</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="ab87da91eb6ea65d3b86d9a2397fc3256" name="ab87da91eb6ea65d3b86d9a2397fc3256"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab87da91eb6ea65d3b86d9a2397fc3256">&#9670;&#160;</a></span>listxattr_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ssize_t(* brix_sd_driver_t::listxattr_cred) (brix_sd_instance_t *inst, const char *path, void *buf, size_t cap, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00497">497</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -376,12 +452,28 @@ Data Fields</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">ngx_int_t(* brix_sd_driver_t::mkdir) (brix_sd_instance_t *inst, const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::mkdir) (brix_sd_instance_t *inst, const char *path, mode_t mode)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00270">270</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00364">364</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="a36276e42135606a9ab8d18ea7ef1e226" name="a36276e42135606a9ab8d18ea7ef1e226"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a36276e42135606a9ab8d18ea7ef1e226">&#9670;&#160;</a></span>mkdir_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::mkdir_cred) (brix_sd_instance_t *inst, const char *path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00485">485</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -397,7 +489,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00232">232</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00325">325</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -408,12 +500,28 @@ Data Fields</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">brix_sd_obj_t *(* brix_sd_driver_t::open) (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td>
+          <td class="memname">brix_sd_obj_t *(* brix_sd_driver_t::open) (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00240">240</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00334">334</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="ae52365edaad271e4ae894df99594b14e" name="ae52365edaad271e4ae894df99594b14e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae52365edaad271e4ae894df99594b14e">&#9670;&#160;</a></span>open_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_obj_t *(* brix_sd_driver_t::open_cred) (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00451">451</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -429,7 +537,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00284">284</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00378">378</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="a16a7a984da3dfe9631353d14478824c5" name="a16a7a984da3dfe9631353d14478824c5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a16a7a984da3dfe9631353d14478824c5">&#9670;&#160;</a></span>opendir_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_dir_t *(* brix_sd_driver_t::opendir_cred) (brix_sd_instance_t *inst, const char *path, int *err_out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00511">511</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -445,7 +569,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00245">245</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00339">339</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -461,7 +585,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00247">247</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00341">341</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -477,7 +601,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00249">249</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00343">343</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -493,7 +617,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00246">246</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00340">340</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -509,7 +633,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00260">260</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00354">354</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -525,7 +649,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00286">286</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00380">380</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -536,12 +660,12 @@ Data Fields</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">ngx_int_t(* brix_sd_driver_t::recall) (brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char reqid_out[40])</td>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::recall) (brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char reqid_out[40])</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00320">320</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00414">414</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -557,7 +681,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00296">296</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00390">390</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="a53a733aa7c8faab38c3f9257370368f3" name="a53a733aa7c8faab38c3f9257370368f3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a53a733aa7c8faab38c3f9257370368f3">&#9670;&#160;</a></span>removexattr_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::removexattr_cred) (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="structbrix__sd__driver__s.html#acdec430b14c7a4eb5c6974bfc89de54b">name</a>, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00504">504</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -573,7 +713,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00271">271</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00365">365</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="aefe61697af51268f873d6587328addd7" name="aefe61697af51268f873d6587328addd7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aefe61697af51268f873d6587328addd7">&#9670;&#160;</a></span>rename_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::rename_cred) (brix_sd_instance_t *inst, const char *src, const char *dst, int noreplace, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00488">488</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -584,12 +740,12 @@ Data Fields</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">ngx_int_t(* brix_sd_driver_t::residency) (brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="sd_8h.html#adcf5163d1b44e53391d7876814133d2e">brix_sd_residency_t</a> *out)</td>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::residency) (brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="sd_8h.html#adcf5163d1b44e53391d7876814133d2e">brix_sd_residency_t</a> *out)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00328">328</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00422">422</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -605,7 +761,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00273">273</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00367">367</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="adab90a3778851f919ac3e31dfc988aba" name="adab90a3778851f919ac3e31dfc988aba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adab90a3778851f919ac3e31dfc988aba">&#9670;&#160;</a></span>server_copy_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::server_copy_cred) (brix_sd_instance_t *inst, const char *src, const char *dst, off_t *bytes_out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00507">507</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -621,7 +793,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00280">280</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00374">374</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="ab39d90bbcfc36c85bfc4709e62a1908e" name="ab39d90bbcfc36c85bfc4709e62a1908e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab39d90bbcfc36c85bfc4709e62a1908e">&#9670;&#160;</a></span>setattr_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::setattr_cred) (brix_sd_instance_t *inst, const char *path, const <a class="el" href="structbrix__sd__setattr__t.html">brix_sd_setattr_t</a> *attr, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00491">491</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -637,7 +825,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00294">294</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00388">388</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="ac03e578d16ece899f4641aad18bb8840" name="ac03e578d16ece899f4641aad18bb8840"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac03e578d16ece899f4641aad18bb8840">&#9670;&#160;</a></span>setxattr_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::setxattr_cred) (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="structbrix__sd__driver__s.html#acdec430b14c7a4eb5c6974bfc89de54b">name</a>, const void *val, size_t len, int flags, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00500">500</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -653,7 +857,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00306">306</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00400">400</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -669,7 +873,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00305">305</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00399">399</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -680,12 +884,28 @@ Data Fields</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">brix_sd_staged_t *(* brix_sd_driver_t::staged_open) (brix_sd_instance_t *inst, const char *final_path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td>
+          <td class="memname">brix_sd_staged_t *(* brix_sd_driver_t::staged_open) (brix_sd_instance_t *inst, const char *final_path, mode_t mode, int *err_out)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00300">300</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00394">394</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="a4903df1309d392a486cc23df8fc125a1" name="a4903df1309d392a486cc23df8fc125a1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4903df1309d392a486cc23df8fc125a1">&#9670;&#160;</a></span>staged_open_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_staged_t *(* brix_sd_driver_t::staged_open_cred) (brix_sd_instance_t *inst, const char *final_path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00454">454</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -701,7 +921,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00311">311</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00405">405</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -717,7 +937,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00303">303</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00397">397</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -733,7 +953,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00267">267</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00361">361</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="ab41a382659ce764e5100a7557b476a73" name="ab41a382659ce764e5100a7557b476a73"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab41a382659ce764e5100a7557b476a73">&#9670;&#160;</a></span>stat_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::stat_cred) (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00479">479</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -749,7 +985,23 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00269">269</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00363">363</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="aecdd228de0a8b6f0d6f132bed7a861d0" name="aecdd228de0a8b6f0d6f132bed7a861d0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aecdd228de0a8b6f0d6f132bed7a861d0">&#9670;&#160;</a></span>unlink_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t(* brix_sd_driver_t::unlink_cred) (brix_sd_instance_t *inst, const char *path, int is_dir, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00482">482</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>

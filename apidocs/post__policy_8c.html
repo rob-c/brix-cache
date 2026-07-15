@@ -91,7 +91,9 @@ $(document).ready(function(){initNavTree('post__policy_8c.html',''); initResizab
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a>  </div>
+<a href="#nested-classes">Data Structures</a> &#124;
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">post_policy.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -106,6 +108,13 @@ $(document).ready(function(){initNavTree('post__policy_8c.html',''); initResizab
 </div>
 <p><a href="post__policy_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__post__op__desc__t.html">s3_post_op_desc_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__post__scope__t.html">s3_post_scope_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ac2b6eb885eae5cf3c9b96a2044db7e19" id="r_ac2b6eb885eae5cf3c9b96a2044db7e19"><td class="memItemLeft" align="right" valign="top">int64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#ac2b6eb885eae5cf3c9b96a2044db7e19">s3_post_days_from_civil</a> (int y, unsigned m, unsigned d)</td></tr>
@@ -114,14 +123,37 @@ Functions</h2></td></tr>
 <tr class="separator:a8485c92aa026d10d48d7e8eb1d7cdb20"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7e078c097ea22cfbef5f48d851c62a04" id="r_a7e078c097ea22cfbef5f48d851c62a04"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a7e078c097ea22cfbef5f48d851c62a04">s3_post_check_field_eq</a> (const char *actual, const char *expected)</td></tr>
 <tr class="separator:a7e078c097ea22cfbef5f48d851c62a04"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2da06825f7ef8f9832b91c92d817c3c3" id="r_a2da06825f7ef8f9832b91c92d817c3c3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a2da06825f7ef8f9832b91c92d817c3c3">s3_post_cond_object</a> (<a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, json_t *cond)</td></tr>
+<tr class="separator:a2da06825f7ef8f9832b91c92d817c3c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab19e9872bb12293337ba447d953e70db" id="r_ab19e9872bb12293337ba447d953e70db"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#ab19e9872bb12293337ba447d953e70db">s3_post_cond_length_range</a> (const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, json_t *cond)</td></tr>
+<tr class="separator:ab19e9872bb12293337ba447d953e70db"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a271d295f26b133e5ff661f2169e89deb" id="r_a271d295f26b133e5ff661f2169e89deb"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a271d295f26b133e5ff661f2169e89deb">s3_post_cond_string_op</a> (const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, json_t *cond, const char *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>)</td></tr>
+<tr class="separator:a271d295f26b133e5ff661f2169e89deb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afef19492e4fa63ff95ca9b063d749231" id="r_afef19492e4fa63ff95ca9b063d749231"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#afef19492e4fa63ff95ca9b063d749231">s3_post_cond_length_range_adapter</a> (const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, json_t *cond, const char *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>)</td></tr>
+<tr class="separator:afef19492e4fa63ff95ca9b063d749231"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aae792b01f942a26b4b20208419ca8c0e" id="r_aae792b01f942a26b4b20208419ca8c0e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#aae792b01f942a26b4b20208419ca8c0e">s3_post_cond_array</a> (const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, json_t *cond)</td></tr>
+<tr class="separator:aae792b01f942a26b4b20208419ca8c0e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a917a364dc32555e1a14906a28a9da212" id="r_a917a364dc32555e1a14906a28a9da212"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a917a364dc32555e1a14906a28a9da212">s3_post_policy_condition</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, json_t *cond)</td></tr>
 <tr class="separator:a917a364dc32555e1a14906a28a9da212"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adf5299c866956f2c14e165b4868bf56b" id="r_adf5299c866956f2c14e165b4868bf56b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#adf5299c866956f2c14e165b4868bf56b">s3_post_validate_policy_json</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, u_char *policy_json, size_t policy_len)</td></tr>
 <tr class="separator:adf5299c866956f2c14e165b4868bf56b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad9f45a7df82e99caf19b9842d171d034" id="r_ad9f45a7df82e99caf19b9842d171d034"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#ad9f45a7df82e99caf19b9842d171d034">s3_post_parse_credential</a> (const char *credential, char *<a class="el" href="auth__sigv4__verify_8c.html#a20d8c6b5428110e36cdf8d8c847d6dc9">date</a>, size_t date_sz, char *<a class="el" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, size_t region_sz, const char **akid)</td></tr>
+<tr class="memitem:ad9f45a7df82e99caf19b9842d171d034" id="r_ad9f45a7df82e99caf19b9842d171d034"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#ad9f45a7df82e99caf19b9842d171d034">s3_post_parse_credential</a> (const char *credential, char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a20d8c6b5428110e36cdf8d8c847d6dc9">date</a>, size_t date_sz, char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, size_t region_sz, const char **akid)</td></tr>
 <tr class="separator:ad9f45a7df82e99caf19b9842d171d034"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1c2828712d3006262e342fb2be5cbd9f" id="r_a1c2828712d3006262e342fb2be5cbd9f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a1c2828712d3006262e342fb2be5cbd9f">s3_post_verify_fields</a> (ngx_http_request_t *r, const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, <a class="el" href="structs3__post__scope__t.html">s3_post_scope_t</a> *sc)</td></tr>
+<tr class="separator:a1c2828712d3006262e342fb2be5cbd9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a667acf461e81989708fe93018f3ebd67" id="r_a667acf461e81989708fe93018f3ebd67"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a667acf461e81989708fe93018f3ebd67">s3_post_verify_scope</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, <a class="el" href="structs3__post__scope__t.html">s3_post_scope_t</a> *sc)</td></tr>
+<tr class="separator:a667acf461e81989708fe93018f3ebd67"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a58bef2a7c353576d21da2c27ac6ef8ce" id="r_a58bef2a7c353576d21da2c27ac6ef8ce"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a58bef2a7c353576d21da2c27ac6ef8ce">s3_post_verify_signature</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, <a class="el" href="structs3__post__scope__t.html">s3_post_scope_t</a> *sc)</td></tr>
+<tr class="separator:a58bef2a7c353576d21da2c27ac6ef8ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af14ad7b87c1d6e78b92ac9c2c23897c1" id="r_af14ad7b87c1d6e78b92ac9c2c23897c1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#af14ad7b87c1d6e78b92ac9c2c23897c1">s3_post_enforce_policy</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form)</td></tr>
+<tr class="separator:af14ad7b87c1d6e78b92ac9c2c23897c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a49eae05424f4f2b314adb284438380be" id="r_a49eae05424f4f2b314adb284438380be"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a49eae05424f4f2b314adb284438380be">s3_post_verify_policy</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form)</td></tr>
 <tr class="separator:a49eae05424f4f2b314adb284438380be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a31129466d0a9397a1ae27807dda503b0" id="r_a31129466d0a9397a1ae27807dda503b0"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structs3__post__op__desc__t.html">s3_post_op_desc_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__policy_8c.html#a31129466d0a9397a1ae27807dda503b0">s3_post_ops</a> []</td></tr>
+<tr class="separator:a31129466d0a9397a1ae27807dda503b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a7e078c097ea22cfbef5f48d851c62a04" name="a7e078c097ea22cfbef5f48d851c62a04"></a>
@@ -152,7 +184,231 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00076">76</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00100">s3_post_policy_condition()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00096">s3_post_cond_object()</a>.</p>
+
+</div>
+</div>
+<a id="aae792b01f942a26b4b20208419ca8c0e" name="aae792b01f942a26b4b20208419ca8c0e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aae792b01f942a26b4b20208419ca8c0e">&#9670;&#160;</a></span>s3_post_cond_array()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_cond_array </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>cond</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00256">256</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="post__policy_8c_source.html#l00215">s3_post_op_desc_t::eval</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="post__policy_8c_source.html#l00240">s3_post_ops</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00291">s3_post_policy_condition()</a>.</p>
+
+</div>
+</div>
+<a id="ab19e9872bb12293337ba447d953e70db" name="ab19e9872bb12293337ba447d953e70db"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab19e9872bb12293337ba447d953e70db">&#9670;&#160;</a></span>s3_post_cond_length_range()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_cond_length_range </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>cond</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00142">142</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00227">s3_post_cond_length_range_adapter()</a>.</p>
+
+</div>
+</div>
+<a id="afef19492e4fa63ff95ca9b063d749231" name="afef19492e4fa63ff95ca9b063d749231"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afef19492e4fa63ff95ca9b063d749231">&#9670;&#160;</a></span>s3_post_cond_length_range_adapter()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_cond_length_range_adapter </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>cond</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>op</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00227">227</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="post__policy_8c_source.html#l00142">s3_post_cond_length_range()</a>.</p>
+
+</div>
+</div>
+<a id="a2da06825f7ef8f9832b91c92d817c3c3" name="a2da06825f7ef8f9832b91c92d817c3c3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2da06825f7ef8f9832b91c92d817c3c3">&#9670;&#160;</a></span>s3_post_cond_object()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_cond_object </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>cond</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00096">96</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="post__policy_8c_source.html#l00076">s3_post_check_field_eq()</a>, and <a class="el" href="post__form_8c_source.html#l00018">s3_post_field_value()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00291">s3_post_policy_condition()</a>.</p>
+
+</div>
+</div>
+<a id="a271d295f26b133e5ff661f2169e89deb" name="a271d295f26b133e5ff661f2169e89deb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a271d295f26b133e5ff661f2169e89deb">&#9670;&#160;</a></span>s3_post_cond_string_op()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_cond_string_op </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>cond</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>op</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00176">176</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="post__form_8c_source.html#l00018">s3_post_field_value()</a>.</p>
 
 </div>
 </div>
@@ -191,6 +447,54 @@ Functions</h2></td></tr>
 <p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00022">22</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00048">s3_post_parse_iso8601()</a>.</p>
+
+</div>
+</div>
+<a id="af14ad7b87c1d6e78b92ac9c2c23897c1" name="af14ad7b87c1d6e78b92ac9c2c23897c1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af14ad7b87c1d6e78b92ac9c2c23897c1">&#9670;&#160;</a></span>s3_post_enforce_policy()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_enforce_policy </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00583">583</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00042">s3_post_form_t::policy</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, and <a class="el" href="post__policy_8c_source.html#l00324">s3_post_validate_policy_json()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00634">s3_post_verify_policy()</a>.</p>
 
 </div>
 </div>
@@ -244,11 +548,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00275">275</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00390">390</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00239">date</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00049">date</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00339">s3_post_verify_policy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00460">s3_post_verify_fields()</a>.</p>
 
 </div>
 </div>
@@ -282,7 +586,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="post__policy_8c_source.html#l00022">s3_post_days_from_civil()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00209">s3_post_validate_policy_json()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00324">s3_post_validate_policy_json()</a>.</p>
 
 </div>
 </div>
@@ -324,11 +628,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00100">100</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00291">291</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="post__policy_8c_source.html#l00076">s3_post_check_field_eq()</a>, and <a class="el" href="post__form_8c_source.html#l00018">s3_post_field_value()</a>.</p>
+<p class="reference">References <a class="el" href="post__policy_8c_source.html#l00256">s3_post_cond_array()</a>, and <a class="el" href="post__policy_8c_source.html#l00096">s3_post_cond_object()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00209">s3_post_validate_policy_json()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00324">s3_post_validate_policy_json()</a>.</p>
 
 </div>
 </div>
@@ -376,11 +680,59 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00209">209</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00324">324</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="post__policy_8c_source.html#l00048">s3_post_parse_iso8601()</a>, and <a class="el" href="post__policy_8c_source.html#l00100">s3_post_policy_condition()</a>.</p>
+<p class="reference">References <a class="el" href="post__policy_8c_source.html#l00048">s3_post_parse_iso8601()</a>, and <a class="el" href="post__policy_8c_source.html#l00291">s3_post_policy_condition()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00339">s3_post_verify_policy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00583">s3_post_enforce_policy()</a>.</p>
+
+</div>
+</div>
+<a id="a1c2828712d3006262e342fb2be5cbd9f" name="a1c2828712d3006262e342fb2be5cbd9f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1c2828712d3006262e342fb2be5cbd9f">&#9670;&#160;</a></span>s3_post_verify_fields()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_verify_fields </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structs3__post__scope__t.html">s3_post_scope_t</a> *&#160;</td>
+          <td class="paramname"><em>sc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00460">460</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="post__policy_8c_source.html#l00443">s3_post_scope_t::akid</a>, <a class="el" href="s3__post__internal_8h_source.html#l00043">s3_post_form_t::algorithm</a>, <a class="el" href="s3__post__internal_8h_source.html#l00045">s3_post_form_t::amz_date</a>, <a class="el" href="s3__post__internal_8h_source.html#l00044">s3_post_form_t::credential</a>, <a class="el" href="post__policy_8c_source.html#l00441">s3_post_scope_t::date</a>, <a class="el" href="s3__post__internal_8h_source.html#l00042">s3_post_form_t::policy</a>, <a class="el" href="post__policy_8c_source.html#l00442">s3_post_scope_t::region</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, <a class="el" href="post__policy_8c_source.html#l00390">s3_post_parse_credential()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00046">s3_post_form_t::signature</a>, and <a class="el" href="post__policy_8c_source.html#l00444">s3_post_scope_t::status</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00634">s3_post_verify_policy()</a>.</p>
 
 </div>
 </div>
@@ -416,11 +768,153 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00339">339</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00634">634</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="s3__post__internal_8h_source.html#l00043">s3_post_form_t::algorithm</a>, <a class="el" href="s3__post__internal_8h_source.html#l00045">s3_post_form_t::amz_date</a>, <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00044">s3_post_form_t::credential</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00239">date</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00042">s3_post_form_t::policy</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>, <a class="el" href="s3_8h_source.html#l00077">ngx_http_s3_loc_conf_t::region</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, <a class="el" href="post__policy_8c_source.html#l00275">s3_post_parse_credential()</a>, <a class="el" href="post__policy_8c_source.html#l00209">s3_post_validate_policy_json()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00245">s3_sigv4_derive_signing_key_cached()</a>, <a class="el" href="s3_8h_source.html#l00076">ngx_http_s3_loc_conf_t::secret_key</a>, and <a class="el" href="s3__post__internal_8h_source.html#l00046">s3_post_form_t::signature</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="post__policy_8c_source.html#l00583">s3_post_enforce_policy()</a>, <a class="el" href="post__policy_8c_source.html#l00460">s3_post_verify_fields()</a>, <a class="el" href="post__policy_8c_source.html#l00500">s3_post_verify_scope()</a>, <a class="el" href="post__policy_8c_source.html#l00544">s3_post_verify_signature()</a>, and <a class="el" href="post__policy_8c_source.html#l00444">s3_post_scope_t::status</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>.</p>
+
+</div>
+</div>
+<a id="a667acf461e81989708fe93018f3ebd67" name="a667acf461e81989708fe93018f3ebd67"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a667acf461e81989708fe93018f3ebd67">&#9670;&#160;</a></span>s3_post_verify_scope()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_verify_scope </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structs3__post__scope__t.html">s3_post_scope_t</a> *&#160;</td>
+          <td class="paramname"><em>sc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00500">500</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="post__policy_8c_source.html#l00443">s3_post_scope_t::akid</a>, <a class="el" href="s3__post__internal_8h_source.html#l00045">s3_post_form_t::amz_date</a>, <a class="el" href="s3__post__internal_8h_source.html#l00044">s3_post_form_t::credential</a>, <a class="el" href="post__policy_8c_source.html#l00441">s3_post_scope_t::date</a>, <a class="el" href="post__policy_8c_source.html#l00442">s3_post_scope_t::region</a>, <a class="el" href="s3_8h_source.html#l00077">ngx_http_s3_loc_conf_t::region</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, and <a class="el" href="post__policy_8c_source.html#l00444">s3_post_scope_t::status</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00634">s3_post_verify_policy()</a>.</p>
+
+</div>
+</div>
+<a id="a58bef2a7c353576d21da2c27ac6ef8ce" name="a58bef2a7c353576d21da2c27ac6ef8ce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a58bef2a7c353576d21da2c27ac6ef8ce">&#9670;&#160;</a></span>s3_post_verify_signature()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_post_verify_signature </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
+          <td class="paramname"><em>form</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structs3__post__scope__t.html">s3_post_scope_t</a> *&#160;</td>
+          <td class="paramname"><em>sc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00544">544</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="post__policy_8c_source.html#l00441">s3_post_scope_t::date</a>, <a class="el" href="s3__post__internal_8h_source.html#l00042">s3_post_form_t::policy</a>, <a class="el" href="post__policy_8c_source.html#l00442">s3_post_scope_t::region</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00068">s3_sigv4_derive_signing_key_cached()</a>, <a class="el" href="s3_8h_source.html#l00076">ngx_http_s3_loc_conf_t::secret_key</a>, <a class="el" href="s3__post__internal_8h_source.html#l00046">s3_post_form_t::signature</a>, and <a class="el" href="post__policy_8c_source.html#l00444">s3_post_scope_t::status</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00634">s3_post_verify_policy()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a31129466d0a9397a1ae27807dda503b0" name="a31129466d0a9397a1ae27807dda503b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a31129466d0a9397a1ae27807dda503b0">&#9670;&#160;</a></span>s3_post_ops</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structs3__post__op__desc__t.html">s3_post_op_desc_t</a> s3_post_ops[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { <span class="stringliteral">&quot;eq&quot;</span>,                   <a class="code hl_function" href="post__policy_8c.html#a271d295f26b133e5ff661f2169e89deb">s3_post_cond_string_op</a> },</div>
+<div class="line">    { <span class="stringliteral">&quot;starts-with&quot;</span>,          <a class="code hl_function" href="post__policy_8c.html#a271d295f26b133e5ff661f2169e89deb">s3_post_cond_string_op</a> },</div>
+<div class="line">    { <span class="stringliteral">&quot;content-length-range&quot;</span>, <a class="code hl_function" href="post__policy_8c.html#afef19492e4fa63ff95ca9b063d749231">s3_post_cond_length_range_adapter</a> },</div>
+<div class="line">}</div>
+<div class="ttc" id="apost__policy_8c_html_a271d295f26b133e5ff661f2169e89deb"><div class="ttname"><a href="post__policy_8c.html#a271d295f26b133e5ff661f2169e89deb">s3_post_cond_string_op</a></div><div class="ttdeci">static ngx_int_t s3_post_cond_string_op(const s3_post_form_t *form, json_t *cond, const char *op)</div><div class="ttdef"><b>Definition</b> <a href="post__policy_8c_source.html#l00176">post_policy.c:176</a></div></div>
+<div class="ttc" id="apost__policy_8c_html_afef19492e4fa63ff95ca9b063d749231"><div class="ttname"><a href="post__policy_8c.html#afef19492e4fa63ff95ca9b063d749231">s3_post_cond_length_range_adapter</a></div><div class="ttdeci">static ngx_int_t s3_post_cond_length_range_adapter(const s3_post_form_t *form, json_t *cond, const char *op)</div><div class="ttdef"><b>Definition</b> <a href="post__policy_8c_source.html#l00227">post_policy.c:227</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00240">240</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00256">s3_post_cond_array()</a>.</p>
 
 </div>
 </div>

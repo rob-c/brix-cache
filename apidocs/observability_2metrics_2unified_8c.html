@@ -97,16 +97,15 @@ $(document).ready(function(){initNavTree('observability_2metrics_2unified_8c.htm
   <div class="headertitle"><div class="title">unified.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><code>#include &quot;<a class="el" href="metrics__internal_8h_source.html">metrics_internal.h</a>&quot;</code><br />
+<div class="textblock"><code>#include &quot;<a class="el" href="observability_2metrics_2unified__internal_8h_source.html">unified_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="identity_8h_source.html">core/types/identity.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
-<code>#include &lt;string.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for unified.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="observability_2metrics_2unified_8c__incl.svg" width="100%" height="558"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="observability_2metrics_2unified_8c__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="observability_2metrics_2unified_8c_source.html">Go to the source code of this file.</a></p>
@@ -120,7 +119,7 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a6a5fcda37fc39e548f1335c7ab0cf92b" id="r_a6a5fcda37fc39e548f1335c7ab0cf92b"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a6a5fcda37fc39e548f1335c7ab0cf92b">brix_metric_proto_name</a> (<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a> proto)</td></tr>
 <tr class="separator:a6a5fcda37fc39e548f1335c7ab0cf92b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a17e36eed6cc51d8cc81604970f521348" id="r_a17e36eed6cc51d8cc81604970f521348"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a17e36eed6cc51d8cc81604970f521348">brix_metric_op_name</a> (<a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a> op)</td></tr>
+<tr class="memitem:a17e36eed6cc51d8cc81604970f521348" id="r_a17e36eed6cc51d8cc81604970f521348"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a17e36eed6cc51d8cc81604970f521348">brix_metric_op_name</a> (<a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a> <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>)</td></tr>
 <tr class="separator:a17e36eed6cc51d8cc81604970f521348"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae53bfad6eceef6709221dedf49c9e4ab" id="r_ae53bfad6eceef6709221dedf49c9e4ab"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#ae53bfad6eceef6709221dedf49c9e4ab">brix_metric_err_name</a> (<a class="el" href="observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17">brix_err_class_t</a> err)</td></tr>
 <tr class="separator:ae53bfad6eceef6709221dedf49c9e4ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -132,40 +131,6 @@ Functions</h2></td></tr>
 <tr class="separator:af92c5f1cf2d3db02930facbfa93d624b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2a8751ffa2aba79928e7d633d9e793e5" id="r_a2a8751ffa2aba79928e7d633d9e793e5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17">brix_err_class_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a2a8751ffa2aba79928e7d633d9e793e5">brix_metric_err_from_http_status</a> (ngx_uint_t status)</td></tr>
 <tr class="separator:a2a8751ffa2aba79928e7d633d9e793e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2331586d7bb20ca8fb9ed84eaf9b57e4" id="r_a2331586d7bb20ca8fb9ed84eaf9b57e4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a2331586d7bb20ca8fb9ed84eaf9b57e4">brix_metric_op_done</a> (<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a> proto, <a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a> op, size_t bytes, ngx_msec_t latency_usec, <a class="el" href="observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17">brix_err_class_t</a> err)</td></tr>
-<tr class="separator:a2331586d7bb20ca8fb9ed84eaf9b57e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5202c8f040a526ad3188013923205d33" id="r_a5202c8f040a526ad3188013923205d33"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a5202c8f040a526ad3188013923205d33">brix_metric_backend_bytes</a> (const char *backend_name, <a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a> op, size_t bytes)</td></tr>
-<tr class="separator:a5202c8f040a526ad3188013923205d33"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acb4e1ba1b10060c44da46f5b09b96c84" id="r_acb4e1ba1b10060c44da46f5b09b96c84"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#acb4e1ba1b10060c44da46f5b09b96c84">brix_metric_cache_result</a> (<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a> proto, unsigned int hit, size_t bytes_evicted)</td></tr>
-<tr class="separator:acb4e1ba1b10060c44da46f5b09b96c84"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7ba5f7bf58d3e54a658dab9039df61aa" id="r_a7ba5f7bf58d3e54a658dab9039df61aa"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a7ba5f7bf58d3e54a658dab9039df61aa">brix_metric_cache_usage_ratio</a> (ngx_uint_t occupancy_ppm)</td></tr>
-<tr class="separator:a7ba5f7bf58d3e54a658dab9039df61aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2c958a1e045e0466d83a2b9eebcbf7d0" id="r_a2c958a1e045e0466d83a2b9eebcbf7d0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a2c958a1e045e0466d83a2b9eebcbf7d0">brix_metric_cache_watermark_purge</a> (ngx_uint_t files, uint64_t bytes)</td></tr>
-<tr class="separator:a2c958a1e045e0466d83a2b9eebcbf7d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a93d7848ce732602359b19a650570088e" id="r_a93d7848ce732602359b19a650570088e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a93d7848ce732602359b19a650570088e">brix_metric_wt_stage_usage_ratio</a> (ngx_uint_t occupancy_ppm)</td></tr>
-<tr class="separator:a93d7848ce732602359b19a650570088e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae5ea6995ecd2c6e27bd6317de3d997e2" id="r_ae5ea6995ecd2c6e27bd6317de3d997e2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#ae5ea6995ecd2c6e27bd6317de3d997e2">brix_metric_wt_stage_throttled</a> (int reject)</td></tr>
-<tr class="separator:ae5ea6995ecd2c6e27bd6317de3d997e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3d9359ef1130b67941efd830623f0d4f" id="r_a3d9359ef1130b67941efd830623f0d4f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a3d9359ef1130b67941efd830623f0d4f">brix_metric_auth</a> (<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a> proto, ngx_uint_t auth_method, unsigned int success)</td></tr>
-<tr class="separator:a3d9359ef1130b67941efd830623f0d4f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9451314784065bd3f2b8d9bc8ce821bf" id="r_a9451314784065bd3f2b8d9bc8ce821bf"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a9451314784065bd3f2b8d9bc8ce821bf">brix_metric_tpc</a> (<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a> proto, unsigned int is_push, size_t bytes, <a class="el" href="observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17">brix_err_class_t</a> err)</td></tr>
-<tr class="separator:a9451314784065bd3f2b8d9bc8ce821bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a07433f346584c767fc40483f874fcde4" id="r_a07433f346584c767fc40483f874fcde4"><td class="memItemLeft" align="right" valign="top">static unsigned long long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a07433f346584c767fc40483f874fcde4">brix_metric_value</a> (ngx_atomic_t *counter)</td></tr>
-<tr class="separator:a07433f346584c767fc40483f874fcde4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a867e4417340eaf0cc8d437b3fadc340c" id="r_a867e4417340eaf0cc8d437b3fadc340c"><td class="memItemLeft" align="right" valign="top">static unsigned long long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a867e4417340eaf0cc8d437b3fadc340c">brix_unified_legacy_stream_bytes</a> (<a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm, unsigned int is_write)</td></tr>
-<tr class="separator:a867e4417340eaf0cc8d437b3fadc340c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4d84a88e7cd3ea50fac97c83f42fd390" id="r_a4d84a88e7cd3ea50fac97c83f42fd390"><td class="memItemLeft" align="right" valign="top">static unsigned long long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a4d84a88e7cd3ea50fac97c83f42fd390">brix_unified_legacy_stream_op_slot</a> (<a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm, ngx_uint_t slot, unsigned int ok)</td></tr>
-<tr class="separator:a4d84a88e7cd3ea50fac97c83f42fd390"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab0d3d096a883abb0e970447245c85c60" id="r_ab0d3d096a883abb0e970447245c85c60"><td class="memItemLeft" align="right" valign="top">static unsigned long long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#ab0d3d096a883abb0e970447245c85c60">brix_unified_legacy_stream_op</a> (<a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm, <a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a> op, unsigned int ok)</td></tr>
-<tr class="separator:ab0d3d096a883abb0e970447245c85c60"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5c719eab986b22fa29c24a4f2e9c0b74" id="r_a5c719eab986b22fa29c24a4f2e9c0b74"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a5c719eab986b22fa29c24a4f2e9c0b74">brix_unified_srv_auth_slot</a> (const char *auth)</td></tr>
-<tr class="separator:a5c719eab986b22fa29c24a4f2e9c0b74"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4b1098f9841808f985dd5e723022b257" id="r_a4b1098f9841808f985dd5e723022b257"><td class="memItemLeft" align="right" valign="top">static unsigned long long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a4b1098f9841808f985dd5e723022b257">brix_unified_legacy_stream_auth</a> (<a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm, ngx_uint_t method, ngx_uint_t status)</td></tr>
-<tr class="separator:a4b1098f9841808f985dd5e723022b257"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7b969a4b49bde6f8eee5a57003034aaa" id="r_a7b969a4b49bde6f8eee5a57003034aaa"><td class="memItemLeft" align="right" valign="top">static unsigned long long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a7b969a4b49bde6f8eee5a57003034aaa">brix_unified_legacy_auth</a> (<a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm, <a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a> proto, ngx_uint_t method, ngx_uint_t status)</td></tr>
-<tr class="separator:a7b969a4b49bde6f8eee5a57003034aaa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad71410897c0bac9cbe4e2ac825cf3fd3" id="r_ad71410897c0bac9cbe4e2ac825cf3fd3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#ad71410897c0bac9cbe4e2ac825cf3fd3">brix_export_unified_metrics</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
-<tr class="separator:ad71410897c0bac9cbe4e2ac825cf3fd3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -175,11 +140,11 @@ Variables</h2></td></tr>
 <tr class="separator:a74ee79e8b9c6b80840883a4e04f21f63"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad305d93446875c03b87e2816b9f97ac5" id="r_ad305d93446875c03b87e2816b9f97ac5"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#ad305d93446875c03b87e2816b9f97ac5">brix_unified_err_names</a> [<a class="el" href="observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17a524d53b6b563faf72e8bd5a8ae95c056">BRIX_ERR_COUNT</a>]</td></tr>
 <tr class="separator:ad305d93446875c03b87e2816b9f97ac5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0886f6cb876cd1145494dbffac659bcc" id="r_a0886f6cb876cd1145494dbffac659bcc"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a0886f6cb876cd1145494dbffac659bcc">brix_unified_auth_names</a> [9]</td></tr>
+<tr class="memitem:a0886f6cb876cd1145494dbffac659bcc" id="r_a0886f6cb876cd1145494dbffac659bcc"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a0886f6cb876cd1145494dbffac659bcc">brix_unified_auth_names</a> [9]</td></tr>
 <tr class="separator:a0886f6cb876cd1145494dbffac659bcc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aec0991ca811840b00259d069a0f24812" id="r_aec0991ca811840b00259d069a0f24812"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#aec0991ca811840b00259d069a0f24812">brix_unified_tpc_direction_names</a> [2]</td></tr>
+<tr class="memitem:aec0991ca811840b00259d069a0f24812" id="r_aec0991ca811840b00259d069a0f24812"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#aec0991ca811840b00259d069a0f24812">brix_unified_tpc_direction_names</a> [2]</td></tr>
 <tr class="separator:aec0991ca811840b00259d069a0f24812"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5f6293fb79bcfcd807586617098b556e" id="r_a5f6293fb79bcfcd807586617098b556e"><td class="memItemLeft" align="right" valign="top">static const ngx_msec_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a5f6293fb79bcfcd807586617098b556e">brix_latency_bounds</a> [9 - 1]</td></tr>
+<tr class="memitem:a5f6293fb79bcfcd807586617098b556e" id="r_a5f6293fb79bcfcd807586617098b556e"><td class="memItemLeft" align="right" valign="top">const ngx_msec_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2metrics_2unified_8c.html#a5f6293fb79bcfcd807586617098b556e">brix_latency_bounds</a> [9 - 1]</td></tr>
 <tr class="separator:a5f6293fb79bcfcd807586617098b556e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -224,80 +189,6 @@ Variables</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ad71410897c0bac9cbe4e2ac825cf3fd3" name="ad71410897c0bac9cbe4e2ac825cf3fd3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad71410897c0bac9cbe4e2ac825cf3fd3">&#9670;&#160;</a></span>brix_export_unified_metrics()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_export_unified_metrics </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *&#160;</td>
-          <td class="paramname"><em>mw</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
-          <td class="paramname"><em>shm</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">604</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00351">ngx_brix_unified_metrics_t::auth_total</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00059">BRIX_ERR_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00054">BRIX_ERR_NONE</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00058">BRIX_ERR_OTHER</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00082">BRIX_IO_LATENCY_BUCKETS</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00082">brix_latency_bounds</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00071">BRIX_METRIC_AUTH_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00074">BRIX_METRIC_AUTH_OK</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00075">BRIX_METRIC_AUTH_STATUS_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00108">brix_metric_err_name()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00050">BRIX_METRIC_OP_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00101">brix_metric_op_name()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00094">brix_metric_proto_name()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00079">BRIX_METRIC_TPC_DIRECTION_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00447">brix_metric_value()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00063">brix_unified_auth_names</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00584">brix_unified_legacy_auth()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00461">brix_unified_legacy_stream_bytes()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00508">brix_unified_legacy_stream_op()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00076">brix_unified_tpc_direction_names</a>, <a class="el" href="metrics__s3_8h_source.html#l00076">ngx_brix_s3_metrics_t::bytes_rx_total</a>, <a class="el" href="metrics__webdav_8h_source.html#l00092">ngx_brix_webdav_metrics_t::bytes_rx_total</a>, <a class="el" href="metrics__s3_8h_source.html#l00077">ngx_brix_s3_metrics_t::bytes_tx_total</a>, <a class="el" href="metrics__webdav_8h_source.html#l00093">ngx_brix_webdav_metrics_t::bytes_tx_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00333">ngx_brix_unified_metrics_t::cache_bytes_evicted</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00331">ngx_brix_unified_metrics_t::cache_hits</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00332">ngx_brix_unified_metrics_t::cache_misses</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00338">ngx_brix_unified_metrics_t::cache_usage_ratio_ppm</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00341">ngx_brix_unified_metrics_t::cache_watermark_evicted_bytes</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00340">ngx_brix_unified_metrics_t::cache_watermark_evicted_files</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00339">ngx_brix_unified_metrics_t::cache_watermark_purges</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00308">ngx_brix_unified_metrics_t::io_bytes_read</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00309">ngx_brix_unified_metrics_t::io_bytes_written</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00325">ngx_brix_unified_metrics_t::io_latency_bucket</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00327">ngx_brix_unified_metrics_t::io_latency_count</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00329">ngx_brix_unified_metrics_t::io_latency_sum_usec</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00322">ngx_brix_unified_metrics_t::io_ops_total</a>, <a class="el" href="writer_8c_source.html#l00105">mw_printf()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00368">ngx_brix_metrics_t::s3</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00357">ngx_brix_unified_metrics_t::tpc_bytes</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00355">ngx_brix_unified_metrics_t::tpc_transfers</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00367">ngx_brix_metrics_t::webdav</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00347">ngx_brix_unified_metrics_t::wt_stage_throttled_reject</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00346">ngx_brix_unified_metrics_t::wt_stage_throttled_wait</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00345">ngx_brix_unified_metrics_t::wt_stage_usage_ratio_ppm</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="stream_8c_source.html#l00075">brix_export_prometheus_metrics()</a>.</p>
-
-</div>
-</div>
-<a id="a3d9359ef1130b67941efd830623f0d4f" name="a3d9359ef1130b67941efd830623f0d4f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3d9359ef1130b67941efd830623f0d4f">&#9670;&#160;</a></span>brix_metric_auth()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_auth </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a>&#160;</td>
-          <td class="paramname"><em>proto</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>auth_method</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned int&#160;</td>
-          <td class="paramname"><em>success</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00396">396</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00351">ngx_brix_unified_metrics_t::auth_total</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00073">BRIX_METRIC_AUTH_FAIL</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00074">BRIX_METRIC_AUTH_OK</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00119">brix_metric_auth_slot()</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00084">brix_handle_host_auth()</a>, <a class="el" href="src_2auth_2krb5_2auth_8c_source.html#l00165">brix_handle_krb5_auth()</a>, <a class="el" href="src_2auth_2pwd_2auth_8c_source.html#l00263">brix_handle_pwd_auth()</a>, <a class="el" href="src_2auth_2unix_2auth_8c_source.html#l00157">brix_handle_unix_auth()</a>, <a class="el" href="protocols_2webdav_2access_8c_source.html#l00127">ngx_http_brix_webdav_access_handler()</a>, <a class="el" href="src_2auth_2pwd_2auth_8c_source.html#l00114">pwd_round1()</a>, <a class="el" href="src_2auth_2pwd_2auth_8c_source.html#l00172">pwd_round2()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00032">s3_record_auth_result()</a>, and <a class="el" href="auth__bearer_8c_source.html#l00088">s3_verify_bearer()</a>.</p>
-
-</div>
-</div>
 <a id="aa939928fc73fa9238ad04c439dfe213b" name="aa939928fc73fa9238ad04c439dfe213b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aa939928fc73fa9238ad04c439dfe213b">&#9670;&#160;</a></span>brix_metric_auth_method_name()</h2>
 
@@ -314,9 +205,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00150">150</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00149">149</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8c_source.html#l00119">brix_metric_auth_slot()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00063">brix_unified_auth_names</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8c_source.html#l00118">brix_metric_auth_slot()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00059">brix_unified_auth_names</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>.</p>
 
@@ -338,149 +229,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00119">119</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00118">118</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
 <p class="reference">References <a class="el" href="identity_8h_source.html#l00018">BRIX_AUTHN_GSI</a>, <a class="el" href="identity_8h_source.html#l00024">BRIX_AUTHN_HOST</a>, <a class="el" href="identity_8h_source.html#l00023">BRIX_AUTHN_KRB5</a>, <a class="el" href="identity_8h_source.html#l00025">BRIX_AUTHN_PWD</a>, <a class="el" href="identity_8h_source.html#l00021">BRIX_AUTHN_S3KEY</a>, <a class="el" href="identity_8h_source.html#l00020">BRIX_AUTHN_SSS</a>, <a class="el" href="identity_8h_source.html#l00019">BRIX_AUTHN_TOKEN</a>, <a class="el" href="identity_8h_source.html#l00022">BRIX_AUTHN_UNIX</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00063">BRIX_METRIC_AUTH_GSI</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00069">BRIX_METRIC_AUTH_HOST</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00068">BRIX_METRIC_AUTH_KRB5</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00062">BRIX_METRIC_AUTH_NONE</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00070">BRIX_METRIC_AUTH_PWD</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00066">BRIX_METRIC_AUTH_S3KEY</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00065">BRIX_METRIC_AUTH_SSS</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00064">BRIX_METRIC_AUTH_TOKEN</a>, and <a class="el" href="observability_2metrics_2unified_8h_source.html#l00067">BRIX_METRIC_AUTH_UNIX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00396">brix_metric_auth()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00150">brix_metric_auth_method_name()</a>.</p>
-
-</div>
-</div>
-<a id="a5202c8f040a526ad3188013923205d33" name="a5202c8f040a526ad3188013923205d33"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5202c8f040a526ad3188013923205d33">&#9670;&#160;</a></span>brix_metric_backend_bytes()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_backend_bytes </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>backend_name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a>&#160;</td>
-          <td class="paramname"><em>op</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bytes</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00266">266</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00050">BRIX_ATOMIC_ADD</a>, <a class="el" href="sd__fs__id_8c_source.html#l00038">brix_fs_id_from_name()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00040">BRIX_METRIC_OP_READ</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00041">BRIX_METRIC_OP_WRITE</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00318">ngx_brix_unified_metrics_t::io_bytes_read_backend</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00319">ngx_brix_unified_metrics_t::io_bytes_written_backend</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="pgread_8c_source.html#l00164">brix_handle_pgread()</a>, <a class="el" href="read_8c_source.html#l00156">brix_handle_read()</a>, <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>, <a class="el" href="read_8c_source.html#l00056">brix_read_serve_sendfile()</a>, <a class="el" href="vfs__io__core_8c_source.html#l00694">brix_vfs_io_account()</a>, and <a class="el" href="vfs__internal_8h_source.html#l00330">brix_vfs_observe_ctx_op()</a>.</p>
-
-</div>
-</div>
-<a id="acb4e1ba1b10060c44da46f5b09b96c84" name="acb4e1ba1b10060c44da46f5b09b96c84"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acb4e1ba1b10060c44da46f5b09b96c84">&#9670;&#160;</a></span>brix_metric_cache_result()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_cache_result </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a>&#160;</td>
-          <td class="paramname"><em>proto</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned int&#160;</td>
-          <td class="paramname"><em>hit</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bytes_evicted</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00301">301</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00050">BRIX_ATOMIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00333">ngx_brix_unified_metrics_t::cache_bytes_evicted</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00331">ngx_brix_unified_metrics_t::cache_hits</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00332">ngx_brix_unified_metrics_t::cache_misses</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, and <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00224">cvmfs_finalize_observe()</a>.</p>
-
-</div>
-</div>
-<a id="a7ba5f7bf58d3e54a658dab9039df61aa" name="a7ba5f7bf58d3e54a658dab9039df61aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7ba5f7bf58d3e54a658dab9039df61aa">&#9670;&#160;</a></span>brix_metric_cache_usage_ratio()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_cache_usage_ratio </td>
-          <td>(</td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>occupancy_ppm</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00330">330</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00338">ngx_brix_unified_metrics_t::cache_usage_ratio_ppm</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="reap__watermark_8c_source.html#l00012">brix_cache_watermark_purge()</a>.</p>
-
-</div>
-</div>
-<a id="a2c958a1e045e0466d83a2b9eebcbf7d0" name="a2c958a1e045e0466d83a2b9eebcbf7d0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2c958a1e045e0466d83a2b9eebcbf7d0">&#9670;&#160;</a></span>brix_metric_cache_watermark_purge()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_cache_watermark_purge </td>
-          <td>(</td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>files</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>bytes</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00346">346</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00050">BRIX_ATOMIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00341">ngx_brix_unified_metrics_t::cache_watermark_evicted_bytes</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00340">ngx_brix_unified_metrics_t::cache_watermark_evicted_files</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00339">ngx_brix_unified_metrics_t::cache_watermark_purges</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="reap__watermark_8c_source.html#l00012">brix_cache_watermark_purge()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00260">brix_metric_auth()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00149">brix_metric_auth_method_name()</a>.</p>
 
 </div>
 </div>
@@ -500,11 +253,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00161">161</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00160">160</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
 <p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00056">BRIX_ERR_FORBIDDEN</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00057">BRIX_ERR_IO</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00054">BRIX_ERR_NONE</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00055">BRIX_ERR_NOT_FOUND</a>, and <a class="el" href="observability_2metrics_2unified_8h_source.html#l00058">BRIX_ERR_OTHER</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__internal_8h_source.html#l00330">brix_vfs_observe_ctx_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>.</p>
 
 </div>
 </div>
@@ -524,7 +277,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00187">187</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00186">186</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
 <p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00056">BRIX_ERR_FORBIDDEN</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00057">BRIX_ERR_IO</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00054">BRIX_ERR_NONE</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00055">BRIX_ERR_NOT_FOUND</a>, and <a class="el" href="observability_2metrics_2unified_8h_source.html#l00058">BRIX_ERR_OTHER</a>.</p>
 
@@ -548,63 +301,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00108">108</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00107">107</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00059">BRIX_ERR_COUNT</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00055">brix_unified_err_names</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00059">BRIX_ERR_COUNT</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00049">brix_unified_err_names</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>.</p>
-
-</div>
-</div>
-<a id="a2331586d7bb20ca8fb9ed84eaf9b57e4" name="a2331586d7bb20ca8fb9ed84eaf9b57e4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2331586d7bb20ca8fb9ed84eaf9b57e4">&#9670;&#160;</a></span>brix_metric_op_done()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_op_done </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a>&#160;</td>
-          <td class="paramname"><em>proto</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a>&#160;</td>
-          <td class="paramname"><em>op</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bytes</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_msec_t&#160;</td>
-          <td class="paramname"><em>latency_usec</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17">brix_err_class_t</a>&#160;</td>
-          <td class="paramname"><em>err</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">212</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00050">BRIX_ATOMIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00059">BRIX_ERR_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00082">BRIX_IO_LATENCY_BUCKETS</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00082">brix_latency_bounds</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00050">BRIX_METRIC_OP_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00040">BRIX_METRIC_OP_READ</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00041">BRIX_METRIC_OP_WRITE</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00308">ngx_brix_unified_metrics_t::io_bytes_read</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00309">ngx_brix_unified_metrics_t::io_bytes_written</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00325">ngx_brix_unified_metrics_t::io_latency_bucket</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00327">ngx_brix_unified_metrics_t::io_latency_count</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00329">ngx_brix_unified_metrics_t::io_latency_sum_usec</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00322">ngx_brix_unified_metrics_t::io_ops_total</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="vfs__internal_8h_source.html#l00330">brix_vfs_observe_ctx_op()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00267">s3_metrics_response_status()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="unified__export__io_8c_source.html#l00240">unified_emit_io_ops()</a>, and <a class="el" href="unified__export_8c_source.html#l00226">unified_emit_tpc()</a>.</p>
 
 </div>
 </div>
@@ -624,11 +325,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00101">101</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00100">100</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00050">BRIX_METRIC_OP_COUNT</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00042">brix_unified_op_names</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00050">BRIX_METRIC_OP_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00036">brix_unified_op_names</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="unified__export__io_8c_source.html#l00288">unified_emit_io_latency_series()</a>, and <a class="el" href="unified__export__io_8c_source.html#l00240">unified_emit_io_ops()</a>.</p>
 
 </div>
 </div>
@@ -648,407 +349,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00094">94</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00093">93</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00036">brix_unified_proto_names</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00030">brix_unified_proto_names</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>.</p>
-
-</div>
-</div>
-<a id="a9451314784065bd3f2b8d9bc8ce821bf" name="a9451314784065bd3f2b8d9bc8ce821bf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9451314784065bd3f2b8d9bc8ce821bf">&#9670;&#160;</a></span>brix_metric_tpc()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_tpc </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a>&#160;</td>
-          <td class="paramname"><em>proto</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned int&#160;</td>
-          <td class="paramname"><em>is_push</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bytes</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17">brix_err_class_t</a>&#160;</td>
-          <td class="paramname"><em>err</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00423">423</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00050">BRIX_ATOMIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00059">BRIX_ERR_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00054">BRIX_ERR_NONE</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00077">BRIX_METRIC_TPC_PULL</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00078">BRIX_METRIC_TPC_PUSH</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00357">ngx_brix_unified_metrics_t::tpc_bytes</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00355">ngx_brix_unified_metrics_t::tpc_transfers</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc_2common_2metrics_8c_source.html#l00017">brix_tpc_metric_transfer()</a>.</p>
-
-</div>
-</div>
-<a id="a07433f346584c767fc40483f874fcde4" name="a07433f346584c767fc40483f874fcde4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a07433f346584c767fc40483f874fcde4">&#9670;&#160;</a></span>brix_metric_value()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static unsigned long long brix_metric_value </td>
-          <td>(</td>
-          <td class="paramtype">ngx_atomic_t *&#160;</td>
-          <td class="paramname"><em>counter</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00447">447</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00562">brix_unified_legacy_stream_auth()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00461">brix_unified_legacy_stream_bytes()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00483">brix_unified_legacy_stream_op_slot()</a>.</p>
-
-</div>
-</div>
-<a id="ae5ea6995ecd2c6e27bd6317de3d997e2" name="ae5ea6995ecd2c6e27bd6317de3d997e2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae5ea6995ecd2c6e27bd6317de3d997e2">&#9670;&#160;</a></span>brix_metric_wt_stage_throttled()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_wt_stage_throttled </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>reject</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00377">377</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00347">ngx_brix_unified_metrics_t::wt_stage_throttled_reject</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00346">ngx_brix_unified_metrics_t::wt_stage_throttled_wait</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="open__resolved__file_8c_source.html#l00524">brix_open_stage_backpressure()</a>.</p>
-
-</div>
-</div>
-<a id="a93d7848ce732602359b19a650570088e" name="a93d7848ce732602359b19a650570088e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a93d7848ce732602359b19a650570088e">&#9670;&#160;</a></span>brix_metric_wt_stage_usage_ratio()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_metric_wt_stage_usage_ratio </td>
-          <td>(</td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>occupancy_ppm</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00363">363</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">ngx_brix_metrics_t::unified</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00345">ngx_brix_unified_metrics_t::wt_stage_usage_ratio_ppm</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="stage__admit_8c_source.html#l00019">brix_wt_stage_admit()</a>.</p>
-
-</div>
-</div>
-<a id="a7b969a4b49bde6f8eee5a57003034aaa" name="a7b969a4b49bde6f8eee5a57003034aaa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7b969a4b49bde6f8eee5a57003034aaa">&#9670;&#160;</a></span>brix_unified_legacy_auth()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static unsigned long long brix_unified_legacy_auth </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
-          <td class="paramname"><em>shm</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffd">brix_proto_t</a>&#160;</td>
-          <td class="paramname"><em>proto</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>method</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>status</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00584">584</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00562">brix_unified_legacy_stream_auth()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>.</p>
-
-</div>
-</div>
-<a id="a4b1098f9841808f985dd5e723022b257" name="a4b1098f9841808f985dd5e723022b257"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4b1098f9841808f985dd5e723022b257">&#9670;&#160;</a></span>brix_unified_legacy_stream_auth()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static unsigned long long brix_unified_legacy_stream_auth </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
-          <td class="paramname"><em>shm</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>method</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>status</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00562">562</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00074">BRIX_METRIC_AUTH_OK</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00447">brix_metric_value()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00032">BRIX_OP_AUTH</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00537">brix_unified_srv_auth_slot()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00182">ngx_brix_srv_metrics_t::op_err</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00181">ngx_brix_srv_metrics_t::op_ok</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00366">ngx_brix_metrics_t::servers</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00584">brix_unified_legacy_auth()</a>.</p>
-
-</div>
-</div>
-<a id="a867e4417340eaf0cc8d437b3fadc340c" name="a867e4417340eaf0cc8d437b3fadc340c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a867e4417340eaf0cc8d437b3fadc340c">&#9670;&#160;</a></span>brix_unified_legacy_stream_bytes()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static unsigned long long brix_unified_legacy_stream_bytes </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
-          <td class="paramname"><em>shm</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned int&#160;</td>
-          <td class="paramname"><em>is_write</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00461">461</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8c_source.html#l00447">brix_metric_value()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00145">ngx_brix_srv_metrics_t::bytes_rx_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00146">ngx_brix_srv_metrics_t::bytes_tx_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00366">ngx_brix_metrics_t::servers</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>.</p>
-
-</div>
-</div>
-<a id="ab0d3d096a883abb0e970447245c85c60" name="ab0d3d096a883abb0e970447245c85c60"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab0d3d096a883abb0e970447245c85c60">&#9670;&#160;</a></span>brix_unified_legacy_stream_op()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static unsigned long long brix_unified_legacy_stream_op </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
-          <td class="paramname"><em>shm</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a>&#160;</td>
-          <td class="paramname"><em>op</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned int&#160;</td>
-          <td class="paramname"><em>ok</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00508">508</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00043">BRIX_METRIC_OP_DELETE</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00046">BRIX_METRIC_OP_DIRLIST</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00044">BRIX_METRIC_OP_MKDIR</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00040">BRIX_METRIC_OP_READ</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00045">BRIX_METRIC_OP_RENAME</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00042">BRIX_METRIC_OP_STAT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00041">BRIX_METRIC_OP_WRITE</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00040">BRIX_OP_DIRLIST</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00041">BRIX_OP_MKDIR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00044">BRIX_OP_MV</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00051">BRIX_OP_PGREAD</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00036">BRIX_OP_READ</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00050">BRIX_OP_READV</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00043">BRIX_OP_RM</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00042">BRIX_OP_RMDIR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00033">BRIX_OP_STAT</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00054">BRIX_OP_STATX</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00037">BRIX_OP_WRITE</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00052">BRIX_OP_WRITEV</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00483">brix_unified_legacy_stream_op_slot()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>.</p>
-
-</div>
-</div>
-<a id="a4d84a88e7cd3ea50fac97c83f42fd390" name="a4d84a88e7cd3ea50fac97c83f42fd390"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4d84a88e7cd3ea50fac97c83f42fd390">&#9670;&#160;</a></span>brix_unified_legacy_stream_op_slot()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static unsigned long long brix_unified_legacy_stream_op_slot </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *&#160;</td>
-          <td class="paramname"><em>shm</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>slot</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned int&#160;</td>
-          <td class="paramname"><em>ok</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00483">483</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8c_source.html#l00447">brix_metric_value()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00069">BRIX_NOPS</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00182">ngx_brix_srv_metrics_t::op_err</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00181">ngx_brix_srv_metrics_t::op_ok</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00366">ngx_brix_metrics_t::servers</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00508">brix_unified_legacy_stream_op()</a>.</p>
-
-</div>
-</div>
-<a id="a5c719eab986b22fa29c24a4f2e9c0b74" name="a5c719eab986b22fa29c24a4f2e9c0b74"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5c719eab986b22fa29c24a4f2e9c0b74">&#9670;&#160;</a></span>brix_unified_srv_auth_slot()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_uint_t brix_unified_srv_auth_slot </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>auth</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00537">537</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
-
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00063">BRIX_METRIC_AUTH_GSI</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00068">BRIX_METRIC_AUTH_KRB5</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00062">BRIX_METRIC_AUTH_NONE</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00065">BRIX_METRIC_AUTH_SSS</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00064">BRIX_METRIC_AUTH_TOKEN</a>, and <a class="el" href="observability_2metrics_2unified_8h_source.html#l00067">BRIX_METRIC_AUTH_UNIX</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00562">brix_unified_legacy_stream_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="unified__export_8c_source.html#l00188">unified_emit_auth()</a>, <a class="el" href="unified__export__io_8c_source.html#l00191">unified_emit_io_bytes()</a>, <a class="el" href="unified__export__io_8c_source.html#l00288">unified_emit_io_latency_series()</a>, <a class="el" href="unified__export__io_8c_source.html#l00240">unified_emit_io_ops()</a>, <a class="el" href="unified__export_8c_source.html#l00035">unified_emit_proto_counter()</a>, and <a class="el" href="unified__export_8c_source.html#l00226">unified_emit_tpc()</a>.</p>
 
 </div>
 </div>
@@ -1058,19 +363,11 @@ Variables</h2></td></tr>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">const ngx_msec_t brix_latency_bounds[9 - 1]</td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 <b>Initial value:</b><div class="fragment"><div class="line">= {</div>
 <div class="line">    1000,</div>
@@ -1083,9 +380,9 @@ Variables</h2></td></tr>
 <div class="line">    5000000,</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00082">82</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00081">81</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, and <a class="el" href="unified__export__io_8c_source.html#l00288">unified_emit_io_latency_series()</a>.</p>
 
 </div>
 </div>
@@ -1094,19 +391,11 @@ Variables</h2></td></tr>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">const char* brix_unified_auth_names[9]</td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 <b>Initial value:</b><div class="fragment"><div class="line">= {</div>
 <div class="line">    <span class="stringliteral">&quot;none&quot;</span>,</div>
@@ -1120,9 +409,9 @@ Variables</h2></td></tr>
 <div class="line">    <span class="stringliteral">&quot;pwd&quot;</span>,</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00063">63</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00059">59</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00150">brix_metric_auth_method_name()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00149">brix_metric_auth_method_name()</a>, and <a class="el" href="unified__export_8c_source.html#l00188">unified_emit_auth()</a>.</p>
 
 </div>
 </div>
@@ -1153,9 +442,9 @@ Variables</h2></td></tr>
 <div class="line">    <span class="stringliteral">&quot;other&quot;</span>,</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00055">55</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00049">49</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00108">brix_metric_err_name()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00107">brix_metric_err_name()</a>.</p>
 
 </div>
 </div>
@@ -1191,9 +480,9 @@ Variables</h2></td></tr>
 <div class="line">    <span class="stringliteral">&quot;copy&quot;</span>,</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00042">42</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00036">36</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00101">brix_metric_op_name()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00100">brix_metric_op_name()</a>.</p>
 
 </div>
 </div>
@@ -1222,9 +511,9 @@ Variables</h2></td></tr>
 <div class="line"> </div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00036">36</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00030">30</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00094">brix_metric_proto_name()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00093">brix_metric_proto_name()</a>.</p>
 
 </div>
 </div>
@@ -1233,19 +522,11 @@ Variables</h2></td></tr>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">const char* brix_unified_tpc_direction_names[ 2]</td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 <b>Initial value:</b><div class="fragment"><div class="line">=</div>
 <div class="line">{</div>
@@ -1253,9 +534,9 @@ Variables</h2></td></tr>
 <div class="line">    <span class="stringliteral">&quot;push&quot;</span>,</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00075">75</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2unified_8c_source.html#l00072">72</a> of file <a class="el" href="observability_2metrics_2unified_8c_source.html">unified.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__export_8c_source.html#l00226">unified_emit_tpc()</a>.</p>
 
 </div>
 </div>

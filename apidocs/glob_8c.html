@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('glob_8c.html',''); initResizable(); })
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">glob.c File Reference</div></div>
 </div><!--header-->
@@ -109,10 +110,25 @@ $(document).ready(function(){initNavTree('glob_8c.html',''); initResizable(); })
 </div>
 <p><a href="glob_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structglob__spec.html">glob_spec</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structglob__acc.html">glob_acc</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a352a07400ea1f56e0fce783a1e83ee34" id="r_a352a07400ea1f56e0fce783a1e83ee34"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="glob_8c.html#a352a07400ea1f56e0fce783a1e83ee34">brix_has_glob</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:a352a07400ea1f56e0fce783a1e83ee34"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa80e8310c5eba1258255291d74464d5c" id="r_aa80e8310c5eba1258255291d74464d5c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="glob_8c.html#aa80e8310c5eba1258255291d74464d5c">glob_parse_spec</a> (const <a class="el" href="structbrix__url.html">brix_url</a> *u, <a class="el" href="structglob__spec.html">glob_spec</a> *sp, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:aa80e8310c5eba1258255291d74464d5c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ade6725251f2f0f3186edf5a5569bb2e9" id="r_ade6725251f2f0f3186edf5a5569bb2e9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="glob_8c.html#ade6725251f2f0f3186edf5a5569bb2e9">glob_match_entry</a> (const <a class="el" href="structbrix__url.html">brix_url</a> *u, const <a class="el" href="structglob__spec.html">glob_spec</a> *sp, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, char *full, size_t fullsz)</td></tr>
+<tr class="separator:ade6725251f2f0f3186edf5a5569bb2e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a111871af889156138f4904fc04af7108" id="r_a111871af889156138f4904fc04af7108"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="glob_8c.html#a111871af889156138f4904fc04af7108">glob_acc_append</a> (<a class="el" href="structglob__acc.html">glob_acc</a> *ac, const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
+<tr class="separator:a111871af889156138f4904fc04af7108"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3bf28e24574a8ddd968f4110791655f5" id="r_a3bf28e24574a8ddd968f4110791655f5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="glob_8c.html#a3bf28e24574a8ddd968f4110791655f5">glob_collect</a> (const <a class="el" href="structbrix__url.html">brix_url</a> *u, const <a class="el" href="structglob__spec.html">glob_spec</a> *sp, const <a class="el" href="structbrix__dirent.html">brix_dirent</a> *ents, size_t ne, <a class="el" href="structglob__acc.html">glob_acc</a> *ac)</td></tr>
+<tr class="separator:a3bf28e24574a8ddd968f4110791655f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a936ee19c4e575db8ad5724de85c7f6b2" id="r_a936ee19c4e575db8ad5724de85c7f6b2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="glob_8c.html#a936ee19c4e575db8ad5724de85c7f6b2">brix_glob</a> (const char *url, const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, char ***out, size_t *n_out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a936ee19c4e575db8ad5724de85c7f6b2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a417d396cf43d4718f02e938da9094f40" id="r_a417d396cf43d4718f02e938da9094f40"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="glob_8c.html#a417d396cf43d4718f02e938da9094f40">brix_glob_free</a> (char **arr, size_t n)</td></tr>
@@ -163,9 +179,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="glob_8c_source.html#l00030">30</a> of file <a class="el" href="glob_8c_source.html">glob.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="glob_8c_source.html#l00198">198</a> of file <a class="el" href="glob_8c_source.html">glob.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="ops__meta_8c_source.html#l00299">brix_dirlist()</a>, <a class="el" href="glob_8c_source.html#l00135">brix_glob_free()</a>, <a class="el" href="glob_8c_source.html#l00024">brix_has_glob()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00155">brix_dirent::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="tier__config_8c_source.html#l00026">scheme</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00045">XRDC_NAME_MAX</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
+<p class="reference">References <a class="el" href="glob_8c_source.html#l00136">glob_acc::arr</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="ops__meta_8c_source.html#l00380">brix_dirlist()</a>, <a class="el" href="glob_8c_source.html#l00239">brix_glob_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="glob_8c_source.html#l00034">glob_spec::dir</a>, <a class="el" href="glob_8c_source.html#l00180">glob_collect()</a>, <a class="el" href="glob_8c_source.html#l00053">glob_parse_spec()</a>, <a class="el" href="glob_8c_source.html#l00137">glob_acc::n</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>.</p>
 
@@ -197,9 +213,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="glob_8c_source.html#l00135">135</a> of file <a class="el" href="glob_8c_source.html">glob.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="glob_8c_source.html#l00239">239</a> of file <a class="el" href="glob_8c_source.html">glob.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="glob_8c_source.html#l00030">brix_glob()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="glob_8c_source.html#l00198">brix_glob()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>.</p>
 
 </div>
 </div>
@@ -223,7 +239,217 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="glob_8c_source.html#l00030">brix_glob()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00015">source_has_glob()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="glob_8c_source.html#l00053">glob_parse_spec()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00015">source_has_glob()</a>.</p>
+
+</div>
+</div>
+<a id="a111871af889156138f4904fc04af7108" name="a111871af889156138f4904fc04af7108"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a111871af889156138f4904fc04af7108">&#9670;&#160;</a></span>glob_acc_append()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int glob_acc_append </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structglob__acc.html">glob_acc</a> *&#160;</td>
+          <td class="paramname"><em>ac</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>s</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="glob_8c_source.html#l00150">150</a> of file <a class="el" href="glob_8c_source.html">glob.c</a>.</p>
+
+<p class="reference">References <a class="el" href="glob_8c_source.html#l00136">glob_acc::arr</a>, <a class="el" href="glob_8c_source.html#l00138">glob_acc::cap</a>, <a class="el" href="glob_8c_source.html#l00137">glob_acc::n</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="glob_8c_source.html#l00180">glob_collect()</a>.</p>
+
+</div>
+</div>
+<a id="a3bf28e24574a8ddd968f4110791655f5" name="a3bf28e24574a8ddd968f4110791655f5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3bf28e24574a8ddd968f4110791655f5">&#9670;&#160;</a></span>glob_collect()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int glob_collect </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>u</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structglob__spec.html">glob_spec</a> *&#160;</td>
+          <td class="paramname"><em>sp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__dirent.html">brix_dirent</a> *&#160;</td>
+          <td class="paramname"><em>ents</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>ne</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structglob__acc.html">glob_acc</a> *&#160;</td>
+          <td class="paramname"><em>ac</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="glob_8c_source.html#l00180">180</a> of file <a class="el" href="glob_8c_source.html">glob.c</a>.</p>
+
+<p class="reference">References <a class="el" href="glob_8c_source.html#l00150">glob_acc_append()</a>, <a class="el" href="glob_8c_source.html#l00110">glob_match_entry()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="glob_8c_source.html#l00198">brix_glob()</a>.</p>
+
+</div>
+</div>
+<a id="ade6725251f2f0f3186edf5a5569bb2e9" name="ade6725251f2f0f3186edf5a5569bb2e9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ade6725251f2f0f3186edf5a5569bb2e9">&#9670;&#160;</a></span>glob_match_entry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int glob_match_entry </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>u</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structglob__spec.html">glob_spec</a> *&#160;</td>
+          <td class="paramname"><em>sp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>full</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>fullsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="glob_8c_source.html#l00110">110</a> of file <a class="el" href="glob_8c_source.html">glob.c</a>.</p>
+
+<p class="reference">References <a class="el" href="glob_8c_source.html#l00034">glob_spec::dir</a>, <a class="el" href="glob_8c_source.html#l00038">glob_spec::dsep</a>, <a class="el" href="glob_8c_source.html#l00037">glob_spec::hb</a>, <a class="el" href="glob_8c_source.html#l00037">glob_spec::he</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="glob_8c_source.html#l00035">glob_spec::pattern</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="glob_8c_source.html#l00036">glob_spec::scheme</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="glob_8c_source.html#l00180">glob_collect()</a>.</p>
+
+</div>
+</div>
+<a id="aa80e8310c5eba1258255291d74464d5c" name="aa80e8310c5eba1258255291d74464d5c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa80e8310c5eba1258255291d74464d5c">&#9670;&#160;</a></span>glob_parse_spec()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int glob_parse_spec </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>u</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structglob__spec.html">glob_spec</a> *&#160;</td>
+          <td class="paramname"><em>sp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="glob_8c_source.html#l00053">53</a> of file <a class="el" href="glob_8c_source.html">glob.c</a>.</p>
+
+<p class="reference">References <a class="el" href="glob_8c_source.html#l00024">brix_has_glob()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="glob_8c_source.html#l00034">glob_spec::dir</a>, <a class="el" href="glob_8c_source.html#l00038">glob_spec::dsep</a>, <a class="el" href="glob_8c_source.html#l00037">glob_spec::hb</a>, <a class="el" href="glob_8c_source.html#l00037">glob_spec::he</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="glob_8c_source.html#l00035">glob_spec::pattern</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="glob_8c_source.html#l00036">glob_spec::scheme</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="glob_8c_source.html#l00198">brix_glob()</a>.</p>
 
 </div>
 </div>

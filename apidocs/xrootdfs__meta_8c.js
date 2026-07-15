@@ -8,6 +8,7 @@ var xrootdfs__meta_8c =
     [ "xfs_mkdir", "xrootdfs__meta_8c.html#ad5b33ef08a54b1a65f9e80b98b37335f", null ],
     [ "xfs_readdir", "xrootdfs__meta_8c.html#a8cfece9d423d57684e665d0caa5bd64a", null ],
     [ "xfs_readlink", "xrootdfs__meta_8c.html#a8aaf135e800e70564fa409282fde448d", null ],
+    [ "xfs_readlink_one_attempt", "xrootdfs__meta_8c.html#ad09aa15c8e3150b1e58cf959e92428ea", null ],
     [ "xfs_rename", "xrootdfs__meta_8c.html#ac2fdb297394e6187e73dbb7ab8c8a413", null ],
     [ "xfs_rmdir", "xrootdfs__meta_8c.html#a21b5a906962d323015131d83ebf47bb7", null ],
     [ "xfs_statfs", "xrootdfs__meta_8c.html#a4ab6920d31cfef102d8b19c370c695c4", null ],

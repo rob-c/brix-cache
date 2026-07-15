@@ -104,8 +104,8 @@ $(document).ready(function(){initNavTree('event__sched_8c_source.html',''); init
 <div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span><span class="preprocessor">#include &quot;<a class="code" href="deadline_8h.html">deadline.h</a>&quot;</span></div>
 <div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span> </div>
 <div class="foldopen" id="foldopen00006" data-start="{" data-end="}">
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno"><a class="line" href="event__sched_8c.html#a11191f5f8e5e2779264e350db88ad99c">    6</a></span>ngx_int_t <a class="code hl_function" href="event__sched_8c.html#a11191f5f8e5e2779264e350db88ad99c">brix_schedule_read_resume</a>(ngx_connection_t *<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>) {</div>
-<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span>    ngx_event_t *rev = <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read;</div>
+<div class="line"><a id="l00006" name="l00006"></a><span class="lineno"><a class="line" href="event__sched_8c.html#a11191f5f8e5e2779264e350db88ad99c">    6</a></span>ngx_int_t <a class="code hl_function" href="event__sched_8c.html#a11191f5f8e5e2779264e350db88ad99c">brix_schedule_read_resume</a>(ngx_connection_t *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>) {</div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span>    ngx_event_t *rev = <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read;</div>
 <div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span>    <span class="keywordflow">if</span> (!rev-&gt;active &amp;&amp; !rev-&gt;ready) {</div>
 <div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span>        <span class="keywordflow">if</span> (ngx_handle_read_event(rev, 0) != NGX_OK) {</div>
 <div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
@@ -122,10 +122,10 @@ $(document).ready(function(){initNavTree('event__sched_8c_source.html',''); init
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="comment"> * flushing on the next event-loop iteration. */</span></div>
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>ngx_int_t</div>
 <div class="foldopen" id="foldopen00022" data-start="{" data-end="}">
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno"><a class="line" href="event__sched_8c.html#a401ca9b78be9ea5c5680ca4ef9cf6c1d">   22</a></span><a class="code hl_function" href="event__sched_8c.html#a401ca9b78be9ea5c5680ca4ef9cf6c1d">brix_schedule_write_resume</a>(ngx_connection_t *<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno"><a class="line" href="event__sched_8c.html#a401ca9b78be9ea5c5680ca4ef9cf6c1d">   22</a></span><a class="code hl_function" href="event__sched_8c.html#a401ca9b78be9ea5c5680ca4ef9cf6c1d">brix_schedule_write_resume</a>(ngx_connection_t *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>{</div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>    ngx_event_t          *wev = <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;write;</div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    ngx_stream_session_t *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>   = <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;data;</div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>    ngx_event_t          *wev = <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;write;</div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    ngx_stream_session_t *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>   = <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;data;</div>
 <div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <a class="code hl_struct" href="structbrix__ctx__t.html">brix_ctx_t</a>         *ctx = ngx_stream_get_module_ctx(<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>,</div>
 <div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>                                    <a class="code hl_variable" href="ngx__brix__module_8h.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a>);</div>
 <div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span> </div>
@@ -138,7 +138,7 @@ $(document).ready(function(){initNavTree('event__sched_8c_source.html',''); init
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment">     * client stream ctx (write resume is never called on a non-client connection).</span></div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment">     */</span></div>
 <div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <span class="keywordflow">if</span> (ctx != NULL) {</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>        <a class="code hl_function" href="deadline_8h.html#aca7d9aa91116ba4862f96e60f75e573a">brix_arm_send_deadline</a>(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, ctx);</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>        <a class="code hl_function" href="deadline_8h.html#aca7d9aa91116ba4862f96e60f75e573a">brix_arm_send_deadline</a>(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, ctx);</div>
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    }</div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordflow">if</span> (ngx_handle_write_event(wev, 0) != NGX_OK) {</div>
@@ -150,15 +150,43 @@ $(document).ready(function(){initNavTree('event__sched_8c_source.html',''); init
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>}</div>
 </div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span> </div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment">/* brix_ensure_write_event — see event_sched.h.  Same arming as</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment"> * brix_schedule_write_resume, but posts the write event UNCONDITIONALLY (only</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment"> * guarded against a double-post) so parked output is guaranteed a drain attempt</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment"> * even when wev-&gt;ready is a stale 0.  For PARK sites only. */</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00055" data-start="{" data-end="}">
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno"><a class="line" href="event__sched_8c.html#a18bd37cbb320a36ad8b4efdd860b156f">   55</a></span><a class="code hl_function" href="event__sched_8c.html#a18bd37cbb320a36ad8b4efdd860b156f">brix_ensure_write_event</a>(ngx_connection_t *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>{</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    ngx_event_t          *wev = <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;write;</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    ngx_stream_session_t *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>   = <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;data;</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <a class="code hl_struct" href="structbrix__ctx__t.html">brix_ctx_t</a>         *ctx = ngx_stream_get_module_ctx(<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>,</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>                                    <a class="code hl_variable" href="ngx__brix__module_8h.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a>);</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordflow">if</span> (ctx != NULL) {</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>        <a class="code hl_function" href="deadline_8h.html#aca7d9aa91116ba4862f96e60f75e573a">brix_arm_send_deadline</a>(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, ctx);</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    }</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    <span class="keywordflow">if</span> (ngx_handle_write_event(wev, 0) != NGX_OK) {</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>    }</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    <span class="keywordflow">if</span> (!wev-&gt;posted) {</div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>        ngx_post_event(wev, &amp;ngx_posted_events);</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    }</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>}</div>
+</div>
 <div class="ttc" id="adeadline_8h_html"><div class="ttname"><a href="deadline_8h.html">deadline.h</a></div></div>
 <div class="ttc" id="adeadline_8h_html_aca7d9aa91116ba4862f96e60f75e573a"><div class="ttname"><a href="deadline_8h.html#aca7d9aa91116ba4862f96e60f75e573a">brix_arm_send_deadline</a></div><div class="ttdeci">static void brix_arm_send_deadline(ngx_connection_t *c, brix_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="deadline_8h_source.html#l00104">deadline.h:104</a></div></div>
 <div class="ttc" id="aevent__sched_8c_html_a11191f5f8e5e2779264e350db88ad99c"><div class="ttname"><a href="event__sched_8c.html#a11191f5f8e5e2779264e350db88ad99c">brix_schedule_read_resume</a></div><div class="ttdeci">ngx_int_t brix_schedule_read_resume(ngx_connection_t *c)</div><div class="ttdef"><b>Definition</b> <a href="event__sched_8c_source.html#l00006">event_sched.c:6</a></div></div>
+<div class="ttc" id="aevent__sched_8c_html_a18bd37cbb320a36ad8b4efdd860b156f"><div class="ttname"><a href="event__sched_8c.html#a18bd37cbb320a36ad8b4efdd860b156f">brix_ensure_write_event</a></div><div class="ttdeci">ngx_int_t brix_ensure_write_event(ngx_connection_t *c)</div><div class="ttdef"><b>Definition</b> <a href="event__sched_8c_source.html#l00055">event_sched.c:55</a></div></div>
 <div class="ttc" id="aevent__sched_8c_html_a401ca9b78be9ea5c5680ca4ef9cf6c1d"><div class="ttname"><a href="event__sched_8c.html#a401ca9b78be9ea5c5680ca4ef9cf6c1d">brix_schedule_write_resume</a></div><div class="ttdeci">ngx_int_t brix_schedule_write_resume(ngx_connection_t *c)</div><div class="ttdef"><b>Definition</b> <a href="event__sched_8c_source.html#l00022">event_sched.c:22</a></div></div>
 <div class="ttc" id="aevent__sched_8h_html"><div class="ttname"><a href="event__sched_8h.html">event_sched.h</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html"><div class="ttname"><a href="ngx__brix__module_8h.html">ngx_brix_module.h</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html_a05c4e5ac379ae60715b73cca5b1ebe88"><div class="ttname"><a href="ngx__brix__module_8h.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_module</div><div class="ttdef"><b>Definition</b> <a href="module__definition_8c_source.html#l00029">module_definition.c:29</a></div></div>
+<div class="ttc" id="aparse__x509__internal_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="parse__x509__internal_8h_source.html#l00035">parse_x509_internal.h:35</a></div></div>
 <div class="ttc" id="aprotocols_2ssi_2registry_8c_html_acd3d5832e08669d2a41d61c045abc1fd"><div class="ttname"><a href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a></div><div class="ttdeci">brix_ssi_session_t * s</div><div class="ttdef"><b>Definition</b> <a href="protocols_2ssi_2registry_8c_source.html#l00016">registry.c:16</a></div></div>
-<div class="ttc" id="aroot_2session_2session_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="root_2session_2session_8h_source.html#l00059">session.h:59</a></div></div>
 <div class="ttc" id="astructbrix__ctx__t_html"><div class="ttname"><a href="structbrix__ctx__t.html">brix_ctx_t</a></div><div class="ttdef"><b>Definition</b> <a href="context_8h_source.html#l00091">context.h:91</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

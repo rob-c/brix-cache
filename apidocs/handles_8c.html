@@ -118,6 +118,12 @@ Functions</h2></td></tr>
 <tr class="separator:a5aed299d5c71f85d4a931f7074647911"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aed04403e3bb72412a50e82618a0baa83" id="r_aed04403e3bb72412a50e82618a0baa83"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handles_8c.html#aed04403e3bb72412a50e82618a0baa83">brix_shared_handle_same_key</a> (const <a class="el" href="structbrix__shared__handle__entry__t.html">brix_shared_handle_entry_t</a> *entry, const u_char sessid[16], int handle_index)</td></tr>
 <tr class="separator:aed04403e3bb72412a50e82618a0baa83"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abbc43be0a57093ce02653149a77dbe20" id="r_abbc43be0a57093ce02653149a77dbe20"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handles_8c.html#abbc43be0a57093ce02653149a77dbe20">brix_shared_handle_find_slot</a> (<a class="el" href="structbrix__shared__handle__table__t.html">brix_shared_handle_table_t</a> *tbl, const u_char sessid[16], int handle_index, <a class="el" href="structbrix__shared__handle__entry__t.html">brix_shared_handle_entry_t</a> **entry, ngx_uint_t *free_slot)</td></tr>
+<tr class="separator:abbc43be0a57093ce02653149a77dbe20"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a24345c76b620c057803c1827024a6901" id="r_a24345c76b620c057803c1827024a6901"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handles_8c.html#a24345c76b620c057803c1827024a6901">brix_shared_handle_store</a> (<a class="el" href="structbrix__shared__handle__entry__t.html">brix_shared_handle_entry_t</a> *entry, const u_char sessid[16], int handle_index, const <a class="el" href="structbrix__file__t.html">brix_file_t</a> *file)</td></tr>
+<tr class="separator:a24345c76b620c057803c1827024a6901"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad5a907a8c3d1b038fbdda9932b217e66" id="r_ad5a907a8c3d1b038fbdda9932b217e66"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handles_8c.html#ad5a907a8c3d1b038fbdda9932b217e66">brix_shared_handle_select_target</a> (<a class="el" href="structbrix__shared__handle__table__t.html">brix_shared_handle_table_t</a> *tbl, const <a class="el" href="structbrix__file__t.html">brix_file_t</a> *file, ngx_uint_t free_slot, <a class="el" href="structbrix__shared__handle__entry__t.html">brix_shared_handle_entry_t</a> **entry)</td></tr>
+<tr class="separator:ad5a907a8c3d1b038fbdda9932b217e66"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afb3da768fd7c9411fa1b93f7992b7832" id="r_afb3da768fd7c9411fa1b93f7992b7832"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handles_8c.html#afb3da768fd7c9411fa1b93f7992b7832">brix_session_handle_publish</a> (const u_char sessid[16], int handle_index, const <a class="el" href="structbrix__file__t.html">brix_file_t</a> *file)</td></tr>
 <tr class="separator:afb3da768fd7c9411fa1b93f7992b7832"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a517af31c69d8e27fa6eff336457a12f4" id="r_a517af31c69d8e27fa6eff336457a12f4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handles_8c.html#a517af31c69d8e27fa6eff336457a12f4">brix_session_handle_lookup_hint</a> (const u_char sessid[16], int handle_index, int *inout_slot, <a class="el" href="structbrix__shared__handle__entry__t.html">brix_shared_handle_entry_t</a> *out)</td></tr>
@@ -201,9 +207,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00249">249</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00305">305</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
 
-<p class="reference">References <a class="el" href="handles_8c_source.html#l00192">brix_session_handle_lookup_hint()</a>.</p>
+<p class="reference">References <a class="el" href="handles_8c_source.html#l00248">brix_session_handle_lookup_hint()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="forward__session__helpers_8c_source.html#l00164">brix_proxy_lazy_open()</a>.</p>
 
@@ -247,11 +253,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00192">192</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00248">248</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
 
 <p class="reference">References <a class="el" href="handles_8c_source.html#l00020">brix_handle_mutex</a>, <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00055">BRIX_SESSION_HANDLE_SLOTS</a>, <a class="el" href="handles_8c_source.html#l00065">brix_shared_handle_same_key()</a>, <a class="el" href="handles_8c_source.html#l00023">handle_table()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00095">brix_shared_handle_entry_t::path</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00116">brix_shared_handle_table_t::slots</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fd__table_8c_source.html#l00214">brix_ensure_read_handle()</a>, and <a class="el" href="handles_8c_source.html#l00249">brix_session_handle_lookup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fd__table_8c_source.html#l00214">brix_ensure_read_handle()</a>, and <a class="el" href="handles_8c_source.html#l00305">brix_session_handle_lookup()</a>.</p>
 
 </div>
 </div>
@@ -287,11 +293,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00084">84</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00197">197</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
 
-<p class="reference">References <a class="el" href="handles_8c_source.html#l00020">brix_handle_mutex</a>, <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00055">BRIX_SESSION_HANDLE_SLOTS</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="handles_8c_source.html#l00065">brix_shared_handle_same_key()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00071">brix_file_t::cached_size</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00094">brix_shared_handle_entry_t::cached_size</a>, <a class="el" href="core_2types_2file_8h_source.html#l00069">brix_file_t::device</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00092">brix_shared_handle_entry_t::device</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::from_cache</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00089">brix_shared_handle_entry_t::from_cache</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00086">brix_shared_handle_entry_t::handle_index</a>, <a class="el" href="handles_8c_source.html#l00023">handle_table()</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00091">brix_shared_handle_entry_t::in_use</a>, <a class="el" href="core_2types_2file_8h_source.html#l00070">brix_file_t::inode</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00093">brix_shared_handle_entry_t::inode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00068">brix_file_t::is_regular</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00090">brix_shared_handle_entry_t::is_regular</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="core_2types_2file_8h_source.html#l00058">brix_file_t::path</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00095">brix_shared_handle_entry_t::path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00064">brix_file_t::readable</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00087">brix_shared_handle_entry_t::readable</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00085">brix_shared_handle_entry_t::sessid</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00116">brix_shared_handle_table_t::slots</a>, <a class="el" href="core_2types_2file_8h_source.html#l00063">brix_file_t::writable</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00088">brix_shared_handle_entry_t::writable</a>.</p>
+<p class="reference">References <a class="el" href="handles_8c_source.html#l00020">brix_handle_mutex</a>, <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="handles_8c_source.html#l00087">brix_shared_handle_find_slot()</a>, <a class="el" href="handles_8c_source.html#l00158">brix_shared_handle_select_target()</a>, <a class="el" href="handles_8c_source.html#l00124">brix_shared_handle_store()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, and <a class="el" href="handles_8c_source.html#l00023">handle_table()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__resolved__file_8c_source.html#l00647">brix_open_resolved_file()</a>, <a class="el" href="launch_8c_source.html#l00299">brix_tpc_prepare_pull()</a>, and <a class="el" href="zip__member_8c_source.html#l00213">brix_zip_open_member()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__resolved__file_8c_source.html#l00113">brix_open_send_response()</a>, <a class="el" href="launch__prepare_8c_source.html#l00339">brix_tpc_prepare_pull()</a>, and <a class="el" href="zip__member_8c_source.html#l00453">brix_zip_open_member()</a>.</p>
 
 </div>
 </div>
@@ -321,11 +327,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00263">263</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00319">319</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
 
 <p class="reference">References <a class="el" href="handles_8c_source.html#l00020">brix_handle_mutex</a>, <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00055">BRIX_SESSION_HANDLE_SLOTS</a>, <a class="el" href="handles_8c_source.html#l00065">brix_shared_handle_same_key()</a>, <a class="el" href="handles_8c_source.html#l00023">handle_table()</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00116">brix_shared_handle_table_t::slots</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fd__table_8c_source.html#l00290">brix_free_fhandle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fd__table__teardown_8c_source.html#l00218">brix_free_fhandle()</a>.</p>
 
 </div>
 </div>
@@ -345,11 +351,71 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00300">300</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00356">356</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
 
 <p class="reference">References <a class="el" href="handles_8c_source.html#l00020">brix_handle_mutex</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00055">BRIX_SESSION_HANDLE_SLOTS</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="handles_8c_source.html#l00023">handle_table()</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00091">brix_shared_handle_entry_t::in_use</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00085">brix_shared_handle_entry_t::sessid</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00116">brix_shared_handle_table_t::slots</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00118">brix_session_register()</a>, and <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00250">brix_session_unregister()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00254">brix_session_finish_eviction()</a>, and <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00353">brix_session_unregister()</a>.</p>
+
+</div>
+</div>
+<a id="abbc43be0a57093ce02653149a77dbe20" name="abbc43be0a57093ce02653149a77dbe20"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abbc43be0a57093ce02653149a77dbe20">&#9670;&#160;</a></span>brix_shared_handle_find_slot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_shared_handle_find_slot </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__shared__handle__table__t.html">brix_shared_handle_table_t</a> *&#160;</td>
+          <td class="paramname"><em>tbl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char&#160;</td>
+          <td class="paramname"><em>sessid</em>[16], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>handle_index</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__shared__handle__entry__t.html">brix_shared_handle_entry_t</a> **&#160;</td>
+          <td class="paramname"><em>entry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>free_slot</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00087">87</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00055">BRIX_SESSION_HANDLE_SLOTS</a>, <a class="el" href="handles_8c_source.html#l00065">brix_shared_handle_same_key()</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00091">brix_shared_handle_entry_t::in_use</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00116">brix_shared_handle_table_t::slots</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00197">brix_session_handle_publish()</a>.</p>
 
 </div>
 </div>
@@ -397,7 +463,115 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00086">brix_shared_handle_entry_t::handle_index</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00091">brix_shared_handle_entry_t::in_use</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00085">brix_shared_handle_entry_t::sessid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00192">brix_session_handle_lookup_hint()</a>, <a class="el" href="handles_8c_source.html#l00084">brix_session_handle_publish()</a>, and <a class="el" href="handles_8c_source.html#l00263">brix_session_handle_unpublish()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00248">brix_session_handle_lookup_hint()</a>, <a class="el" href="handles_8c_source.html#l00319">brix_session_handle_unpublish()</a>, and <a class="el" href="handles_8c_source.html#l00087">brix_shared_handle_find_slot()</a>.</p>
+
+</div>
+</div>
+<a id="ad5a907a8c3d1b038fbdda9932b217e66" name="ad5a907a8c3d1b038fbdda9932b217e66"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad5a907a8c3d1b038fbdda9932b217e66">&#9670;&#160;</a></span>brix_shared_handle_select_target()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_shared_handle_select_target </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__shared__handle__table__t.html">brix_shared_handle_table_t</a> *&#160;</td>
+          <td class="paramname"><em>tbl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__file__t.html">brix_file_t</a> *&#160;</td>
+          <td class="paramname"><em>file</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>free_slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__shared__handle__entry__t.html">brix_shared_handle_entry_t</a> **&#160;</td>
+          <td class="paramname"><em>entry</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00158">158</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00055">BRIX_SESSION_HANDLE_SLOTS</a>, <a class="el" href="core_2types_2file_8h_source.html#l00066">brix_file_t::path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00072">brix_file_t::readable</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00116">brix_shared_handle_table_t::slots</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00197">brix_session_handle_publish()</a>.</p>
+
+</div>
+</div>
+<a id="a24345c76b620c057803c1827024a6901" name="a24345c76b620c057803c1827024a6901"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a24345c76b620c057803c1827024a6901">&#9670;&#160;</a></span>brix_shared_handle_store()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_shared_handle_store </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__shared__handle__entry__t.html">brix_shared_handle_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>entry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char&#160;</td>
+          <td class="paramname"><em>sessid</em>[16], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>handle_index</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__file__t.html">brix_file_t</a> *&#160;</td>
+          <td class="paramname"><em>file</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00124">124</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
+
+<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="core_2types_2file_8h_source.html#l00079">brix_file_t::cached_size</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00094">brix_shared_handle_entry_t::cached_size</a>, <a class="el" href="core_2types_2file_8h_source.html#l00077">brix_file_t::device</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00092">brix_shared_handle_entry_t::device</a>, <a class="el" href="core_2types_2file_8h_source.html#l00073">brix_file_t::from_cache</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00089">brix_shared_handle_entry_t::from_cache</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00086">brix_shared_handle_entry_t::handle_index</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00091">brix_shared_handle_entry_t::in_use</a>, <a class="el" href="core_2types_2file_8h_source.html#l00078">brix_file_t::inode</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00093">brix_shared_handle_entry_t::inode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00076">brix_file_t::is_regular</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00090">brix_shared_handle_entry_t::is_regular</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="core_2types_2file_8h_source.html#l00066">brix_file_t::path</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00095">brix_shared_handle_entry_t::path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00072">brix_file_t::readable</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00087">brix_shared_handle_entry_t::readable</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00085">brix_shared_handle_entry_t::sessid</a>, <a class="el" href="core_2types_2file_8h_source.html#l00071">brix_file_t::writable</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00088">brix_shared_handle_entry_t::writable</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00197">brix_session_handle_publish()</a>.</p>
 
 </div>
 </div>
@@ -429,7 +603,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00017">brix_handle_shm_zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00192">brix_session_handle_lookup_hint()</a>, <a class="el" href="handles_8c_source.html#l00084">brix_session_handle_publish()</a>, <a class="el" href="handles_8c_source.html#l00263">brix_session_handle_unpublish()</a>, and <a class="el" href="handles_8c_source.html#l00300">brix_session_handle_unpublish_all()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00248">brix_session_handle_lookup_hint()</a>, <a class="el" href="handles_8c_source.html#l00197">brix_session_handle_publish()</a>, <a class="el" href="handles_8c_source.html#l00319">brix_session_handle_unpublish()</a>, and <a class="el" href="handles_8c_source.html#l00356">brix_session_handle_unpublish_all()</a>.</p>
 
 </div>
 </div>
@@ -456,7 +630,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="handles_8c_source.html#l00020">20</a> of file <a class="el" href="handles_8c_source.html">handles.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00035">brix_handle_shm_init_zone()</a>, <a class="el" href="handles_8c_source.html#l00192">brix_session_handle_lookup_hint()</a>, <a class="el" href="handles_8c_source.html#l00084">brix_session_handle_publish()</a>, <a class="el" href="handles_8c_source.html#l00263">brix_session_handle_unpublish()</a>, and <a class="el" href="handles_8c_source.html#l00300">brix_session_handle_unpublish_all()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handles_8c_source.html#l00035">brix_handle_shm_init_zone()</a>, <a class="el" href="handles_8c_source.html#l00248">brix_session_handle_lookup_hint()</a>, <a class="el" href="handles_8c_source.html#l00197">brix_session_handle_publish()</a>, <a class="el" href="handles_8c_source.html#l00319">brix_session_handle_unpublish()</a>, and <a class="el" href="handles_8c_source.html#l00356">brix_session_handle_unpublish_all()</a>.</p>
 
 </div>
 </div>

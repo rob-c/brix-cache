@@ -118,7 +118,7 @@ Functions</h2></td></tr>
 <tr class="separator:af4bbbc18510c9c50915448fea1a503a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a90ce1ed8b63e053286a655f7c286dd6b" id="r_a90ce1ed8b63e053286a655f7c286dd6b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2cms_2connect_8c.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a> (ngx_brix_cms_ctx_t *ctx, <a class="el" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7">brix_sess_end_t</a> why)</td></tr>
 <tr class="separator:a90ce1ed8b63e053286a655f7c286dd6b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abec9cd0a6a55fe36c734fc121d91e3a7" id="r_abec9cd0a6a55fe36c734fc121d91e3a7"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7">brix_sess_end_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2cms_2connect_8c.html#abec9cd0a6a55fe36c734fc121d91e3a7">ngx_brix_cms_end_reason</a> (ngx_brix_cms_ctx_t *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:abec9cd0a6a55fe36c734fc121d91e3a7" id="r_abec9cd0a6a55fe36c734fc121d91e3a7"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7">brix_sess_end_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2cms_2connect_8c.html#abec9cd0a6a55fe36c734fc121d91e3a7">ngx_brix_cms_end_reason</a> (ngx_brix_cms_ctx_t *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:abec9cd0a6a55fe36c734fc121d91e3a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae065f678f6f620a3867c12c6d0059bff" id="r_ae065f678f6f620a3867c12c6d0059bff"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2cms_2connect_8c.html#ae065f678f6f620a3867c12c6d0059bff">ngx_brix_cms_manager_cstr</a> (ngx_brix_cms_ctx_t *ctx, char *dst, size_t dst_size)</td></tr>
 <tr class="separator:ae065f678f6f620a3867c12c6d0059bff"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -192,9 +192,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00134">134</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00551">ngx_brix_cms_read_handler()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00107">ngx_brix_cms_read_handler()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -224,7 +224,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00403">403</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="netopt_8h_source.html#l00039">brix_apply_tcp_deadpeer_opts()</a>, <a class="el" href="log__diag_8h_source.html#l00073">BRIX_DIAG_WARN</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="cms__internal_8h_source.html#l00021">NGX_BRIX_CMS_CONNECT_TIMEOUT</a>, <a class="el" href="cms__internal_8h_source.html#l00041">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00551">ngx_brix_cms_read_handler()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00180">ngx_brix_cms_schedule_retry()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00096">ngx_brix_cms_sess_begin()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">References <a class="el" href="netopt_8h_source.html#l00039">brix_apply_tcp_deadpeer_opts()</a>, <a class="el" href="log__diag_8h_source.html#l00073">BRIX_DIAG_WARN</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="cms__internal_8h_source.html#l00021">NGX_BRIX_CMS_CONNECT_TIMEOUT</a>, <a class="el" href="cms__internal_8h_source.html#l00046">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00107">ngx_brix_cms_read_handler()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00180">ngx_brix_cms_schedule_retry()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00096">ngx_brix_cms_sess_begin()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>.</p>
 
@@ -248,9 +248,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00255">255</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00435">brix_sess_end()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00047">ngx_brix_cms_end_reason()</a>, and <a class="el" href="cms__internal_8h_source.html#l00041">NGX_BRIX_CMS_HDR_LEN</a>.</p>
+<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00454">brix_sess_end()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00047">ngx_brix_cms_end_reason()</a>, and <a class="el" href="cms__internal_8h_source.html#l00046">NGX_BRIX_CMS_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00321">ngx_brix_cms_process_frame()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00551">ngx_brix_cms_read_handler()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00351">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -290,7 +290,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00047">47</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, <a class="el" href="sesslog_8h_source.html#l00065">BRIX_SESS_END_SHUTDOWN</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, and <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, <a class="el" href="sesslog_8h_source.html#l00065">BRIX_SESS_END_SHUTDOWN</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2cms_2connect_8c_source.html#l00255">ngx_brix_cms_disconnect()</a>.</p>
 
@@ -322,7 +322,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00112">112</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00327">brix_sess_attempt()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00305">brix_sess_auth_once()</a>, <a class="el" href="sesslog_8h_source.html#l00048">BRIX_SESS_MODE_META</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00353">brix_sess_result()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00072">ngx_brix_cms_manager_cstr()</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00333">brix_sess_attempt()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00311">brix_sess_auth_once()</a>, <a class="el" href="sesslog_8h_source.html#l00048">BRIX_SESS_MODE_META</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00361">brix_sess_result()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00072">ngx_brix_cms_manager_cstr()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
@@ -428,7 +428,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="log__diag_8h_source.html#l00073">BRIX_DIAG_WARN</a>, <a class="el" href="cms__internal_8h_source.html#l00020">NGX_BRIX_CMS_BACKOFF_MAX</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00151">ngx_brix_cms_schedule()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2connect_8c_source.html#l00403">ngx_brix_cms_connect()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00321">ngx_brix_cms_process_frame()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00551">ngx_brix_cms_read_handler()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00351">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00403">ngx_brix_cms_connect()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -492,7 +492,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00036">36</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00321">ngx_brix_cms_process_frame()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00551">ngx_brix_cms_read_handler()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00351">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -524,9 +524,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00514">514</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00081">brix_cms_conf_t::addr</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00021">brix_phase_now_ns()</a>, <a class="el" href="types_2config_8h_source.html#l00637">ngx_stream_brix_srv_conf_t::cms</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00014">cms_addr_is_loopback()</a>, <a class="el" href="conf__structs_8h_source.html#l00096">brix_cms_conf_t::connect_retry</a>, <a class="el" href="conf__structs_8h_source.html#l00084">brix_cms_conf_t::ctx</a>, <a class="el" href="conf__structs_8h_source.html#l00094">brix_cms_conf_t::initial_delay</a>, <a class="el" href="conf__structs_8h_source.html#l00083">brix_cms_conf_t::interval</a>, <a class="el" href="conf__structs_8h_source.html#l00080">brix_cms_conf_t::manager</a>, <a class="el" href="cms__internal_8h_source.html#l00019">NGX_BRIX_CMS_BACKOFF_INITIAL</a>, <a class="el" href="cms__internal_8h_source.html#l00038">NGX_BRIX_CMS_FASTRETRY_FLOOR</a>, <a class="el" href="cms__internal_8h_source.html#l00036">NGX_BRIX_CMS_FASTRETRY_LOOPBACK</a>, <a class="el" href="cms__internal_8h_source.html#l00037">NGX_BRIX_CMS_FASTRETRY_REMOTE</a>, <a class="el" href="cms__internal_8h_source.html#l00039">NGX_BRIX_CMS_FASTWIN_LOOPBACK</a>, <a class="el" href="cms__internal_8h_source.html#l00040">NGX_BRIX_CMS_FASTWIN_REMOTE</a>, <a class="el" href="cms__internal_8h_source.html#l00041">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="cms__internal_8h_source.html#l00034">NGX_BRIX_CMS_INITDELAY_LOOPBACK</a>, <a class="el" href="cms__internal_8h_source.html#l00035">NGX_BRIX_CMS_INITDELAY_REMOTE</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00151">ngx_brix_cms_schedule()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
+<p class="reference">References <a class="el" href="lifecycle__timing_8c_source.html#l00021">brix_phase_now_ns()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00014">cms_addr_is_loopback()</a>, <a class="el" href="cms__internal_8h_source.html#l00019">NGX_BRIX_CMS_BACKOFF_INITIAL</a>, <a class="el" href="cms__internal_8h_source.html#l00043">NGX_BRIX_CMS_FASTRETRY_FLOOR</a>, <a class="el" href="cms__internal_8h_source.html#l00041">NGX_BRIX_CMS_FASTRETRY_LOOPBACK</a>, <a class="el" href="cms__internal_8h_source.html#l00042">NGX_BRIX_CMS_FASTRETRY_REMOTE</a>, <a class="el" href="cms__internal_8h_source.html#l00044">NGX_BRIX_CMS_FASTWIN_LOOPBACK</a>, <a class="el" href="cms__internal_8h_source.html#l00045">NGX_BRIX_CMS_FASTWIN_REMOTE</a>, <a class="el" href="cms__internal_8h_source.html#l00046">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="cms__internal_8h_source.html#l00039">NGX_BRIX_CMS_INITDELAY_LOOPBACK</a>, <a class="el" href="cms__internal_8h_source.html#l00040">NGX_BRIX_CMS_INITDELAY_REMOTE</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00151">ngx_brix_cms_schedule()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="process__server__init_8c_source.html#l00342">brix_init_one_server()</a>.</p>
 
 </div>
 </div>
@@ -588,7 +588,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00286">286</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="lifecycle__timing_8c_source.html#l00021">brix_phase_now_ns()</a>, <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00134">ngx_brix_cms_arm_read_deadline()</a>, <a class="el" href="cms__internal_8h_source.html#l00019">NGX_BRIX_CMS_BACKOFF_INITIAL</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00255">ngx_brix_cms_disconnect()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00112">ngx_brix_cms_log_registration()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00151">ngx_brix_cms_schedule()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00180">ngx_brix_cms_schedule_retry()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00227">ngx_brix_cms_send_load()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00064">ngx_brix_cms_send_login()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00209">ngx_brix_cms_send_status()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00036">ngx_brix_cms_set_end_hint()</a>.</p>
+<p class="reference">References <a class="el" href="lifecycle__timing_8c_source.html#l00021">brix_phase_now_ns()</a>, <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00134">ngx_brix_cms_arm_read_deadline()</a>, <a class="el" href="cms__internal_8h_source.html#l00019">NGX_BRIX_CMS_BACKOFF_INITIAL</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00255">ngx_brix_cms_disconnect()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00112">ngx_brix_cms_log_registration()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00151">ngx_brix_cms_schedule()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00180">ngx_brix_cms_schedule_retry()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00227">ngx_brix_cms_send_load()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00064">ngx_brix_cms_send_login()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00209">ngx_brix_cms_send_status()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00036">ngx_brix_cms_set_end_hint()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2cms_2connect_8c_source.html#l00403">ngx_brix_cms_connect()</a>.</p>
 

@@ -6,5 +6,5 @@ var op__table_8c =
     [ "exec_rm", "op__table_8c.html#ae52621e03f111e9446ec883c478dadc0", null ],
     [ "exec_rmdir", "op__table_8c.html#a65ba473f95f2a67da82ecf58aecacb1a", null ],
     [ "op_vfs_ctx", "op__table_8c.html#adf1bc2d5fe1679f1c7305fc82e3ed65d", null ],
-    [ "_ops", "op__table_8c.html#ac1cd08a991be2d7f42ba6ffb6499338f", null ]
+    [ "op_table", "op__table_8c.html#a79650cdab76aa691e8b457689169035c", null ]
 ];

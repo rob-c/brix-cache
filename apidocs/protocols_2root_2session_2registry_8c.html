@@ -118,6 +118,14 @@ Functions</h2></td></tr>
 <tr class="separator:a73b62e13edeba66c924a2c325099a26f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad9ce963149cfc41f14664020bdd8a81d" id="r_ad9ce963149cfc41f14664020bdd8a81d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2session_2registry_8c.html#ad9ce963149cfc41f14664020bdd8a81d">brix_configure_session_registry</a> (ngx_conf_t *cf, ngx_uint_t slots)</td></tr>
 <tr class="separator:ad9ce963149cfc41f14664020bdd8a81d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aabec5be9408441355e9f56a7ee8da07a" id="r_aabec5be9408441355e9f56a7ee8da07a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2session_2registry_8c.html#aabec5be9408441355e9f56a7ee8da07a">brix_session_scan</a> (<a class="el" href="structbrix__session__table__t.html">brix_session_table_t</a> *tbl, const u_char sessid[16], ngx_msec_t now, ngx_uint_t *free_slot_out, ngx_uint_t *lru_slot_out, ngx_msec_t *lru_seen_out)</td></tr>
+<tr class="separator:aabec5be9408441355e9f56a7ee8da07a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaf10112ba900c09f8080cd8da11849c3" id="r_aaf10112ba900c09f8080cd8da11849c3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2session_2registry_8c.html#aaf10112ba900c09f8080cd8da11849c3">brix_session_reap_lru</a> (<a class="el" href="structbrix__session__table__t.html">brix_session_table_t</a> *tbl, ngx_msec_t now, ngx_uint_t lru_slot, ngx_msec_t lru_seen, ngx_uint_t *free_slot_out, u_char victim[16])</td></tr>
+<tr class="separator:aaf10112ba900c09f8080cd8da11849c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0d3cd3d32e5541ed802edbda5655e093" id="r_a0d3cd3d32e5541ed802edbda5655e093"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2session_2registry_8c.html#a0d3cd3d32e5541ed802edbda5655e093">brix_session_fill_slot</a> (<a class="el" href="structbrix__session__table__t.html">brix_session_table_t</a> *tbl, ngx_uint_t slot, const u_char sessid[16], const char *dn, const char *vo_list, ngx_uint_t token_auth, ngx_msec_t now)</td></tr>
+<tr class="separator:a0d3cd3d32e5541ed802edbda5655e093"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7d8079987fd23ec58992a01496f5c516" id="r_a7d8079987fd23ec58992a01496f5c516"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2session_2registry_8c.html#a7d8079987fd23ec58992a01496f5c516">brix_session_finish_eviction</a> (const u_char victim[16])</td></tr>
+<tr class="separator:a7d8079987fd23ec58992a01496f5c516"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac47718cea8621f0186689cb8f839d71d" id="r_ac47718cea8621f0186689cb8f839d71d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2session_2registry_8c.html#ac47718cea8621f0186689cb8f839d71d">brix_session_register</a> (const u_char sessid[16], const char *dn, const char *vo_list, ngx_uint_t token_auth)</td></tr>
 <tr class="separator:ac47718cea8621f0186689cb8f839d71d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a355ec180b00e14c71214afc5209e69f1" id="r_a355ec180b00e14c71214afc5209e69f1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2session_2registry_8c.html#a355ec180b00e14c71214afc5209e69f1">brix_session_lookup</a> (const u_char sessid[16], char *dn_out, size_t dn_size, char *vo_out, size_t vo_size, ngx_uint_t *token_auth_out)</td></tr>
@@ -167,7 +175,111 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="handles_8c_source.html#l00035">brix_handle_shm_init_zone()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00017">brix_handle_shm_zone</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00023">brix_session_registry_nslots</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00030">BRIX_SESSION_REGISTRY_SLOTS</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00042">brix_session_shm_init_zone()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00016">brix_session_shm_zone</a>, <a class="el" href="shm__slots_8c_source.html#l00180">brix_shm_zone_size()</a>, <a class="el" href="shm__slots_8c_source.html#l00116">brix_shm_zone_warn_on_resize()</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00162">postconf_session_registry()</a>.</p>
+
+</div>
+</div>
+<a id="a0d3cd3d32e5541ed802edbda5655e093" name="a0d3cd3d32e5541ed802edbda5655e093"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0d3cd3d32e5541ed802edbda5655e093">&#9670;&#160;</a></span>brix_session_fill_slot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_session_fill_slot </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__session__table__t.html">brix_session_table_t</a> *&#160;</td>
+          <td class="paramname"><em>tbl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char&#160;</td>
+          <td class="paramname"><em>sessid</em>[16], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>vo_list</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>token_auth</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_msec_t&#160;</td>
+          <td class="paramname"><em>now</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00224">224</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
+
+<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00065">brix_session_entry_t::dn</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00068">brix_session_entry_t::in_use</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00069">brix_session_entry_t::last_seen</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00064">brix_session_entry_t::sessid</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00106">brix_session_table_t::slots</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00067">brix_session_entry_t::token_auth</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00066">brix_session_entry_t::vo_list</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">brix_session_register()</a>.</p>
+
+</div>
+</div>
+<a id="a7d8079987fd23ec58992a01496f5c516" name="a7d8079987fd23ec58992a01496f5c516"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7d8079987fd23ec58992a01496f5c516">&#9670;&#160;</a></span>brix_session_finish_eviction()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_session_finish_eviction </td>
+          <td>(</td>
+          <td class="paramtype">const u_char&#160;</td>
+          <td class="paramname"><em>victim</em>[16]</td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00254">254</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="handles_8c_source.html#l00356">brix_session_handle_unpublish_all()</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00417">ngx_brix_metrics_t::session_evict_total</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">brix_session_register()</a>.</p>
 
 </div>
 </div>
@@ -221,11 +333,77 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00211">211</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00314">314</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00019">brix_session_mutex</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00105">brix_session_table_t::capacity</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00065">brix_session_entry_t::dn</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00068">brix_session_entry_t::in_use</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00069">brix_session_entry_t::last_seen</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00064">brix_session_entry_t::sessid</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00028">session_table()</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00106">brix_session_table_t::slots</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00067">brix_session_entry_t::token_auth</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00066">brix_session_entry_t::vo_list</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="bind_8c_source.html#l00035">brix_handle_bind()</a>.</p>
+
+</div>
+</div>
+<a id="aaf10112ba900c09f8080cd8da11849c3" name="aaf10112ba900c09f8080cd8da11849c3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaf10112ba900c09f8080cd8da11849c3">&#9670;&#160;</a></span>brix_session_reap_lru()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_session_reap_lru </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__session__table__t.html">brix_session_table_t</a> *&#160;</td>
+          <td class="paramname"><em>tbl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_msec_t&#160;</td>
+          <td class="paramname"><em>now</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>lru_slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_msec_t&#160;</td>
+          <td class="paramname"><em>lru_seen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>free_slot_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char&#160;</td>
+          <td class="paramname"><em>victim</em>[16]&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00187">187</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00077">BRIX_SESSION_REAP_MIN_AGE_MS</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00064">brix_session_entry_t::sessid</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00416">ngx_brix_metrics_t::session_registry_full_total</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00106">brix_session_table_t::slots</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">brix_session_register()</a>.</p>
 
 </div>
 </div>
@@ -267,11 +445,77 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00118">118</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">268</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="handles_8c_source.html#l00300">brix_session_handle_unpublish_all()</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00019">brix_session_mutex</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00077">BRIX_SESSION_REAP_MIN_AGE_MS</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00105">brix_session_table_t::capacity</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00065">brix_session_entry_t::dn</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00068">brix_session_entry_t::in_use</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00069">brix_session_entry_t::last_seen</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00064">brix_session_entry_t::sessid</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00400">ngx_brix_metrics_t::session_evict_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00399">ngx_brix_metrics_t::session_registry_full_total</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00028">session_table()</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00106">brix_session_table_t::slots</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00067">brix_session_entry_t::token_auth</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00066">brix_session_entry_t::vo_list</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00224">brix_session_fill_slot()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00254">brix_session_finish_eviction()</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00019">brix_session_mutex</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00187">brix_session_reap_lru()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00134">brix_session_scan()</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00105">brix_session_table_t::capacity</a>, and <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00028">session_table()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00054">brix_gsi_complete_auth()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00084">brix_handle_host_auth()</a>, <a class="el" href="src_2auth_2krb5_2auth_8c_source.html#l00165">brix_handle_krb5_auth()</a>, <a class="el" href="login_8c_source.html#l00022">brix_handle_login()</a>, <a class="el" href="auth__request_8c_source.html#l00014">brix_handle_sss_auth()</a>, <a class="el" href="token_8c_source.html#l00044">brix_handle_token_auth()</a>, <a class="el" href="src_2auth_2unix_2auth_8c_source.html#l00157">brix_handle_unix_auth()</a>, and <a class="el" href="src_2auth_2pwd_2auth_8c_source.html#l00172">pwd_round2()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00157">brix_gsi_complete_auth()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00084">brix_handle_host_auth()</a>, <a class="el" href="login_8c_source.html#l00124">brix_login_respond_anon()</a>, <a class="el" href="src_2auth_2unix_2auth_8c_source.html#l00296">brix_unix_finalize()</a>, <a class="el" href="src_2auth_2pwd_2auth_8c_source.html#l00172">pwd_round2()</a>, <a class="el" href="auth__request_8c_source.html#l00312">sss_reply()</a>, and <a class="el" href="token_8c_source.html#l00462">tokenauth_bind_session()</a>.</p>
+
+</div>
+</div>
+<a id="aabec5be9408441355e9f56a7ee8da07a" name="aabec5be9408441355e9f56a7ee8da07a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aabec5be9408441355e9f56a7ee8da07a">&#9670;&#160;</a></span>brix_session_scan()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_session_scan </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__session__table__t.html">brix_session_table_t</a> *&#160;</td>
+          <td class="paramname"><em>tbl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char&#160;</td>
+          <td class="paramname"><em>sessid</em>[16], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_msec_t&#160;</td>
+          <td class="paramname"><em>now</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>free_slot_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>lru_slot_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_msec_t *&#160;</td>
+          <td class="paramname"><em>lru_seen_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00134">134</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
+
+<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00105">brix_session_table_t::capacity</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00068">brix_session_entry_t::in_use</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00069">brix_session_entry_t::last_seen</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00064">brix_session_entry_t::sessid</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00106">brix_session_table_t::slots</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">brix_session_register()</a>.</p>
 
 </div>
 </div>
@@ -325,11 +569,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00250">250</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00353">353</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
 
-<p class="reference">References <a class="el" href="handles_8c_source.html#l00300">brix_session_handle_unpublish_all()</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00019">brix_session_mutex</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00105">brix_session_table_t::capacity</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00068">brix_session_entry_t::in_use</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00064">brix_session_entry_t::sessid</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00028">session_table()</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00106">brix_session_table_t::slots</a>.</p>
+<p class="reference">References <a class="el" href="handles_8c_source.html#l00356">brix_session_handle_unpublish_all()</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00019">brix_session_mutex</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00105">brix_session_table_t::capacity</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00068">brix_session_entry_t::in_use</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00064">brix_session_entry_t::sessid</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00028">session_table()</a>, and <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00106">brix_session_table_t::slots</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2lifecycle_8c_source.html#l00023">brix_handle_endsess()</a>, and <a class="el" href="disconnect_8c_source.html#l00295">brix_on_disconnect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2lifecycle_8c_source.html#l00023">brix_handle_endsess()</a>, and <a class="el" href="disconnect_8c_source.html#l00201">brix_on_disconnect()</a>.</p>
 
 </div>
 </div>
@@ -361,7 +605,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00016">brix_session_shm_zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00211">brix_session_lookup()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00118">brix_session_register()</a>, and <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00250">brix_session_unregister()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00314">brix_session_lookup()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">brix_session_register()</a>, and <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00353">brix_session_unregister()</a>.</p>
 
 </div>
 </div>
@@ -406,7 +650,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00019">19</a> of file <a class="el" href="protocols_2root_2session_2registry_8c_source.html">registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00211">brix_session_lookup()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00118">brix_session_register()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00042">brix_session_shm_init_zone()</a>, and <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00250">brix_session_unregister()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00314">brix_session_lookup()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">brix_session_register()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00042">brix_session_shm_init_zone()</a>, and <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00353">brix_session_unregister()</a>.</p>
 
 </div>
 </div>

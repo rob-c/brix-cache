@@ -144,7 +144,7 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a7e26bea051def106a452047c430fef03" id="r_a7e26bea051def106a452047c430fef03"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab_8h.html#a7e26bea051def106a452047c430fef03">brix_sss_crc32</a> (const uint8_t *p, size_t len)</td></tr>
 <tr class="separator:a7e26bea051def106a452047c430fef03"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8cc94062060563b9ccc3cc1d0905304e" id="r_a8cc94062060563b9ccc3cc1d0905304e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab_8h.html#a8cc94062060563b9ccc3cc1d0905304e">brix_sss_bf32_encrypt</a> (const uint8_t *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const uint8_t *src, size_t src_len, uint8_t *dst, size_t dst_max, size_t *out_len, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a8cc94062060563b9ccc3cc1d0905304e" id="r_a8cc94062060563b9ccc3cc1d0905304e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab_8h.html#a8cc94062060563b9ccc3cc1d0905304e">brix_sss_bf32_encrypt</a> (const uint8_t *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const uint8_t *src, size_t src_len, uint8_t *dst, size_t dst_max, size_t *out_len, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a8cc94062060563b9ccc3cc1d0905304e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a414d4e04397ca13e6fe24d0e847f1189" id="r_a414d4e04397ca13e6fe24d0e847f1189"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab_8h.html#a414d4e04397ca13e6fe24d0e847f1189">brix_sss_keytab_default</a> (char *out, size_t outsz)</td></tr>
 <tr class="separator:a414d4e04397ca13e6fe24d0e847f1189"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -347,7 +347,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sss__keytab_8c_source.html#l00044">44</a> of file <a class="el" href="sss__keytab_8c_source.html">sss_keytab.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sss__bf_8c_source.html#l00042">brix_sss_bf_crypt()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
+<p class="reference">References <a class="el" href="sss__bf_8c_source.html#l00155">brix_sss_bf_crypt()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
 
 </div>
 </div>
@@ -379,7 +379,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sss__keytab_8c_source.html#l00036">36</a> of file <a class="el" href="sss__keytab_8c_source.html">sss_keytab.c</a>.</p>
 
-<p class="reference">References <a class="el" href="crc32__ieee_8c_source.html#l00011">brix_crc32_ieee()</a>.</p>
+<p class="reference">References <a class="el" href="crc32__ieee_8c_source.html#l00014">brix_crc32_ieee()</a>.</p>
 
 </div>
 </div>
@@ -413,7 +413,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="envalias_8c_source.html#l00023">brix_env_resolve()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00205">main()</a>, <a class="el" href="cred__sss_8c_source.html#l00049">resolve_keytab_path()</a>, and <a class="el" href="sec__sss_8c_source.html#l00043">sss_load_first_key()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00411">main()</a>, <a class="el" href="cred__sss_8c_source.html#l00049">resolve_keytab_path()</a>, and <a class="el" href="sec__sss_8c_source.html#l00043">sss_load_first_key()</a>.</p>
 
 </div>
 </div>
@@ -463,9 +463,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sss__keytab_8c_source.html#l00129">129</a> of file <a class="el" href="sss__keytab_8c_source.html">sss_keytab.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="sss__keytab_8c_source.html#l00107">parse_line()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00141">sss_keytab_mode_ok()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="sss__keytab_8c_source.html#l00107">parse_line()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00190">sss_keytab_mode_ok()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00072">cmd_add()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00165">cmd_del()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00140">cmd_list()</a>, <a class="el" href="cred__sss_8c_source.html#l00071">keytab_probe()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00056">load_or_empty()</a>, <a class="el" href="sec__sss_8c_source.html#l00077">sss_first()</a>, and <a class="el" href="sec__sss_8c_source.html#l00043">sss_load_first_key()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00141">cmd_add()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00213">cmd_del()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00188">cmd_list()</a>, <a class="el" href="cred__sss_8c_source.html#l00071">keytab_probe()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00057">load_or_empty()</a>, <a class="el" href="sec__sss_8c_source.html#l00077">sss_first()</a>, and <a class="el" href="sec__sss_8c_source.html#l00043">sss_load_first_key()</a>.</p>
 
 </div>
 </div>
@@ -509,9 +509,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sss__keytab_8c_source.html#l00183">183</a> of file <a class="el" href="sss__keytab_8c_source.html">sss_keytab.c</a>.</p>
 
-<p class="reference">References <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, and <a class="el" href="sss__keytab_8h_source.html#l00035">XRDC_SSS_KEY_MAX</a>.</p>
+<p class="reference">References <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, and <a class="el" href="sss__keytab_8h_source.html#l00035">XRDC_SSS_KEY_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00072">cmd_add()</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00165">cmd_del()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00141">cmd_add()</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00213">cmd_del()</a>.</p>
 
 </div>
 </div>

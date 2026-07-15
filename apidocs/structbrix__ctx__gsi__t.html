@@ -130,11 +130,51 @@ Data Fields</h2></td></tr>
 <tr class="separator:a85cb2326ee44e199d289031738827e69"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a28ec9c624249b4f315645c44d1880892" id="r_a28ec9c624249b4f315645c44d1880892"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__ctx__gsi__t.html#a28ec9c624249b4f315645c44d1880892">deleg_client_rtag_len</a></td></tr>
 <tr class="separator:a28ec9c624249b4f315645c44d1880892"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0680c6615a1ba1c34d5afb57eaebc7c0" id="r_a0680c6615a1ba1c34d5afb57eaebc7c0"><td class="memItemLeft" align="right" valign="top">u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__ctx__gsi__t.html#a0680c6615a1ba1c34d5afb57eaebc7c0">client_fullproxy_pem</a></td></tr>
+<tr class="separator:a0680c6615a1ba1c34d5afb57eaebc7c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa0db68b85c13339db8e6afe26f59cc99" id="r_aa0db68b85c13339db8e6afe26f59cc99"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__ctx__gsi__t.html#aa0db68b85c13339db8e6afe26f59cc99">client_fullproxy_len</a></td></tr>
+<tr class="separator:aa0db68b85c13339db8e6afe26f59cc99"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00115">115</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
+<a id="aa0db68b85c13339db8e6afe26f59cc99" name="aa0db68b85c13339db8e6afe26f59cc99"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa0db68b85c13339db8e6afe26f59cc99">&#9670;&#160;</a></span>client_fullproxy_len</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t brix_ctx_gsi_t::client_fullproxy_len</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00136">136</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="parse__x509_8c_source.html#l00075">gsi_capture_fullproxy()</a>, and <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00030">gsi_promote_fullproxy()</a>.</p>
+
+</div>
+</div>
+<a id="a0680c6615a1ba1c34d5afb57eaebc7c0" name="a0680c6615a1ba1c34d5afb57eaebc7c0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0680c6615a1ba1c34d5afb57eaebc7c0">&#9670;&#160;</a></span>client_fullproxy_pem</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">u_char* brix_ctx_gsi_t::client_fullproxy_pem</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00135">135</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="parse__x509_8c_source.html#l00075">gsi_capture_fullproxy()</a>, and <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00030">gsi_promote_fullproxy()</a>.</p>
+
+</div>
+</div>
 <a id="ab29a9ea0c51abde08f9a33ba123ff481" name="ab29a9ea0c51abde08f9a33ba123ff481"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab29a9ea0c51abde08f9a33ba123ff481">&#9670;&#160;</a></span>clnt_opts</h2>
 
@@ -149,7 +189,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00123">123</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00143">brix_gsi_send_cert()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00173">gsi_record_handshake_opts()</a>.</p>
 
 </div>
 </div>
@@ -167,7 +207,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00124">124</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, <a class="el" href="delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>, and <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00123">brix_handle_auth_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>, <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00507">gsi_auth_step_cert()</a>, and <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00358">gsi_auth_step_sigpxy()</a>.</p>
 
 </div>
 </div>
@@ -185,7 +225,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00126">126</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, <a class="el" href="delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, and <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, and <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>.</p>
 
 </div>
 </div>
@@ -203,7 +243,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00125">125</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, <a class="el" href="delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, and <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, and <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>.</p>
 
 </div>
 </div>
@@ -221,7 +261,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00129">129</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, and <a class="el" href="parse__x509_8c_source.html#l00045">gsi_capture_client_rtag()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, and <a class="el" href="parse__x509_8c_source.html#l00046">gsi_capture_client_rtag()</a>.</p>
 
 </div>
 </div>
@@ -239,7 +279,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00130">130</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, and <a class="el" href="parse__x509_8c_source.html#l00045">gsi_capture_client_rtag()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, and <a class="el" href="parse__x509_8c_source.html#l00046">gsi_capture_client_rtag()</a>.</p>
 
 </div>
 </div>
@@ -257,7 +297,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00128">128</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, and <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, and <a class="el" href="launch_8c_source.html#l00269">tpc_pull_attach_creds()</a>.</p>
 
 </div>
 </div>
@@ -275,7 +315,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00127">127</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, and <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, and <a class="el" href="launch_8c_source.html#l00269">tpc_pull_attach_creds()</a>.</p>
 
 </div>
 </div>
@@ -293,7 +333,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00122">122</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, <a class="el" href="delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, and <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, and <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>.</p>
 
 </div>
 </div>
@@ -311,7 +351,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00116">116</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00143">brix_gsi_send_cert()</a>, <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00123">brix_handle_auth_inner()</a>, <a class="el" href="disconnect_8c_source.html#l00096">brix_release_disconnect_crypto_state()</a>, and <a class="el" href="parse__x509_8c_source.html#l00166">STACK_OF()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="disconnect_8c_source.html#l00098">brix_release_disconnect_crypto_state()</a>, <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00507">gsi_auth_step_cert()</a>, <a class="el" href="cert__response_8c_source.html#l00211">gsi_build_dh_public()</a>, <a class="el" href="parse__x509__unsigned_8c_source.html#l00226">gsi_unsigned_build_peer()</a>, and <a class="el" href="parse__x509__signed_8c_source.html#l00154">STACK_OF()</a>.</p>
 
 </div>
 </div>
@@ -329,7 +369,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00118">118</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, <a class="el" href="parse__x509_8c_source.html#l00023">gsi_persist_session_cipher()</a>, and <a class="el" href="delegation_8c_source.html#l00108">gsi_session_cipher()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, <a class="el" href="parse__x509_8c_source.html#l00024">gsi_persist_session_cipher()</a>, and <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00108">gsi_session_cipher()</a>.</p>
 
 </div>
 </div>
@@ -347,7 +387,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00119">119</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, <a class="el" href="delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>, and <a class="el" href="parse__x509_8c_source.html#l00023">gsi_persist_session_cipher()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>, and <a class="el" href="parse__x509_8c_source.html#l00024">gsi_persist_session_cipher()</a>.</p>
 
 </div>
 </div>
@@ -365,7 +405,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00120">120</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>, <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00123">brix_handle_auth_inner()</a>, <a class="el" href="parse__x509_8c_source.html#l00023">gsi_persist_session_cipher()</a>, and <a class="el" href="delegation_8c_source.html#l00108">gsi_session_cipher()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00121">brix_gsi_delegation_cleanup()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>, <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00507">gsi_auth_step_cert()</a>, <a class="el" href="parse__x509_8c_source.html#l00024">gsi_persist_session_cipher()</a>, and <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00108">gsi_session_cipher()</a>.</p>
 
 </div>
 </div>
@@ -383,7 +423,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00121">121</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delegation_8c_source.html#l00173">brix_gsi_begin_delegation()</a>, <a class="el" href="delegation_8c_source.html#l00294">brix_gsi_handle_sigpxy()</a>, and <a class="el" href="parse__x509_8c_source.html#l00023">gsi_persist_session_cipher()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00183">brix_gsi_begin_delegation()</a>, <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>, and <a class="el" href="parse__x509_8c_source.html#l00024">gsi_persist_session_cipher()</a>.</p>
 
 </div>
 </div>
@@ -401,7 +441,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ctx__structs_8h_source.html#l00117">117</a> of file <a class="el" href="ctx__structs_8h_source.html">ctx_structs.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00143">brix_gsi_send_cert()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00173">gsi_record_handshake_opts()</a>, and <a class="el" href="parse__x509__unsigned_8c_source.html#l00277">STACK_OF()</a>.</p>
 
 </div>
 </div>

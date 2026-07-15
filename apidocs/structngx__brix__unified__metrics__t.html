@@ -122,6 +122,12 @@ Data Fields</h2></td></tr>
 <tr class="separator:a00e70e88c3488c9b1a567b791b9f0af4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2e761de422ce2b7db2a5195c3bedf023" id="r_a2e761de422ce2b7db2a5195c3bedf023"><td class="memItemLeft" align="right" valign="top">ngx_atomic_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__brix__unified__metrics__t.html#a2e761de422ce2b7db2a5195c3bedf023">cache_bytes_evicted</a> [<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffda16f97d9102534415113268752d8ce27f">BRIX_PROTO_COUNT</a>]</td></tr>
 <tr class="separator:a2e761de422ce2b7db2a5195c3bedf023"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5333d43b2d299d857c7582845bb98566" id="r_a5333d43b2d299d857c7582845bb98566"><td class="memItemLeft" align="right" valign="top">ngx_atomic_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__brix__unified__metrics__t.html#a5333d43b2d299d857c7582845bb98566">cred_select_user_total</a> [<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffda16f97d9102534415113268752d8ce27f">BRIX_PROTO_COUNT</a>]</td></tr>
+<tr class="separator:a5333d43b2d299d857c7582845bb98566"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae3324d409bbe6cc692e149afe4d5152f" id="r_ae3324d409bbe6cc692e149afe4d5152f"><td class="memItemLeft" align="right" valign="top">ngx_atomic_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__brix__unified__metrics__t.html#ae3324d409bbe6cc692e149afe4d5152f">cred_select_fallback_total</a> [<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffda16f97d9102534415113268752d8ce27f">BRIX_PROTO_COUNT</a>]</td></tr>
+<tr class="separator:ae3324d409bbe6cc692e149afe4d5152f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aac578ba4072b84cdfb592d26687402d3" id="r_aac578ba4072b84cdfb592d26687402d3"><td class="memItemLeft" align="right" valign="top">ngx_atomic_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__brix__unified__metrics__t.html#aac578ba4072b84cdfb592d26687402d3">cred_select_deny_total</a> [<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffda16f97d9102534415113268752d8ce27f">BRIX_PROTO_COUNT</a>]</td></tr>
+<tr class="separator:aac578ba4072b84cdfb592d26687402d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9990a1495fa020bc47e6bd1b8b65a1b9" id="r_a9990a1495fa020bc47e6bd1b8b65a1b9"><td class="memItemLeft" align="right" valign="top">ngx_atomic_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__brix__unified__metrics__t.html#a9990a1495fa020bc47e6bd1b8b65a1b9">cache_usage_ratio_ppm</a></td></tr>
 <tr class="separator:a9990a1495fa020bc47e6bd1b8b65a1b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2c871f2ab4aa99cc6b6f53ca0ba59b78" id="r_a2c871f2ab4aa99cc6b6f53ca0ba59b78"><td class="memItemLeft" align="right" valign="top">ngx_atomic_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__brix__unified__metrics__t.html#a2c871f2ab4aa99cc6b6f53ca0ba59b78">cache_watermark_purges</a></td></tr>
@@ -159,9 +165,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00349">349</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00366">366</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00396">brix_metric_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00260">brix_metric_auth()</a>, and <a class="el" href="unified__export_8c_source.html#l00188">unified_emit_auth()</a>.</p>
 
 </div>
 </div>
@@ -179,7 +185,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00333">333</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00301">brix_metric_cache_result()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00120">brix_metric_cache_result()</a>, and <a class="el" href="unified__export_8c_source.html#l00093">unified_emit_cache()</a>.</p>
 
 </div>
 </div>
@@ -197,7 +203,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00331">331</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00301">brix_metric_cache_result()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00120">brix_metric_cache_result()</a>, and <a class="el" href="unified__export_8c_source.html#l00093">unified_emit_cache()</a>.</p>
 
 </div>
 </div>
@@ -215,7 +221,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00332">332</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00301">brix_metric_cache_result()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00120">brix_metric_cache_result()</a>, and <a class="el" href="unified__export_8c_source.html#l00093">unified_emit_cache()</a>.</p>
 
 </div>
 </div>
@@ -231,9 +237,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00338">338</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00355">355</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00330">brix_metric_cache_usage_ratio()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00194">brix_metric_cache_usage_ratio()</a>, and <a class="el" href="unified__export_8c_source.html#l00122">unified_emit_cache_watermark()</a>.</p>
 
 </div>
 </div>
@@ -249,9 +255,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00341">341</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00358">358</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00346">brix_metric_cache_watermark_purge()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00210">brix_metric_cache_watermark_purge()</a>, and <a class="el" href="unified__export_8c_source.html#l00122">unified_emit_cache_watermark()</a>.</p>
 
 </div>
 </div>
@@ -267,9 +273,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00340">340</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00357">357</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00346">brix_metric_cache_watermark_purge()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00210">brix_metric_cache_watermark_purge()</a>, and <a class="el" href="unified__export_8c_source.html#l00122">unified_emit_cache_watermark()</a>.</p>
 
 </div>
 </div>
@@ -285,9 +291,63 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00339">339</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00356">356</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00346">brix_metric_cache_watermark_purge()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00210">brix_metric_cache_watermark_purge()</a>, and <a class="el" href="unified__export_8c_source.html#l00122">unified_emit_cache_watermark()</a>.</p>
+
+</div>
+</div>
+<a id="aac578ba4072b84cdfb592d26687402d3" name="aac578ba4072b84cdfb592d26687402d3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aac578ba4072b84cdfb592d26687402d3">&#9670;&#160;</a></span>cred_select_deny_total</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_atomic_t ngx_brix_unified_metrics_t::cred_select_deny_total[<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffda16f97d9102534415113268752d8ce27f">BRIX_PROTO_COUNT</a>]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00350">350</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00159">brix_metric_cred_result()</a>, and <a class="el" href="unified__export_8c_source.html#l00058">unified_emit_cred_select()</a>.</p>
+
+</div>
+</div>
+<a id="ae3324d409bbe6cc692e149afe4d5152f" name="ae3324d409bbe6cc692e149afe4d5152f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae3324d409bbe6cc692e149afe4d5152f">&#9670;&#160;</a></span>cred_select_fallback_total</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_atomic_t ngx_brix_unified_metrics_t::cred_select_fallback_total[<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffda16f97d9102534415113268752d8ce27f">BRIX_PROTO_COUNT</a>]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00349">349</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00159">brix_metric_cred_result()</a>, and <a class="el" href="unified__export_8c_source.html#l00058">unified_emit_cred_select()</a>.</p>
+
+</div>
+</div>
+<a id="a5333d43b2d299d857c7582845bb98566" name="a5333d43b2d299d857c7582845bb98566"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5333d43b2d299d857c7582845bb98566">&#9670;&#160;</a></span>cred_select_user_total</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_atomic_t ngx_brix_unified_metrics_t::cred_select_user_total[<a class="el" href="observability_2metrics_2unified_8h.html#a2b841f7e62de1567e61af8457eecfffda16f97d9102534415113268752d8ce27f">BRIX_PROTO_COUNT</a>]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00348">348</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00159">brix_metric_cred_result()</a>, and <a class="el" href="unified__export_8c_source.html#l00058">unified_emit_cred_select()</a>.</p>
 
 </div>
 </div>
@@ -305,7 +365,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00308">308</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, and <a class="el" href="unified__export__io_8c_source.html#l00191">unified_emit_io_bytes()</a>.</p>
 
 </div>
 </div>
@@ -323,7 +383,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00318">318</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00266">brix_metric_backend_bytes()</a>, <a class="el" href="writer_8c_source.html#l00333">brix_storage_io_bytes_emit()</a>, and <a class="el" href="api__snapshot_8c_source.html#l00470">dashboard_fill_storage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00085">brix_metric_backend_bytes()</a>, <a class="el" href="writer_8c_source.html#l00333">brix_storage_io_bytes_emit()</a>, and <a class="el" href="api__snapshot__panels_8c_source.html#l00286">dashboard_build_storage_io()</a>.</p>
 
 </div>
 </div>
@@ -341,7 +401,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00309">309</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, and <a class="el" href="unified__export__io_8c_source.html#l00191">unified_emit_io_bytes()</a>.</p>
 
 </div>
 </div>
@@ -359,7 +419,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00319">319</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00266">brix_metric_backend_bytes()</a>, <a class="el" href="writer_8c_source.html#l00333">brix_storage_io_bytes_emit()</a>, and <a class="el" href="api__snapshot_8c_source.html#l00470">dashboard_fill_storage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00085">brix_metric_backend_bytes()</a>, <a class="el" href="writer_8c_source.html#l00333">brix_storage_io_bytes_emit()</a>, and <a class="el" href="api__snapshot__panels_8c_source.html#l00286">dashboard_build_storage_io()</a>.</p>
 
 </div>
 </div>
@@ -377,7 +437,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00323">323</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, and <a class="el" href="unified__export__io_8c_source.html#l00288">unified_emit_io_latency_series()</a>.</p>
 
 </div>
 </div>
@@ -395,7 +455,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00326">326</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, and <a class="el" href="unified__export__io_8c_source.html#l00288">unified_emit_io_latency_series()</a>.</p>
 
 </div>
 </div>
@@ -413,7 +473,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00328">328</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, and <a class="el" href="unified__export__io_8c_source.html#l00288">unified_emit_io_latency_series()</a>.</p>
 
 </div>
 </div>
@@ -431,7 +491,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00320">320</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, and <a class="el" href="unified__export__io_8c_source.html#l00240">unified_emit_io_ops()</a>.</p>
 
 </div>
 </div>
@@ -447,9 +507,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00356">356</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00373">373</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00423">brix_metric_tpc()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00287">brix_metric_tpc()</a>, and <a class="el" href="unified__export_8c_source.html#l00226">unified_emit_tpc()</a>.</p>
 
 </div>
 </div>
@@ -465,9 +525,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00353">353</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00370">370</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00423">brix_metric_tpc()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00287">brix_metric_tpc()</a>, and <a class="el" href="unified__export_8c_source.html#l00226">unified_emit_tpc()</a>.</p>
 
 </div>
 </div>
@@ -483,9 +543,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00347">347</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00364">364</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00377">brix_metric_wt_stage_throttled()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00241">brix_metric_wt_stage_throttled()</a>, and <a class="el" href="unified__export_8c_source.html#l00160">unified_emit_wt_stage()</a>.</p>
 
 </div>
 </div>
@@ -501,9 +561,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00346">346</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00363">363</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00377">brix_metric_wt_stage_throttled()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00241">brix_metric_wt_stage_throttled()</a>, and <a class="el" href="unified__export_8c_source.html#l00160">unified_emit_wt_stage()</a>.</p>
 
 </div>
 </div>
@@ -519,9 +579,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00345">345</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00362">362</a> of file <a class="el" href="observability_2metrics_2metrics_8h_source.html">metrics.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2unified_8c_source.html#l00604">brix_export_unified_metrics()</a>, and <a class="el" href="observability_2metrics_2unified_8c_source.html#l00363">brix_metric_wt_stage_usage_ratio()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="unified__record_8c_source.html#l00227">brix_metric_wt_stage_usage_ratio()</a>, and <a class="el" href="unified__export_8c_source.html#l00160">unified_emit_wt_stage()</a>.</p>
 
 </div>
 </div>

@@ -91,14 +91,13 @@ $(document).ready(function(){initNavTree('http__body_8c.html',''); initResizable
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">http_body.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="http__body_8h_source.html">http_body.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="http__body__internal_8h_source.html">http_body_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="copy__range_8h_source.html">core/compat/copy_range.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="codec__core_8h_source.html">core/compat/codec_core.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2fs_2vfs_2vfs_8h_source.html">fs/vfs/vfs.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
@@ -113,17 +112,10 @@ $(document).ready(function(){initNavTree('http__body_8c.html',''); initResizable
 </div>
 <p><a href="http__body_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:a12ce2d382af71ccd321e3b84897fe64a" id="r_a12ce2d382af71ccd321e3b84897fe64a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a12ce2d382af71ccd321e3b84897fe64a">BRIX_INFLATE_OUT_BUFSZ</a>&#160;&#160;&#160;(64 * 1024)</td></tr>
-<tr class="separator:a12ce2d382af71ccd321e3b84897fe64a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a690e9b0d04b3f9891244bc084ed38e09" id="r_a690e9b0d04b3f9891244bc084ed38e09"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a690e9b0d04b3f9891244bc084ed38e09">BRIX_INFLATE_IN_BUFSZ</a>&#160;&#160;&#160;(64 * 1024)</td></tr>
-<tr class="separator:a690e9b0d04b3f9891244bc084ed38e09"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:abf0652fab8100648741e3276ce09fc0d" id="r_abf0652fab8100648741e3276ce09fc0d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#abf0652fab8100648741e3276ce09fc0d">brix_http_body_pwrite_full</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_fd_t fd, const u_char *data, size_t len, off_t *off, const char *path)</td></tr>
-<tr class="separator:abf0652fab8100648741e3276ce09fc0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae7157a4abec1273b8527a0dec33924cd" id="r_ae7157a4abec1273b8527a0dec33924cd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#ae7157a4abec1273b8527a0dec33924cd">brix_http_body_pwrite_full</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_fd_t fd, const u_char *data, size_t len, off_t *off, const char *path)</td></tr>
+<tr class="separator:ae7157a4abec1273b8527a0dec33924cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afcbd75f09a0422f4b87ef31a01f0af6b" id="r_afcbd75f09a0422f4b87ef31a01f0af6b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#afcbd75f09a0422f4b87ef31a01f0af6b">brix_http_body_summary</a> (ngx_http_request_t *r, <a class="el" href="structbrix__http__body__summary__t.html">brix_http_body_summary_t</a> *out)</td></tr>
 <tr class="separator:afcbd75f09a0422f4b87ef31a01f0af6b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af5ad009bb96ce23ad9769e92a73d4299" id="r_af5ad009bb96ce23ad9769e92a73d4299"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#af5ad009bb96ce23ad9769e92a73d4299">brix_http_body_write_buf</a> (ngx_http_request_t *r, ngx_fd_t dst_fd, ngx_buf_t *buf, off_t *dst_off, const char *log_path)</td></tr>
@@ -132,214 +124,24 @@ Functions</h2></td></tr>
 <tr class="separator:acc271dcf335c3fe7b4782c57a3dc1ccd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abd90f7ea078fc227c986f555b3e9078d" id="r_abd90f7ea078fc227c986f555b3e9078d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#abd90f7ea078fc227c986f555b3e9078d">brix_http_body_write_to_fd_at</a> (ngx_http_request_t *r, ngx_fd_t dst_fd, const char *log_path, <a class="el" href="structbrix__http__body__summary__t.html">brix_http_body_summary_t</a> *summary_out, off_t base_off)</td></tr>
 <tr class="separator:abd90f7ea078fc227c986f555b3e9078d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7f20ca47f4f58f4b11d044f84449bd6d" id="r_a7f20ca47f4f58f4b11d044f84449bd6d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a7f20ca47f4f58f4b11d044f84449bd6d">brix_http_body_staged_spooled_buf</a> (brix_vfs_staged_t *st, ngx_buf_t *b, off_t *off)</td></tr>
+<tr class="separator:a7f20ca47f4f58f4b11d044f84449bd6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a89ca96f3c11e1207b26ca73660d89d7e" id="r_a89ca96f3c11e1207b26ca73660d89d7e"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a89ca96f3c11e1207b26ca73660d89d7e">brix_http_body_write_to_staged</a> (ngx_http_request_t *r, brix_vfs_staged_t *st)</td></tr>
 <tr class="separator:a89ca96f3c11e1207b26ca73660d89d7e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a14ed4ba4ef3550274d141fecebc0655b" id="r_a14ed4ba4ef3550274d141fecebc0655b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a14ed4ba4ef3550274d141fecebc0655b">brix_http_body_read_all</a> (ngx_http_request_t *r, size_t max_bytes, u_char **out, size_t *out_len)</td></tr>
 <tr class="separator:a14ed4ba4ef3550274d141fecebc0655b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a37610e52a1e3bbe36bff45d160435e1b" id="r_a37610e52a1e3bbe36bff45d160435e1b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a37610e52a1e3bbe36bff45d160435e1b">brix_http_read_body</a> (ngx_http_request_t *r, ngx_http_client_body_handler_pt handler)</td></tr>
+<tr class="memitem:a37610e52a1e3bbe36bff45d160435e1b" id="r_a37610e52a1e3bbe36bff45d160435e1b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a37610e52a1e3bbe36bff45d160435e1b">brix_http_read_body</a> (ngx_http_request_t *r, ngx_http_client_body_handler_pt <a class="el" href="net_2cms_2recv__frame_8c.html#a8720b9ebf06a5cf8d914fc81a5464da2">handler</a>)</td></tr>
 <tr class="separator:a37610e52a1e3bbe36bff45d160435e1b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aff451903f6b536703f57291b90acd771" id="r_aff451903f6b536703f57291b90acd771"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#aff451903f6b536703f57291b90acd771">codec_feed</a> (brix_codec_stream_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_fd_t dst_fd, const char *log_path, off_t *dst_off, u_char *outbuf, const u_char *in, size_t in_len, int finish, int *ended, <a class="el" href="codec__core_8h.html#a986b94afeb61444958abfd071cb9d59d">brix_codec_rc_t</a> *worst_rc)</td></tr>
-<tr class="separator:aff451903f6b536703f57291b90acd771"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afdc975d85502f90c1ed06714168492f1" id="r_afdc975d85502f90c1ed06714168492f1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#afdc975d85502f90c1ed06714168492f1">codec_decode_bufs</a> (brix_codec_stream_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, ngx_http_request_t *r, ngx_fd_t dst_fd, const char *log_path, u_char *outbuf, u_char *inbuf, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="codec__core_8h.html#a986b94afeb61444958abfd071cb9d59d">brix_codec_rc_t</a> *worst_rc)</td></tr>
-<tr class="separator:afdc975d85502f90c1ed06714168492f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9cd9b9740f884632e5130db1a5b63626" id="r_a9cd9b9740f884632e5130db1a5b63626"><td class="memItemLeft" align="right" valign="top">static uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a9cd9b9740f884632e5130db1a5b63626">brix_http_body_decode_ratio</a> (<a class="el" href="codec__core_8h.html#a03591542b2bcc7791920c2cdc0246793">brix_codec_id_t</a> codec)</td></tr>
-<tr class="separator:a9cd9b9740f884632e5130db1a5b63626"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a299506c0826f2d75aaeec6be361b8453" id="r_a299506c0826f2d75aaeec6be361b8453"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a299506c0826f2d75aaeec6be361b8453">brix_http_body_decode_to_fd</a> (ngx_http_request_t *r, ngx_fd_t dst_fd, const char *log_path, <a class="el" href="codec__core_8h.html#a03591542b2bcc7791920c2cdc0246793">brix_codec_id_t</a> codec, uint64_t max_output, <a class="el" href="structbrix__http__body__summary__t.html">brix_http_body_summary_t</a> *summary_out, ngx_int_t *http_status_out)</td></tr>
-<tr class="separator:a299506c0826f2d75aaeec6be361b8453"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a04743d9307c941aefab4933478f5cfa8" id="r_a04743d9307c941aefab4933478f5cfa8"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__body_8c.html#a04743d9307c941aefab4933478f5cfa8">brix_http_body_inflate_to_fd</a> (ngx_http_request_t *r, ngx_fd_t dst_fd, const char *log_path, int window_bits, <a class="el" href="structbrix__http__body__summary__t.html">brix_http_body_summary_t</a> *summary_out)</td></tr>
-<tr class="separator:a04743d9307c941aefab4933478f5cfa8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a690e9b0d04b3f9891244bc084ed38e09" name="a690e9b0d04b3f9891244bc084ed38e09"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a690e9b0d04b3f9891244bc084ed38e09">&#9670;&#160;</a></span>BRIX_INFLATE_IN_BUFSZ</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_INFLATE_IN_BUFSZ&#160;&#160;&#160;(64 * 1024)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00028">28</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
-
-</div>
-</div>
-<a id="a12ce2d382af71ccd321e3b84897fe64a" name="a12ce2d382af71ccd321e3b84897fe64a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a12ce2d382af71ccd321e3b84897fe64a">&#9670;&#160;</a></span>BRIX_INFLATE_OUT_BUFSZ</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_INFLATE_OUT_BUFSZ&#160;&#160;&#160;(64 * 1024)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00027">27</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a9cd9b9740f884632e5130db1a5b63626" name="a9cd9b9740f884632e5130db1a5b63626"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9cd9b9740f884632e5130db1a5b63626">&#9670;&#160;</a></span>brix_http_body_decode_ratio()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static uint32_t brix_http_body_decode_ratio </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="codec__core_8h.html#a03591542b2bcc7791920c2cdc0246793">brix_codec_id_t</a>&#160;</td>
-          <td class="paramname"><em>codec</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00573">573</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00041">BRIX_CODEC_LZ4</a>, <a class="el" href="http__body_8h_source.html#l00019">BRIX_DECODE_LZ4_MAX_RATIO</a>, and <a class="el" href="http__body_8h_source.html#l00013">BRIX_DECODE_MAX_RATIO</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00593">brix_http_body_decode_to_fd()</a>.</p>
-
-</div>
-</div>
-<a id="a299506c0826f2d75aaeec6be361b8453" name="a299506c0826f2d75aaeec6be361b8453"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a299506c0826f2d75aaeec6be361b8453">&#9670;&#160;</a></span>brix_http_body_decode_to_fd()</h2>
+<a id="ae7157a4abec1273b8527a0dec33924cd" name="ae7157a4abec1273b8527a0dec33924cd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae7157a4abec1273b8527a0dec33924cd">&#9670;&#160;</a></span>brix_http_body_pwrite_full()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">ngx_int_t brix_http_body_decode_to_fd </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_fd_t&#160;</td>
-          <td class="paramname"><em>dst_fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>log_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="codec__core_8h.html#a03591542b2bcc7791920c2cdc0246793">brix_codec_id_t</a>&#160;</td>
-          <td class="paramname"><em>codec</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>max_output</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__http__body__summary__t.html">brix_http_body_summary_t</a> *&#160;</td>
-          <td class="paramname"><em>summary_out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_int_t *&#160;</td>
-          <td class="paramname"><em>http_status_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00593">593</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="codec__core_8c_source.html#l00229">brix_codec_close()</a>, <a class="el" href="codec__core_8h_source.html#l00047">BRIX_CODEC_DIR_DECOMPRESS</a>, <a class="el" href="codec__core_8h_source.html#l00057">BRIX_CODEC_ERR_BOMB</a>, <a class="el" href="codec__core_8h_source.html#l00055">BRIX_CODEC_ERR_DATA</a>, <a class="el" href="codec__core_8h_source.html#l00052">BRIX_CODEC_OK</a>, <a class="el" href="codec__core_8c_source.html#l00159">brix_codec_open()</a>, <a class="el" href="http__body_8c_source.html#l00573">brix_http_body_decode_ratio()</a>, <a class="el" href="http__body_8c_source.html#l00075">brix_http_body_summary()</a>, <a class="el" href="http__body_8c_source.html#l00028">BRIX_INFLATE_IN_BUFSZ</a>, <a class="el" href="http__body_8c_source.html#l00027">BRIX_INFLATE_OUT_BUFSZ</a>, <a class="el" href="http__body_8c_source.html#l00489">codec_decode_bufs()</a>, <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="codec__core_8h_source.html#l00070">brix_codec_guard_t::max_ratio</a>, <a class="el" href="codec__core_8h_source.html#l00069">brix_codec_guard_t::out_cap</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00679">brix_http_body_inflate_to_fd()</a>, <a class="el" href="s3_2put_8c_source.html#l00262">s3_put_body_inner()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>.</p>
-
-</div>
-</div>
-<a id="a04743d9307c941aefab4933478f5cfa8" name="a04743d9307c941aefab4933478f5cfa8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a04743d9307c941aefab4933478f5cfa8">&#9670;&#160;</a></span>brix_http_body_inflate_to_fd()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_http_body_inflate_to_fd </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_fd_t&#160;</td>
-          <td class="paramname"><em>dst_fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>log_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>window_bits</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__http__body__summary__t.html">brix_http_body_summary_t</a> *&#160;</td>
-          <td class="paramname"><em>summary_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00679">679</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00036">BRIX_CODEC_DEFLATE</a>, <a class="el" href="codec__core_8h_source.html#l00035">BRIX_CODEC_GZIP</a>, and <a class="el" href="http__body_8c_source.html#l00593">brix_http_body_decode_to_fd()</a>.</p>
-
-</div>
-</div>
-<a id="abf0652fab8100648741e3276ce09fc0d" name="abf0652fab8100648741e3276ce09fc0d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abf0652fab8100648741e3276ce09fc0d">&#9670;&#160;</a></span>brix_http_body_pwrite_full()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_http_body_pwrite_full </td>
+          <td class="memname">ngx_int_t brix_http_body_pwrite_full </td>
           <td>(</td>
           <td class="paramtype">ngx_log_t *&#160;</td>
           <td class="paramname"><em>log</em>, </td>
@@ -380,18 +182,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00046">46</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
 
 <p class="reference">References <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00128">brix_http_body_write_buf()</a>, and <a class="el" href="http__body_8c_source.html#l00436">codec_feed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00128">brix_http_body_write_buf()</a>, and <a class="el" href="http__body__decode_8c_source.html#l00069">codec_feed()</a>.</p>
 
 </div>
 </div>
@@ -433,11 +230,59 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00341">341</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00365">365</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
 
 <p class="reference">References <a class="el" href="http__body_8c_source.html#l00075">brix_http_body_summary()</a>, <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, <a class="el" href="vfs__read_8c_source.html#l00029">brix_vfs_pread_full()</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="propfind_8c_source.html#l00049">propfind_assemble_body()</a>, <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>, <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>, <a class="el" href="tagging_8c_source.html#l00347">s3_put_object_tagging_body_handler()</a>, <a class="el" href="tape__rest_8c_source.html#l00664">tape_parse_body()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>, <a class="el" href="methods__basic_8c_source.html#l00276">webdav_proppatch_do()</a>, and <a class="el" href="search_8c_source.html#l00089">webdav_search_parse()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00112">mac_gate_and_read_body()</a>, <a class="el" href="propfind_8c_source.html#l00049">propfind_assemble_body()</a>, <a class="el" href="delete__objects_8c_source.html#l00309">s3_delete_parse_body()</a>, <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>, <a class="el" href="tagging_8c_source.html#l00424">s3_put_object_tagging_body_handler()</a>, <a class="el" href="tape__rest_8c_source.html#l00303">tape_parse_body()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01439">webdav_delegation_handle()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01276">webdav_delegation_put_handle()</a>, <a class="el" href="methods__proppatch_8c_source.html#l00354">webdav_proppatch_parse_body()</a>, and <a class="el" href="search_8c_source.html#l00104">webdav_search_parse()</a>.</p>
+
+</div>
+</div>
+<a id="a7f20ca47f4f58f4b11d044f84449bd6d" name="a7f20ca47f4f58f4b11d044f84449bd6d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7f20ca47f4f58f4b11d044f84449bd6d">&#9670;&#160;</a></span>brix_http_body_staged_spooled_buf()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_http_body_staged_spooled_buf </td>
+          <td>(</td>
+          <td class="paramtype">brix_vfs_staged_t *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_buf_t *&#160;</td>
+          <td class="paramname"><em>b</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00263">263</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__staged_8c_source.html#l00282">brix_vfs_staged_write()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00312">brix_http_body_write_to_staged()</a>.</p>
 
 </div>
 </div>
@@ -471,7 +316,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="http__body_8h_source.html#l00040">brix_http_body_summary_t::has_memory</a>, and <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00593">brix_http_body_decode_to_fd()</a>, <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="http__body_8c_source.html#l00183">brix_http_body_write_to_fd()</a>, <a class="el" href="http__body_8c_source.html#l00220">brix_http_body_write_to_fd_at()</a>, <a class="el" href="s3_2put_8c_source.html#l00262">s3_put_body_inner()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__body__decode_8c_source.html#l00314">brix_http_body_decode_to_fd()</a>, <a class="el" href="http__body_8c_source.html#l00365">brix_http_body_read_all()</a>, <a class="el" href="http__body_8c_source.html#l00183">brix_http_body_write_to_fd()</a>, <a class="el" href="http__body_8c_source.html#l00220">brix_http_body_write_to_fd_at()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, and <a class="el" href="put__body_8c_source.html#l00416">webdav_put_stream_body()</a>.</p>
 
 </div>
 </div>
@@ -521,7 +366,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00128">128</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
 
-<p class="reference">References <a class="el" href="copy__range_8c_source.html#l00095">brix_copy_range()</a>, and <a class="el" href="http__body_8c_source.html#l00046">brix_http_body_pwrite_full()</a>.</p>
+<p class="reference">References <a class="el" href="copy__range_8c_source.html#l00188">brix_copy_range()</a>, and <a class="el" href="http__body_8c_source.html#l00046">brix_http_body_pwrite_full()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00183">brix_http_body_write_to_fd()</a>, <a class="el" href="http__body_8c_source.html#l00220">brix_http_body_write_to_fd_at()</a>, and <a class="el" href="protocols_2webdav_2io_8c_source.html#l00073">webdav_copy_spooled_file()</a>.</p>
 
@@ -569,7 +414,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="http__body_8c_source.html#l00075">brix_http_body_summary()</a>, and <a class="el" href="http__body_8c_source.html#l00128">brix_http_body_write_buf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__aio_8c_source.html#l00042">s3_put_aio_thread()</a>, <a class="el" href="s3_2put_8c_source.html#l00262">s3_put_body_inner()</a>, <a class="el" href="webdav_2put_8c_source.html#l00116">webdav_put_aio_thread()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__aio_8c_source.html#l00042">s3_put_aio_thread()</a>, <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>, <a class="el" href="put__body_8c_source.html#l00087">webdav_put_aio_thread()</a>, and <a class="el" href="put__body_8c_source.html#l00340">webdav_put_write_sync()</a>.</p>
 
 </div>
 </div>
@@ -621,7 +466,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="http__body_8c_source.html#l00075">brix_http_body_summary()</a>, and <a class="el" href="http__body_8c_source.html#l00128">brix_http_body_write_buf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__setup_8c_source.html#l00094">webdav_put_ranged_resume()</a>.</p>
 
 </div>
 </div>
@@ -651,11 +496,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00256">256</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00312">312</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__staged_8c_source.html#l00196">brix_vfs_staged_write()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>.</p>
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00263">brix_http_body_staged_spooled_buf()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00282">brix_vfs_staged_write()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__aio_8c_source.html#l00042">s3_put_aio_thread()</a>, <a class="el" href="webdav_2put_8c_source.html#l00116">webdav_put_aio_thread()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__aio_8c_source.html#l00042">s3_put_aio_thread()</a>, <a class="el" href="put__body_8c_source.html#l00087">webdav_put_aio_thread()</a>, and <a class="el" href="put__body_8c_source.html#l00340">webdav_put_write_sync()</a>.</p>
 
 </div>
 </div>
@@ -685,183 +530,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00419">419</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00443">443</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>, <a class="el" href="propfind_8c_source.html#l00271">webdav_handle_propfind()</a>, <a class="el" href="methods__basic_8c_source.html#l00505">webdav_handle_proppatch()</a>, <a class="el" href="search_8c_source.html#l00446">webdav_handle_search()</a>, <a class="el" href="src_2protocols_2webdav_2proxy_8c_source.html#l00022">webdav_proxy_handler()</a>, and <a class="el" href="tape__rest_8c_source.html#l00735">webdav_tape_handle()</a>.</p>
+<p class="reference">References <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00373">handler</a>.</p>
 
-</div>
-</div>
-<a id="afdc975d85502f90c1ed06714168492f1" name="afdc975d85502f90c1ed06714168492f1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afdc975d85502f90c1ed06714168492f1">&#9670;&#160;</a></span>codec_decode_bufs()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t codec_decode_bufs </td>
-          <td>(</td>
-          <td class="paramtype">brix_codec_stream_t *&#160;</td>
-          <td class="paramname"><em>s</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_fd_t&#160;</td>
-          <td class="paramname"><em>dst_fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>log_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>outbuf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>inbuf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="codec__core_8h.html#a986b94afeb61444958abfd071cb9d59d">brix_codec_rc_t</a> *&#160;</td>
-          <td class="paramname"><em>worst_rc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00489">489</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00055">BRIX_CODEC_ERR_DATA</a>, <a class="el" href="http__body_8c_source.html#l00028">BRIX_INFLATE_IN_BUFSZ</a>, <a class="el" href="vfs__read_8c_source.html#l00029">brix_vfs_pread_full()</a>, <a class="el" href="http__body_8c_source.html#l00436">codec_feed()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00593">brix_http_body_decode_to_fd()</a>.</p>
-
-</div>
-</div>
-<a id="aff451903f6b536703f57291b90acd771" name="aff451903f6b536703f57291b90acd771"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aff451903f6b536703f57291b90acd771">&#9670;&#160;</a></span>codec_feed()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t codec_feed </td>
-          <td>(</td>
-          <td class="paramtype">brix_codec_stream_t *&#160;</td>
-          <td class="paramname"><em>s</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_fd_t&#160;</td>
-          <td class="paramname"><em>dst_fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>log_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t *&#160;</td>
-          <td class="paramname"><em>dst_off</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>outbuf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>in</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>in_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>finish</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>ended</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="codec__core_8h.html#a986b94afeb61444958abfd071cb9d59d">brix_codec_rc_t</a> *&#160;</td>
-          <td class="paramname"><em>worst_rc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__body_8c_source.html#l00436">436</a> of file <a class="el" href="http__body_8c_source.html">http_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00053">BRIX_CODEC_END</a>, <a class="el" href="codec__core_8c_source.html#l00191">brix_codec_step()</a>, <a class="el" href="http__body_8c_source.html#l00046">brix_http_body_pwrite_full()</a>, <a class="el" href="http__body_8c_source.html#l00027">BRIX_INFLATE_OUT_BUFSZ</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00489">codec_decode_bufs()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00200">s3_read_body_metric()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00143">webdav_dispatch_delegation_gridsite()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00122">webdav_dispatch_delegation_upload()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00263">webdav_dispatch_lock()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00075">webdav_dispatch_macaroon()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00205">webdav_dispatch_put()</a>, <a class="el" href="propfind_8c_source.html#l00319">webdav_handle_propfind()</a>, <a class="el" href="methods__proppatch_8c_source.html#l00496">webdav_handle_proppatch()</a>, <a class="el" href="search_8c_source.html#l00606">webdav_handle_search()</a>, <a class="el" href="src_2protocols_2webdav_2proxy_8c_source.html#l00022">webdav_proxy_handler()</a>, and <a class="el" href="tape__rest_8c_source.html#l00374">webdav_tape_handle()</a>.</p>
 
 </div>
 </div>

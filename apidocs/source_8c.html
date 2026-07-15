@@ -96,15 +96,7 @@ $(document).ready(function(){initNavTree('source_8c.html',''); initResizable(); 
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="tpc__internal_8h_source.html">tpc/engine/tpc_internal.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="frame__hdr_8h_source.html">protocols/root/protocol/frame_hdr.h</a>&quot;</code><br />
-<code>#include &lt;stdlib.h&gt;</code><br />
-<code>#include &lt;string.h&gt;</code><br />
-<code>#include &lt;errno.h&gt;</code><br />
-<code>#include &lt;limits.h&gt;</code><br />
-<code>#include &lt;unistd.h&gt;</code><br />
-<code>#include &lt;<a class="el" href="time_8h_source.html">time.h</a>&gt;</code><br />
-<code>#include &lt;sys/socket.h&gt;</code><br />
-<code>#include &lt;sys/time.h&gt;</code><br />
+<code>#include &quot;<a class="el" href="source__internal_8h_source.html">source_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for source.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -117,188 +109,10 @@ $(document).ready(function(){initNavTree('source_8c.html',''); initResizable(); 
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a454ad3b353aedfa5a38ee87822d05ed7" id="r_a454ad3b353aedfa5a38ee87822d05ed7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source_8c.html#a454ad3b353aedfa5a38ee87822d05ed7">tpc_set_rcvtimeo</a> (int fd, int secs)</td></tr>
-<tr class="separator:a454ad3b353aedfa5a38ee87822d05ed7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8932445ac302450e9ea78e7b05e45733" id="r_a8932445ac302450e9ea78e7b05e45733"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source_8c.html#a8932445ac302450e9ea78e7b05e45733">tpc_open_resolve</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd, const u_char *open_buf, size_t send_len, uint16_t *status, u_char **body, uint32_t *dlen)</td></tr>
-<tr class="separator:a8932445ac302450e9ea78e7b05e45733"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3f5ba21d3a8f213f77b5f6cf02e9e512" id="r_a3f5ba21d3a8f213f77b5f6cf02e9e512"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source_8c.html#a3f5ba21d3a8f213f77b5f6cf02e9e512">tpc_open_source</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd, u_char fhandle[4])</td></tr>
-<tr class="separator:a3f5ba21d3a8f213f77b5f6cf02e9e512"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5aab8f807986b481976ba004fbe1dba3" id="r_a5aab8f807986b481976ba004fbe1dba3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source_8c.html#a5aab8f807986b481976ba004fbe1dba3">tpc_stream_to_dst</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd, const u_char *fhandle)</td></tr>
-<tr class="separator:a5aab8f807986b481976ba004fbe1dba3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae5f8850974074895dda8207ded9a49a8" id="r_ae5f8850974074895dda8207ded9a49a8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source_8c.html#ae5f8850974074895dda8207ded9a49a8">tpc_close_source</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd, const u_char *fhandle)</td></tr>
-<tr class="separator:ae5f8850974074895dda8207ded9a49a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6d09af4f10ff7a61e8f75c9a6abf45fe" id="r_a6d09af4f10ff7a61e8f75c9a6abf45fe"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source_8c.html#a6d09af4f10ff7a61e8f75c9a6abf45fe">tpc_pull_from_source</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd)</td></tr>
 <tr class="separator:a6d09af4f10ff7a61e8f75c9a6abf45fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ae5f8850974074895dda8207ded9a49a8" name="ae5f8850974074895dda8207ded9a49a8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae5f8850974074895dda8207ded9a49a8">&#9670;&#160;</a></span>tpc_close_source()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void tpc_close_source </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>fhandle</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="source_8c_source.html#l00541">541</a> of file <a class="el" href="source_8c_source.html">source.c</a>.</p>
-
-<p class="reference">References <a class="el" href="wire__core__requests_8h_source.html#l00430">ClientCloseRequest::fhandle</a>, <a class="el" href="opcodes_8h_source.html#l00048">kXR_close</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__core__requests_8h_source.html#l00429">ClientCloseRequest::requestid</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="wire__core__requests_8h_source.html#l00428">ClientCloseRequest::streamid</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00119">tpc_recv_response()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00566">tpc_pull_from_source()</a>.</p>
-
-</div>
-</div>
-<a id="a8932445ac302450e9ea78e7b05e45733" name="a8932445ac302450e9ea78e7b05e45733"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8932445ac302450e9ea78e7b05e45733">&#9670;&#160;</a></span>tpc_open_resolve()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int tpc_open_resolve </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>open_buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>send_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t *&#160;</td>
-          <td class="paramname"><em>status</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char **&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t *&#160;</td>
-          <td class="paramname"><em>dlen</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="source_8c_source.html#l00060">60</a> of file <a class="el" href="source_8c_source.html">source.c</a>.</p>
-
-<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00135">kXR_asynresp</a>, <a class="el" href="opcodes_8h_source.html#l00109">kXR_attn</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="opcodes_8h_source.html#l00113">kXR_wait</a>, <a class="el" href="opcodes_8h_source.html#l00114">kXR_waitresp</a>, <a class="el" href="tpc__internal_8h_source.html#l00036">TPC_OPEN_RESOLVE_MAX_ITERS</a>, <a class="el" href="tpc__internal_8h_source.html#l00033">TPC_OPEN_RESOLVE_MAX_SEC</a>, <a class="el" href="tpc__internal_8h_source.html#l00035">TPC_OPEN_WAIT_RETRY_SEC</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00119">tpc_recv_response()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, <a class="el" href="tpc__internal_8h_source.html#l00117">brix_tpc_pull_t::xrd_error</a>, <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>, and <a class="el" href="frame__hdr_8h_source.html#l00098">xrd_wait_secs_parse()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00194">tpc_open_source()</a>.</p>
-
-</div>
-</div>
-<a id="a3f5ba21d3a8f213f77b5f6cf02e9e512" name="a3f5ba21d3a8f213f77b5f6cf02e9e512"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3f5ba21d3a8f213f77b5f6cf02e9e512">&#9670;&#160;</a></span>tpc_open_source()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int tpc_open_source </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char&#160;</td>
-          <td class="paramname"><em>fhandle</em>[4]&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="source_8c_source.html#l00194">194</a> of file <a class="el" href="source_8c_source.html">source.c</a>.</p>
-
-<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00136">brix_tpc_pull_t::deleg_cred_len</a>, <a class="el" href="tpc__internal_8h_source.html#l00131">brix_tpc_pull_t::deleg_cred_pem</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00055">kXR_open</a>, <a class="el" href="flags_8h_source.html#l00020">kXR_open_read</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__codec_8h_source.html#l00160">xrdw_open_req_t::options</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="tpc__internal_8h_source.html#l00105">brix_tpc_pull_t::src_path</a>, <a class="el" href="tpc__internal_8h_source.html#l00023">TPC_IO_TIMEOUT_SEC</a>, <a class="el" href="tpc__internal_8h_source.html#l00106">brix_tpc_pull_t::tpc_key</a>, <a class="el" href="source_8c_source.html#l00060">tpc_open_resolve()</a>, <a class="el" href="tpc__internal_8h_source.html#l00034">TPC_OPEN_WAIT_CAP_SEC</a>, <a class="el" href="tpc__internal_8h_source.html#l00107">brix_tpc_pull_t::tpc_org</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, <a class="el" href="source_8c_source.html#l00029">tpc_set_rcvtimeo()</a>, <a class="el" href="tpc__internal_8h_source.html#l00117">brix_tpc_pull_t::xrd_error</a>, <a class="el" href="frame__hdr_8h_source.html#l00115">xrd_error_body_decode()</a>, <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>, and <a class="el" href="wire__codec__file_8c_source.html#l00016">xrdw_open_req_pack()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00566">tpc_pull_from_source()</a>.</p>
-
-</div>
-</div>
 <a id="a6d09af4f10ff7a61e8f75c9a6abf45fe" name="a6d09af4f10ff7a61e8f75c9a6abf45fe"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a6d09af4f10ff7a61e8f75c9a6abf45fe">&#9670;&#160;</a></span>tpc_pull_from_source()</h2>
 
@@ -325,99 +139,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="source_8c_source.html#l00566">566</a> of file <a class="el" href="source_8c_source.html">source.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="source_8c_source.html#l00020">20</a> of file <a class="el" href="source_8c_source.html">source.c</a>.</p>
 
-<p class="reference">References <a class="el" href="source_8c_source.html#l00541">tpc_close_source()</a>, <a class="el" href="source_8c_source.html#l00194">tpc_open_source()</a>, <a class="el" href="source_8c_source.html#l00333">tpc_stream_to_dst()</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
+<p class="reference">References <a class="el" href="source__stream_8c_source.html#l00291">tpc_close_source()</a>, <a class="el" href="source__open_8c_source.html#l00433">tpc_open_source()</a>, <a class="el" href="source__stream_8c_source.html#l00236">tpc_stream_to_dst()</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>.</p>
-
-</div>
-</div>
-<a id="a454ad3b353aedfa5a38ee87822d05ed7" name="a454ad3b353aedfa5a38ee87822d05ed7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a454ad3b353aedfa5a38ee87822d05ed7">&#9670;&#160;</a></span>tpc_set_rcvtimeo()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void tpc_set_rcvtimeo </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>secs</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="source_8c_source.html#l00029">29</a> of file <a class="el" href="source_8c_source.html">source.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00194">tpc_open_source()</a>.</p>
-
-</div>
-</div>
-<a id="a5aab8f807986b481976ba004fbe1dba3" name="a5aab8f807986b481976ba004fbe1dba3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5aab8f807986b481976ba004fbe1dba3">&#9670;&#160;</a></span>tpc_stream_to_dst()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int tpc_stream_to_dst </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>fhandle</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="source_8c_source.html#l00333">333</a> of file <a class="el" href="source_8c_source.html">source.c</a>.</p>
-
-<p class="reference">References <a class="el" href="progress_8c_source.html#l00026">brix_tpc_progress_emit()</a>, <a class="el" href="transfer_8h_source.html#l00036">BRIX_TPC_STATE_ACTIVE</a>, <a class="el" href="vfs__io__core_8c_source.html#l00727">brix_vfs_io_execute()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00188">brix_vfs_job_sync_init()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00165">brix_vfs_job_write_init()</a>, <a class="el" href="tpc__internal_8h_source.html#l00121">brix_tpc_pull_t::bytes_written</a>, <a class="el" href="tpc__internal_8h_source.html#l00097">brix_tpc_pull_t::c</a>, <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00113">brix_tpc_pull_t::dst_fd</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::err_msg</a>, <a class="el" href="wire__core__requests_8h_source.html#l00396">ClientReadRequest::fhandle</a>, <a class="el" href="vfs__io__core_8h_source.html#l00099">brix_vfs_job_t::io_errno</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00108">kXR_oksofar</a>, <a class="el" href="opcodes_8h_source.html#l00058">kXR_read</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="vfs__io__core_8h_source.html#l00096">brix_vfs_job_t::nio</a>, <a class="el" href="wire__core__requests_8h_source.html#l00397">ClientReadRequest::offset</a>, <a class="el" href="wire__core__requests_8h_source.html#l00395">ClientReadRequest::requestid</a>, <a class="el" href="tpc__internal_8h_source.html#l00116">brix_tpc_pull_t::result</a>, <a class="el" href="wire__core__requests_8h_source.html#l00398">ClientReadRequest::rlen</a>, <a class="el" href="wire__core__requests_8h_source.html#l00394">ClientReadRequest::streamid</a>, <a class="el" href="tpc__internal_8h_source.html#l00025">TPC_CHUNK_SIZE</a>, <a class="el" href="types_2config_8h_source.html#l00362">ngx_stream_brix_srv_conf_t::tpc_max_transfer_secs</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00119">tpc_recv_response()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, <a class="el" href="tpc__internal_8h_source.html#l00118">brix_tpc_pull_t::transfer_id</a>, <a class="el" href="tpc__internal_8h_source.html#l00117">brix_tpc_pull_t::xrd_error</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00566">tpc_pull_from_source()</a>.</p>
 
 </div>
 </div>

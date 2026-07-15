@@ -1,7 +1,9 @@
 <map id="src/core/compat/kxr_names.c" name="src/core/compat/kxr_names.c">
-<area shape="rect" id="Node000001" title=" " alt="" coords="65,5,215,45"/>
-<area shape="rect" id="Node000002" href="$kxr__names_8h.html" title=" " alt="" coords="5,101,112,126"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="124,47,81,92,77,89,120,44"/>
-<area shape="rect" id="Node000003" href="$opcodes_8h.html" title=" " alt="" coords="137,93,306,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="160,44,196,81,192,85,156,47"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="82,5,233,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,101,80,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="133,48,71,94,68,90,130,43"/>
+<area shape="rect" id="Node000003" href="$kxr__names_8h.html" title=" " alt="" coords="104,101,211,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="160,46,160,87,155,87,155,46"/>
+<area shape="rect" id="Node000004" href="$opcodes_8h.html" title=" " alt="" coords="235,93,405,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="194,43,274,85,271,89,192,48"/>
 </map>

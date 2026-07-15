@@ -122,7 +122,13 @@ $(document).ready(function(){initNavTree('xrdstorascan_8c.html',''); initResizab
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbench__worker.html">bench_worker</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbench__args__t.html">bench_args_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscan__ep.html">scan_ep</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscan__args__t.html">scan_args_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
@@ -152,33 +158,79 @@ Functions</h2></td></tr>
 <tr class="separator:a6b6e71f1db17dfe705059c1fe0883f7e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac8089aea752948fba171c6cd11896df7" id="r_ac8089aea752948fba171c6cd11896df7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#ac8089aea752948fba171c6cd11896df7">usage</a> (int rc)</td></tr>
 <tr class="separator:ac8089aea752948fba171c6cd11896df7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9bca29c5822c3ee9b9277a9c275a4cd4" id="r_a9bca29c5822c3ee9b9277a9c275a4cd4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a9bca29c5822c3ee9b9277a9c275a4cd4">storascan_connect</a> (const char *url, <a class="el" href="structbrix__url.html">brix_url</a> *u, <a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a1a84d72eb52e3db5aed4ee63525d5b7a" id="r_a1a84d72eb52e3db5aed4ee63525d5b7a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a1a84d72eb52e3db5aed4ee63525d5b7a">opt_take</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, int argc, char **argv, int *i, const char **out)</td></tr>
+<tr class="separator:a1a84d72eb52e3db5aed4ee63525d5b7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9bca29c5822c3ee9b9277a9c275a4cd4" id="r_a9bca29c5822c3ee9b9277a9c275a4cd4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a9bca29c5822c3ee9b9277a9c275a4cd4">storascan_connect</a> (const char *url, <a class="el" href="structbrix__url.html">brix_url</a> *u, <a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a9bca29c5822c3ee9b9277a9c275a4cd4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a620f8acc69d7ead6754b96669daf6f2d" id="r_a620f8acc69d7ead6754b96669daf6f2d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a620f8acc69d7ead6754b96669daf6f2d">verify_download_tmp</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a620f8acc69d7ead6754b96669daf6f2d" id="r_a620f8acc69d7ead6754b96669daf6f2d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a620f8acc69d7ead6754b96669daf6f2d">verify_download_tmp</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a620f8acc69d7ead6754b96669daf6f2d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a97121eef79d71c6b60c2cf6f36208b43" id="r_a97121eef79d71c6b60c2cf6f36208b43"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a97121eef79d71c6b60c2cf6f36208b43">verify_help</a> (void)</td></tr>
+<tr class="separator:a97121eef79d71c6b60c2cf6f36208b43"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3be06fd3d945b4c85e28273cbb9e2381" id="r_a3be06fd3d945b4c85e28273cbb9e2381"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a3be06fd3d945b4c85e28273cbb9e2381">verify_parse_args</a> (int argc, char **argv, const char **url, const char **algo, int *quiet)</td></tr>
+<tr class="separator:a3be06fd3d945b4c85e28273cbb9e2381"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5c12857332556cd611e10adbbd135662" id="r_a5c12857332556cd611e10adbbd135662"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a5c12857332556cd611e10adbbd135662">verify_compute_wire_hex</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, <a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a> algo, char *<a class="el" href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a>, size_t hexsz)</td></tr>
+<tr class="separator:a5c12857332556cd611e10adbbd135662"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afdceeb016f03a4c1f54857ed427f57a7" id="r_afdceeb016f03a4c1f54857ed427f57a7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#afdceeb016f03a4c1f54857ed427f57a7">cmd_verify</a> (int argc, char **argv)</td></tr>
 <tr class="separator:afdceeb016f03a4c1f54857ed427f57a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad5c6d489cb47d1bc139864dacd80f0f3" id="r_ad5c6d489cb47d1bc139864dacd80f0f3"><td class="memItemLeft" align="right" valign="top">static int64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#ad5c6d489cb47d1bc139864dacd80f0f3">bench_offset</a> (<a class="el" href="structbench__worker.html">bench_worker</a> *w, uint64_t k)</td></tr>
 <tr class="separator:ad5c6d489cb47d1bc139864dacd80f0f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aee70ddaa3beeb09b5332ca3ee2828d86" id="r_aee70ddaa3beeb09b5332ca3ee2828d86"><td class="memItemLeft" align="right" valign="top">static void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#aee70ddaa3beeb09b5332ca3ee2828d86">bench_run</a> (void *arg)</td></tr>
 <tr class="separator:aee70ddaa3beeb09b5332ca3ee2828d86"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab5e3857abbdcf32f76f5da3cfd28784a" id="r_ab5e3857abbdcf32f76f5da3cfd28784a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#ab5e3857abbdcf32f76f5da3cfd28784a">bench_cell</a> (const char *url, const <a class="el" href="structbrix__url.html">brix_url</a> *u, int64_t fsize, size_t block, int parallel, int random, uint64_t duration_ns, uint64_t total_ops, <a class="el" href="structstorascan__bench__result.html">storascan_bench_result</a> *out, char *errmsg, size_t errsz)</td></tr>
-<tr class="separator:ab5e3857abbdcf32f76f5da3cfd28784a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a41c71a2eaa87618bb78f64310d2e3651" id="r_a41c71a2eaa87618bb78f64310d2e3651"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a41c71a2eaa87618bb78f64310d2e3651">bench_workers_free</a> (<a class="el" href="structbench__worker.html">bench_worker</a> *w, pthread_t *th, int parallel)</td></tr>
+<tr class="separator:a41c71a2eaa87618bb78f64310d2e3651"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6dd8497e1e85d87f01f57579d65894d6" id="r_a6dd8497e1e85d87f01f57579d65894d6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a6dd8497e1e85d87f01f57579d65894d6">bench_workers_init</a> (const <a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a> *cfg, <a class="el" href="structbench__worker.html">bench_worker</a> *w, char *errmsg, size_t errsz)</td></tr>
+<tr class="separator:a6dd8497e1e85d87f01f57579d65894d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff984650637edbef2d7b000d507b23c9" id="r_aff984650637edbef2d7b000d507b23c9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#aff984650637edbef2d7b000d507b23c9">bench_workers_run</a> (<a class="el" href="structbench__worker.html">bench_worker</a> *w, pthread_t *th, const <a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a> *cfg, uint64_t *t0, uint64_t *t1)</td></tr>
+<tr class="separator:aff984650637edbef2d7b000d507b23c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae916b349fccbe288cd26de9116de3319" id="r_ae916b349fccbe288cd26de9116de3319"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#ae916b349fccbe288cd26de9116de3319">bench_workers_error</a> (const <a class="el" href="structbench__worker.html">bench_worker</a> *w, int parallel, char *errmsg, size_t errsz)</td></tr>
+<tr class="separator:ae916b349fccbe288cd26de9116de3319"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a30ead414e4aa284c913515aa3cdc806b" id="r_a30ead414e4aa284c913515aa3cdc806b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a30ead414e4aa284c913515aa3cdc806b">bench_workers_compute</a> (const <a class="el" href="structbench__worker.html">bench_worker</a> *w, const <a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a> *cfg, uint64_t elapsed_ns, <a class="el" href="structstorascan__bench__result.html">storascan_bench_result</a> *out)</td></tr>
+<tr class="separator:a30ead414e4aa284c913515aa3cdc806b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a72449480d95718e2547d32c207d442a6" id="r_a72449480d95718e2547d32c207d442a6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a72449480d95718e2547d32c207d442a6">bench_cell</a> (const <a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a> *cfg, <a class="el" href="structstorascan__bench__result.html">storascan_bench_result</a> *out, char *errmsg, size_t errsz)</td></tr>
+<tr class="separator:a72449480d95718e2547d32c207d442a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0ae15d72afcfa4a375e9c00facb55e5a" id="r_a0ae15d72afcfa4a375e9c00facb55e5a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a0ae15d72afcfa4a375e9c00facb55e5a">parse_list</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, int as_bytes, long *out, int max)</td></tr>
 <tr class="separator:a0ae15d72afcfa4a375e9c00facb55e5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad73b82b15df7cebca08f3669096808cf" id="r_ad73b82b15df7cebca08f3669096808cf"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#ad73b82b15df7cebca08f3669096808cf">bench_help</a> (void)</td></tr>
+<tr class="separator:ad73b82b15df7cebca08f3669096808cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a45ea195ed6fea606f6b172c3bfb02fa0" id="r_a45ea195ed6fea606f6b172c3bfb02fa0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a45ea195ed6fea606f6b172c3bfb02fa0">bench_parse_args</a> (int argc, char **argv, <a class="el" href="structbench__args__t.html">bench_args_t</a> *ba)</td></tr>
+<tr class="separator:a45ea195ed6fea606f6b172c3bfb02fa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a691abaa5eb5013a0acd7f70b4fae3f50" id="r_a691abaa5eb5013a0acd7f70b4fae3f50"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a691abaa5eb5013a0acd7f70b4fae3f50">bench_validate_args</a> (<a class="el" href="structbench__args__t.html">bench_args_t</a> *ba)</td></tr>
+<tr class="separator:a691abaa5eb5013a0acd7f70b4fae3f50"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a447f8dc74bcf5cdc68b24a95bee66b12" id="r_a447f8dc74bcf5cdc68b24a95bee66b12"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a447f8dc74bcf5cdc68b24a95bee66b12">bench_render_cell</a> (const <a class="el" href="structbench__args__t.html">bench_args_t</a> *ba, long block, long par, const <a class="el" href="structstorascan__bench__result.html">storascan_bench_result</a> *r)</td></tr>
+<tr class="separator:a447f8dc74bcf5cdc68b24a95bee66b12"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa369df73102419fb20a202a04769f333" id="r_aa369df73102419fb20a202a04769f333"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#aa369df73102419fb20a202a04769f333">bench_run_matrix</a> (const <a class="el" href="structbench__args__t.html">bench_args_t</a> *ba, const <a class="el" href="structbrix__url.html">brix_url</a> *u, int64_t fsize)</td></tr>
+<tr class="separator:aa369df73102419fb20a202a04769f333"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad25afe5e1a231bc4b3ba5064d2544940" id="r_ad25afe5e1a231bc4b3ba5064d2544940"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#ad25afe5e1a231bc4b3ba5064d2544940">cmd_bench</a> (int argc, char **argv)</td></tr>
 <tr class="separator:ad25afe5e1a231bc4b3ba5064d2544940"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a58d21b2a15cf0dcea6227b729ce0d969" id="r_a58d21b2a15cf0dcea6227b729ce0d969"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a58d21b2a15cf0dcea6227b729ce0d969">scan_parse_url</a> (const char *url, <a class="el" href="structscan__ep.html">scan_ep</a> *ep)</td></tr>
 <tr class="separator:a58d21b2a15cf0dcea6227b729ce0d969"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af33e2e90ab151f58d796e41fda7f9925" id="r_af33e2e90ab151f58d796e41fda7f9925"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#af33e2e90ab151f58d796e41fda7f9925">scan_login</a> (const <a class="el" href="structscan__ep.html">scan_ep</a> *ep, const char *pw, int insecure, char *cookie, size_t cksz, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:af33e2e90ab151f58d796e41fda7f9925"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1f698bc74fef1b6b1d022f0c59f46eb5" id="r_a1f698bc74fef1b6b1d022f0c59f46eb5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a1f698bc74fef1b6b1d022f0c59f46eb5">scan_json_field</a> (const char *line, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *out, size_t outsz)</td></tr>
+<tr class="memitem:a8b2cc2a99a756f468414e8d02cbe037f" id="r_a8b2cc2a99a756f468414e8d02cbe037f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a8b2cc2a99a756f468414e8d02cbe037f">scan_login</a> (const <a class="el" href="structscan__ep.html">scan_ep</a> *ep, const <a class="el" href="structscan__args__t.html">scan_args_t</a> *sa, char *cookie, size_t cksz, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a8b2cc2a99a756f468414e8d02cbe037f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1f698bc74fef1b6b1d022f0c59f46eb5" id="r_a1f698bc74fef1b6b1d022f0c59f46eb5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a1f698bc74fef1b6b1d022f0c59f46eb5">scan_json_field</a> (const char *line, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *out, size_t outsz)</td></tr>
 <tr class="separator:a1f698bc74fef1b6b1d022f0c59f46eb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a128eb183f2125742eb50e6e44db95a03" id="r_a128eb183f2125742eb50e6e44db95a03"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a128eb183f2125742eb50e6e44db95a03">scan_render_summary</a> (const char *buf, int as_json, int summary_only)</td></tr>
+<tr class="separator:a128eb183f2125742eb50e6e44db95a03"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a61c4b5d2d9c143365641b175652895ee" id="r_a61c4b5d2d9c143365641b175652895ee"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a61c4b5d2d9c143365641b175652895ee">scan_render_inspect</a> (const char *buf)</td></tr>
+<tr class="separator:a61c4b5d2d9c143365641b175652895ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a959b078d5d7bf3d5c3ece236dd8902ac" id="r_a959b078d5d7bf3d5c3ece236dd8902ac"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a959b078d5d7bf3d5c3ece236dd8902ac">scan_render_health</a> (const char *buf)</td></tr>
+<tr class="separator:a959b078d5d7bf3d5c3ece236dd8902ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0278703cfc29b19a1453d5fc2041edf8" id="r_a0278703cfc29b19a1453d5fc2041edf8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a0278703cfc29b19a1453d5fc2041edf8">scan_render_object</a> (const char *buf)</td></tr>
+<tr class="separator:a0278703cfc29b19a1453d5fc2041edf8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8232ceb13c3e2a95d5336ecc8afa69c7" id="r_a8232ceb13c3e2a95d5336ecc8afa69c7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a8232ceb13c3e2a95d5336ecc8afa69c7">scan_render_drift</a> (const char *buf)</td></tr>
+<tr class="separator:a8232ceb13c3e2a95d5336ecc8afa69c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a70373abbeb63009ea6e29633501d5136" id="r_a70373abbeb63009ea6e29633501d5136"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a70373abbeb63009ea6e29633501d5136">scan_render_file</a> (const char *buf)</td></tr>
+<tr class="separator:a70373abbeb63009ea6e29633501d5136"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a29c9777e2ecbe2a4fae0f8def79a9cc4" id="r_a29c9777e2ecbe2a4fae0f8def79a9cc4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a29c9777e2ecbe2a4fae0f8def79a9cc4">scan_render_row</a> (const char *buf, const char *t, int as_json, int summary_only)</td></tr>
+<tr class="separator:a29c9777e2ecbe2a4fae0f8def79a9cc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae841935cb8e4cebe0ee2e43777a1293c" id="r_ae841935cb8e4cebe0ee2e43777a1293c"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#ae841935cb8e4cebe0ee2e43777a1293c">scan_render</a> (const char *body, int as_json, int summary_only)</td></tr>
 <tr class="separator:ae841935cb8e4cebe0ee2e43777a1293c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a518a8fdac80f0a1a9b5f9e6f14ec5947" id="r_a518a8fdac80f0a1a9b5f9e6f14ec5947"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a518a8fdac80f0a1a9b5f9e6f14ec5947">scan_qencode</a> (const char *in, char *out, size_t outsz)</td></tr>
 <tr class="separator:a518a8fdac80f0a1a9b5f9e6f14ec5947"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa2b63640049c0cbc04dc75f761fd4be6" id="r_aa2b63640049c0cbc04dc75f761fd4be6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#aa2b63640049c0cbc04dc75f761fd4be6">cmd_scan</a> (const char *<a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int argc, char **argv)</td></tr>
+<tr class="memitem:aa434c2e723c60a30da00c2ff5ba3a721" id="r_aa434c2e723c60a30da00c2ff5ba3a721"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#aa434c2e723c60a30da00c2ff5ba3a721">scan_parse_scan_args</a> (int argc, char **argv, <a class="el" href="structscan__args__t.html">scan_args_t</a> *sa)</td></tr>
+<tr class="separator:aa434c2e723c60a30da00c2ff5ba3a721"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad0ad0524bd2e57f4344ebe5fb104a7a6" id="r_ad0ad0524bd2e57f4344ebe5fb104a7a6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#ad0ad0524bd2e57f4344ebe5fb104a7a6">scan_fetch</a> (const char *mode, const <a class="el" href="structscan__ep.html">scan_ep</a> *ep, const <a class="el" href="structscan__args__t.html">scan_args_t</a> *sa, const char *cookie, <a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *resp)</td></tr>
+<tr class="separator:ad0ad0524bd2e57f4344ebe5fb104a7a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa2b63640049c0cbc04dc75f761fd4be6" id="r_aa2b63640049c0cbc04dc75f761fd4be6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#aa2b63640049c0cbc04dc75f761fd4be6">cmd_scan</a> (const char *mode, int argc, char **argv)</td></tr>
 <tr class="separator:aa2b63640049c0cbc04dc75f761fd4be6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c04138a5bfe5d72780bb7e82a18e627" id="r_a3c04138a5bfe5d72780bb7e82a18e627"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdstorascan_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a3c04138a5bfe5d72780bb7e82a18e627"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -329,8 +381,8 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ab5e3857abbdcf32f76f5da3cfd28784a" name="ab5e3857abbdcf32f76f5da3cfd28784a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab5e3857abbdcf32f76f5da3cfd28784a">&#9670;&#160;</a></span>bench_cell()</h2>
+<a id="a72449480d95718e2547d32c207d442a6" name="a72449480d95718e2547d32c207d442a6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a72449480d95718e2547d32c207d442a6">&#9670;&#160;</a></span>bench_cell()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -341,50 +393,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">static int bench_cell </td>
           <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>url</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
-          <td class="paramname"><em>u</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int64_t&#160;</td>
-          <td class="paramname"><em>fsize</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>block</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>parallel</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>random</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>duration_ns</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>total_ops</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -417,11 +427,43 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00373">373</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00599">599</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00303">bench_run()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00269">bench_worker::block</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00278">bench_worker::bytes</a>, <a class="el" href="xrdstorascan_8c_source.html#l00271">bench_worker::deadline_ns</a>, <a class="el" href="xrdstorascan_8c_source.html#l00279">bench_worker::err</a>, <a class="el" href="xrdstorascan_8c_source.html#l00273">bench_worker::fsize</a>, <a class="el" href="xrdstorascan_8c_source.html#l00276">bench_worker::lat_ms</a>, <a class="el" href="xrdstorascan_8c_source.html#l00277">bench_worker::lat_n</a>, <a class="el" href="xrdstorascan_8c_source.html#l00272">bench_worker::op_budget</a>, <a class="el" href="xrdstorascan_8c_source.html#l00270">bench_worker::random</a>, <a class="el" href="xrdstorascan_8c_source.html#l00274">bench_worker::seed</a>, <a class="el" href="storascan__core_8c_source.html#l00117">storascan_bench_compute()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00035">STORASCAN_LAT_CAP</a>, <a class="el" href="xrdstorascan_8c_source.html#l00268">bench_worker::u</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00267">bench_worker::url</a>.</p>
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00571">bench_workers_compute()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00548">bench_workers_error()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00463">bench_workers_free()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00483">bench_workers_init()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00514">bench_workers_run()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00449">bench_cell_cfg_t::parallel</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00499">cmd_bench()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00795">bench_run_matrix()</a>.</p>
+
+</div>
+</div>
+<a id="ad73b82b15df7cebca08f3669096808cf" name="ad73b82b15df7cebca08f3669096808cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad73b82b15df7cebca08f3669096808cf">&#9670;&#160;</a></span>bench_help()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int bench_help </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00682">682</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00829">cmd_bench()</a>.</p>
 
 </div>
 </div>
@@ -459,11 +501,113 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00287">287</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00355">355</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00269">bench_worker::block</a>, <a class="el" href="xrdstorascan_8c_source.html#l00273">bench_worker::fsize</a>, <a class="el" href="xrdstorascan_8c_source.html#l00270">bench_worker::random</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00274">bench_worker::seed</a>.</p>
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00337">bench_worker::block</a>, <a class="el" href="xrdstorascan_8c_source.html#l00341">bench_worker::fsize</a>, <a class="el" href="xrdstorascan_8c_source.html#l00338">bench_worker::random</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00342">bench_worker::seed</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00303">bench_run()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00371">bench_run()</a>.</p>
+
+</div>
+</div>
+<a id="a45ea195ed6fea606f6b172c3bfb02fa0" name="a45ea195ed6fea606f6b172c3bfb02fa0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a45ea195ed6fea606f6b172c3bfb02fa0">&#9670;&#160;</a></span>bench_parse_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int bench_parse_args </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbench__args__t.html">bench_args_t</a> *&#160;</td>
+          <td class="paramname"><em>ba</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00702">702</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00664">bench_args_t::block_s</a>, <a class="el" href="xrdstorascan_8c_source.html#l00668">bench_args_t::count</a>, <a class="el" href="xrdstorascan_8c_source.html#l00667">bench_args_t::duration_s</a>, <a class="el" href="xrdstorascan_8c_source.html#l00669">bench_args_t::json</a>, <a class="el" href="xrdstorascan_8c_source.html#l00096">opt_take()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00665">bench_args_t::par_s</a>, <a class="el" href="xrdstorascan_8c_source.html#l00666">bench_args_t::pattern</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="xrdstorascan_8c_source.html#l00663">bench_args_t::url</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00829">cmd_bench()</a>.</p>
+
+</div>
+</div>
+<a id="a447f8dc74bcf5cdc68b24a95bee66b12" name="a447f8dc74bcf5cdc68b24a95bee66b12"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a447f8dc74bcf5cdc68b24a95bee66b12">&#9670;&#160;</a></span>bench_render_cell()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void bench_render_cell </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbench__args__t.html">bench_args_t</a> *&#160;</td>
+          <td class="paramname"><em>ba</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>block</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>par</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structstorascan__bench__result.html">storascan_bench_result</a> *&#160;</td>
+          <td class="paramname"><em>r</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00768">768</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="storascan__core_8h_source.html#l00042">storascan_bench_result::bytes</a>, <a class="el" href="storascan__core_8h_source.html#l00040">storascan_bench_result::iops</a>, <a class="el" href="xrdstorascan_8c_source.html#l00669">bench_args_t::json</a>, <a class="el" href="storascan__core_8h_source.html#l00041">storascan_bench_result::ops</a>, <a class="el" href="storascan__core_8h_source.html#l00036">storascan_bench_result::p50_ms</a>, <a class="el" href="storascan__core_8h_source.html#l00037">storascan_bench_result::p95_ms</a>, <a class="el" href="storascan__core_8h_source.html#l00038">storascan_bench_result::p99_ms</a>, <a class="el" href="xrdstorascan_8c_source.html#l00666">bench_args_t::pattern</a>, and <a class="el" href="storascan__core_8h_source.html#l00039">storascan_bench_result::throughput_mibps</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00795">bench_run_matrix()</a>.</p>
 
 </div>
 </div>
@@ -491,11 +635,357 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00303">303</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00371">371</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00287">bench_offset()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00269">bench_worker::block</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00008">brix_file_open_read()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00064">brix_file_read()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00278">bench_worker::bytes</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrdstorascan_8c_source.html#l00271">bench_worker::deadline_ns</a>, <a class="el" href="xrdstorascan_8c_source.html#l00279">bench_worker::err</a>, <a class="el" href="xrdstorascan_8c_source.html#l00280">bench_worker::errmsg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00276">bench_worker::lat_ms</a>, <a class="el" href="xrdstorascan_8c_source.html#l00277">bench_worker::lat_n</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00272">bench_worker::op_budget</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="xrdstorascan_8c_source.html#l00035">STORASCAN_LAT_CAP</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00268">bench_worker::u</a>.</p>
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00355">bench_offset()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00337">bench_worker::block</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00008">brix_file_open_read()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00064">brix_file_read()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00346">bench_worker::bytes</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdstorascan_8c_source.html#l00339">bench_worker::deadline_ns</a>, <a class="el" href="xrdstorascan_8c_source.html#l00347">bench_worker::err</a>, <a class="el" href="xrdstorascan_8c_source.html#l00348">bench_worker::errmsg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00344">bench_worker::lat_ms</a>, <a class="el" href="xrdstorascan_8c_source.html#l00345">bench_worker::lat_n</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00340">bench_worker::op_budget</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="xrdstorascan_8c_source.html#l00035">STORASCAN_LAT_CAP</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00336">bench_worker::u</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00373">bench_cell()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00514">bench_workers_run()</a>.</p>
+
+</div>
+</div>
+<a id="aa369df73102419fb20a202a04769f333" name="aa369df73102419fb20a202a04769f333"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa369df73102419fb20a202a04769f333">&#9670;&#160;</a></span>bench_run_matrix()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int bench_run_matrix </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbench__args__t.html">bench_args_t</a> *&#160;</td>
+          <td class="paramname"><em>ba</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>u</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int64_t&#160;</td>
+          <td class="paramname"><em>fsize</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00795">795</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00599">bench_cell()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00768">bench_render_cell()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00448">bench_cell_cfg_t::block</a>, <a class="el" href="xrdstorascan_8c_source.html#l00670">bench_args_t::blocks</a>, <a class="el" href="xrdstorascan_8c_source.html#l00668">bench_args_t::count</a>, <a class="el" href="xrdstorascan_8c_source.html#l00451">bench_cell_cfg_t::duration_ns</a>, <a class="el" href="xrdstorascan_8c_source.html#l00667">bench_args_t::duration_s</a>, <a class="el" href="xrdstorascan_8c_source.html#l00447">bench_cell_cfg_t::fsize</a>, <a class="el" href="xrdstorascan_8c_source.html#l00672">bench_args_t::nblocks</a>, <a class="el" href="xrdstorascan_8c_source.html#l00673">bench_args_t::npars</a>, <a class="el" href="xrdstorascan_8c_source.html#l00449">bench_cell_cfg_t::parallel</a>, <a class="el" href="xrdstorascan_8c_source.html#l00671">bench_args_t::pars</a>, <a class="el" href="xrdstorascan_8c_source.html#l00666">bench_args_t::pattern</a>, <a class="el" href="xrdstorascan_8c_source.html#l00450">bench_cell_cfg_t::random</a>, <a class="el" href="xrdstorascan_8c_source.html#l00036">STORASCAN_MSG</a>, <a class="el" href="xrdstorascan_8c_source.html#l00042">SX_ERROR</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00452">bench_cell_cfg_t::total_ops</a>, <a class="el" href="xrdstorascan_8c_source.html#l00446">bench_cell_cfg_t::u</a>, <a class="el" href="xrdstorascan_8c_source.html#l00445">bench_cell_cfg_t::url</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00663">bench_args_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00829">cmd_bench()</a>.</p>
+
+</div>
+</div>
+<a id="a691abaa5eb5013a0acd7f70b4fae3f50" name="a691abaa5eb5013a0acd7f70b4fae3f50"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a691abaa5eb5013a0acd7f70b4fae3f50">&#9670;&#160;</a></span>bench_validate_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int bench_validate_args </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbench__args__t.html">bench_args_t</a> *&#160;</td>
+          <td class="paramname"><em>ba</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00743">743</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00664">bench_args_t::block_s</a>, <a class="el" href="xrdstorascan_8c_source.html#l00670">bench_args_t::blocks</a>, <a class="el" href="xrdstorascan_8c_source.html#l00672">bench_args_t::nblocks</a>, <a class="el" href="xrdstorascan_8c_source.html#l00673">bench_args_t::npars</a>, <a class="el" href="xrdstorascan_8c_source.html#l00665">bench_args_t::par_s</a>, <a class="el" href="xrdstorascan_8c_source.html#l00671">bench_args_t::pars</a>, <a class="el" href="xrdstorascan_8c_source.html#l00633">parse_list()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00666">bench_args_t::pattern</a>, <a class="el" href="xrdstorascan_8c_source.html#l00034">STORASCAN_MAX_SWEEP</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="xrdstorascan_8c_source.html#l00663">bench_args_t::url</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00829">cmd_bench()</a>.</p>
+
+</div>
+</div>
+<a id="a30ead414e4aa284c913515aa3cdc806b" name="a30ead414e4aa284c913515aa3cdc806b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a30ead414e4aa284c913515aa3cdc806b">&#9670;&#160;</a></span>bench_workers_compute()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int bench_workers_compute </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbench__worker.html">bench_worker</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>elapsed_ns</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structstorascan__bench__result.html">storascan_bench_result</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00571">571</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00346">bench_worker::bytes</a>, <a class="el" href="xrdstorascan_8c_source.html#l00345">bench_worker::lat_n</a>, <a class="el" href="xrdstorascan_8c_source.html#l00449">bench_cell_cfg_t::parallel</a>, and <a class="el" href="storascan__core_8c_source.html#l00117">storascan_bench_compute()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00599">bench_cell()</a>.</p>
+
+</div>
+</div>
+<a id="ae916b349fccbe288cd26de9116de3319" name="ae916b349fccbe288cd26de9116de3319"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae916b349fccbe288cd26de9116de3319">&#9670;&#160;</a></span>bench_workers_error()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int bench_workers_error </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbench__worker.html">bench_worker</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>parallel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>errmsg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>errsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00548">548</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00599">bench_cell()</a>.</p>
+
+</div>
+</div>
+<a id="a41c71a2eaa87618bb78f64310d2e3651" name="a41c71a2eaa87618bb78f64310d2e3651"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a41c71a2eaa87618bb78f64310d2e3651">&#9670;&#160;</a></span>bench_workers_free()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void bench_workers_free </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbench__worker.html">bench_worker</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">pthread_t *&#160;</td>
+          <td class="paramname"><em>th</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>parallel</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00463">463</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00599">bench_cell()</a>.</p>
+
+</div>
+</div>
+<a id="a6dd8497e1e85d87f01f57579d65894d6" name="a6dd8497e1e85d87f01f57579d65894d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6dd8497e1e85d87f01f57579d65894d6">&#9670;&#160;</a></span>bench_workers_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int bench_workers_init </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbench__worker.html">bench_worker</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>errmsg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>errsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00483">483</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00337">bench_worker::block</a>, <a class="el" href="xrdstorascan_8c_source.html#l00448">bench_cell_cfg_t::block</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00339">bench_worker::deadline_ns</a>, <a class="el" href="xrdstorascan_8c_source.html#l00451">bench_cell_cfg_t::duration_ns</a>, <a class="el" href="xrdstorascan_8c_source.html#l00341">bench_worker::fsize</a>, <a class="el" href="xrdstorascan_8c_source.html#l00447">bench_cell_cfg_t::fsize</a>, <a class="el" href="xrdstorascan_8c_source.html#l00344">bench_worker::lat_ms</a>, <a class="el" href="xrdstorascan_8c_source.html#l00340">bench_worker::op_budget</a>, <a class="el" href="xrdstorascan_8c_source.html#l00449">bench_cell_cfg_t::parallel</a>, <a class="el" href="xrdstorascan_8c_source.html#l00338">bench_worker::random</a>, <a class="el" href="xrdstorascan_8c_source.html#l00450">bench_cell_cfg_t::random</a>, <a class="el" href="xrdstorascan_8c_source.html#l00342">bench_worker::seed</a>, <a class="el" href="xrdstorascan_8c_source.html#l00035">STORASCAN_LAT_CAP</a>, <a class="el" href="xrdstorascan_8c_source.html#l00452">bench_cell_cfg_t::total_ops</a>, <a class="el" href="xrdstorascan_8c_source.html#l00336">bench_worker::u</a>, <a class="el" href="xrdstorascan_8c_source.html#l00446">bench_cell_cfg_t::u</a>, <a class="el" href="xrdstorascan_8c_source.html#l00335">bench_worker::url</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00445">bench_cell_cfg_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00599">bench_cell()</a>.</p>
+
+</div>
+</div>
+<a id="aff984650637edbef2d7b000d507b23c9" name="aff984650637edbef2d7b000d507b23c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aff984650637edbef2d7b000d507b23c9">&#9670;&#160;</a></span>bench_workers_run()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void bench_workers_run </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbench__worker.html">bench_worker</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">pthread_t *&#160;</td>
+          <td class="paramname"><em>th</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbench__cell__cfg__t.html">bench_cell_cfg_t</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>t0</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>t1</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00514">514</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00371">bench_run()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00339">bench_worker::deadline_ns</a>, <a class="el" href="xrdstorascan_8c_source.html#l00451">bench_cell_cfg_t::duration_ns</a>, <a class="el" href="xrdstorascan_8c_source.html#l00347">bench_worker::err</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00449">bench_cell_cfg_t::parallel</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00599">bench_cell()</a>.</p>
 
 </div>
 </div>
@@ -533,11 +1023,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00499">499</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00829">829</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00373">bench_cell()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="storascan__core_8h_source.html#l00042">storascan_bench_result::bytes</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="storascan__core_8h_source.html#l00040">storascan_bench_result::iops</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="storascan__core_8h_source.html#l00041">storascan_bench_result::ops</a>, <a class="el" href="storascan__core_8h_source.html#l00036">storascan_bench_result::p50_ms</a>, <a class="el" href="storascan__core_8h_source.html#l00037">storascan_bench_result::p95_ms</a>, <a class="el" href="storascan__core_8h_source.html#l00038">storascan_bench_result::p99_ms</a>, <a class="el" href="xrdstorascan_8c_source.html#l00475">parse_list()</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="xrdstorascan_8c_source.html#l00089">storascan_connect()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00034">STORASCAN_MAX_SWEEP</a>, <a class="el" href="xrdstorascan_8c_source.html#l00036">STORASCAN_MSG</a>, <a class="el" href="xrdstorascan_8c_source.html#l00042">SX_ERROR</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="storascan__core_8h_source.html#l00039">storascan_bench_result::throughput_mibps</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>.</p>
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00682">bench_help()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00702">bench_parse_args()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00795">bench_run_matrix()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00743">bench_validate_args()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00664">bench_args_t::block_s</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdstorascan_8c_source.html#l00668">bench_args_t::count</a>, <a class="el" href="xrdstorascan_8c_source.html#l00667">bench_args_t::duration_s</a>, <a class="el" href="xrdstorascan_8c_source.html#l00669">bench_args_t::json</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00665">bench_args_t::par_s</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="xrdstorascan_8c_source.html#l00666">bench_args_t::pattern</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="xrdstorascan_8c_source.html#l00109">storascan_connect()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00663">bench_args_t::url</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00960">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01342">main()</a>.</p>
 
 </div>
 </div>
@@ -581,11 +1071,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00855">855</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01280">1280</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="http__req_8c_source.html#l00177">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00165">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="xrdstorascan_8c_source.html#l00633">scan_ep::host</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00634">scan_ep::port</a>, <a class="el" href="xrdstorascan_8c_source.html#l00669">scan_login()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00639">scan_parse_url()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00833">scan_qencode()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00738">scan_render()</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="xrdstorascan_8c_source.html#l00042">SX_ERROR</a>, <a class="el" href="xrdstorascan_8c_source.html#l00040">SX_MISMATCH</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="xrdstorascan_8c_source.html#l00632">scan_ep::tls</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>.</p>
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00901">scan_args_t::as_json</a>, <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00899">scan_args_t::password</a>, <a class="el" href="xrdstorascan_8c_source.html#l01248">scan_fetch()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00937">scan_login()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01213">scan_parse_scan_args()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00907">scan_parse_url()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01154">scan_render()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00902">scan_args_t::summary_only</a>, <a class="el" href="xrdstorascan_8c_source.html#l00040">SX_MISMATCH</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="xrdstorascan_8c_source.html#l00896">scan_args_t::url</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00960">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01342">main()</a>.</p>
 
 </div>
 </div>
@@ -623,11 +1113,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00165">165</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00267">267</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00029">brix_cksum_algo_parse()</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00445">brix_query_cksum()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00353">lseek()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="storascan__core_8c_source.html#l00039">storascan_cks_compare()</a>, <a class="el" href="storascan__core_8h_source.html#l00022">STORASCAN_CKS_MATCH</a>, <a class="el" href="storascan__core_8h_source.html#l00023">STORASCAN_CKS_MISMATCH</a>, <a class="el" href="storascan__core_8h_source.html#l00024">STORASCAN_CKS_MISSING</a>, <a class="el" href="xrdstorascan_8c_source.html#l00089">storascan_connect()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00033">STORASCAN_HEX_MAX</a>, <a class="el" href="xrdstorascan_8c_source.html#l00042">SX_ERROR</a>, <a class="el" href="xrdstorascan_8c_source.html#l00040">SX_MISMATCH</a>, <a class="el" href="xrdstorascan_8c_source.html#l00041">SX_NORECORD</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00113">verify_download_tmp()</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00029">brix_cksum_algo_parse()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00770">brix_query_cksum()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="storascan__core_8c_source.html#l00039">storascan_cks_compare()</a>, <a class="el" href="storascan__core_8h_source.html#l00022">STORASCAN_CKS_MATCH</a>, <a class="el" href="storascan__core_8h_source.html#l00023">STORASCAN_CKS_MISMATCH</a>, <a class="el" href="storascan__core_8h_source.html#l00024">STORASCAN_CKS_MISSING</a>, <a class="el" href="xrdstorascan_8c_source.html#l00109">storascan_connect()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00033">STORASCAN_HEX_MAX</a>, <a class="el" href="xrdstorascan_8c_source.html#l00040">SX_MISMATCH</a>, <a class="el" href="xrdstorascan_8c_source.html#l00041">SX_NORECORD</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="xrdstorascan_8c_source.html#l00244">verify_compute_wire_hex()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00191">verify_help()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00209">verify_parse_args()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00960">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01342">main()</a>.</p>
 
 </div>
 </div>
@@ -657,9 +1147,69 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00960">960</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01342">1342</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00499">cmd_bench()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00855">cmd_scan()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00165">cmd_verify()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00051">usage_fp()</a>.</p>
+<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00829">cmd_bench()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01280">cmd_scan()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00267">cmd_verify()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00051">usage_fp()</a>.</p>
+
+</div>
+</div>
+<a id="a1a84d72eb52e3db5aed4ee63525d5b7a" name="a1a84d72eb52e3db5aed4ee63525d5b7a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1a84d72eb52e3db5aed4ee63525d5b7a">&#9670;&#160;</a></span>opt_take()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int opt_take </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>i</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00096">96</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00702">bench_parse_args()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00209">verify_parse_args()</a>.</p>
 
 </div>
 </div>
@@ -709,11 +1259,71 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00475">475</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00633">633</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="units_8c_source.html#l00034">brix_parse_bytes()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="units_8c_source.html#l00062">brix_parse_bytes()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00499">cmd_bench()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00743">bench_validate_args()</a>.</p>
+
+</div>
+</div>
+<a id="ad0ad0524bd2e57f4344ebe5fb104a7a6" name="ad0ad0524bd2e57f4344ebe5fb104a7a6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad0ad0524bd2e57f4344ebe5fb104a7a6">&#9670;&#160;</a></span>scan_fetch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int scan_fetch </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structscan__ep.html">scan_ep</a> *&#160;</td>
+          <td class="paramname"><em>ep</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structscan__args__t.html">scan_args_t</a> *&#160;</td>
+          <td class="paramname"><em>sa</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>cookie</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *&#160;</td>
+          <td class="paramname"><em>resp</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01248">1248</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00898">scan_args_t::alg</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00885">scan_ep::host</a>, <a class="el" href="xrdstorascan_8c_source.html#l00900">scan_args_t::insecure</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00897">scan_args_t::path</a>, <a class="el" href="xrdstorascan_8c_source.html#l00886">scan_ep::port</a>, <a class="el" href="xrdstorascan_8c_source.html#l01185">scan_qencode()</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="xrdstorascan_8c_source.html#l00042">SX_ERROR</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00884">scan_ep::tls</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01280">cmd_scan()</a>.</p>
 
 </div>
 </div>
@@ -763,16 +1373,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00706">706</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00974">974</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00738">scan_render()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01154">scan_render()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01092">scan_render_drift()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01109">scan_render_file()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01056">scan_render_health()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01037">scan_render_inspect()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01074">scan_render_object()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l01011">scan_render_summary()</a>.</p>
 
 </div>
 </div>
-<a id="af33e2e90ab151f58d796e41fda7f9925" name="af33e2e90ab151f58d796e41fda7f9925"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af33e2e90ab151f58d796e41fda7f9925">&#9670;&#160;</a></span>scan_login()</h2>
+<a id="a8b2cc2a99a756f468414e8d02cbe037f" name="a8b2cc2a99a756f468414e8d02cbe037f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b2cc2a99a756f468414e8d02cbe037f">&#9670;&#160;</a></span>scan_login()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -789,14 +1399,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>pw</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>insecure</em>, </td>
+          <td class="paramtype">const <a class="el" href="structscan__args__t.html">scan_args_t</a> *&#160;</td>
+          <td class="paramname"><em>sa</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -829,11 +1433,59 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00669">669</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00937">937</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http_8c_source.html#l00178">brix_http_header()</a>, <a class="el" href="http__req_8c_source.html#l00177">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00165">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00633">scan_ep::host</a>, <a class="el" href="xrdstorascan_8c_source.html#l00634">scan_ep::port</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="xrdstorascan_8c_source.html#l00632">scan_ep::tls</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
+<p class="reference">References <a class="el" href="http_8c_source.html#l00249">brix_http_header()</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00885">scan_ep::host</a>, <a class="el" href="xrdstorascan_8c_source.html#l00900">scan_args_t::insecure</a>, <a class="el" href="xrdstorascan_8c_source.html#l00899">scan_args_t::password</a>, <a class="el" href="xrdstorascan_8c_source.html#l00886">scan_ep::port</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="xrdstorascan_8c_source.html#l00884">scan_ep::tls</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00855">cmd_scan()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01280">cmd_scan()</a>.</p>
+
+</div>
+</div>
+<a id="aa434c2e723c60a30da00c2ff5ba3a721" name="aa434c2e723c60a30da00c2ff5ba3a721"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa434c2e723c60a30da00c2ff5ba3a721">&#9670;&#160;</a></span>scan_parse_scan_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int scan_parse_scan_args </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structscan__args__t.html">scan_args_t</a> *&#160;</td>
+          <td class="paramname"><em>sa</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01213">1213</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00898">scan_args_t::alg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00901">scan_args_t::as_json</a>, <a class="el" href="xrdstorascan_8c_source.html#l00900">scan_args_t::insecure</a>, <a class="el" href="xrdstorascan_8c_source.html#l00899">scan_args_t::password</a>, <a class="el" href="xrdstorascan_8c_source.html#l00897">scan_args_t::path</a>, <a class="el" href="xrdstorascan_8c_source.html#l00902">scan_args_t::summary_only</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00896">scan_args_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01280">cmd_scan()</a>.</p>
 
 </div>
 </div>
@@ -871,11 +1523,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00639">639</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00907">907</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00633">scan_ep::host</a>, <a class="el" href="xrdstorascan_8c_source.html#l00634">scan_ep::port</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00632">scan_ep::tls</a>.</p>
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00885">scan_ep::host</a>, <a class="el" href="xrdstorascan_8c_source.html#l00886">scan_ep::port</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00884">scan_ep::tls</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00855">cmd_scan()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01280">cmd_scan()</a>.</p>
 
 </div>
 </div>
@@ -919,11 +1571,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00833">833</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01185">1185</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00855">cmd_scan()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01248">scan_fetch()</a>.</p>
 
 </div>
 </div>
@@ -967,11 +1619,273 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00738">738</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01154">1154</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay__unittest_8c_source.html#l00071">cls()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00706">scan_json_field()</a>.</p>
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00974">scan_json_field()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01130">scan_render_row()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l01011">scan_render_summary()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00855">cmd_scan()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01280">cmd_scan()</a>.</p>
+
+</div>
+</div>
+<a id="a8232ceb13c3e2a95d5336ecc8afa69c7" name="a8232ceb13c3e2a95d5336ecc8afa69c7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8232ceb13c3e2a95d5336ecc8afa69c7">&#9670;&#160;</a></span>scan_render_drift()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void scan_render_drift </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01092">1092</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay__unittest_8c_source.html#l00071">cls()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00974">scan_json_field()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01130">scan_render_row()</a>.</p>
+
+</div>
+</div>
+<a id="a70373abbeb63009ea6e29633501d5136" name="a70373abbeb63009ea6e29633501d5136"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a70373abbeb63009ea6e29633501d5136">&#9670;&#160;</a></span>scan_render_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void scan_render_file </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01109">1109</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00974">scan_json_field()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01130">scan_render_row()</a>.</p>
+
+</div>
+</div>
+<a id="a959b078d5d7bf3d5c3ece236dd8902ac" name="a959b078d5d7bf3d5c3ece236dd8902ac"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a959b078d5d7bf3d5c3ece236dd8902ac">&#9670;&#160;</a></span>scan_render_health()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void scan_render_health </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01056">1056</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00974">scan_json_field()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01130">scan_render_row()</a>.</p>
+
+</div>
+</div>
+<a id="a61c4b5d2d9c143365641b175652895ee" name="a61c4b5d2d9c143365641b175652895ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a61c4b5d2d9c143365641b175652895ee">&#9670;&#160;</a></span>scan_render_inspect()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void scan_render_inspect </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01037">1037</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00974">scan_json_field()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01130">scan_render_row()</a>.</p>
+
+</div>
+</div>
+<a id="a0278703cfc29b19a1453d5fc2041edf8" name="a0278703cfc29b19a1453d5fc2041edf8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0278703cfc29b19a1453d5fc2041edf8">&#9670;&#160;</a></span>scan_render_object()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void scan_render_object </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01074">1074</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00974">scan_json_field()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01130">scan_render_row()</a>.</p>
+
+</div>
+</div>
+<a id="a29c9777e2ecbe2a4fae0f8def79a9cc4" name="a29c9777e2ecbe2a4fae0f8def79a9cc4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a29c9777e2ecbe2a4fae0f8def79a9cc4">&#9670;&#160;</a></span>scan_render_row()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void scan_render_row </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>as_json</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>summary_only</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01130">1130</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l01092">scan_render_drift()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01109">scan_render_file()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01056">scan_render_health()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01037">scan_render_inspect()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l01074">scan_render_object()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01154">scan_render()</a>.</p>
+
+</div>
+</div>
+<a id="a128eb183f2125742eb50e6e44db95a03" name="a128eb183f2125742eb50e6e44db95a03"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a128eb183f2125742eb50e6e44db95a03">&#9670;&#160;</a></span>scan_render_summary()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static long scan_render_summary </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>as_json</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>summary_only</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l01011">1011</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00974">scan_json_field()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01154">scan_render()</a>.</p>
 
 </div>
 </div>
@@ -1021,11 +1935,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00089">89</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00109">109</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00499">cmd_bench()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00165">cmd_verify()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00829">cmd_bench()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00267">cmd_verify()</a>.</p>
 
 </div>
 </div>
@@ -1097,7 +2011,67 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00960">main()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00079">usage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l01342">main()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00079">usage()</a>.</p>
+
+</div>
+</div>
+<a id="a5c12857332556cd611e10adbbd135662" name="a5c12857332556cd611e10adbbd135662"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5c12857332556cd611e10adbbd135662">&#9670;&#160;</a></span>verify_compute_wire_hex()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int verify_compute_wire_hex </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a>&#160;</td>
+          <td class="paramname"><em>algo</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>hex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>hexsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00244">244</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00353">lseek()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdstorascan_8c_source.html#l00042">SX_ERROR</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00133">verify_download_tmp()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00267">cmd_verify()</a>.</p>
 
 </div>
 </div>
@@ -1141,11 +2115,103 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00113">113</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00133">133</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00008">brix_file_open_read()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00064">brix_file_read()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00008">brix_file_open_read()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00064">brix_file_read()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00165">cmd_verify()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00244">verify_compute_wire_hex()</a>.</p>
+
+</div>
+</div>
+<a id="a97121eef79d71c6b60c2cf6f36208b43" name="a97121eef79d71c6b60c2cf6f36208b43"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a97121eef79d71c6b60c2cf6f36208b43">&#9670;&#160;</a></span>verify_help()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int verify_help </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00191">191</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00267">cmd_verify()</a>.</p>
+
+</div>
+</div>
+<a id="a3be06fd3d945b4c85e28273cbb9e2381" name="a3be06fd3d945b4c85e28273cbb9e2381"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3be06fd3d945b4c85e28273cbb9e2381">&#9670;&#160;</a></span>verify_parse_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int verify_parse_args </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>url</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>algo</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>quiet</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdstorascan_8c_source.html#l00209">209</a> of file <a class="el" href="xrdstorascan_8c_source.html">xrdstorascan.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdstorascan_8c_source.html#l00096">opt_take()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00039">SX_OK</a>, <a class="el" href="xrdstorascan_8c_source.html#l00043">SX_USAGE</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00267">cmd_verify()</a>.</p>
 
 </div>
 </div>

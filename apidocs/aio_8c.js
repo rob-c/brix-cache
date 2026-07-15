@@ -17,5 +17,10 @@ var aio_8c =
     [ "loop_push_cmd", "aio_8c.html#ae8476f399573c7cb2f8101b3aca3d6c3", null ],
     [ "loop_run_control", "aio_8c.html#a27e1a93f27d47aa14c54fd9138920b2b", null ],
     [ "loop_thread", "aio_8c.html#ab1d47116978336bb4fcaa1992d112e25", null ],
-    [ "rc_worker_main", "aio_8c.html#a50f04bb8e2ede909f1b73c90676e65ba", null ]
+    [ "rc_worker_main", "aio_8c.html#a50f04bb8e2ede909f1b73c90676e65ba", null ],
+    [ "timeouts_expire_inflight", "aio_8c.html#a60c9d805bfd33f721a528c3a0b15dc33", null ],
+    [ "timeouts_expire_parked", "aio_8c.html#afa1d265f87b99aa11346386e1bbbe519", null ],
+    [ "timeouts_next_wait_ms", "aio_8c.html#a3828c491e4cc5aab8e0ba7d555cd570f", null ],
+    [ "timeouts_scan_conn", "aio_8c.html#abbe493e2e9f9a0afb9ac8da890a8e4a3", null ],
+    [ "timeouts_track_next", "aio_8c.html#a1beafeebdfb62c3222c86b25736eb672", null ]
 ];

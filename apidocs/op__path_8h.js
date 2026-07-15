@@ -9,5 +9,6 @@ var op__path_8h =
     [ "brix_op_path_forbidden_component", "op__path_8h.html#a4b1c227125536a547e6aaca5527d6655", null ],
     [ "brix_path_resolve_beneath", "op__path_8h.html#a55385e7dc5c4f26ee9a6cc15f22f63ce", null ],
     [ "brix_reject_dotdot_path", "op__path_8h.html#a8e80ad16299eac221abaff6a04bda92d", null ],
-    [ "brix_resolve_op_path", "op__path_8h.html#a00e626086996281daa6322794e5cc303", null ]
+    [ "brix_resolve_op_path", "op__path_8h.html#a00e626086996281daa6322794e5cc303", null ],
+    [ "brix_root_vfs_bind_deleg", "op__path_8h.html#aa1b86496cfea704da2a70f8f038866d1", null ]
 ];

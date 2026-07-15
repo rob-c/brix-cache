@@ -102,125 +102,243 @@ $(document).ready(function(){initNavTree('auth_2token_2config_8c_source.html',''
 <div class="line"><a id="l00002" name="l00002"></a><span class="lineno">    2</span><span class="preprocessor">#include &quot;<a class="code" href="issuer__registry_8h.html">issuer_registry.h</a>&quot;</span></div>
 <div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span><span class="preprocessor">#include &lt;sys/stat.h&gt;</span></div>
 <div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span> </div>
-<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="comment">/* ---- Build the multi-issuer token registry from brix_token_config ----</span></div>
 <div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="comment"> * WHAT: Validates that required token auth configuration fields are present when auth mode is BRIX_AUTH_TOKEN or BRIX_AUTH_BOTH. Checks for non-empty token_jwks (JWKS key file path), token_issuer, and token_audience. Validates JWKS file exists as a regular file with read permissions via brix_validate_path(). Loads all public keys from the JWKS file into jwks_keys array using brix_jwks_load() — returns NGX_OK only when at least one key loaded successfully. Logs configuration summary with key count on success, or emerg-level errors on any validation failure.</span></div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="comment"> * WHY: Token authentication requires three prerequisites: a valid JWKS file containing public keys for JWT verification, an issuer string to validate token claims against, and an audience string to restrict which tokens are accepted. Missing any of these would cause runtime auth failures for all clients — nginx -t must catch this at configuration validation time rather than allowing the server to start with broken auth. The JWKS key count serves as a sanity check: loading zero keys indicates file corruption or invalid format, not just absence. Thread safety: config setup runs once during nginx startup on main process thread; no concurrent access after initialization. */</span></div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span> </div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00012" data-start="{" data-end="}">
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno"><a class="line" href="auth_2token_2config_8c.html#a25b2dd3b0294c6e18efeb05d4cb4f3c7">   12</a></span><a class="code hl_function" href="auth_2token_2config_8c.html#a25b2dd3b0294c6e18efeb05d4cb4f3c7">brix_configure_token_auth</a>(ngx_conf_t *cf,</div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span>{</div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span>    <span class="keywordflow">if</span> (xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac496050b3c7308118d2fd3d44a331b68">auth</a> != <a class="code hl_define" href="tunables_8h.html#ab60e9b488d5aa6f3aa103f31cf772326">BRIX_AUTH_TOKEN</a> &amp;&amp; xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac496050b3c7308118d2fd3d44a331b68">auth</a> != <a class="code hl_define" href="tunables_8h.html#a498d07a4f289ac7c5e6049513f318dbf">BRIX_AUTH_BOTH</a>) {</div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>    }</div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span> </div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    <span class="comment">/* Multi-issuer registry (phase-59 W1): when brix_token_config is set it</span></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="comment">     * supersedes the single-issuer token_jwks/_issuer/_audience directives. */</span></div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    <span class="keywordflow">if</span> (xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#abbb1e477d62b2bfee76054299f5ce665">token_config</a>.len &gt; 0) {</div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>        <a class="code hl_struct" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *reg = NULL;</div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span> </div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>        <span class="keywordflow">if</span> (xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a7ed74e2bfa13d23c08dbb65517f54810">token_issuer</a>.len || xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#adb1baef0c209f7a55a849ad31d1047b9">token_audience</a>.len</div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>            || xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac2fb5c71c15be5e101e99b9cd578d372">token_jwks</a>.len)</div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>        {</div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,</div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>                <span class="stringliteral">&quot;brix_token_config supersedes brix_token_issuer/&quot;</span></div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>                <span class="stringliteral">&quot;_audience/_jwks (single-issuer directives ignored)&quot;</span>);</div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>        }</div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="issuer__registry_8c.html#a0bb547b98345ca87f9beadea7e71c010">brix_token_registry_build</a>(cf,</div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>                (<span class="keyword">const</span> <span class="keywordtype">char</span> *) xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#abbb1e477d62b2bfee76054299f5ce665">token_config</a>.data,</div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>                <a class="code hl_define" href="issuer__registry_8h.html#a085b7249f82b1d32d60760ad12463f05">BRIX_AUTHZ_CAPABILITY</a>, &amp;reg) != NGX_OK)</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>        {</div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>        }</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>        xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#af71bfaa729fc26744582d89549b70ed1">token_registry</a> = reg;</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    }</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordflow">if</span> (xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac2fb5c71c15be5e101e99b9cd578d372">token_jwks</a>.len == 0 || xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a7ed74e2bfa13d23c08dbb65517f54810">token_issuer</a>.len == 0</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        || xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#adb1baef0c209f7a55a849ad31d1047b9">token_audience</a>.len == 0)</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    {</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>            <span class="stringliteral">&quot;brix_auth token/both requires &quot;</span></div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>            <span class="stringliteral">&quot;brix_token_jwks, &quot;</span></div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>            <span class="stringliteral">&quot;brix_token_issuer and brix_token_audience&quot;</span>);</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    }</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="config_2config_8h.html#aebb0815d9f5a2afaa2f143e14a7799d5">brix_validate_path</a>(cf, <span class="stringliteral">&quot;brix_token_jwks&quot;</span>,</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>                             &amp;xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac2fb5c71c15be5e101e99b9cd578d372">token_jwks</a>,</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>                             <a class="code hl_enumvalue" href="config_2config_8h.html#a26c358bf7385010e265ad6cbddf7731aad36a35f475d660a1414d5c196cb0d013">BRIX_PATH_REGULAR_FILE</a>, R_OK)</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        != NGX_OK)</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    {</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    }</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a1f05296a4a9a470980786342eedd0b9b">jwks_key_count</a> = <a class="code hl_function" href="jwks_8c.html#a658a9814ab21d182590e127d71d328b2">brix_jwks_load</a>(</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        cf-&gt;log, (<span class="keyword">const</span> <span class="keywordtype">char</span> *) xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac2fb5c71c15be5e101e99b9cd578d372">token_jwks</a>.data,</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>        xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a7ba0e4faef36a9c8bbb83a10e6383c57">jwks_keys</a>, <a class="code hl_define" href="token_8h.html#a425724de6ef59c41befeefeab51cb993">BRIX_MAX_JWKS_KEYS</a>);</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <span class="keywordflow">if</span> (xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a1f05296a4a9a470980786342eedd0b9b">jwks_key_count</a> &lt; 0) {</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            <span class="stringliteral">&quot;brix: failed to load JWKS from \&quot;%s\&quot;&quot;</span>,</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>            xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac2fb5c71c15be5e101e99b9cd578d372">token_jwks</a>.data);</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>    }</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span> </div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <span class="keywordflow">if</span> (xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a1f05296a4a9a470980786342eedd0b9b">jwks_key_count</a> &gt; 0</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        &amp;&amp; <a class="code hl_function" href="jwks_8c.html#a019cb63b9cd794f76d50702f4265c07c">brix_jwks_register_cleanup</a>(cf-&gt;pool, xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a7ba0e4faef36a9c8bbb83a10e6383c57">jwks_keys</a>,</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>                                        &amp;xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a1f05296a4a9a470980786342eedd0b9b">jwks_key_count</a>) != NGX_OK)</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    {</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    }</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span> </div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    {</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        <span class="comment">/* Record mtime so the refresh timer can detect changes */</span></div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>        <span class="keyword">struct </span><a class="code hl_function" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a>  st;</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a>((<span class="keyword">const</span> <span class="keywordtype">char</span> *) xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac2fb5c71c15be5e101e99b9cd578d372">token_jwks</a>.data, &amp;st) == 0) {</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>            xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac2f4c8e587d5a2420fce9b8474a7b49c">jwks_mtime</a> = st.st_mtime;</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>        }</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    }</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>        <span class="stringliteral">&quot;brix: token auth configured - jwks=%s issuer=%s &quot;</span></div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>        <span class="stringliteral">&quot;audience=%s keys=%d&quot;</span>,</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#ac2fb5c71c15be5e101e99b9cd578d372">token_jwks</a>.data, xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a7ed74e2bfa13d23c08dbb65517f54810">token_issuer</a>.data,</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>        xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#adb1baef0c209f7a55a849ad31d1047b9">token_audience</a>.data, xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a1f05296a4a9a470980786342eedd0b9b">jwks_key_count</a>);</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span> </div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="comment"> * HOW: 1) Early-exit if auth mode is not token/both (anonymous/GSI pass).</span></div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="comment"> *       2) Check all three required ngx_str_t fields are non-empty — log emerg and return NGX_ERROR if any missing.</span></div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="comment"> *       3) Validate JWKS file path via brix_validate_path() (must be regular file, readable). Early-exit on failure.</span></div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="comment"> *       4) Load public keys from JWKS into jwks_keys array; check return count ≥ 0 for success.</span></div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="comment"> *       5) Capture file mtime via stat() so refresh timer can detect changes. Ignored if stat fails (mtime stays unset).</span></div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="comment"> *       6) Log configuration summary with key count at notice level.</span></div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>}</div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="comment"> * WHAT: Constructs a brix_token_registry_t from the brix_token_config file and</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="comment"> *       stores it on xcf-&gt;token_registry. Warns (non-fatally) when the legacy</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="comment"> *       single-issuer directives are also set, since the registry supersedes</span></div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="comment"> *       them. Returns NGX_OK on success, NGX_ERROR if registry construction</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="comment"> *       fails.</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="comment"> * WHY: The multi-issuer registry (phase-59 W1) is the modern replacement for the</span></div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="comment"> *      single brix_token_jwks/_issuer/_audience directives. When both are</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="comment"> *      present the registry wins; the operator is warned so they understand the</span></div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="comment"> *      single-issuer settings are being ignored rather than merged.</span></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="comment"> * HOW: 1) If any single-issuer directive is non-empty, emit a WARN that the</span></div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="comment"> *         registry supersedes them.</span></div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="comment"> *      2) Call brix_token_registry_build() with the config path and the</span></div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="comment"> *         capability authz mode; return NGX_ERROR on failure.</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="comment"> *      3) Publish the built registry on xcf and return NGX_OK.</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00025" data-start="{" data-end="}">
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno"><a class="line" href="auth_2token_2config_8c.html#aae077d35433ecf200997bc6bf16933fe">   25</a></span><a class="code hl_function" href="auth_2token_2config_8c.html#aae077d35433ecf200997bc6bf16933fe">brix_token_configure_registry</a>(ngx_conf_t *cf,</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>{</div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <a class="code hl_struct" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *reg = NULL;</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span> </div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    <span class="comment">/* Multi-issuer registry (phase-59 W1): when brix_token_config is set it</span></div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="comment">     * supersedes the single-issuer token_jwks/_issuer/_audience directives. */</span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    <span class="keywordflow">if</span> (xcf-&gt;token_issuer.len || xcf-&gt;token_audience.len</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>        || xcf-&gt;token_jwks.len)</div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    {</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>            <span class="stringliteral">&quot;brix_token_config supersedes brix_token_issuer/&quot;</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>            <span class="stringliteral">&quot;_audience/_jwks (single-issuer directives ignored)&quot;</span>);</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    }</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="issuer__registry_8c.html#a0bb547b98345ca87f9beadea7e71c010">brix_token_registry_build</a>(cf,</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>            (<span class="keyword">const</span> <span class="keywordtype">char</span> *) xcf-&gt;token_config.data,</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>            <a class="code hl_define" href="issuer__registry_8h.html#a085b7249f82b1d32d60760ad12463f05">BRIX_AUTHZ_CAPABILITY</a>, &amp;reg) != NGX_OK)</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    {</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    }</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    xcf-&gt;token_registry = reg;</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>}</div>
 </div>
-<div class="ttc" id="aauth_2token_2config_8c_html_a25b2dd3b0294c6e18efeb05d4cb4f3c7"><div class="ttname"><a href="auth_2token_2config_8c.html#a25b2dd3b0294c6e18efeb05d4cb4f3c7">brix_configure_token_auth</a></div><div class="ttdeci">ngx_int_t brix_configure_token_auth(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="auth_2token_2config_8c_source.html#l00012">config.c:12</a></div></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span> </div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment">/* ---- Require the three single-issuer token directives ----</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment"> * WHAT: Verifies that brix_token_jwks, brix_token_issuer and brix_token_audience</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment"> *       are all non-empty. Returns NGX_OK when all three are present, otherwise</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment"> *       logs an emerg-level error and returns NGX_ERROR.</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment"> * WHY: Single-issuer token authentication cannot function without a JWKS key</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment"> *      file, an issuer to validate token claims against, and an audience to</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment"> *      restrict which tokens are accepted. Catching the omission at</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment"> *      configuration-validation time (nginx -t) prevents starting a server with</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="comment"> *      auth that would reject every client at runtime.</span></div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment"> * HOW: 1) If any of the three ngx_str_t fields has zero length, log an emerg</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment"> *         error naming all three directives and return NGX_ERROR.</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment"> *      2) Otherwise return NGX_OK.</span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00066" data-start="{" data-end="}">
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno"><a class="line" href="auth_2token_2config_8c.html#a92364f5643dd0f5af535762690ef0834">   66</a></span><a class="code hl_function" href="auth_2token_2config_8c.html#a92364f5643dd0f5af535762690ef0834">brix_token_require_single_issuer_fields</a>(ngx_conf_t *cf,</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>{</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    <span class="keywordflow">if</span> (xcf-&gt;token_jwks.len == 0 || xcf-&gt;token_issuer.len == 0</div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>        || xcf-&gt;token_audience.len == 0)</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    {</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>            <span class="stringliteral">&quot;brix_auth token/both requires &quot;</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>            <span class="stringliteral">&quot;brix_token_jwks, &quot;</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>            <span class="stringliteral">&quot;brix_token_issuer and brix_token_audience&quot;</span>);</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    }</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span> </div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>}</div>
+</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span> </div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="comment">/* ---- Validate, load and register the JWKS keys ----</span></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="comment"> * WHAT: Validates the brix_token_jwks path (regular file, readable), loads its</span></div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="comment"> *       public keys into xcf-&gt;jwks_keys, registers a pool cleanup for the loaded</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment"> *       keys, and records the file mtime for the refresh timer. Returns NGX_OK on</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="comment"> *       success, NGX_ERROR on any validation, load, or cleanup-registration</span></div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="comment"> *       failure.</span></div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="comment"> * WHY: JWT verification needs the issuer&#39;s public keys resident in memory. A</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="comment"> *      loaded key count below zero indicates file corruption or invalid format</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment"> *      (distinct from mere absence), which must fail configuration rather than</span></div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="comment"> *      allow a server with unusable keys. The mtime lets the refresh timer detect</span></div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="comment"> *      later changes to the JWKS file.</span></div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="comment"> * HOW: 1) Validate the JWKS path via brix_validate_path() (regular file, R_OK);</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="comment"> *         return NGX_ERROR on failure.</span></div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="comment"> *      2) Load keys via brix_jwks_load(); a negative count is a load failure —</span></div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="comment"> *         log emerg and return NGX_ERROR.</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="comment"> *      3) If any keys loaded, register a pool cleanup for them; return NGX_ERROR</span></div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="comment"> *         if that fails.</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment"> *      4) stat() the file and record st_mtime; a stat failure is ignored so the</span></div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment"> *         mtime simply stays unset.</span></div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> *      5) Return NGX_OK.</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00107" data-start="{" data-end="}">
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno"><a class="line" href="auth_2token_2config_8c.html#a00c4f3b4d285c322fca5b3495916a6f4">  107</a></span><a class="code hl_function" href="auth_2token_2config_8c.html#a00c4f3b4d285c322fca5b3495916a6f4">brix_token_load_and_register_jwks</a>(ngx_conf_t *cf,</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>{</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <span class="keyword">struct </span><a class="code hl_function" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a>  st;</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span> </div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="config_2config_8h.html#aebb0815d9f5a2afaa2f143e14a7799d5">brix_validate_path</a>(cf, <span class="stringliteral">&quot;brix_token_jwks&quot;</span>,</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>                             &amp;xcf-&gt;token_jwks,</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>                             <a class="code hl_enumvalue" href="config_2config_8h.html#a26c358bf7385010e265ad6cbddf7731aad36a35f475d660a1414d5c196cb0d013">BRIX_PATH_REGULAR_FILE</a>, R_OK)</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>        != NGX_OK)</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    {</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    }</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span> </div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    xcf-&gt;jwks_key_count = <a class="code hl_function" href="jwks_8c.html#a658a9814ab21d182590e127d71d328b2">brix_jwks_load</a>(</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>        cf-&gt;log, (<span class="keyword">const</span> <span class="keywordtype">char</span> *) xcf-&gt;token_jwks.data,</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>        xcf-&gt;jwks_keys, <a class="code hl_define" href="token_8h.html#a425724de6ef59c41befeefeab51cb993">BRIX_MAX_JWKS_KEYS</a>);</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span> </div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    <span class="keywordflow">if</span> (xcf-&gt;jwks_key_count &lt; 0) {</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>            <span class="stringliteral">&quot;brix: failed to load JWKS from \&quot;%s\&quot;&quot;</span>,</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>            xcf-&gt;token_jwks.data);</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    }</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span> </div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    <span class="keywordflow">if</span> (xcf-&gt;jwks_key_count &gt; 0</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        &amp;&amp; <a class="code hl_function" href="jwks_8c.html#a019cb63b9cd794f76d50702f4265c07c">brix_jwks_register_cleanup</a>(cf-&gt;pool, xcf-&gt;jwks_keys,</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>                                        &amp;xcf-&gt;jwks_key_count) != NGX_OK)</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    {</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    }</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    <span class="comment">/* Record mtime so the refresh timer can detect changes */</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a>((<span class="keyword">const</span> <span class="keywordtype">char</span> *) xcf-&gt;token_jwks.data, &amp;st) == 0) {</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        xcf-&gt;jwks_mtime = st.st_mtime;</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    }</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span> </div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>}</div>
+</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span> </div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="comment">/* ---- Log the single-issuer token auth configuration summary ----</span></div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="comment"> * WHAT: Emits a NOTICE-level line summarising the configured JWKS path, issuer,</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment"> *       audience, and loaded key count. Returns nothing.</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment"> * WHY: A single confirmation line at startup gives operators a sanity check that</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> *      token auth is wired up with the expected inputs and a plausible key count,</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment"> *      without having to enable debug logging.</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment"> * HOW: 1) Format jwks, issuer, audience, and jwks_key_count into one NOTICE line.</span></div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00158" data-start="{" data-end="}">
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno"><a class="line" href="auth_2token_2config_8c.html#a597878930d8d59f88482403d2806a4ca">  158</a></span><a class="code hl_function" href="auth_2token_2config_8c.html#a597878930d8d59f88482403d2806a4ca">brix_token_log_summary</a>(ngx_conf_t *cf, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>{</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        <span class="stringliteral">&quot;brix: token auth configured - jwks=%s issuer=%s &quot;</span></div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        <span class="stringliteral">&quot;audience=%s keys=%d&quot;</span>,</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        xcf-&gt;token_jwks.data, xcf-&gt;token_issuer.data,</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        xcf-&gt;token_audience.data, xcf-&gt;jwks_key_count);</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>}</div>
+</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span> </div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="comment">/* ---- Validate and materialise token/JWT auth configuration ----</span></div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="comment"> * WHAT: Validates token auth configuration when auth mode is BRIX_AUTH_TOKEN or</span></div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span><span class="comment"> *       BRIX_AUTH_BOTH. Dispatches to the multi-issuer registry when</span></div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span><span class="comment"> *       brix_token_config is set; otherwise requires the single-issuer</span></div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span><span class="comment"> *       directives, loads the JWKS keys, and logs a summary. Returns NGX_OK when</span></div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span><span class="comment"> *       auth is not token-based or is fully configured, NGX_ERROR on any</span></div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span><span class="comment"> *       validation failure.</span></div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span><span class="comment"> * WHY: Missing or invalid token auth prerequisites would cause runtime auth</span></div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span><span class="comment"> *      failures for all clients — nginx -t must catch this at configuration</span></div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span><span class="comment"> *      validation time rather than allowing the server to start with broken</span></div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span><span class="comment"> *      auth. Config setup runs once during nginx startup on the main process</span></div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span><span class="comment"> *      thread; there is no concurrent access after initialization.</span></div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment"> * HOW: 1) Early-exit NGX_OK if auth mode is not token/both.</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment"> *      2) If brix_token_config is set, delegate entirely to the multi-issuer</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="comment"> *         registry builder and return its result.</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span><span class="comment"> *      3) Require the three single-issuer directives; return NGX_ERROR if any is</span></div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span><span class="comment"> *         missing.</span></div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span><span class="comment"> *      4) Validate, load, and register the JWKS keys (and capture mtime); return</span></div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span><span class="comment"> *         NGX_ERROR on failure.</span></div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="comment"> *      5) Log the configuration summary and return NGX_OK.</span></div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00192" data-start="{" data-end="}">
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno"><a class="line" href="auth_2token_2config_8c.html#a25b2dd3b0294c6e18efeb05d4cb4f3c7">  192</a></span><a class="code hl_function" href="auth_2token_2config_8c.html#a25b2dd3b0294c6e18efeb05d4cb4f3c7">brix_configure_token_auth</a>(ngx_conf_t *cf,</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>{</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    <span class="keywordflow">if</span> (xcf-&gt;auth != <a class="code hl_define" href="tunables_8h.html#ab60e9b488d5aa6f3aa103f31cf772326">BRIX_AUTH_TOKEN</a> &amp;&amp; xcf-&gt;auth != <a class="code hl_define" href="tunables_8h.html#a498d07a4f289ac7c5e6049513f318dbf">BRIX_AUTH_BOTH</a>) {</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>    }</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span> </div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    <span class="comment">/* Multi-issuer registry (phase-59 W1) supersedes single-issuer directives. */</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    <span class="keywordflow">if</span> (xcf-&gt;token_config.len &gt; 0) {</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="auth_2token_2config_8c.html#aae077d35433ecf200997bc6bf16933fe">brix_token_configure_registry</a>(cf, xcf);</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    }</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span> </div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="auth_2token_2config_8c.html#a92364f5643dd0f5af535762690ef0834">brix_token_require_single_issuer_fields</a>(cf, xcf) != NGX_OK) {</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    }</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span> </div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="auth_2token_2config_8c.html#a00c4f3b4d285c322fca5b3495916a6f4">brix_token_load_and_register_jwks</a>(cf, xcf) != NGX_OK) {</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    }</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <a class="code hl_function" href="auth_2token_2config_8c.html#a597878930d8d59f88482403d2806a4ca">brix_token_log_summary</a>(cf, xcf);</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span> </div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>}</div>
+</div>
+<div class="ttc" id="aauth_2token_2config_8c_html_a00c4f3b4d285c322fca5b3495916a6f4"><div class="ttname"><a href="auth_2token_2config_8c.html#a00c4f3b4d285c322fca5b3495916a6f4">brix_token_load_and_register_jwks</a></div><div class="ttdeci">static ngx_int_t brix_token_load_and_register_jwks(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="auth_2token_2config_8c_source.html#l00107">config.c:107</a></div></div>
+<div class="ttc" id="aauth_2token_2config_8c_html_a25b2dd3b0294c6e18efeb05d4cb4f3c7"><div class="ttname"><a href="auth_2token_2config_8c.html#a25b2dd3b0294c6e18efeb05d4cb4f3c7">brix_configure_token_auth</a></div><div class="ttdeci">ngx_int_t brix_configure_token_auth(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="auth_2token_2config_8c_source.html#l00192">config.c:192</a></div></div>
+<div class="ttc" id="aauth_2token_2config_8c_html_a597878930d8d59f88482403d2806a4ca"><div class="ttname"><a href="auth_2token_2config_8c.html#a597878930d8d59f88482403d2806a4ca">brix_token_log_summary</a></div><div class="ttdeci">static void brix_token_log_summary(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="auth_2token_2config_8c_source.html#l00158">config.c:158</a></div></div>
+<div class="ttc" id="aauth_2token_2config_8c_html_a92364f5643dd0f5af535762690ef0834"><div class="ttname"><a href="auth_2token_2config_8c.html#a92364f5643dd0f5af535762690ef0834">brix_token_require_single_issuer_fields</a></div><div class="ttdeci">static ngx_int_t brix_token_require_single_issuer_fields(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="auth_2token_2config_8c_source.html#l00066">config.c:66</a></div></div>
+<div class="ttc" id="aauth_2token_2config_8c_html_aae077d35433ecf200997bc6bf16933fe"><div class="ttname"><a href="auth_2token_2config_8c.html#aae077d35433ecf200997bc6bf16933fe">brix_token_configure_registry</a></div><div class="ttdeci">static ngx_int_t brix_token_configure_registry(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="auth_2token_2config_8c_source.html#l00025">config.c:25</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_a1aa3037b164c5b99bcc46cd326202d7a"><div class="ttname"><a href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a></div><div class="ttdeci">int stat(const char *path, struct stat *stbuf)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00421">brixposix_preload.c:421</a></div></div>
 <div class="ttc" id="aconfig_2config_8h_html"><div class="ttname"><a href="config_2config_8h.html">config.h</a></div></div>
 <div class="ttc" id="aconfig_2config_8h_html_a26c358bf7385010e265ad6cbddf7731aad36a35f475d660a1414d5c196cb0d013"><div class="ttname"><a href="config_2config_8h.html#a26c358bf7385010e265ad6cbddf7731aad36a35f475d660a1414d5c196cb0d013">BRIX_PATH_REGULAR_FILE</a></div><div class="ttdeci">@ BRIX_PATH_REGULAR_FILE</div><div class="ttdef"><b>Definition</b> <a href="config_2config_8h_source.html#l00019">config.h:19</a></div></div>
 <div class="ttc" id="aconfig_2config_8h_html_aebb0815d9f5a2afaa2f143e14a7799d5"><div class="ttname"><a href="config_2config_8h.html#aebb0815d9f5a2afaa2f143e14a7799d5">brix_validate_path</a></div><div class="ttdeci">ngx_int_t brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path, brix_path_kind_t kind, int access_mode)</div><div class="ttdef"><b>Definition</b> <a href="core_2config_2helpers_8c_source.html#l00013">helpers.c:13</a></div></div>
-<div class="ttc" id="aissuer__registry_8c_html_a0bb547b98345ca87f9beadea7e71c010"><div class="ttname"><a href="issuer__registry_8c.html#a0bb547b98345ca87f9beadea7e71c010">brix_token_registry_build</a></div><div class="ttdeci">ngx_int_t brix_token_registry_build(ngx_conf_t *cf, const char *cfg_path, uint32_t default_strategy, brix_token_registry_t **out)</div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8c_source.html#l00234">issuer_registry.c:234</a></div></div>
+<div class="ttc" id="aissuer__registry_8c_html_a0bb547b98345ca87f9beadea7e71c010"><div class="ttname"><a href="issuer__registry_8c.html#a0bb547b98345ca87f9beadea7e71c010">brix_token_registry_build</a></div><div class="ttdeci">ngx_int_t brix_token_registry_build(ngx_conf_t *cf, const char *cfg_path, uint32_t default_strategy, brix_token_registry_t **out)</div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8c_source.html#l00372">issuer_registry.c:372</a></div></div>
 <div class="ttc" id="aissuer__registry_8h_html"><div class="ttname"><a href="issuer__registry_8h.html">issuer_registry.h</a></div></div>
 <div class="ttc" id="aissuer__registry_8h_html_a085b7249f82b1d32d60760ad12463f05"><div class="ttname"><a href="issuer__registry_8h.html#a085b7249f82b1d32d60760ad12463f05">BRIX_AUTHZ_CAPABILITY</a></div><div class="ttdeci">#define BRIX_AUTHZ_CAPABILITY</div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8h_source.html#l00025">issuer_registry.h:25</a></div></div>
-<div class="ttc" id="ajwks_8c_html_a019cb63b9cd794f76d50702f4265c07c"><div class="ttname"><a href="jwks_8c.html#a019cb63b9cd794f76d50702f4265c07c">brix_jwks_register_cleanup</a></div><div class="ttdeci">ngx_int_t brix_jwks_register_cleanup(ngx_pool_t *pool, brix_jwks_key_t *keys, int *count)</div><div class="ttdef"><b>Definition</b> <a href="jwks_8c_source.html#l00225">jwks.c:225</a></div></div>
-<div class="ttc" id="ajwks_8c_html_a658a9814ab21d182590e127d71d328b2"><div class="ttname"><a href="jwks_8c.html#a658a9814ab21d182590e127d71d328b2">brix_jwks_load</a></div><div class="ttdeci">int brix_jwks_load(ngx_log_t *log, const char *path, brix_jwks_key_t *keys, int max_keys)</div><div class="ttdef"><b>Definition</b> <a href="jwks_8c_source.html#l00138">jwks.c:138</a></div></div>
+<div class="ttc" id="ajwks_8c_html_a019cb63b9cd794f76d50702f4265c07c"><div class="ttname"><a href="jwks_8c.html#a019cb63b9cd794f76d50702f4265c07c">brix_jwks_register_cleanup</a></div><div class="ttdeci">ngx_int_t brix_jwks_register_cleanup(ngx_pool_t *pool, brix_jwks_key_t *keys, int *count)</div><div class="ttdef"><b>Definition</b> <a href="jwks_8c_source.html#l00306">jwks.c:306</a></div></div>
+<div class="ttc" id="ajwks_8c_html_a658a9814ab21d182590e127d71d328b2"><div class="ttname"><a href="jwks_8c.html#a658a9814ab21d182590e127d71d328b2">brix_jwks_load</a></div><div class="ttdeci">int brix_jwks_load(ngx_log_t *log, const char *path, brix_jwks_key_t *keys, int max_keys)</div><div class="ttdef"><b>Definition</b> <a href="jwks_8c_source.html#l00212">jwks.c:212</a></div></div>
 <div class="ttc" id="astructbrix__token__registry__t_html"><div class="ttname"><a href="structbrix__token__registry__t.html">brix_token_registry_t</a></div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8h_source.html#l00053">issuer_registry.h:53</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00112">config.h:112</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_a1f05296a4a9a470980786342eedd0b9b"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#a1f05296a4a9a470980786342eedd0b9b">ngx_stream_brix_srv_conf_t::jwks_key_count</a></div><div class="ttdeci">int jwks_key_count</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00251">config.h:251</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_a7ba0e4faef36a9c8bbb83a10e6383c57"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#a7ba0e4faef36a9c8bbb83a10e6383c57">ngx_stream_brix_srv_conf_t::jwks_keys</a></div><div class="ttdeci">brix_jwks_key_t jwks_keys[BRIX_MAX_JWKS_KEYS]</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00250">config.h:250</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_a7ed74e2bfa13d23c08dbb65517f54810"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#a7ed74e2bfa13d23c08dbb65517f54810">ngx_stream_brix_srv_conf_t::token_issuer</a></div><div class="ttdeci">ngx_str_t token_issuer</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00222">config.h:222</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_abbb1e477d62b2bfee76054299f5ce665"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#abbb1e477d62b2bfee76054299f5ce665">ngx_stream_brix_srv_conf_t::token_config</a></div><div class="ttdeci">ngx_str_t token_config</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00227">config.h:227</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_ac2f4c8e587d5a2420fce9b8474a7b49c"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#ac2f4c8e587d5a2420fce9b8474a7b49c">ngx_stream_brix_srv_conf_t::jwks_mtime</a></div><div class="ttdeci">time_t jwks_mtime</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00252">config.h:252</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_ac2fb5c71c15be5e101e99b9cd578d372"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#ac2fb5c71c15be5e101e99b9cd578d372">ngx_stream_brix_srv_conf_t::token_jwks</a></div><div class="ttdeci">ngx_str_t token_jwks</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00221">config.h:221</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_ac496050b3c7308118d2fd3d44a331b68"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#ac496050b3c7308118d2fd3d44a331b68">ngx_stream_brix_srv_conf_t::auth</a></div><div class="ttdeci">ngx_uint_t auth</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00120">config.h:120</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_adb1baef0c209f7a55a849ad31d1047b9"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#adb1baef0c209f7a55a849ad31d1047b9">ngx_stream_brix_srv_conf_t::token_audience</a></div><div class="ttdeci">ngx_str_t token_audience</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00223">config.h:223</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_af71bfaa729fc26744582d89549b70ed1"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#af71bfaa729fc26744582d89549b70ed1">ngx_stream_brix_srv_conf_t::token_registry</a></div><div class="ttdeci">void * token_registry</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00230">config.h:230</a></div></div>
 <div class="ttc" id="atoken_8h_html_a425724de6ef59c41befeefeab51cb993"><div class="ttname"><a href="token_8h.html#a425724de6ef59c41befeefeab51cb993">BRIX_MAX_JWKS_KEYS</a></div><div class="ttdeci">#define BRIX_MAX_JWKS_KEYS</div><div class="ttdef"><b>Definition</b> <a href="token_8h_source.html#l00020">token.h:20</a></div></div>
 <div class="ttc" id="atunables_8h_html_a498d07a4f289ac7c5e6049513f318dbf"><div class="ttname"><a href="tunables_8h.html#a498d07a4f289ac7c5e6049513f318dbf">BRIX_AUTH_BOTH</a></div><div class="ttdeci">#define BRIX_AUTH_BOTH</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00232">tunables.h:232</a></div></div>
 <div class="ttc" id="atunables_8h_html_ab60e9b488d5aa6f3aa103f31cf772326"><div class="ttname"><a href="tunables_8h.html#ab60e9b488d5aa6f3aa103f31cf772326">BRIX_AUTH_TOKEN</a></div><div class="ttdeci">#define BRIX_AUTH_TOKEN</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00231">tunables.h:231</a></div></div>

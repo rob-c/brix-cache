@@ -8,7 +8,7 @@ var dir_eb1d7d51c60d8790150eb043bb834be0 =
     [ "gsi.h", "gsi_8h.html", "gsi_8h" ],
     [ "opcodes.h", "opcodes_8h.html", "opcodes_8h" ],
     [ "open_flags.h", "open__flags_8h.html", "open__flags_8h" ],
-    [ "protocol.h", "protocol_8h.html", null ],
+    [ "protocol.h", "root_2protocol_2protocol_8h.html", null ],
     [ "qspace.h", "qspace_8h.html", "qspace_8h" ],
     [ "readv_seg.h", "readv__seg_8h.html", "readv__seg_8h" ],
     [ "sec_protocol.h", "sec__protocol_8h.html", "sec__protocol_8h" ],

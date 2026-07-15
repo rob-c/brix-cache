@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('protocols_2root_2read_2readv_8c.html',
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">readv.c File Reference</div></div>
@@ -116,6 +117,13 @@ $(document).ready(function(){initNavTree('protocols_2root_2read_2readv_8c.html',
 </div>
 <p><a href="protocols_2root_2read_2readv_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__readv__run__ctx__t.html">brix_readv_run_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a1871530803729d247041918a26817c0a" id="r_a1871530803729d247041918a26817c0a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#a1871530803729d247041918a26817c0a">BRIX_MAX_READV_TOTAL</a>&#160;&#160;&#160;(256u * 1024u * 1024u)</td></tr>
@@ -125,9 +133,21 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a30d9d341544f40820213dad6ca4e21ed" id="r_a30d9d341544f40820213dad6ca4e21ed"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#a30d9d341544f40820213dad6ca4e21ed">brix_readv_build_ranges</a> (const <a class="el" href="src_2core_2aio_2aio_8h.html#a8ab4a8913e8ba9c64f4e94294f6ce256">brix_readv_seg_desc_t</a> *segments, size_t segment_count, <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *ranges, char *error_message, size_t error_message_len)</td></tr>
+<tr class="separator:a30d9d341544f40820213dad6ca4e21ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aee38bbec5d6f2032195cc2afa7339717" id="r_aee38bbec5d6f2032195cc2afa7339717"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#aee38bbec5d6f2032195cc2afa7339717">brix_readv_read_one_run</a> (const <a class="el" href="structbrix__readv__run__ctx__t.html">brix_readv_run_ctx_t</a> *rctx, size_t segment_index, ngx_uint_t *run_count_out, size_t *run_bytes_out)</td></tr>
+<tr class="separator:aee38bbec5d6f2032195cc2afa7339717"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a39f5dbca7fdbe5189db309126b31c006" id="r_a39f5dbca7fdbe5189db309126b31c006"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#a39f5dbca7fdbe5189db309126b31c006">brix_readv_read_segments</a> (<a class="el" href="src_2core_2aio_2aio_8h.html#a8ab4a8913e8ba9c64f4e94294f6ce256">brix_readv_seg_desc_t</a> *segments, size_t segment_count, size_t *bytes_read_total, char *error_message, size_t error_message_len)</td></tr>
 <tr class="separator:a39f5dbca7fdbe5189db309126b31c006"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa380606c681ad68507de2c67cbc25781" id="r_aa380606c681ad68507de2c67cbc25781"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#aa380606c681ad68507de2c67cbc25781">brix_handle_readv</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:a87587d2f309ec8d479538f826fa5701b" id="r_a87587d2f309ec8d479538f826fa5701b"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#a87587d2f309ec8d479538f826fa5701b">brix_readv_validate_and_size</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a> *req, ngx_int_t *rc_out)</td></tr>
+<tr class="separator:a87587d2f309ec8d479538f826fa5701b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3e8f4b479090908b89085c9710e85a8e" id="r_a3e8f4b479090908b89085c9710e85a8e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#a3e8f4b479090908b89085c9710e85a8e">brix_readv_build_descriptors</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a> *req)</td></tr>
+<tr class="separator:a3e8f4b479090908b89085c9710e85a8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aad88c87c6f99b3d2330d91dccc71e8fa" id="r_aad88c87c6f99b3d2330d91dccc71e8fa"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#aad88c87c6f99b3d2330d91dccc71e8fa">brix_readv_try_post_async</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a> *req, ngx_int_t *rc_out)</td></tr>
+<tr class="separator:aad88c87c6f99b3d2330d91dccc71e8fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af9fd8d64a70c6f623ad98fdc3f8b7a3f" id="r_af9fd8d64a70c6f623ad98fdc3f8b7a3f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#af9fd8d64a70c6f623ad98fdc3f8b7a3f">brix_readv_execute_sync</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a> *req)</td></tr>
+<tr class="separator:af9fd8d64a70c6f623ad98fdc3f8b7a3f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa380606c681ad68507de2c67cbc25781" id="r_aa380606c681ad68507de2c67cbc25781"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2read_2readv_8c.html#aa380606c681ad68507de2c67cbc25781">brix_handle_readv</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:aa380606c681ad68507de2c67cbc25781"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -190,11 +210,215 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00164">164</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00575">575</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00306">ngx_stream_brix_srv_conf_t::access_log_fd</a>, <a class="el" href="resume_8c_source.html#l00069">brix_aio_post_task()</a>, <a class="el" href="safe__size_8h_source.html#l00127">brix_alloc_array()</a>, <a class="el" href="budget_8h_source.html#l00102">brix_budget_admit()</a>, <a class="el" href="budget_8h_source.html#l00049">brix_budget_sync()</a>, <a class="el" href="buffers_8c_source.html#l00456">brix_build_chunked_chain()</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00076">BRIX_GET_SCRATCH</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00348">brix_log_access()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00014">BRIX_MAX_READV_TOTAL</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00050">BRIX_OP_READV</a>, <a class="el" href="prefetch_8c_source.html#l00116">brix_prefetch_readv_segments()</a>, <a class="el" href="write__helpers_8c_source.html#l00195">brix_queue_response_chain()</a>, <a class="el" href="core_2aio_2readv_8c_source.html#l00091">brix_readv_aio_done()</a>, <a class="el" href="core_2aio_2readv_8c_source.html#l00034">brix_readv_aio_thread()</a>, <a class="el" href="flags_8h_source.html#l00168">BRIX_READV_MAXSEGS</a>, <a class="el" href="flags_8h_source.html#l00167">BRIX_READV_SEGSIZE</a>, <a class="el" href="buffers_8c_source.html#l00076">brix_release_read_buffer()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="control_8c_source.html#l00096">brix_send_wait()</a>, <a class="el" href="fd__table_8c_source.html#l00473">brix_validate_read_handle()</a>, <a class="el" href="vfs__io__core_8c_source.html#l00727">brix_vfs_io_execute()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00039">BRIX_VFS_IO_READV</a>, <a class="el" href="ctx__structs_8h_source.html#l00064">brix_ctx_totals_t::bytes</a>, <a class="el" href="core_2types_2file_8h_source.html#l00059">brix_file_t::bytes_read</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00181">brix_readv_aio_t::bytes_read_total</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00175">brix_readv_aio_t::c</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00176">brix_readv_aio_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00178">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00175">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="vfs__io__core_8h_source.html#l00092">brix_vfs_job_t::err_msg</a>, <a class="el" href="vfs__io__core_8h_source.html#l00093">brix_vfs_job_t::err_msg_cap</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="vfs__io__core_8h_source.html#l00047">brix_vfs_readv_seg_t::fd</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00345">readahead_list::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="vfs__io__core_8h_source.html#l00048">brix_vfs_readv_seg_t::handle_index</a>, <a class="el" href="vfs__io__core_8h_source.html#l00051">brix_vfs_readv_seg_t::header_read_length_ptr</a>, <a class="el" href="vfs__io__core_8h_source.html#l00099">brix_vfs_job_t::io_errno</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00183">brix_readv_aio_t::io_error</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="types_2config_8h_source.html#l00461">ngx_stream_brix_srv_conf_t::memory_budget</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="vfs__io__core_8h_source.html#l00096">brix_vfs_job_t::nio</a>, <a class="el" href="vfs__io__core_8h_source.html#l00080">brix_vfs_job_t::nsegs</a>, <a class="el" href="vfs__io__core_8h_source.html#l00055">brix_vfs_readv_seg_t::obj</a>, <a class="el" href="vfs__io__core_8h_source.html#l00049">brix_vfs_readv_seg_t::offset</a>, <a class="el" href="vfs__io__core_8h_source.html#l00069">brix_vfs_job_t::op</a>, <a class="el" href="vfs__io__core_8h_source.html#l00097">brix_vfs_job_t::out_size</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::payload</a>, <a class="el" href="vfs__io__core_8h_source.html#l00052">brix_vfs_readv_seg_t::payload_ptr</a>, <a class="el" href="context_8h_source.html#l00137">brix_ctx_t::rd</a>, <a class="el" href="vfs__io__core_8h_source.html#l00050">brix_vfs_readv_seg_t::read_length</a>, <a class="el" href="ctx__structs_8h_source.html#l00222">brix_ctx_rd_t::readv_aio_task</a>, <a class="el" href="types_2config_8h_source.html#l00465">ngx_stream_brix_srv_conf_t::readv_segment_size</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00179">brix_readv_aio_t::response_buffer</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00182">brix_readv_aio_t::response_bytes</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00346">readahead_list::rlen</a>, <a class="el" href="core_2types_2file_8h_source.html#l00257">brix_file_t::sd_obj</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00177">brix_readv_aio_t::segment_count</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00178">brix_readv_aio_t::segments</a>, <a class="el" href="vfs__io__core_8h_source.html#l00079">brix_vfs_job_t::segs</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00180">brix_readv_aio_t::streamid</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>, and <a class="el" href="state_8h_source.html#l00028">XRD_ST_SENDING</a>.</p>
+<p class="reference">References <a class="el" href="safe__size_8h_source.html#l00127">brix_alloc_array()</a>, <a class="el" href="budget_8h_source.html#l00102">brix_budget_admit()</a>, <a class="el" href="budget_8h_source.html#l00049">brix_budget_sync()</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00076">BRIX_GET_SCRATCH</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00050">BRIX_OP_READV</a>, <a class="el" href="prefetch_8c_source.html#l00180">brix_prefetch_readv_segments()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00366">brix_readv_build_descriptors()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00503">brix_readv_execute_sync()</a>, <a class="el" href="flags_8h_source.html#l00168">BRIX_READV_MAXSEGS</a>, <a class="el" href="flags_8h_source.html#l00167">BRIX_READV_SEGSIZE</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00432">brix_readv_try_post_async()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00306">brix_readv_validate_and_size()</a>, <a class="el" href="buffers__scratch_8c_source.html#l00083">brix_release_read_buffer()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="control_8c_source.html#l00096">brix_send_wait()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00283">brix_readv_req_t::max_response_bytes</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00279">brix_readv_req_t::rconf</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00282">brix_readv_req_t::readv_seg_max</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00284">brix_readv_req_t::response_buffer</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00281">brix_readv_req_t::segment_count</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00285">brix_readv_req_t::segment_descs</a>, and <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00280">brix_readv_req_t::wire_segments</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="dispatch__read_8c_source.html#l00044">brix_dispatch_read_opcode()</a>.</p>
+
+</div>
+</div>
+<a id="a3e8f4b479090908b89085c9710e85a8e" name="a3e8f4b479090908b89085c9710e85a8e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3e8f4b479090908b89085c9710e85a8e">&#9670;&#160;</a></span>brix_readv_build_descriptors()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_readv_build_descriptors </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00366">366</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
+
+<p class="reference">References <a class="el" href="flags_8h_source.html#l00167">BRIX_READV_SEGSIZE</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="vfs__io__core_8h_source.html#l00047">brix_vfs_readv_seg_t::fd</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00345">readahead_list::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="vfs__io__core_8h_source.html#l00048">brix_vfs_readv_seg_t::handle_index</a>, <a class="el" href="vfs__io__core_8h_source.html#l00051">brix_vfs_readv_seg_t::header_read_length_ptr</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="vfs__io__core_8h_source.html#l00055">brix_vfs_readv_seg_t::obj</a>, <a class="el" href="vfs__io__core_8h_source.html#l00049">brix_vfs_readv_seg_t::offset</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00347">readahead_list::offset</a>, <a class="el" href="vfs__io__core_8h_source.html#l00052">brix_vfs_readv_seg_t::payload_ptr</a>, <a class="el" href="vfs__io__core_8h_source.html#l00050">brix_vfs_readv_seg_t::read_length</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00282">brix_readv_req_t::readv_seg_max</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00284">brix_readv_req_t::response_buffer</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00346">readahead_list::rlen</a>, <a class="el" href="core_2types_2file_8h_source.html#l00265">brix_file_t::sd_obj</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00281">brix_readv_req_t::segment_count</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00285">brix_readv_req_t::segment_descs</a>, and <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00280">brix_readv_req_t::wire_segments</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00575">brix_handle_readv()</a>.</p>
+
+</div>
+</div>
+<a id="a30d9d341544f40820213dad6ca4e21ed" name="a30d9d341544f40820213dad6ca4e21ed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a30d9d341544f40820213dad6ca4e21ed">&#9670;&#160;</a></span>brix_readv_build_ranges()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_readv_build_ranges </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="src_2core_2aio_2aio_8h.html#a8ab4a8913e8ba9c64f4e94294f6ce256">brix_readv_seg_desc_t</a> *&#160;</td>
+          <td class="paramname"><em>segments</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>segment_count</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *&#160;</td>
+          <td class="paramname"><em>ranges</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>error_message</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>error_message_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00035">35</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
+
+<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00031">brix_byte_range_t::end</a>, <a class="el" href="range__vector_8h_source.html#l00032">brix_byte_range_t::fd</a>, <a class="el" href="vfs__io__core_8h_source.html#l00047">brix_vfs_readv_seg_t::fd</a>, <a class="el" href="range__vector_8h_source.html#l00033">brix_byte_range_t::handle</a>, <a class="el" href="vfs__io__core_8h_source.html#l00049">brix_vfs_readv_seg_t::offset</a>, <a class="el" href="vfs__io__core_8h_source.html#l00050">brix_vfs_readv_seg_t::read_length</a>, and <a class="el" href="range__vector_8h_source.html#l00030">brix_byte_range_t::start</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00180">brix_readv_read_segments()</a>.</p>
+
+</div>
+</div>
+<a id="af9fd8d64a70c6f623ad98fdc3f8b7a3f" name="af9fd8d64a70c6f623ad98fdc3f8b7a3f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af9fd8d64a70c6f623ad98fdc3f8b7a3f">&#9670;&#160;</a></span>brix_readv_execute_sync()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_readv_execute_sync </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00503">503</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
+
+<p class="reference">References <a class="el" href="buffers_8c_source.html#l00337">brix_build_chunked_chain()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00050">BRIX_OP_READV</a>, <a class="el" href="write__helpers_8c_source.html#l00198">brix_queue_response_chain()</a>, <a class="el" href="buffers__scratch_8c_source.html#l00083">brix_release_read_buffer()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="vfs__io__core_8c_source.html#l00726">brix_vfs_io_execute()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00039">BRIX_VFS_IO_READV</a>, <a class="el" href="ctx__structs_8h_source.html#l00064">brix_ctx_totals_t::bytes</a>, <a class="el" href="core_2types_2file_8h_source.html#l00067">brix_file_t::bytes_read</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="vfs__io__core_8h_source.html#l00092">brix_vfs_job_t::err_msg</a>, <a class="el" href="vfs__io__core_8h_source.html#l00093">brix_vfs_job_t::err_msg_cap</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="vfs__io__core_8h_source.html#l00048">brix_vfs_readv_seg_t::handle_index</a>, <a class="el" href="vfs__io__core_8h_source.html#l00099">brix_vfs_job_t::io_errno</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="vfs__io__core_8h_source.html#l00096">brix_vfs_job_t::nio</a>, <a class="el" href="vfs__io__core_8h_source.html#l00080">brix_vfs_job_t::nsegs</a>, <a class="el" href="vfs__io__core_8h_source.html#l00069">brix_vfs_job_t::op</a>, <a class="el" href="vfs__io__core_8h_source.html#l00097">brix_vfs_job_t::out_size</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00279">brix_readv_req_t::rconf</a>, <a class="el" href="vfs__io__core_8h_source.html#l00050">brix_vfs_readv_seg_t::read_length</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00284">brix_readv_req_t::response_buffer</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00281">brix_readv_req_t::segment_count</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00285">brix_readv_req_t::segment_descs</a>, <a class="el" href="vfs__io__core_8h_source.html#l00079">brix_vfs_job_t::segs</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>, and <a class="el" href="state_8h_source.html#l00028">XRD_ST_SENDING</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00575">brix_handle_readv()</a>.</p>
+
+</div>
+</div>
+<a id="aee38bbec5d6f2032195cc2afa7339717" name="aee38bbec5d6f2032195cc2afa7339717"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aee38bbec5d6f2032195cc2afa7339717">&#9670;&#160;</a></span>brix_readv_read_one_run()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_readv_read_one_run </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__readv__run__ctx__t.html">brix_readv_run_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>rctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>segment_index</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>run_count_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>run_bytes_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00108">108</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
+
+<p class="reference">References <a class="el" href="range__vector_8c_source.html#l00271">brix_range_vector_next_coalesced_run()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00015">BRIX_READV_PREADV_MAXIOV</a>, <a class="el" href="vfs__io__core_8h_source.html#l00132">brix_vfs_effective_obj()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00082">brix_readv_run_ctx_t::error_message</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00083">brix_readv_run_ctx_t::error_message_len</a>, <a class="el" href="vfs__io__core_8h_source.html#l00047">brix_vfs_readv_seg_t::fd</a>, <a class="el" href="vfs__io__core_8h_source.html#l00051">brix_vfs_readv_seg_t::header_read_length_ptr</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="vfs__io__core_8h_source.html#l00055">brix_vfs_readv_seg_t::obj</a>, <a class="el" href="vfs__io__core_8h_source.html#l00049">brix_vfs_readv_seg_t::offset</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00081">brix_readv_run_ctx_t::ranges</a>, <a class="el" href="vfs__io__core_8h_source.html#l00050">brix_vfs_readv_seg_t::read_length</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00080">brix_readv_run_ctx_t::segment_count</a>, and <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00079">brix_readv_run_ctx_t::segments</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00180">brix_readv_read_segments()</a>.</p>
 
 </div>
 </div>
@@ -242,11 +466,119 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00021">21</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00180">180</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="range__vector_8c_source.html#l00173">brix_range_vector_next_coalesced_run()</a>, <a class="el" href="flags_8h_source.html#l00168">BRIX_READV_MAXSEGS</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00015">BRIX_READV_PREADV_MAXIOV</a>, <a class="el" href="safe__size_8h_source.html#l00043">brix_size_mul()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00132">brix_vfs_effective_obj()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00047">brix_vfs_readv_seg_t::fd</a>, <a class="el" href="vfs__io__core_8h_source.html#l00051">brix_vfs_readv_seg_t::header_read_length_ptr</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="vfs__io__core_8h_source.html#l00055">brix_vfs_readv_seg_t::obj</a>, <a class="el" href="vfs__io__core_8h_source.html#l00049">brix_vfs_readv_seg_t::offset</a>, <a class="el" href="vfs__io__core_8h_source.html#l00052">brix_vfs_readv_seg_t::payload_ptr</a>, and <a class="el" href="vfs__io__core_8h_source.html#l00050">brix_vfs_readv_seg_t::read_length</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00035">brix_readv_build_ranges()</a>, <a class="el" href="flags_8h_source.html#l00168">BRIX_READV_MAXSEGS</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00108">brix_readv_read_one_run()</a>, <a class="el" href="safe__size_8h_source.html#l00043">brix_size_mul()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00082">brix_readv_run_ctx_t::error_message</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00083">brix_readv_run_ctx_t::error_message_len</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00081">brix_readv_run_ctx_t::ranges</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00080">brix_readv_run_ctx_t::segment_count</a>, and <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00079">brix_readv_run_ctx_t::segments</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__io__core_8c_source.html#l00247">brix_vfs_io_execute_readv()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__io__core_8c_source.html#l00244">brix_vfs_io_execute_readv()</a>.</p>
+
+</div>
+</div>
+<a id="aad88c87c6f99b3d2330d91dccc71e8fa" name="aad88c87c6f99b3d2330d91dccc71e8fa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad88c87c6f99b3d2330d91dccc71e8fa">&#9670;&#160;</a></span>brix_readv_try_post_async()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_readv_try_post_async </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_int_t *&#160;</td>
+          <td class="paramname"><em>rc_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00432">432</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
+
+<p class="reference">References <a class="el" href="resume_8c_source.html#l00074">brix_aio_post_task()</a>, <a class="el" href="core_2aio_2readv_8c_source.html#l00091">brix_readv_aio_done()</a>, <a class="el" href="core_2aio_2readv_8c_source.html#l00034">brix_readv_aio_thread()</a>, <a class="el" href="buffers__scratch_8c_source.html#l00083">brix_release_read_buffer()</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00181">brix_readv_aio_t::bytes_read_total</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00175">brix_readv_aio_t::c</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00176">brix_readv_aio_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00183">brix_readv_aio_t::io_error</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00279">brix_readv_req_t::rconf</a>, <a class="el" href="context_8h_source.html#l00137">brix_ctx_t::rd</a>, <a class="el" href="ctx__structs_8h_source.html#l00228">brix_ctx_rd_t::readv_aio_task</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00179">brix_readv_aio_t::response_buffer</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00284">brix_readv_req_t::response_buffer</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00182">brix_readv_aio_t::response_bytes</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00177">brix_readv_aio_t::segment_count</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00281">brix_readv_req_t::segment_count</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00285">brix_readv_req_t::segment_descs</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00178">brix_readv_aio_t::segments</a>, and <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00180">brix_readv_aio_t::streamid</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00575">brix_handle_readv()</a>.</p>
+
+</div>
+</div>
+<a id="a87587d2f309ec8d479538f826fa5701b" name="a87587d2f309ec8d479538f826fa5701b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a87587d2f309ec8d479538f826fa5701b">&#9670;&#160;</a></span>brix_readv_validate_and_size()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_readv_validate_and_size </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__readv__req__t.html">brix_readv_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_int_t *&#160;</td>
+          <td class="paramname"><em>rc_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00306">306</a> of file <a class="el" href="protocols_2root_2read_2readv_8c_source.html">readv.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00014">BRIX_MAX_READV_TOTAL</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00050">BRIX_OP_READV</a>, <a class="el" href="flags_8h_source.html#l00167">BRIX_READV_SEGSIZE</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="fd__table_8c_source.html#l00295">brix_validate_read_handle()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00345">readahead_list::fhandle</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00283">brix_readv_req_t::max_response_bytes</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00282">brix_readv_req_t::readv_seg_max</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00346">readahead_list::rlen</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00281">brix_readv_req_t::segment_count</a>, and <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00280">brix_readv_req_t::wire_segments</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00575">brix_handle_readv()</a>.</p>
 
 </div>
 </div>

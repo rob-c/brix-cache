@@ -16,6 +16,9 @@ var xrdfs__fmt_8c =
     [ "print_stat_time", "xrdfs__fmt_8c.html#aa69784e30be7e983b0d4c58b15c3b066", null ],
     [ "print_statinfo", "xrdfs__fmt_8c.html#ae5fc94c533c07644744eb782233adff8", null ],
     [ "rate_pace", "xrdfs__fmt_8c.html#a3462051fc0a9139e22eff98ea3de6aa1", null ],
+    [ "touch_collect_digits", "xrdfs__fmt_8c.html#a534e8b1c6fb4ef3e24841b448a49e0ac", null ],
+    [ "touch_parse_seconds", "xrdfs__fmt_8c.html#a7a5b9746f303a7ead25d8a0671e0e536", null ],
     [ "touch_parse_time", "xrdfs__fmt_8c.html#a0b92dd698c980eaaf8f28c4f42145a2d", null ],
+    [ "touch_resolve_year", "xrdfs__fmt_8c.html#aa397db75c5082c0a647d856186282d35", null ],
     [ "two_digits", "xrdfs__fmt_8c.html#a89c3c7723333abf30ab78132581fe1d4", null ]
 ];

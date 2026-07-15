@@ -130,14 +130,86 @@ Functions</h2></td></tr>
 <tr class="separator:a374509cc527f535f9b430088e30a1633"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7b911a6b38cbbcd46a8a12f2ebc13799" id="r_a7b911a6b38cbbcd46a8a12f2ebc13799"><td class="memItemLeft" align="right" valign="top">static brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#a7b911a6b38cbbcd46a8a12f2ebc13799">cvmfs_resolve_sd</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</td></tr>
 <tr class="separator:a7b911a6b38cbbcd46a8a12f2ebc13799"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2e74a90e9633183aa8ee3f8c2fb2b698" id="r_a2e74a90e9633183aa8ee3f8c2fb2b698"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#a2e74a90e9633183aa8ee3f8c2fb2b698">cvmfs_build_fs_path</a> (ngx_http_request_t *r, const char *root, char *path, size_t path_size)</td></tr>
+<tr class="separator:a2e74a90e9633183aa8ee3f8c2fb2b698"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0f0365a9e1e256d390673ca188e5ffcf" id="r_a0f0365a9e1e256d390673ca188e5ffcf"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#a0f0365a9e1e256d390673ca188e5ffcf">cvmfs_serve_opts_init</a> (<a class="el" href="structbrix__http__serve__opts__t.html">brix_http_serve_opts_t</a> *opts)</td></tr>
+<tr class="separator:a0f0365a9e1e256d390673ca188e5ffcf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a846a98080a4b1b332573819f9dba7063" id="r_a846a98080a4b1b332573819f9dba7063"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#a846a98080a4b1b332573819f9dba7063">cvmfs_tier_serve_or_fill</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf, brix_sd_instance_t *sd, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *path)</td></tr>
+<tr class="separator:a846a98080a4b1b332573819f9dba7063"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac79f5285356076c498ef901add2f226d" id="r_ac79f5285356076c498ef901add2f226d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#ac79f5285356076c498ef901add2f226d">cvmfs_tier_open_respond</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx, const char *path)</td></tr>
+<tr class="separator:ac79f5285356076c498ef901add2f226d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af8b782005d8be38509463729107c2e2d" id="r_af8b782005d8be38509463729107c2e2d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#af8b782005d8be38509463729107c2e2d">cvmfs_tier_get</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</td></tr>
 <tr class="separator:af8b782005d8be38509463729107c2e2d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae3b8996e0d945f2788312fc28f693638" id="r_ae3b8996e0d945f2788312fc28f693638"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#ae3b8996e0d945f2788312fc28f693638">cvmfs_finalize_sesslog</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf, <a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx, ngx_uint_t status)</td></tr>
+<tr class="separator:ae3b8996e0d945f2788312fc28f693638"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa5abd84e28c7f95842fa54a41d51fb05" id="r_aa5abd84e28c7f95842fa54a41d51fb05"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#aa5abd84e28c7f95842fa54a41d51fb05">cvmfs_finalize_trace</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf, <a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx, ngx_uint_t status)</td></tr>
+<tr class="separator:aa5abd84e28c7f95842fa54a41d51fb05"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2e84d8412ad771be4ecdda85b56ef798" id="r_a2e84d8412ad771be4ecdda85b56ef798"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#a2e84d8412ad771be4ecdda85b56ef798">cvmfs_finalize_metrics_fill</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx, ngx_uint_t status)</td></tr>
+<tr class="separator:a2e84d8412ad771be4ecdda85b56ef798"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5cb0e2e82aba22c939f318e59a9b37a9" id="r_a5cb0e2e82aba22c939f318e59a9b37a9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#a5cb0e2e82aba22c939f318e59a9b37a9">cvmfs_finalize_metrics_hit</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a5cb0e2e82aba22c939f318e59a9b37a9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5929b5445e1c06fc0119fbb8344434c3" id="r_a5929b5445e1c06fc0119fbb8344434c3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#a5929b5445e1c06fc0119fbb8344434c3">cvmfs_finalize_metrics</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx, ngx_uint_t status)</td></tr>
+<tr class="separator:a5929b5445e1c06fc0119fbb8344434c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaea106c1bb3458026bc19117d5e54074" id="r_aaea106c1bb3458026bc19117d5e54074"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#aaea106c1bb3458026bc19117d5e54074">cvmfs_finalize_observe</a> (void *data)</td></tr>
 <tr class="separator:aaea106c1bb3458026bc19117d5e54074"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adc69e781d6cb2e22112d071f49eb03fe" id="r_adc69e781d6cb2e22112d071f49eb03fe"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2handler_8c.html#adc69e781d6cb2e22112d071f49eb03fe">ngx_http_brix_cvmfs_handler</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:adc69e781d6cb2e22112d071f49eb03fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a2e74a90e9633183aa8ee3f8c2fb2b698" name="a2e74a90e9633183aa8ee3f8c2fb2b698"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2e74a90e9633183aa8ee3f8c2fb2b698">&#9670;&#160;</a></span>cvmfs_build_fs_path()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t cvmfs_build_fs_path </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>path_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00085">85</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00239">cvmfs_tier_get()</a>.</p>
+
+</div>
+</div>
 <a id="a7de1abde4fee6db3def99c431f40e8e1" name="a7de1abde4fee6db3def99c431f40e8e1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a7de1abde4fee6db3def99c431f40e8e1">&#9670;&#160;</a></span>cvmfs_errno_status()</h2>
 
@@ -164,9 +236,147 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00038">38</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
 
-<p class="reference">References <a class="el" href="error__mapping_8c_source.html#l00161">brix_http_errno_to_status()</a>.</p>
+<p class="reference">References <a class="el" href="error__mapping_8c_source.html#l00184">brix_http_errno_to_status()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00082">cvmfs_tier_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00186">cvmfs_tier_open_respond()</a>.</p>
+
+</div>
+</div>
+<a id="a5929b5445e1c06fc0119fbb8344434c3" name="a5929b5445e1c06fc0119fbb8344434c3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5929b5445e1c06fc0119fbb8344434c3">&#9670;&#160;</a></span>cvmfs_finalize_metrics()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cvmfs_finalize_metrics </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>status</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00449">449</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00202">BRIX_CVMFS_CACHE_FILL</a>, <a class="el" href="cvmfs_8h_source.html#l00201">BRIX_CVMFS_CACHE_HIT</a>, <a class="el" href="cvmfs_8h_source.html#l00132">ngx_http_brix_cvmfs_ctx_t::cache_status</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00386">cvmfs_finalize_metrics_fill()</a>, and <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00424">cvmfs_finalize_metrics_hit()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00467">cvmfs_finalize_observe()</a>.</p>
+
+</div>
+</div>
+<a id="a2e84d8412ad771be4ecdda85b56ef798" name="a2e84d8412ad771be4ecdda85b56ef798"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2e84d8412ad771be4ecdda85b56ef798">&#9670;&#160;</a></span>cvmfs_finalize_metrics_fill()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cvmfs_finalize_metrics_fill </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>status</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00386">386</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00050">BRIX_ATOMIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00104">BRIX_CVMFS_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="unified__record_8c_source.html#l00120">brix_metric_cache_result()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_CVMFS</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00061">ngx_brix_cvmfs_repo_metrics_t::bytes_served_fill_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00055">ngx_brix_cvmfs_repo_metrics_t::cache_misses_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00053">ngx_brix_cvmfs_repo_metrics_t::files_accessed_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00057">ngx_brix_cvmfs_repo_metrics_t::fill_failures_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00056">ngx_brix_cvmfs_repo_metrics_t::fills_total</a>, <a class="el" href="cvmfs_8h_source.html#l00130">ngx_http_brix_cvmfs_ctx_t::repo</a>, and <a class="el" href="cvmfs_8h_source.html#l00129">ngx_http_brix_cvmfs_ctx_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00449">cvmfs_finalize_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="a5cb0e2e82aba22c939f318e59a9b37a9" name="a5cb0e2e82aba22c939f318e59a9b37a9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5cb0e2e82aba22c939f318e59a9b37a9">&#9670;&#160;</a></span>cvmfs_finalize_metrics_hit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cvmfs_finalize_metrics_hit </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00424">424</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00050">BRIX_ATOMIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00104">BRIX_CVMFS_METRIC_ADD</a>, <a class="el" href="unified__record_8c_source.html#l00120">brix_metric_cache_result()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_CVMFS</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00060">ngx_brix_cvmfs_repo_metrics_t::bytes_served_hit_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00054">ngx_brix_cvmfs_repo_metrics_t::cache_hits_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00053">ngx_brix_cvmfs_repo_metrics_t::files_accessed_total</a>, <a class="el" href="cvmfs_8h_source.html#l00130">ngx_http_brix_cvmfs_ctx_t::repo</a>, and <a class="el" href="cvmfs_8h_source.html#l00129">ngx_http_brix_cvmfs_ctx_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00449">cvmfs_finalize_metrics()</a>.</p>
 
 </div>
 </div>
@@ -194,11 +404,119 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00224">224</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00467">467</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00050">BRIX_ATOMIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="cvmfs_8h_source.html#l00202">BRIX_CVMFS_CACHE_FILL</a>, <a class="el" href="cvmfs_8h_source.html#l00201">BRIX_CVMFS_CACHE_HIT</a>, <a class="el" href="cvmfs_8h_source.html#l00203">BRIX_CVMFS_CACHE_NEG</a>, <a class="el" href="metrics__macros_8h_source.html#l00104">BRIX_CVMFS_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="gate_8c_source.html#l00071">brix_cvmfs_notify_status()</a>, <a class="el" href="http__headers_8c_source.html#l00255">brix_http_effective_status()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00166">brix_http_sess()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00301">brix_metric_cache_result()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00040">BRIX_PROTO_CVMFS</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="sesslog_8h_source.html#l00041">BRIX_SESS_AM_ANON</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00020">BRIX_SESS_PROTO_CVMFS</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00353">brix_sess_result()</a>, <a class="el" href="sesslog_8h_source.html#l00057">BRIX_SESS_XFER_ABORTED</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00399">brix_sess_xfer_add()</a>, <a class="el" href="sesslog_8h_source.html#l00056">BRIX_SESS_XFER_COMPLETE</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00408">brix_sess_xfer_end()</a>, <a class="el" href="sesslog_8c_source.html#l00557">brix_sesslog_err_from_http()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00061">ngx_brix_cvmfs_repo_metrics_t::bytes_served_fill_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00060">ngx_brix_cvmfs_repo_metrics_t::bytes_served_hit_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00054">ngx_brix_cvmfs_repo_metrics_t::cache_hits_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00055">ngx_brix_cvmfs_repo_metrics_t::cache_misses_total</a>, <a class="el" href="cvmfs_8h_source.html#l00132">ngx_http_brix_cvmfs_ctx_t::cache_status</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="cvmfs_8h_source.html#l00106">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00053">ngx_brix_cvmfs_repo_metrics_t::files_accessed_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00057">ngx_brix_cvmfs_repo_metrics_t::fill_failures_total</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00056">ngx_brix_cvmfs_repo_metrics_t::fills_total</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00869">ngx_http_brix_cvmfs_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="cvmfs_8h_source.html#l00130">ngx_http_brix_cvmfs_ctx_t::repo</a>, <a class="el" href="cvmfs_8h_source.html#l00137">ngx_http_brix_cvmfs_ctx_t::sess_attempt_logged</a>, <a class="el" href="cvmfs_8h_source.html#l00136">ngx_http_brix_cvmfs_ctx_t::sess_xfer</a>, <a class="el" href="cvmfs_8h_source.html#l00138">ngx_http_brix_cvmfs_ctx_t::sess_xfer_started</a>, <a class="el" href="cvmfs_8h_source.html#l00068">brix_cvmfs_conf_t::trace</a>, and <a class="el" href="cvmfs_8h_source.html#l00129">ngx_http_brix_cvmfs_ctx_t::url</a>.</p>
+<p class="reference">References <a class="el" href="gate_8c_source.html#l00071">brix_cvmfs_notify_status()</a>, <a class="el" href="http__headers__set_8c_source.html#l00040">brix_http_effective_status()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00449">cvmfs_finalize_metrics()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00299">cvmfs_finalize_sesslog()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00339">cvmfs_finalize_trace()</a>, and <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00339">ngx_http_brix_cvmfs_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00352">ngx_http_brix_cvmfs_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00492">ngx_http_brix_cvmfs_handler()</a>.</p>
+
+</div>
+</div>
+<a id="ae3b8996e0d945f2788312fc28f693638" name="ae3b8996e0d945f2788312fc28f693638"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae3b8996e0d945f2788312fc28f693638">&#9670;&#160;</a></span>cvmfs_finalize_sesslog()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cvmfs_finalize_sesslog </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>status</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00299">299</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog__conn_8c_source.html#l00166">brix_http_sess()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="sesslog_8h_source.html#l00041">BRIX_SESS_AM_ANON</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00020">BRIX_SESS_PROTO_CVMFS</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00361">brix_sess_result()</a>, <a class="el" href="sesslog_8h_source.html#l00057">BRIX_SESS_XFER_ABORTED</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00413">brix_sess_xfer_add()</a>, <a class="el" href="sesslog_8h_source.html#l00056">BRIX_SESS_XFER_COMPLETE</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00422">brix_sess_xfer_end()</a>, <a class="el" href="sesslog_8c_source.html#l00611">brix_sesslog_err_from_http()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="cvmfs_8h_source.html#l00137">ngx_http_brix_cvmfs_ctx_t::sess_attempt_logged</a>, <a class="el" href="cvmfs_8h_source.html#l00136">ngx_http_brix_cvmfs_ctx_t::sess_xfer</a>, and <a class="el" href="cvmfs_8h_source.html#l00138">ngx_http_brix_cvmfs_ctx_t::sess_xfer_started</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00467">cvmfs_finalize_observe()</a>.</p>
+
+</div>
+</div>
+<a id="aa5abd84e28c7f95842fa54a41d51fb05" name="aa5abd84e28c7f95842fa54a41d51fb05"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa5abd84e28c7f95842fa54a41d51fb05">&#9670;&#160;</a></span>cvmfs_finalize_trace()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cvmfs_finalize_trace </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>status</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00339">339</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00203">BRIX_CVMFS_CACHE_NEG</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="cvmfs_8h_source.html#l00132">ngx_http_brix_cvmfs_ctx_t::cache_status</a>, <a class="el" href="cvmfs_8h_source.html#l00106">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="cvmfs_8h_source.html#l00068">brix_cvmfs_conf_t::trace</a>, and <a class="el" href="cvmfs_8h_source.html#l00129">ngx_http_brix_cvmfs_ctx_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00467">cvmfs_finalize_observe()</a>.</p>
 
 </div>
 </div>
@@ -238,9 +556,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00056">56</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00352">ngx_http_brix_cvmfs_handler()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00492">ngx_http_brix_cvmfs_handler()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00082">cvmfs_tier_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00135">cvmfs_tier_serve_or_fill()</a>.</p>
 
 </div>
 </div>
@@ -280,9 +598,41 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00066">66</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00458">brix_vfs_backend_resolve()</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00869">ngx_http_brix_cvmfs_module</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, and <a class="el" href="cvmfs_8h_source.html#l00127">ngx_http_brix_cvmfs_ctx_t::sd_override</a>.</p>
+<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00248">brix_vfs_backend_resolve()</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00339">ngx_http_brix_cvmfs_module</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, and <a class="el" href="cvmfs_8h_source.html#l00127">ngx_http_brix_cvmfs_ctx_t::sd_override</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00082">cvmfs_tier_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00239">cvmfs_tier_get()</a>.</p>
+
+</div>
+</div>
+<a id="a0f0365a9e1e256d390673ca188e5ffcf" name="a0f0365a9e1e256d390673ca188e5ffcf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0f0365a9e1e256d390673ca188e5ffcf">&#9670;&#160;</a></span>cvmfs_serve_opts_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cvmfs_serve_opts_init </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__http__serve__opts__t.html">brix_http_serve_opts_t</a> *&#160;</td>
+          <td class="paramname"><em>opts</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00114">114</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="etag_8h_source.html#l00015">BRIX_ETAG_WEAK</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_CVMFS</a>, <a class="el" href="file__serve_8h_source.html#l00026">brix_http_serve_opts_t::etag_flags</a>, <a class="el" href="file__serve_8h_source.html#l00025">brix_http_serve_opts_t::identity</a>, <a class="el" href="file__serve_8h_source.html#l00024">brix_http_serve_opts_t::op_name</a>, and <a class="el" href="file__serve_8h_source.html#l00023">brix_http_serve_opts_t::xfer_proto</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00186">cvmfs_tier_open_respond()</a>, and <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00135">cvmfs_tier_serve_or_fill()</a>.</p>
 
 </div>
 </div>
@@ -320,11 +670,125 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00082">82</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00239">239</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00202">BRIX_CVMFS_CACHE_FILL</a>, <a class="el" href="cvmfs_8h_source.html#l00201">BRIX_CVMFS_CACHE_HIT</a>, <a class="el" href="cvmfs_8h_source.html#l00200">BRIX_CVMFS_CACHE_NONE</a>, <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>, <a class="el" href="etag_8h_source.html#l00015">BRIX_ETAG_WEAK</a>, <a class="el" href="http__cache__fill_8c_source.html#l00644">brix_http_cache_fill_if_needed()</a>, <a class="el" href="http__conditionals_8c_source.html#l00263">brix_http_check_if_modified_since()</a>, <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>, <a class="el" href="http__serve__offload_8c_source.html#l00315">brix_http_serve_offload_remote()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00040">BRIX_PROTO_CVMFS</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__open_8c_source.html#l00226">brix_vfs_export_relative()</a>, <a class="el" href="vfs__open_8c_source.html#l00665">brix_vfs_file_stat()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="dashboard_8h_source.html#l00061">BRIX_XFER_DIR_READ</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_CVMFS</a>, <a class="el" href="cvmfs_8h_source.html#l00132">ngx_http_brix_cvmfs_ctx_t::cache_status</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00038">cvmfs_errno_status()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00056">cvmfs_reenter()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00066">cvmfs_resolve_sd()</a>, <a class="el" href="file__serve_8h_source.html#l00026">brix_http_serve_opts_t::etag_flags</a>, <a class="el" href="file__serve_8h_source.html#l00025">brix_http_serve_opts_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::is_directory</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00869">ngx_http_brix_cvmfs_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="file__serve_8h_source.html#l00024">brix_http_serve_opts_t::op_name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::sd</a>, <a class="el" href="cvmfs_8h_source.html#l00128">ngx_http_brix_cvmfs_ctx_t::up_root</a>, and <a class="el" href="file__serve_8h_source.html#l00023">brix_http_serve_opts_t::xfer_proto</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_CVMFS</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00223">brix_vfs_export_relative()</a>, <a class="el" href="dashboard_8h_source.html#l00061">BRIX_XFER_DIR_READ</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_CVMFS</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00085">cvmfs_build_fs_path()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00066">cvmfs_resolve_sd()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00186">cvmfs_tier_open_respond()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00135">cvmfs_tier_serve_or_fill()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00339">ngx_http_brix_cvmfs_module</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>, and <a class="el" href="cvmfs_8h_source.html#l00128">ngx_http_brix_cvmfs_ctx_t::up_root</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00352">ngx_http_brix_cvmfs_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00492">ngx_http_brix_cvmfs_handler()</a>.</p>
+
+</div>
+</div>
+<a id="ac79f5285356076c498ef901add2f226d" name="ac79f5285356076c498ef901add2f226d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac79f5285356076c498ef901add2f226d">&#9670;&#160;</a></span>cvmfs_tier_open_respond()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t cvmfs_tier_open_respond </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>vctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00186">186</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00201">BRIX_CVMFS_CACHE_HIT</a>, <a class="el" href="cvmfs_8h_source.html#l00200">BRIX_CVMFS_CACHE_NONE</a>, <a class="el" href="http__conditionals_8c_source.html#l00399">brix_http_check_if_modified_since()</a>, <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00220">brix_vfs_file_stat()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="cvmfs_8h_source.html#l00132">ngx_http_brix_cvmfs_ctx_t::cache_status</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00038">cvmfs_errno_status()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00114">cvmfs_serve_opts_init()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::is_directory</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00239">cvmfs_tier_get()</a>.</p>
+
+</div>
+</div>
+<a id="a846a98080a4b1b332573819f9dba7063" name="a846a98080a4b1b332573819f9dba7063"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a846a98080a4b1b332573819f9dba7063">&#9670;&#160;</a></span>cvmfs_tier_serve_or_fill()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t cvmfs_tier_serve_or_fill </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>sd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00135">135</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00202">BRIX_CVMFS_CACHE_FILL</a>, <a class="el" href="http__cache__fill_8c_source.html#l00159">brix_http_cache_fill_if_needed()</a>, <a class="el" href="http__serve__offload_8c_source.html#l00545">brix_http_serve_offload_remote()</a>, <a class="el" href="cvmfs_8h_source.html#l00132">ngx_http_brix_cvmfs_ctx_t::cache_status</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00056">cvmfs_reenter()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00114">cvmfs_serve_opts_init()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00339">ngx_http_brix_cvmfs_module</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00239">cvmfs_tier_get()</a>.</p>
 
 </div>
 </div>
@@ -344,11 +808,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00352">352</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00492">492</a> of file <a class="el" href="protocols_2cvmfs_2handler_8c_source.html">handler.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00080">brix_sess_xfer_t::active</a>, <a class="el" href="gate_8c_source.html#l00100">brix_cvmfs_gate()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00166">brix_http_sess()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="secure_8c_source.html#l00096">brix_scvmfs_preamble()</a>, <a class="el" href="sesslog_8h_source.html#l00041">BRIX_SESS_AM_ANON</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00327">brix_sess_attempt()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00305">brix_sess_auth_once()</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00020">BRIX_SESS_PROTO_CVMFS</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00375">brix_sess_xfer_start()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00224">cvmfs_finalize_observe()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00082">cvmfs_tier_get()</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00869">ngx_http_brix_cvmfs_module</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="cvmfs_8h_source.html#l00109">ngx_http_brix_cvmfs_loc_conf_t::scvmfs</a>, <a class="el" href="cvmfs_8h_source.html#l00137">ngx_http_brix_cvmfs_ctx_t::sess_attempt_logged</a>, <a class="el" href="cvmfs_8h_source.html#l00136">ngx_http_brix_cvmfs_ctx_t::sess_xfer</a>, and <a class="el" href="cvmfs_8h_source.html#l00138">ngx_http_brix_cvmfs_ctx_t::sess_xfer_started</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00080">brix_sess_xfer_t::active</a>, <a class="el" href="gate_8c_source.html#l00169">brix_cvmfs_gate()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00166">brix_http_sess()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="secure_8c_source.html#l00107">brix_scvmfs_preamble()</a>, <a class="el" href="sesslog_8h_source.html#l00041">BRIX_SESS_AM_ANON</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00333">brix_sess_attempt()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00311">brix_sess_auth_once()</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00020">BRIX_SESS_PROTO_CVMFS</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00389">brix_sess_xfer_start()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00467">cvmfs_finalize_observe()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00239">cvmfs_tier_get()</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00339">ngx_http_brix_cvmfs_module</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="cvmfs_8h_source.html#l00109">ngx_http_brix_cvmfs_loc_conf_t::scvmfs</a>, <a class="el" href="cvmfs_8h_source.html#l00137">ngx_http_brix_cvmfs_ctx_t::sess_attempt_logged</a>, <a class="el" href="cvmfs_8h_source.html#l00136">ngx_http_brix_cvmfs_ctx_t::sess_xfer</a>, and <a class="el" href="cvmfs_8h_source.html#l00138">ngx_http_brix_cvmfs_ctx_t::sess_xfer_started</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00056">cvmfs_reenter()</a>, and <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00802">ngx_http_brix_cvmfs_set()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00056">cvmfs_reenter()</a>, and <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00272">ngx_http_brix_cvmfs_set()</a>.</p>
 
 </div>
 </div>

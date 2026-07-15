@@ -110,14 +110,244 @@ $(document).ready(function(){initNavTree('diag__compare_8c.html',''); initResiza
 Functions</h2></td></tr>
 <tr class="memitem:a66fbe8fcb6c98ecd1a9f4552856b4e12" id="r_a66fbe8fcb6c98ecd1a9f4552856b4e12"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, int ok, const char *fmt,...)</td></tr>
 <tr class="separator:a66fbe8fcb6c98ecd1a9f4552856b4e12"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a90a71af7fe57f22e3315c30943acd5bd" id="r_a90a71af7fe57f22e3315c30943acd5bd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#a90a71af7fe57f22e3315c30943acd5bd">remote_md5</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, char *<a class="el" href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a>, size_t hexsz, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a90a71af7fe57f22e3315c30943acd5bd" id="r_a90a71af7fe57f22e3315c30943acd5bd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#a90a71af7fe57f22e3315c30943acd5bd">remote_md5</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, char *<a class="el" href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a>, size_t hexsz, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a90a71af7fe57f22e3315c30943acd5bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2c32d002ec02611c641bc15979afeab3" id="r_a2c32d002ec02611c641bc15979afeab3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#a2c32d002ec02611c641bc15979afeab3">do_compare_davs</a> (const <a class="el" href="structdiag__args.html">diag_args</a> *a)</td></tr>
 <tr class="separator:a2c32d002ec02611c641bc15979afeab3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adad7994b6c121dd3e6c6cfcb29cf082a" id="r_adad7994b6c121dd3e6c6cfcb29cf082a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#adad7994b6c121dd3e6c6cfcb29cf082a">compare_setup</a> (const <a class="el" href="structdiag__args.html">diag_args</a> *a, <a class="el" href="structbrix__url.html">brix_url</a> *ua, <a class="el" href="structbrix__url.html">brix_url</a> *ub, <a class="el" href="structbrix__conn.html">brix_conn</a> *ca, <a class="el" href="structbrix__conn.html">brix_conn</a> *cb)</td></tr>
+<tr class="separator:adad7994b6c121dd3e6c6cfcb29cf082a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2777540ca4b6a3f86c329fede0e8c6da" id="r_a2777540ca4b6a3f86c329fede0e8c6da"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#a2777540ca4b6a3f86c329fede0e8c6da">compare_dirs</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *ca, <a class="el" href="structbrix__conn.html">brix_conn</a> *cb, const char *pa, const char *pb)</td></tr>
+<tr class="separator:a2777540ca4b6a3f86c329fede0e8c6da"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5b9fbb235ecd6bd9ec3c085b906a845b" id="r_a5b9fbb235ecd6bd9ec3c085b906a845b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#a5b9fbb235ecd6bd9ec3c085b906a845b">compare_files</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *ca, <a class="el" href="structbrix__conn.html">brix_conn</a> *cb, const char *pa, const char *pb)</td></tr>
+<tr class="separator:a5b9fbb235ecd6bd9ec3c085b906a845b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af4fd4c9e49cc3b907a3808d5b0cf7ff8" id="r_af4fd4c9e49cc3b907a3808d5b0cf7ff8"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#af4fd4c9e49cc3b907a3808d5b0cf7ff8">compare_probe</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *ca, <a class="el" href="structbrix__conn.html">brix_conn</a> *cb, const <a class="el" href="structbrix__url.html">brix_url</a> *ua, const <a class="el" href="structbrix__url.html">brix_url</a> *ub)</td></tr>
+<tr class="separator:af4fd4c9e49cc3b907a3808d5b0cf7ff8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a69195a592bd487c30c9e77044a41838f" id="r_a69195a592bd487c30c9e77044a41838f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__compare_8c.html#a69195a592bd487c30c9e77044a41838f">do_compare</a> (const <a class="el" href="structdiag__args.html">diag_args</a> *a)</td></tr>
 <tr class="separator:a69195a592bd487c30c9e77044a41838f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a2777540ca4b6a3f86c329fede0e8c6da" name="a2777540ca4b6a3f86c329fede0e8c6da"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2777540ca4b6a3f86c329fede0e8c6da">&#9670;&#160;</a></span>compare_dirs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void compare_dirs </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>ca</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>pa</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>pb</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00185">185</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ops__meta_8c_source.html#l00380">brix_dirlist()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00250">compare_probe()</a>.</p>
+
+</div>
+</div>
+<a id="a5b9fbb235ecd6bd9ec3c085b906a845b" name="a5b9fbb235ecd6bd9ec3c085b906a845b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5b9fbb235ecd6bd9ec3c085b906a845b">&#9670;&#160;</a></span>compare_files()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void compare_files </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>ca</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>pa</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>pb</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00224">224</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, and <a class="el" href="diag__compare_8c_source.html#l00028">remote_md5()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00250">compare_probe()</a>.</p>
+
+</div>
+</div>
+<a id="af4fd4c9e49cc3b907a3808d5b0cf7ff8" name="af4fd4c9e49cc3b907a3808d5b0cf7ff8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af4fd4c9e49cc3b907a3808d5b0cf7ff8">&#9670;&#160;</a></span>compare_probe()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int compare_probe </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>ca</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>ua</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>ub</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00250">250</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="diag__compare_8c_source.html#l00185">compare_dirs()</a>, <a class="el" href="diag__compare_8c_source.html#l00224">compare_files()</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, and <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00278">do_compare()</a>.</p>
+
+</div>
+</div>
+<a id="adad7994b6c121dd3e6c6cfcb29cf082a" name="adad7994b6c121dd3e6c6cfcb29cf082a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adad7994b6c121dd3e6c6cfcb29cf082a">&#9670;&#160;</a></span>compare_setup()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int compare_setup </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structdiag__args.html">diag_args</a> *&#160;</td>
+          <td class="paramname"><em>a</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>ua</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>ub</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>ca</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>cb</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00145">145</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
+
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="diag__internal_8h_source.html#l00028">diag_args::ref_url</a>, and <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00278">do_compare()</a>.</p>
+
+</div>
+</div>
 <a id="a69195a592bd487c30c9e77044a41838f" name="a69195a592bd487c30c9e77044a41838f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a69195a592bd487c30c9e77044a41838f">&#9670;&#160;</a></span>do_compare()</h2>
 
@@ -134,11 +364,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00134">134</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00278">278</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="ops__meta_8c_source.html#l00299">brix_dirlist()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="diag__internal_8h_source.html#l00035">diag_args::davs</a>, <a class="el" href="diag__compare_8c_source.html#l00057">do_compare_davs()</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="xrddiag_8c_source.html#l00011">g_fails</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, <a class="el" href="diag__internal_8h_source.html#l00028">diag_args::ref_url</a>, <a class="el" href="diag__compare_8c_source.html#l00028">remote_md5()</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, and <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00558">main()</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="diag__compare_8c_source.html#l00250">compare_probe()</a>, <a class="el" href="diag__compare_8c_source.html#l00145">compare_setup()</a>, <a class="el" href="diag__internal_8h_source.html#l00035">diag_args::davs</a>, <a class="el" href="diag__compare_8c_source.html#l00057">do_compare_davs()</a>, <a class="el" href="xrddiag_8c_source.html#l00012">g_fails</a>, <a class="el" href="diag__internal_8h_source.html#l00028">diag_args::ref_url</a>, and <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>.</p>
 
 </div>
 </div>
@@ -160,9 +388,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00057">57</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="http_8c_source.html#l00008">brix_http_get()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="diag__internal_8h_source.html#l00035">diag_args::davs</a>, <a class="el" href="xrddiag_8c_source.html#l00011">g_fails</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrddiag_8c_source.html#l00080">note()</a>, <a class="el" href="diag__topology_8c_source.html#l00180">parse_http_hostport()</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, <a class="el" href="diag__compare_8c_source.html#l00028">remote_md5()</a>, <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>, and <a class="el" href="brix__ops_8h_source.html#l00207">XRDC_CK_MD5</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="diag__internal_8h_source.html#l00035">diag_args::davs</a>, <a class="el" href="xrddiag_8c_source.html#l00012">g_fails</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrddiag_8c_source.html#l00081">note()</a>, <a class="el" href="diag__topology_8c_source.html#l00251">parse_http_hostport()</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, <a class="el" href="diag__compare_8c_source.html#l00028">remote_md5()</a>, <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>, and <a class="el" href="brix__ops_8h_source.html#l00207">XRDC_CK_MD5</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00134">do_compare()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00278">do_compare()</a>.</p>
 
 </div>
 </div>
@@ -206,9 +434,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00008">8</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00011">g_fails</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00012">g_fails</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="redir__cache_8c_source.html#l00191">brix_redir_cache_insert()</a>, <a class="el" href="redir__cache_8c_source.html#l00151">brix_redir_cache_lookup()</a>, <a class="el" href="tier__config_8c_source.html#l00353">brix_tier_status()</a>, <a class="el" href="diag__check_8c_source.html#l00043">do_check()</a>, <a class="el" href="diag__compare_8c_source.html#l00134">do_compare()</a>, <a class="el" href="diag__compare_8c_source.html#l00057">do_compare_davs()</a>, <a class="el" href="diag__misc_8c_source.html#l00009">do_probe_robustness()</a>, <a class="el" href="diag__topology_8c_source.html#l00069">do_topology()</a>, <a class="el" href="diag__check_8c_source.html#l00698">dx_authz_forged()</a>, <a class="el" href="xrddiag_8c_source.html#l00344">dx_http_status()</a>, <a class="el" href="xrddiag_8c_source.html#l00110">dx_record()</a>, and <a class="el" href="xrddiag_8c_source.html#l00135">dx_record_status()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="redir__cache_8c_source.html#l00191">brix_redir_cache_insert()</a>, <a class="el" href="redir__cache_8c_source.html#l00151">brix_redir_cache_lookup()</a>, <a class="el" href="tier__config_8c_source.html#l00471">brix_tier_status()</a>, <a class="el" href="diag__check_8c_source.html#l00059">chk_probe_auth()</a>, <a class="el" href="diag__check_8c_source.html#l00177">chk_probe_checksum()</a>, <a class="el" href="diag__check_8c_source.html#l00115">chk_probe_confinement()</a>, <a class="el" href="diag__check_8c_source.html#l00134">chk_probe_dirlist()</a>, <a class="el" href="diag__check_8c_source.html#l00304">chk_probe_handle_limits()</a>, <a class="el" href="diag__check_8c_source.html#l00223">chk_probe_pgread()</a>, <a class="el" href="diag__check_8c_source.html#l00255">chk_probe_posc()</a>, <a class="el" href="diag__check_8c_source.html#l00089">chk_probe_tls()</a>, <a class="el" href="diag__compare_8c_source.html#l00185">compare_dirs()</a>, <a class="el" href="diag__compare_8c_source.html#l00224">compare_files()</a>, <a class="el" href="diag__compare_8c_source.html#l00250">compare_probe()</a>, <a class="el" href="diag__compare_8c_source.html#l00057">do_compare_davs()</a>, <a class="el" href="diag__check_8c_source.html#l00773">dx_authz_forged()</a>, <a class="el" href="xrddiag_8c_source.html#l00432">dx_http_status()</a>, <a class="el" href="xrddiag_8c_source.html#l00135">dx_record_status()</a>, <a class="el" href="diag__misc_8c_source.html#l00024">probe_p1_path_escape()</a>, <a class="el" href="diag__misc_8c_source.html#l00067">probe_p2_bad_opcode()</a>, <a class="el" href="diag__misc_8c_source.html#l00103">probe_p3_oversized_dlen()</a>, <a class="el" href="diag__misc_8c_source.html#l00140">probe_p4_oob_read()</a>, <a class="el" href="diag__misc_8c_source.html#l00179">probe_p5_partial_frame()</a>, <a class="el" href="diag__misc_8c_source.html#l00212">probe_server_survives()</a>, <a class="el" href="diag__topology_8c_source.html#l00074">topo_probe_locate()</a>, and <a class="el" href="diag__topology_8c_source.html#l00109">topo_probe_redirect()</a>.</p>
 
 </div>
 </div>
@@ -258,9 +486,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__compare_8c_source.html#l00028">28</a> of file <a class="el" href="diag__compare_8c_source.html">diag_compare.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="diag__doctor_8c_source.html#l00014">download_to_fd()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="brix__ops_8h_source.html#l00207">XRDC_CK_MD5</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="diag__doctor_8c_source.html#l00014">download_to_fd()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="brix__ops_8h_source.html#l00207">XRDC_CK_MD5</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00134">do_compare()</a>, and <a class="el" href="diag__compare_8c_source.html#l00057">do_compare_davs()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00224">compare_files()</a>, and <a class="el" href="diag__compare_8c_source.html#l00057">do_compare_davs()</a>.</p>
 
 </div>
 </div>

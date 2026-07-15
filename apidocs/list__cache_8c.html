@@ -114,6 +114,8 @@ $(document).ready(function(){initNavTree('list__cache_8c.html',''); initResizabl
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__lc__entry__t.html">s3_lc_entry_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__lc__id__t.html">s3_lc_id_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__lc__slot__t.html">s3_lc_slot_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -128,10 +130,18 @@ Functions</h2></td></tr>
 <tr class="separator:a4ca35c09205e9f1c3985f6ce40cb0ed6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaf052c675bbc028ecddc717aa1fe62e2" id="r_aaf052c675bbc028ecddc717aa1fe62e2"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#aaf052c675bbc028ecddc717aa1fe62e2">s3_lc_slot_clear</a> (<a class="el" href="structs3__lc__slot__t.html">s3_lc_slot_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:aaf052c675bbc028ecddc717aa1fe62e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3b97da5741a3d7e8752e06df1666208c" id="r_a3b97da5741a3d7e8752e06df1666208c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#a3b97da5741a3d7e8752e06df1666208c">s3_lc_matches</a> (const <a class="el" href="structs3__lc__slot__t.html">s3_lc_slot_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const char *root, const char *prefix, const char *delimiter)</td></tr>
-<tr class="separator:a3b97da5741a3d7e8752e06df1666208c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aad35389e1af44f4a0a757972aeb2a0c9" id="r_aad35389e1af44f4a0a757972aeb2a0c9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#aad35389e1af44f4a0a757972aeb2a0c9">s3_lc_matches</a> (const <a class="el" href="structs3__lc__slot__t.html">s3_lc_slot_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const <a class="el" href="structs3__lc__id__t.html">s3_lc_id_t</a> *id)</td></tr>
+<tr class="separator:aad35389e1af44f4a0a757972aeb2a0c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a35d5b27bf8df2631a0ffbe0405fbd1f2" id="r_a35d5b27bf8df2631a0ffbe0405fbd1f2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#a35d5b27bf8df2631a0ffbe0405fbd1f2">s3_list_cache_get</a> (ngx_http_request_t *r, const char *root, const char *prefix, const char *delimiter, time_t dir_mtime, ngx_msec_t ttl_ms, <a class="el" href="structs3__entry__t.html">s3_entry_t</a> **out_items, int *out_n)</td></tr>
 <tr class="separator:a35d5b27bf8df2631a0ffbe0405fbd1f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6d475fdfeb285c4ae6008f64c3e308da" id="r_a6d475fdfeb285c4ae6008f64c3e308da"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#a6d475fdfeb285c4ae6008f64c3e308da">s3_lc_within_cap</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, int n)</td></tr>
+<tr class="separator:a6d475fdfeb285c4ae6008f64c3e308da"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae7030bc6064754fc7ff7e71f6a8f791a" id="r_ae7030bc6064754fc7ff7e71f6a8f791a"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structs3__lc__slot__t.html">s3_lc_slot_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#ae7030bc6064754fc7ff7e71f6a8f791a">s3_lc_select_victim</a> (const <a class="el" href="structs3__lc__id__t.html">s3_lc_id_t</a> *id)</td></tr>
+<tr class="separator:ae7030bc6064754fc7ff7e71f6a8f791a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a677b2a83d8a6e18d7b4fcc9065ecfee7" id="r_a677b2a83d8a6e18d7b4fcc9065ecfee7"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structs3__lc__entry__t.html">s3_lc_entry_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#a677b2a83d8a6e18d7b4fcc9065ecfee7">s3_lc_copy_entries</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const <a class="el" href="structs3__entry__t.html">s3_entry_t</a> *items, int n)</td></tr>
+<tr class="separator:a677b2a83d8a6e18d7b4fcc9065ecfee7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaa8d7f460c0cf2ca24b09e6061e551f7" id="r_aaa8d7f460c0cf2ca24b09e6061e551f7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#aaa8d7f460c0cf2ca24b09e6061e551f7">s3_lc_slot_store</a> (<a class="el" href="structs3__lc__slot__t.html">s3_lc_slot_t</a> *victim, const <a class="el" href="structs3__lc__id__t.html">s3_lc_id_t</a> *id, time_t dir_mtime, <a class="el" href="structs3__lc__entry__t.html">s3_lc_entry_t</a> *copy, int n)</td></tr>
+<tr class="separator:aaa8d7f460c0cf2ca24b09e6061e551f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a366d3b25f07f11fc60f3f45e28187ad9" id="r_a366d3b25f07f11fc60f3f45e28187ad9"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__cache_8c.html#a366d3b25f07f11fc60f3f45e28187ad9">s3_list_cache_put</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root, const char *prefix, const char *delimiter, time_t dir_mtime, const <a class="el" href="structs3__entry__t.html">s3_entry_t</a> *items, int n)</td></tr>
 <tr class="separator:a366d3b25f07f11fc60f3f45e28187ad9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -160,8 +170,56 @@ Variables</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a3b97da5741a3d7e8752e06df1666208c" name="a3b97da5741a3d7e8752e06df1666208c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3b97da5741a3d7e8752e06df1666208c">&#9670;&#160;</a></span>s3_lc_matches()</h2>
+<a id="a677b2a83d8a6e18d7b4fcc9065ecfee7" name="a677b2a83d8a6e18d7b4fcc9065ecfee7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a677b2a83d8a6e18d7b4fcc9065ecfee7">&#9670;&#160;</a></span>s3_lc_copy_entries()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structs3__lc__entry__t.html">s3_lc_entry_t</a> * s3_lc_copy_entries </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__entry__t.html">s3_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>items</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>n</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00201">201</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="list__cache_8c_source.html#l00014">s3_lc_entry_t::is_prefix</a>, <a class="el" href="s3_8h_source.html#l00182">s3_entry_t::is_prefix</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="list__cache_8c_source.html#l00013">s3_lc_entry_t::key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="list__cache_8c_source.html#l00042">s3_lc_strdup()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00259">s3_list_cache_put()</a>.</p>
+
+</div>
+</div>
+<a id="aad35389e1af44f4a0a757972aeb2a0c9" name="aad35389e1af44f4a0a757972aeb2a0c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad35389e1af44f4a0a757972aeb2a0c9">&#9670;&#160;</a></span>s3_lc_matches()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -178,20 +236,8 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>prefix</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>delimiter</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structs3__lc__id__t.html">s3_lc_id_t</a> *&#160;</td>
+          <td class="paramname"><em>id</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -206,11 +252,43 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00063">63</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00071">71</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="list__cache_8c_source.html#l00022">s3_lc_id_t::delimiter</a>, <a class="el" href="list__cache_8c_source.html#l00021">s3_lc_id_t::prefix</a>, <a class="el" href="list__cache_8c_source.html#l00020">s3_lc_id_t::root</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00073">s3_list_cache_get()</a>, and <a class="el" href="list__cache_8c_source.html#l00123">s3_list_cache_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00165">s3_lc_select_victim()</a>, and <a class="el" href="list__cache_8c_source.html#l00080">s3_list_cache_get()</a>.</p>
+
+</div>
+</div>
+<a id="ae7030bc6064754fc7ff7e71f6a8f791a" name="ae7030bc6064754fc7ff7e71f6a8f791a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae7030bc6064754fc7ff7e71f6a8f791a">&#9670;&#160;</a></span>s3_lc_select_victim()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structs3__lc__slot__t.html">s3_lc_slot_t</a> * s3_lc_select_victim </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structs3__lc__id__t.html">s3_lc_id_t</a> *&#160;</td>
+          <td class="paramname"><em>id</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00165">165</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="list__cache_8c_source.html#l00071">s3_lc_matches()</a>, <a class="el" href="list__cache_8c_source.html#l00038">s3_lc_slots</a>, <a class="el" href="list__cache_8c_source.html#l00010">S3_LIST_CACHE_SLOTS</a>, <a class="el" href="list__cache_8c_source.html#l00027">s3_lc_slot_t::seq</a>, and <a class="el" href="list__cache_8c_source.html#l00026">s3_lc_slot_t::used</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00259">s3_list_cache_put()</a>.</p>
 
 </div>
 </div>
@@ -238,11 +316,71 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00046">46</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00054">54</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00073">s3_list_cache_get()</a>, and <a class="el" href="list__cache_8c_source.html#l00123">s3_list_cache_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00232">s3_lc_slot_store()</a>, <a class="el" href="list__cache_8c_source.html#l00080">s3_list_cache_get()</a>, and <a class="el" href="list__cache_8c_source.html#l00259">s3_list_cache_put()</a>.</p>
+
+</div>
+</div>
+<a id="aaa8d7f460c0cf2ca24b09e6061e551f7" name="aaa8d7f460c0cf2ca24b09e6061e551f7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaa8d7f460c0cf2ca24b09e6061e551f7">&#9670;&#160;</a></span>s3_lc_slot_store()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int s3_lc_slot_store </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structs3__lc__slot__t.html">s3_lc_slot_t</a> *&#160;</td>
+          <td class="paramname"><em>victim</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__lc__id__t.html">s3_lc_id_t</a> *&#160;</td>
+          <td class="paramname"><em>id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>dir_mtime</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structs3__lc__entry__t.html">s3_lc_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>copy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>n</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00232">232</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="list__cache_8c_source.html#l00022">s3_lc_id_t::delimiter</a>, <a class="el" href="list__cache_8c_source.html#l00030">s3_lc_slot_t::delimiter</a>, <a class="el" href="list__cache_8c_source.html#l00031">s3_lc_slot_t::dir_mtime</a>, <a class="el" href="list__cache_8c_source.html#l00033">s3_lc_slot_t::entries</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="list__cache_8c_source.html#l00034">s3_lc_slot_t::n</a>, <a class="el" href="list__cache_8c_source.html#l00021">s3_lc_id_t::prefix</a>, <a class="el" href="list__cache_8c_source.html#l00029">s3_lc_slot_t::prefix</a>, <a class="el" href="list__cache_8c_source.html#l00020">s3_lc_id_t::root</a>, <a class="el" href="list__cache_8c_source.html#l00028">s3_lc_slot_t::root</a>, <a class="el" href="list__cache_8c_source.html#l00039">s3_lc_seq</a>, <a class="el" href="list__cache_8c_source.html#l00054">s3_lc_slot_clear()</a>, <a class="el" href="list__cache_8c_source.html#l00042">s3_lc_strdup()</a>, <a class="el" href="list__cache_8c_source.html#l00027">s3_lc_slot_t::seq</a>, <a class="el" href="list__cache_8c_source.html#l00032">s3_lc_slot_t::stored_at</a>, and <a class="el" href="list__cache_8c_source.html#l00026">s3_lc_slot_t::used</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00259">s3_list_cache_put()</a>.</p>
 
 </div>
 </div>
@@ -270,11 +408,53 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00034">34</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00042">42</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00123">s3_list_cache_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00201">s3_lc_copy_entries()</a>, and <a class="el" href="list__cache_8c_source.html#l00232">s3_lc_slot_store()</a>.</p>
+
+</div>
+</div>
+<a id="a6d475fdfeb285c4ae6008f64c3e308da" name="a6d475fdfeb285c4ae6008f64c3e308da"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6d475fdfeb285c4ae6008f64c3e308da">&#9670;&#160;</a></span>s3_lc_within_cap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int s3_lc_within_cap </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>n</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00138">138</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="list__cache_8h_source.html#l00035">S3_LIST_CACHE_MAX_ENTRIES</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00259">s3_list_cache_put()</a>.</p>
 
 </div>
 </div>
@@ -340,9 +520,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00073">73</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00080">80</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00173">s3_entry_t::is_prefix</a>, <a class="el" href="s3_8h_source.html#l00172">s3_entry_t::key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="list__cache_8c_source.html#l00063">s3_lc_matches()</a>, <a class="el" href="list__cache_8c_source.html#l00031">s3_lc_seq</a>, <a class="el" href="list__cache_8c_source.html#l00046">s3_lc_slot_clear()</a>, <a class="el" href="list__cache_8c_source.html#l00030">s3_lc_slots</a>, and <a class="el" href="list__cache_8c_source.html#l00010">S3_LIST_CACHE_SLOTS</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00182">s3_entry_t::is_prefix</a>, <a class="el" href="s3_8h_source.html#l00181">s3_entry_t::key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="list__cache_8c_source.html#l00071">s3_lc_matches()</a>, <a class="el" href="list__cache_8c_source.html#l00039">s3_lc_seq</a>, <a class="el" href="list__cache_8c_source.html#l00054">s3_lc_slot_clear()</a>, <a class="el" href="list__cache_8c_source.html#l00038">s3_lc_slots</a>, and <a class="el" href="list__cache_8c_source.html#l00010">S3_LIST_CACHE_SLOTS</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="list__common_8c_source.html#l00073">s3_list_collect_sorted()</a>.</p>
 
@@ -404,9 +584,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00123">123</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00259">259</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
 
-<p class="reference">References <a class="el" href="list__cache_8c_source.html#l00022">s3_lc_slot_t::delimiter</a>, <a class="el" href="list__cache_8c_source.html#l00023">s3_lc_slot_t::dir_mtime</a>, <a class="el" href="list__cache_8c_source.html#l00025">s3_lc_slot_t::entries</a>, <a class="el" href="list__cache_8c_source.html#l00014">s3_lc_entry_t::is_prefix</a>, <a class="el" href="s3_8h_source.html#l00173">s3_entry_t::is_prefix</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="list__cache_8c_source.html#l00013">s3_lc_entry_t::key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="list__cache_8c_source.html#l00026">s3_lc_slot_t::n</a>, <a class="el" href="list__cache_8c_source.html#l00021">s3_lc_slot_t::prefix</a>, <a class="el" href="list__cache_8c_source.html#l00020">s3_lc_slot_t::root</a>, <a class="el" href="list__cache_8c_source.html#l00063">s3_lc_matches()</a>, <a class="el" href="list__cache_8c_source.html#l00031">s3_lc_seq</a>, <a class="el" href="list__cache_8c_source.html#l00046">s3_lc_slot_clear()</a>, <a class="el" href="list__cache_8c_source.html#l00030">s3_lc_slots</a>, <a class="el" href="list__cache_8c_source.html#l00034">s3_lc_strdup()</a>, <a class="el" href="list__cache_8h_source.html#l00035">S3_LIST_CACHE_MAX_ENTRIES</a>, <a class="el" href="list__cache_8c_source.html#l00010">S3_LIST_CACHE_SLOTS</a>, <a class="el" href="list__cache_8c_source.html#l00019">s3_lc_slot_t::seq</a>, <a class="el" href="list__cache_8c_source.html#l00024">s3_lc_slot_t::stored_at</a>, and <a class="el" href="list__cache_8c_source.html#l00018">s3_lc_slot_t::used</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="list__cache_8c_source.html#l00201">s3_lc_copy_entries()</a>, <a class="el" href="list__cache_8c_source.html#l00165">s3_lc_select_victim()</a>, <a class="el" href="list__cache_8c_source.html#l00054">s3_lc_slot_clear()</a>, <a class="el" href="list__cache_8c_source.html#l00232">s3_lc_slot_store()</a>, and <a class="el" href="list__cache_8c_source.html#l00138">s3_lc_within_cap()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="list__common_8c_source.html#l00073">s3_list_collect_sorted()</a>.</p>
 
@@ -433,9 +613,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00031">31</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00039">39</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00073">s3_list_cache_get()</a>, and <a class="el" href="list__cache_8c_source.html#l00123">s3_list_cache_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00232">s3_lc_slot_store()</a>, and <a class="el" href="list__cache_8c_source.html#l00080">s3_list_cache_get()</a>.</p>
 
 </div>
 </div>
@@ -459,9 +639,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00030">30</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="list__cache_8c_source.html#l00038">38</a> of file <a class="el" href="list__cache_8c_source.html">list_cache.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00073">s3_list_cache_get()</a>, and <a class="el" href="list__cache_8c_source.html#l00123">s3_list_cache_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="list__cache_8c_source.html#l00165">s3_lc_select_victim()</a>, and <a class="el" href="list__cache_8c_source.html#l00080">s3_list_cache_get()</a>.</p>
 
 </div>
 </div>

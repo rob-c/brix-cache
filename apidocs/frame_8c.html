@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('frame_8c.html',''); initResizable(); }
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">frame.c File Reference</div></div>
 </div><!--header-->
@@ -114,34 +115,117 @@ $(document).ready(function(){initNavTree('frame_8c.html',''); initResizable(); }
 </div>
 <p><a href="frame_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrx__frame__t.html">rx_frame_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structredir__tgt__t.html">redir_tgt_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrt__req__t.html">rt_req_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a1af0f3221f8be0a4c938c5a013e5e325" id="r_a1af0f3221f8be0a4c938c5a013e5e325"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a1af0f3221f8be0a4c938c5a013e5e325">brix_send_ext</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, void *hdr24, const void *payload, uint32_t send_len, uint32_t dlen, uint16_t *out_sid, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:a1af0f3221f8be0a4c938c5a013e5e325"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a728474b1947d21beb24b6a487bd7641d" id="r_a728474b1947d21beb24b6a487bd7641d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a728474b1947d21beb24b6a487bd7641d">brix_send</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, void *hdr24, const void *payload, uint32_t plen, uint16_t *out_sid, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:a728474b1947d21beb24b6a487bd7641d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aee2c7b25574ff9eb0d15043e68c6e708" id="r_aee2c7b25574ff9eb0d15043e68c6e708"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#aee2c7b25574ff9eb0d15043e68c6e708">recv_raw_frame</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t *sid, uint16_t *<a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a>, uint8_t **buf, uint32_t *dlen, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:aee2c7b25574ff9eb0d15043e68c6e708"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac5ac2ff0b1908a48e69f5893f7acf28d" id="r_ac5ac2ff0b1908a48e69f5893f7acf28d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#ac5ac2ff0b1908a48e69f5893f7acf28d">recv_after_waitresp</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t want_sid, unsigned secs, uint16_t *status, uint8_t **body, uint32_t *blen, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:ac5ac2ff0b1908a48e69f5893f7acf28d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab1a9468e405d8881d288e00f33813372" id="r_ab1a9468e405d8881d288e00f33813372"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#ab1a9468e405d8881d288e00f33813372">brix_recv</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t want_sid, uint16_t *status, uint8_t **body, uint32_t *blen, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:ab1a9468e405d8881d288e00f33813372"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9dda8f2dcee154926a4ea2f54ccc5212" id="r_a9dda8f2dcee154926a4ea2f54ccc5212"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a9dda8f2dcee154926a4ea2f54ccc5212">parse_redirect</a> (const uint8_t *body, uint32_t blen, char *host, size_t hostsz, int *port, char *opaque, size_t opaquesz)</td></tr>
-<tr class="separator:a9dda8f2dcee154926a4ea2f54ccc5212"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa8f52f21b67bee717dc3db044926e2f3" id="r_aa8f52f21b67bee717dc3db044926e2f3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#aa8f52f21b67bee717dc3db044926e2f3">tried_seen</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *hostport)</td></tr>
+<tr class="memitem:af3d43c9995f482b0f8f4cee8174e7658" id="r_af3d43c9995f482b0f8f4cee8174e7658"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#af3d43c9995f482b0f8f4cee8174e7658">brix_send_ext</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, void *hdr24, const <a class="el" href="structbrix__payload__ext.html">brix_payload_ext</a> *pl, uint16_t *out_sid, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:af3d43c9995f482b0f8f4cee8174e7658"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6a0dd233179ee306597a567b37cac768" id="r_a6a0dd233179ee306597a567b37cac768"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a6a0dd233179ee306597a567b37cac768">brix_send</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, void *hdr24, const <a class="el" href="structbrix__payload.html">brix_payload</a> *pl, uint16_t *out_sid, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a6a0dd233179ee306597a567b37cac768"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad1a270ea406e62867c430bb11afcccb8" id="r_ad1a270ea406e62867c430bb11afcccb8"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#ad1a270ea406e62867c430bb11afcccb8">frame_read_header</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint8_t *hdr, <a class="el" href="structrx__frame__t.html">rx_frame_t</a> *f, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:ad1a270ea406e62867c430bb11afcccb8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1c7adb897fb3c0365e3c5217ff0cef23" id="r_a1c7adb897fb3c0365e3c5217ff0cef23"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a1c7adb897fb3c0365e3c5217ff0cef23">frame_read_body</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structrx__frame__t.html">rx_frame_t</a> *f, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a1c7adb897fb3c0365e3c5217ff0cef23"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a99ffbd4c02b285a2bdcffd7280d12f6d" id="r_a99ffbd4c02b285a2bdcffd7280d12f6d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a99ffbd4c02b285a2bdcffd7280d12f6d">set_kxr_error_status</a> (const uint8_t *data, uint32_t dlen, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a99ffbd4c02b285a2bdcffd7280d12f6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2c3263cb6a68385727e1fc790e0e16c3" id="r_a2c3263cb6a68385727e1fc790e0e16c3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a2c3263cb6a68385727e1fc790e0e16c3">recv_raw_frame</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structrx__frame__t.html">rx_frame_t</a> *f, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a2c3263cb6a68385727e1fc790e0e16c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a28fc1568c3da2ca8965296bd16fefe1a" id="r_a28fc1568c3da2ca8965296bd16fefe1a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a28fc1568c3da2ca8965296bd16fefe1a">waitresp_extend_window</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structrx__frame__t.html">rx_frame_t</a> *f)</td></tr>
+<tr class="separator:a28fc1568c3da2ca8965296bd16fefe1a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9e149ada23abc7400738c41459a6404f" id="r_a9e149ada23abc7400738c41459a6404f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a9e149ada23abc7400738c41459a6404f">asynresp_deliver</a> (uint16_t want_sid, <a class="el" href="structrx__frame__t.html">rx_frame_t</a> *f, <a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a9e149ada23abc7400738c41459a6404f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acf6a604ce7216c50482be09fe541927d" id="r_acf6a604ce7216c50482be09fe541927d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#acf6a604ce7216c50482be09fe541927d">recv_after_waitresp</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t want_sid, unsigned secs, <a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:acf6a604ce7216c50482be09fe541927d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1d85da522a3de507e2817feedb5a400d" id="r_a1d85da522a3de507e2817feedb5a400d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a1d85da522a3de507e2817feedb5a400d">recv_note_diag</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const uint8_t *hdr, const <a class="el" href="structrx__frame__t.html">rx_frame_t</a> *f)</td></tr>
+<tr class="separator:a1d85da522a3de507e2817feedb5a400d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6ca90210759da19f637628b6e2bee42f" id="r_a6ca90210759da19f637628b6e2bee42f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a6ca90210759da19f637628b6e2bee42f">resp_deliver</a> (<a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *out, uint16_t <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a>, uint8_t *buf, uint32_t dlen)</td></tr>
+<tr class="separator:a6ca90210759da19f637628b6e2bee42f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acf6a8d8b2b8cf6f6e9d8654b54232711" id="r_acf6a8d8b2b8cf6f6e9d8654b54232711"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#acf6a8d8b2b8cf6f6e9d8654b54232711">recv_dispatch</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t want_sid, <a class="el" href="structrx__frame__t.html">rx_frame_t</a> *f, <a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:acf6a8d8b2b8cf6f6e9d8654b54232711"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a008168660a7fe05ec3cbc1b14e1d4957" id="r_a008168660a7fe05ec3cbc1b14e1d4957"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a008168660a7fe05ec3cbc1b14e1d4957">brix_recv</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t want_sid, <a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a008168660a7fe05ec3cbc1b14e1d4957"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa61e7afdb3b1357d1e9b4bca85f75653" id="r_aa61e7afdb3b1357d1e9b4bca85f75653"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#aa61e7afdb3b1357d1e9b4bca85f75653">parse_redirect</a> (const uint8_t *body, uint32_t blen, <a class="el" href="structredir__tgt__t.html">redir_tgt_t</a> *t)</td></tr>
+<tr class="separator:aa61e7afdb3b1357d1e9b4bca85f75653"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa8f52f21b67bee717dc3db044926e2f3" id="r_aa8f52f21b67bee717dc3db044926e2f3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#aa8f52f21b67bee717dc3db044926e2f3">tried_seen</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *hostport)</td></tr>
 <tr class="separator:aa8f52f21b67bee717dc3db044926e2f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a285c2efb58096def253be3a9ef5f0d8d" id="r_a285c2efb58096def253be3a9ef5f0d8d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a285c2efb58096def253be3a9ef5f0d8d">follow_redirect</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *rhost, int rport, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a285c2efb58096def253be3a9ef5f0d8d" id="r_a285c2efb58096def253be3a9ef5f0d8d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a285c2efb58096def253be3a9ef5f0d8d">follow_redirect</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *rhost, int rport, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a285c2efb58096def253be3a9ef5f0d8d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a419907eea6be9a9724c5b25c4fef0e65" id="r_a419907eea6be9a9724c5b25c4fef0e65"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a419907eea6be9a9724c5b25c4fef0e65">open_payload_with_opaque</a> (const void *orig_pl, uint32_t orig_len, const char *opaque, char **rebuilt, const void **cur_pl, uint32_t *cur_len, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:a419907eea6be9a9724c5b25c4fef0e65"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4ccda1555f5dca84676443936ab57d9c" id="r_a4ccda1555f5dca84676443936ab57d9c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a4ccda1555f5dca84676443936ab57d9c">roundtrip_loop</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, void *hdr24, const void *payload, uint32_t plen, uint16_t *status, uint8_t **body, uint32_t *blen, char **rebuilt, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:a4ccda1555f5dca84676443936ab57d9c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7ca65d9be6a1ff43aef572a362fda10e" id="r_a7ca65d9be6a1ff43aef572a362fda10e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a7ca65d9be6a1ff43aef572a362fda10e">brix_roundtrip</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, void *hdr24, const void *payload, uint32_t plen, uint16_t *status, uint8_t **body, uint32_t *blen, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
-<tr class="separator:a7ca65d9be6a1ff43aef572a362fda10e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2754fb94f7d8118dd7924b8f0cfde42e" id="r_a2754fb94f7d8118dd7924b8f0cfde42e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a2754fb94f7d8118dd7924b8f0cfde42e">open_payload_with_opaque</a> (const char *opaque, <a class="el" href="structrt__req__t.html">rt_req_t</a> *rq, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a2754fb94f7d8118dd7924b8f0cfde42e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7362eaaaccd3c72d30c5e96b61f1c4e9" id="r_a7362eaaaccd3c72d30c5e96b61f1c4e9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a7362eaaaccd3c72d30c5e96b61f1c4e9">rt_handle_redirect</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structrt__req__t.html">rt_req_t</a> *rq, uint8_t *bd, uint32_t bl, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a7362eaaaccd3c72d30c5e96b61f1c4e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab15868fa3fc0f17f994766dac9b0d331" id="r_ab15868fa3fc0f17f994766dac9b0d331"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#ab15868fa3fc0f17f994766dac9b0d331">rt_handle_wait</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint8_t *bd, uint32_t bl, int *waits, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:ab15868fa3fc0f17f994766dac9b0d331"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a77f13eb770dd9155da37ab7b24306f63" id="r_a77f13eb770dd9155da37ab7b24306f63"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a77f13eb770dd9155da37ab7b24306f63">roundtrip_loop</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, void *hdr24, <a class="el" href="structrt__req__t.html">rt_req_t</a> *rq, <a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a77f13eb770dd9155da37ab7b24306f63"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a23100cd5c541164d95a75e993c4b5d24" id="r_a23100cd5c541164d95a75e993c4b5d24"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="frame_8c.html#a23100cd5c541164d95a75e993c4b5d24">brix_roundtrip</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, void *hdr24, const <a class="el" href="structbrix__payload.html">brix_payload</a> *pl, <a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a23100cd5c541164d95a75e993c4b5d24"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ab1a9468e405d8881d288e00f33813372" name="ab1a9468e405d8881d288e00f33813372"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab1a9468e405d8881d288e00f33813372">&#9670;&#160;</a></span>brix_recv()</h2>
+<a id="a9e149ada23abc7400738c41459a6404f" name="a9e149ada23abc7400738c41459a6404f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9e149ada23abc7400738c41459a6404f">&#9670;&#160;</a></span>asynresp_deliver()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int asynresp_deliver </td>
+          <td>(</td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>want_sid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrx__frame__t.html">rx_frame_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00227">227</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00550">brix_resp_out::blen</a>, <a class="el" href="brix__net_8h_source.html#l00549">brix_resp_out::body</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="frame_8c_source.html#l00098">rx_frame_t::buf</a>, <a class="el" href="frame_8c_source.html#l00097">rx_frame_t::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="frame_8c_source.html#l00166">set_kxr_error_status()</a>, <a class="el" href="brix__net_8h_source.html#l00548">brix_resp_out::status</a>, <a class="el" href="frame__hdr_8h_source.html#l00083">xrd_resp_hdr_unpack()</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00278">recv_after_waitresp()</a>.</p>
+
+</div>
+</div>
+<a id="a008168660a7fe05ec3cbc1b14e1d4957" name="a008168660a7fe05ec3cbc1b14e1d4957"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a008168660a7fe05ec3cbc1b14e1d4957">&#9670;&#160;</a></span>brix_recv()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -161,20 +245,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint16_t *&#160;</td>
-          <td class="paramname"><em>status</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t **&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t *&#160;</td>
-          <td class="paramname"><em>blen</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -190,16 +262,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00229">229</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00425">425</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="capture_8c_source.html#l00086">brix_capture_frame()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00050">brix_kxr_name()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="sock_8c_source.html#l00388">brix_read_full()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="trace_8c_source.html#l00092">brix_trace_frame()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="opcodes_8h_source.html#l00185">kXR_1stRequest</a>, <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00108">kXR_oksofar</a>, <a class="el" href="opcodes_8h_source.html#l00112">kXR_redirect</a>, <a class="el" href="opcodes_8h_source.html#l00113">kXR_wait</a>, <a class="el" href="opcodes_8h_source.html#l00114">kXR_waitresp</a>, <a class="el" href="frame_8c_source.html#l00134">recv_after_waitresp()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>, <a class="el" href="frame__hdr_8h_source.html#l00083">xrd_resp_hdr_unpack()</a>, <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>, <a class="el" href="brix_8h_source.html#l00044">XRDC_DLEN_MAX</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix__net_8h_source.html#l00066">XRDC_NOP</a>.</p>
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00550">brix_resp_out::blen</a>, <a class="el" href="brix__net_8h_source.html#l00549">brix_resp_out::body</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00137">frame_read_body()</a>, <a class="el" href="frame_8c_source.html#l00114">frame_read_header()</a>, <a class="el" href="frame_8c_source.html#l00382">recv_dispatch()</a>, <a class="el" href="frame_8c_source.html#l00333">recv_note_diag()</a>, <a class="el" href="frame_8c_source.html#l00095">rx_frame_t::sid</a>, <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00352">brix_bind()</a>, <a class="el" href="capture_8c_source.html#l00262">brix_capture_playback()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00064">brix_file_read()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00276">brix_file_readv()</a>, <a class="el" href="ops__file_8c_source.html#l00173">brix_file_sync()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00222">brix_file_write()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00382">brix_file_writev()</a>, <a class="el" href="ops__meta_8c_source.html#l00164">dirlist_once()</a>, <a class="el" href="conn_8c_source.html#l00213">do_login()</a>, <a class="el" href="diag__topology_8c_source.html#l00274">raw_send_expect_reject()</a>, <a class="el" href="frame_8c_source.html#l00484">roundtrip_loop()</a>, and <a class="el" href="client_2lib_2auth_2auth_8c_source.html#l00041">run_module()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00355">brix_bind()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00064">brix_file_read()</a>, <a class="el" href="ops__file_8c_source.html#l00216">brix_file_sync()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00223">brix_file_write()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00456">brix_file_writev()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00295">brix_readv_accumulate()</a>, <a class="el" href="ops__meta_8c_source.html#l00181">dirlist_accumulate()</a>, <a class="el" href="conn_8c_source.html#l00213">do_login()</a>, <a class="el" href="capture_8c_source.html#l00374">playback_reissue_wire()</a>, <a class="el" href="diag__topology_8c_source.html#l00345">raw_send_expect_reject()</a>, <a class="el" href="frame_8c_source.html#l00720">roundtrip_loop()</a>, and <a class="el" href="client_2lib_2auth_2auth_8c_source.html#l00042">run_module()</a>.</p>
 
 </div>
 </div>
-<a id="a7ca65d9be6a1ff43aef572a362fda10e" name="a7ca65d9be6a1ff43aef572a362fda10e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7ca65d9be6a1ff43aef572a362fda10e">&#9670;&#160;</a></span>brix_roundtrip()</h2>
+<a id="a23100cd5c541164d95a75e993c4b5d24" name="a23100cd5c541164d95a75e993c4b5d24"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a23100cd5c541164d95a75e993c4b5d24">&#9670;&#160;</a></span>brix_roundtrip()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -219,32 +291,14 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>payload</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__payload.html">brix_payload</a> *&#160;</td>
+          <td class="paramname"><em>pl</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>plen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t *&#160;</td>
-          <td class="paramname"><em>status</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t **&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t *&#160;</td>
-          <td class="paramname"><em>blen</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -260,16 +314,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00602">602</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00765">765</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="frame_8c_source.html#l00484">roundtrip_loop()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00580">rt_req_t::cur_len</a>, <a class="el" href="frame_8c_source.html#l00579">rt_req_t::cur_pl</a>, <a class="el" href="brix__net_8h_source.html#l00529">brix_payload::data</a>, <a class="el" href="brix__net_8h_source.html#l00530">brix_payload::len</a>, <a class="el" href="frame_8c_source.html#l00578">rt_req_t::orig_len</a>, <a class="el" href="frame_8c_source.html#l00577">rt_req_t::orig_pl</a>, <a class="el" href="frame_8c_source.html#l00581">rt_req_t::rebuilt</a>, <a class="el" href="frame_8c_source.html#l00576">rt_req_t::reqid</a>, <a class="el" href="frame_8c_source.html#l00720">roundtrip_loop()</a>, and <a class="el" href="frame__hdr_8h_source.html#l00030">xrd_get_u16_be()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fattr_8c_source.html#l00086">brix_fattr_get()</a>, <a class="el" href="fattr_8c_source.html#l00198">brix_fattr_list()</a>, <a class="el" href="ops__file_8c_source.html#l00061">brix_file_open_opaque()</a>, <a class="el" href="ops__ext_8c_source.html#l00158">brix_readlink()</a>, <a class="el" href="resilient_8c_source.html#l00164">brix_roundtrip_resilient()</a>, <a class="el" href="ops__meta_8c_source.html#l00164">dirlist_once()</a>, <a class="el" href="ops__ext_8c_source.html#l00027">ext_simple()</a>, and <a class="el" href="fattr_8c_source.html#l00142">fattr_set_or_del()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fattr_8c_source.html#l00086">brix_fattr_get()</a>, <a class="el" href="fattr_8c_source.html#l00206">brix_fattr_list()</a>, <a class="el" href="ops__file_8c_source.html#l00132">brix_file_open_opaque()</a>, <a class="el" href="ops__ext_8c_source.html#l00160">brix_readlink()</a>, <a class="el" href="resilient_8c_source.html#l00164">brix_roundtrip_resilient()</a>, <a class="el" href="ops__meta_8c_source.html#l00181">dirlist_accumulate()</a>, <a class="el" href="ops__ext_8c_source.html#l00027">ext_simple()</a>, and <a class="el" href="fattr_8c_source.html#l00146">fattr_set_or_del()</a>.</p>
 
 </div>
 </div>
-<a id="a728474b1947d21beb24b6a487bd7641d" name="a728474b1947d21beb24b6a487bd7641d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a728474b1947d21beb24b6a487bd7641d">&#9670;&#160;</a></span>brix_send()</h2>
+<a id="a6a0dd233179ee306597a567b37cac768" name="a6a0dd233179ee306597a567b37cac768"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6a0dd233179ee306597a567b37cac768">&#9670;&#160;</a></span>brix_send()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -289,14 +343,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>payload</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>plen</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__payload.html">brix_payload</a> *&#160;</td>
+          <td class="paramname"><em>pl</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -318,16 +366,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00077">77</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00081">81</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="frame_8c_source.html#l00027">brix_send_ext()</a>, and <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="frame_8c_source.html#l00027">brix_send_ext()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00529">brix_payload::data</a>, and <a class="el" href="brix__net_8h_source.html#l00530">brix_payload::len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00352">brix_bind()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00122">brix_file_pgread()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00242">brix_file_pgwrite()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00064">brix_file_read()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00276">brix_file_readv()</a>, <a class="el" href="ops__file_8c_source.html#l00173">brix_file_sync()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00222">brix_file_write()</a>, <a class="el" href="conn_8c_source.html#l00213">do_login()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00190">pgwrite_retry_one()</a>, <a class="el" href="frame_8c_source.html#l00484">roundtrip_loop()</a>, and <a class="el" href="client_2lib_2auth_2auth_8c_source.html#l00024">send_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00355">brix_bind()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00122">brix_file_pgread()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00351">brix_file_pgwrite()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00064">brix_file_read()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00399">brix_file_readv()</a>, <a class="el" href="ops__file_8c_source.html#l00216">brix_file_sync()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00223">brix_file_write()</a>, <a class="el" href="conn_8c_source.html#l00213">do_login()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00190">pgwrite_retry_one()</a>, <a class="el" href="frame_8c_source.html#l00720">roundtrip_loop()</a>, and <a class="el" href="client_2lib_2auth_2auth_8c_source.html#l00024">send_auth()</a>.</p>
 
 </div>
 </div>
-<a id="a1af0f3221f8be0a4c938c5a013e5e325" name="a1af0f3221f8be0a4c938c5a013e5e325"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1af0f3221f8be0a4c938c5a013e5e325">&#9670;&#160;</a></span>brix_send_ext()</h2>
+<a id="af3d43c9995f482b0f8f4cee8174e7658" name="af3d43c9995f482b0f8f4cee8174e7658"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af3d43c9995f482b0f8f4cee8174e7658">&#9670;&#160;</a></span>brix_send_ext()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -347,20 +395,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>payload</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>send_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>dlen</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__payload__ext.html">brix_payload_ext</a> *&#160;</td>
+          <td class="paramname"><em>pl</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -384,9 +420,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00027">27</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="capture_8c_source.html#l00086">brix_capture_frame()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2auth_2sigver_8c_source.html#l00031">brix_sigver_maybe()</a>, <a class="el" href="trace_8c_source.html#l00092">brix_trace_frame()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="frame__hdr_8h_source.html#l00030">xrd_get_u16_be()</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+<p class="reference">References <a class="el" href="capture_8c_source.html#l00086">brix_capture_frame()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2auth_2sigver_8c_source.html#l00031">brix_sigver_maybe()</a>, <a class="el" href="trace_8c_source.html#l00194">brix_trace_frame()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00539">brix_payload_ext::data</a>, <a class="el" href="brix__net_8h_source.html#l00541">brix_payload_ext::dlen</a>, <a class="el" href="brix__net_8h_source.html#l00540">brix_payload_ext::len</a>, <a class="el" href="frame__hdr_8h_source.html#l00030">xrd_get_u16_be()</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ops__file__rw_8c_source.html#l00382">brix_file_writev()</a>, and <a class="el" href="frame_8c_source.html#l00077">brix_send()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ops__file__rw_8c_source.html#l00456">brix_file_writev()</a>, and <a class="el" href="frame_8c_source.html#l00081">brix_send()</a>.</p>
 
 </div>
 </div>
@@ -436,16 +472,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00425">425</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00544">544</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00504">brix_reconnect()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>, and <a class="el" href="brix_8h_source.html#l00042">XRDC_MSG_MAX</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00510">brix_reconnect()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>, and <a class="el" href="brix_8h_source.html#l00042">XRDC_MSG_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00484">roundtrip_loop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00622">rt_handle_redirect()</a>.</p>
 
 </div>
 </div>
-<a id="a419907eea6be9a9724c5b25c4fef0e65" name="a419907eea6be9a9724c5b25c4fef0e65"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a419907eea6be9a9724c5b25c4fef0e65">&#9670;&#160;</a></span>open_payload_with_opaque()</h2>
+<a id="a1c7adb897fb3c0365e3c5217ff0cef23" name="a1c7adb897fb3c0365e3c5217ff0cef23"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1c7adb897fb3c0365e3c5217ff0cef23">&#9670;&#160;</a></span>frame_read_body()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -454,40 +490,16 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int open_payload_with_opaque </td>
+          <td class="memname">static int frame_read_body </td>
           <td>(</td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>orig_pl</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>orig_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>opaque</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char **&#160;</td>
-          <td class="paramname"><em>rebuilt</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void **&#160;</td>
-          <td class="paramname"><em>cur_pl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t *&#160;</td>
-          <td class="paramname"><em>cur_len</em>, </td>
+          <td class="paramtype"><a class="el" href="structrx__frame__t.html">rx_frame_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -508,16 +520,118 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00457">457</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00137">137</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
+<p class="reference">References <a class="el" href="sock_8c_source.html#l00388">brix_read_full()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="frame_8c_source.html#l00098">rx_frame_t::buf</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00097">rx_frame_t::dlen</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00484">roundtrip_loop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00425">brix_recv()</a>, and <a class="el" href="frame_8c_source.html#l00182">recv_raw_frame()</a>.</p>
 
 </div>
 </div>
-<a id="a9dda8f2dcee154926a4ea2f54ccc5212" name="a9dda8f2dcee154926a4ea2f54ccc5212"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9dda8f2dcee154926a4ea2f54ccc5212">&#9670;&#160;</a></span>parse_redirect()</h2>
+<a id="ad1a270ea406e62867c430bb11afcccb8" name="ad1a270ea406e62867c430bb11afcccb8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad1a270ea406e62867c430bb11afcccb8">&#9670;&#160;</a></span>frame_read_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int frame_read_header </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>hdr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrx__frame__t.html">rx_frame_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00114">114</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sock_8c_source.html#l00388">brix_read_full()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="frame_8c_source.html#l00098">rx_frame_t::buf</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00097">rx_frame_t::dlen</a>, <a class="el" href="frame_8c_source.html#l00095">rx_frame_t::sid</a>, <a class="el" href="frame_8c_source.html#l00096">rx_frame_t::stat</a>, <a class="el" href="frame__hdr_8h_source.html#l00083">xrd_resp_hdr_unpack()</a>, <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>, <a class="el" href="brix_8h_source.html#l00044">XRDC_DLEN_MAX</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00425">brix_recv()</a>, and <a class="el" href="frame_8c_source.html#l00182">recv_raw_frame()</a>.</p>
+
+</div>
+</div>
+<a id="a2754fb94f7d8118dd7924b8f0cfde42e" name="a2754fb94f7d8118dd7924b8f0cfde42e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2754fb94f7d8118dd7924b8f0cfde42e">&#9670;&#160;</a></span>open_payload_with_opaque()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int open_payload_with_opaque </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>opaque</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrt__req__t.html">rt_req_t</a> *&#160;</td>
+          <td class="paramname"><em>rq</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00590">590</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="frame_8c_source.html#l00580">rt_req_t::cur_len</a>, <a class="el" href="frame_8c_source.html#l00579">rt_req_t::cur_pl</a>, <a class="el" href="frame_8c_source.html#l00578">rt_req_t::orig_len</a>, <a class="el" href="frame_8c_source.html#l00577">rt_req_t::orig_pl</a>, <a class="el" href="frame_8c_source.html#l00581">rt_req_t::rebuilt</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00622">rt_handle_redirect()</a>.</p>
+
+</div>
+</div>
+<a id="aa61e7afdb3b1357d1e9b4bca85f75653" name="aa61e7afdb3b1357d1e9b4bca85f75653"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa61e7afdb3b1357d1e9b4bca85f75653">&#9670;&#160;</a></span>parse_redirect()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -540,32 +654,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>host</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>hostsz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>port</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>opaque</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>opaquesz</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="structredir__tgt__t.html">redir_tgt_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -580,16 +670,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00347">347</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00467">467</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>.</p>
+<p class="reference">References <a class="el" href="frame_8c_source.html#l00455">redir_tgt_t::host</a>, <a class="el" href="frame_8c_source.html#l00457">redir_tgt_t::opaque</a>, <a class="el" href="frame_8c_source.html#l00456">redir_tgt_t::port</a>, and <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00484">roundtrip_loop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00622">rt_handle_redirect()</a>.</p>
 
 </div>
 </div>
-<a id="ac5ac2ff0b1908a48e69f5893f7acf28d" name="ac5ac2ff0b1908a48e69f5893f7acf28d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac5ac2ff0b1908a48e69f5893f7acf28d">&#9670;&#160;</a></span>recv_after_waitresp()</h2>
+<a id="acf6a604ce7216c50482be09fe541927d" name="acf6a604ce7216c50482be09fe541927d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acf6a604ce7216c50482be09fe541927d">&#9670;&#160;</a></span>recv_after_waitresp()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -618,20 +708,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint16_t *&#160;</td>
-          <td class="paramname"><em>status</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t **&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t *&#160;</td>
-          <td class="paramname"><em>blen</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -652,16 +730,124 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00134">134</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00278">278</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00050">brix_kxr_name()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="opcodes_8h_source.html#l00135">kXR_asynresp</a>, <a class="el" href="opcodes_8h_source.html#l00109">kXR_attn</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00114">kXR_waitresp</a>, <a class="el" href="frame_8c_source.html#l00088">recv_raw_frame()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>, <a class="el" href="frame__hdr_8h_source.html#l00083">xrd_resp_hdr_unpack()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix__net_8h_source.html#l00081">XRDC_REDIR_MAX</a>.</p>
+<p class="reference">References <a class="el" href="frame_8c_source.html#l00227">asynresp_deliver()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="frame_8c_source.html#l00098">rx_frame_t::buf</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00097">rx_frame_t::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00135">kXR_asynresp</a>, <a class="el" href="opcodes_8h_source.html#l00109">kXR_attn</a>, <a class="el" href="opcodes_8h_source.html#l00114">kXR_waitresp</a>, <a class="el" href="frame_8c_source.html#l00182">recv_raw_frame()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="frame_8c_source.html#l00096">rx_frame_t::stat</a>, <a class="el" href="frame_8c_source.html#l00206">waitresp_extend_window()</a>, <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix__net_8h_source.html#l00081">XRDC_REDIR_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00229">brix_recv()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00382">recv_dispatch()</a>.</p>
 
 </div>
 </div>
-<a id="aee2c7b25574ff9eb0d15043e68c6e708" name="aee2c7b25574ff9eb0d15043e68c6e708"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aee2c7b25574ff9eb0d15043e68c6e708">&#9670;&#160;</a></span>recv_raw_frame()</h2>
+<a id="acf6a8d8b2b8cf6f6e9d8654b54232711" name="acf6a8d8b2b8cf6f6e9d8654b54232711"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acf6a8d8b2b8cf6f6e9d8654b54232711">&#9670;&#160;</a></span>recv_dispatch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int recv_dispatch </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>want_sid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrx__frame__t.html">rx_frame_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00382">382</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="frame_8c_source.html#l00098">rx_frame_t::buf</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00097">rx_frame_t::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00108">kXR_oksofar</a>, <a class="el" href="opcodes_8h_source.html#l00112">kXR_redirect</a>, <a class="el" href="opcodes_8h_source.html#l00113">kXR_wait</a>, <a class="el" href="opcodes_8h_source.html#l00114">kXR_waitresp</a>, <a class="el" href="frame_8c_source.html#l00278">recv_after_waitresp()</a>, <a class="el" href="frame_8c_source.html#l00364">resp_deliver()</a>, <a class="el" href="frame_8c_source.html#l00166">set_kxr_error_status()</a>, <a class="el" href="frame_8c_source.html#l00096">rx_frame_t::stat</a>, <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00425">brix_recv()</a>.</p>
+
+</div>
+</div>
+<a id="a1d85da522a3de507e2817feedb5a400d" name="a1d85da522a3de507e2817feedb5a400d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1d85da522a3de507e2817feedb5a400d">&#9670;&#160;</a></span>recv_note_diag()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void recv_note_diag </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>hdr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structrx__frame__t.html">rx_frame_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00333">333</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="capture_8c_source.html#l00086">brix_capture_frame()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="trace_8c_source.html#l00194">brix_trace_frame()</a>, <a class="el" href="frame_8c_source.html#l00098">rx_frame_t::buf</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00097">rx_frame_t::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00185">kXR_1stRequest</a>, <a class="el" href="frame_8c_source.html#l00095">rx_frame_t::sid</a>, <a class="el" href="frame_8c_source.html#l00096">rx_frame_t::stat</a>, <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>, and <a class="el" href="brix__net_8h_source.html#l00066">XRDC_NOP</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00425">brix_recv()</a>.</p>
+
+</div>
+</div>
+<a id="a2c3263cb6a68385727e1fc790e0e16c3" name="a2c3263cb6a68385727e1fc790e0e16c3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2c3263cb6a68385727e1fc790e0e16c3">&#9670;&#160;</a></span>recv_raw_frame()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -678,26 +864,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint16_t *&#160;</td>
-          <td class="paramname"><em>sid</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t *&#160;</td>
-          <td class="paramname"><em>stat</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t **&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t *&#160;</td>
-          <td class="paramname"><em>dlen</em>, </td>
+          <td class="paramtype"><a class="el" href="structrx__frame__t.html">rx_frame_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -718,16 +886,70 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00088">88</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00182">182</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sock_8c_source.html#l00388">brix_read_full()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="trace_8c_source.html#l00092">brix_trace_frame()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="frame__hdr_8h_source.html#l00083">xrd_resp_hdr_unpack()</a>, <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>, <a class="el" href="brix_8h_source.html#l00044">XRDC_DLEN_MAX</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
+<p class="reference">References <a class="el" href="trace_8c_source.html#l00194">brix_trace_frame()</a>, <a class="el" href="frame_8c_source.html#l00098">rx_frame_t::buf</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00097">rx_frame_t::dlen</a>, <a class="el" href="frame_8c_source.html#l00137">frame_read_body()</a>, <a class="el" href="frame_8c_source.html#l00114">frame_read_header()</a>, <a class="el" href="frame_8c_source.html#l00095">rx_frame_t::sid</a>, <a class="el" href="frame_8c_source.html#l00096">rx_frame_t::stat</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00134">recv_after_waitresp()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00278">recv_after_waitresp()</a>.</p>
 
 </div>
 </div>
-<a id="a4ccda1555f5dca84676443936ab57d9c" name="a4ccda1555f5dca84676443936ab57d9c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4ccda1555f5dca84676443936ab57d9c">&#9670;&#160;</a></span>roundtrip_loop()</h2>
+<a id="a6ca90210759da19f637628b6e2bee42f" name="a6ca90210759da19f637628b6e2bee42f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6ca90210759da19f637628b6e2bee42f">&#9670;&#160;</a></span>resp_deliver()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int resp_deliver </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>stat</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>dlen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00364">364</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00550">brix_resp_out::blen</a>, <a class="el" href="brix__net_8h_source.html#l00549">brix_resp_out::body</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="brix__net_8h_source.html#l00548">brix_resp_out::status</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00382">recv_dispatch()</a>.</p>
+
+</div>
+</div>
+<a id="a77f13eb770dd9155da37ab7b24306f63" name="a77f13eb770dd9155da37ab7b24306f63"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a77f13eb770dd9155da37ab7b24306f63">&#9670;&#160;</a></span>roundtrip_loop()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -750,38 +972,14 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>payload</em>, </td>
+          <td class="paramtype"><a class="el" href="structrt__req__t.html">rt_req_t</a> *&#160;</td>
+          <td class="paramname"><em>rq</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>plen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t *&#160;</td>
-          <td class="paramname"><em>status</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t **&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t *&#160;</td>
-          <td class="paramname"><em>blen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char **&#160;</td>
-          <td class="paramname"><em>rebuilt</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__resp__out.html">brix_resp_out</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -802,11 +1000,179 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00484">484</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00720">720</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="trace_8c_source.html#l00057">brix_jitter_ms()</a>, <a class="el" href="frame_8c_source.html#l00229">brix_recv()</a>, <a class="el" href="frame_8c_source.html#l00077">brix_send()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="frame_8c_source.html#l00425">follow_redirect()</a>, <a class="el" href="opcodes_8h_source.html#l00055">kXR_open</a>, <a class="el" href="opcodes_8h_source.html#l00112">kXR_redirect</a>, <a class="el" href="opcodes_8h_source.html#l00113">kXR_wait</a>, <a class="el" href="frame_8c_source.html#l00457">open_payload_with_opaque()</a>, <a class="el" href="frame_8c_source.html#l00347">parse_redirect()</a>, <a class="el" href="frame_8c_source.html#l00398">tried_seen()</a>, <a class="el" href="frame__hdr_8h_source.html#l00030">xrd_get_u16_be()</a>, <a class="el" href="frame__hdr_8h_source.html#l00098">xrd_wait_secs_parse()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00062">XRDC_EREDIRECT</a>, <a class="el" href="brix__net_8h_source.html#l00082">XRDC_HOSTPORT_MAX</a>, and <a class="el" href="brix__net_8h_source.html#l00081">XRDC_REDIR_MAX</a>.</p>
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00550">brix_resp_out::blen</a>, <a class="el" href="brix__net_8h_source.html#l00549">brix_resp_out::body</a>, <a class="el" href="frame_8c_source.html#l00425">brix_recv()</a>, <a class="el" href="frame_8c_source.html#l00081">brix_send()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00580">rt_req_t::cur_len</a>, <a class="el" href="frame_8c_source.html#l00579">rt_req_t::cur_pl</a>, <a class="el" href="opcodes_8h_source.html#l00112">kXR_redirect</a>, <a class="el" href="opcodes_8h_source.html#l00113">kXR_wait</a>, <a class="el" href="node__ops__unittest_8c_source.html#l00033">rr()</a>, <a class="el" href="frame_8c_source.html#l00622">rt_handle_redirect()</a>, <a class="el" href="frame_8c_source.html#l00692">rt_handle_wait()</a>, and <a class="el" href="brix__net_8h_source.html#l00548">brix_resp_out::status</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00602">brix_roundtrip()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00765">brix_roundtrip()</a>.</p>
+
+</div>
+</div>
+<a id="a7362eaaaccd3c72d30c5e96b61f1c4e9" name="a7362eaaaccd3c72d30c5e96b61f1c4e9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7362eaaaccd3c72d30c5e96b61f1c4e9">&#9670;&#160;</a></span>rt_handle_redirect()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rt_handle_redirect </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrt__req__t.html">rt_req_t</a> *&#160;</td>
+          <td class="paramname"><em>rq</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>bd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>bl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00622">622</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00544">follow_redirect()</a>, <a class="el" href="frame_8c_source.html#l00455">redir_tgt_t::host</a>, <a class="el" href="opcodes_8h_source.html#l00055">kXR_open</a>, <a class="el" href="frame_8c_source.html#l00457">redir_tgt_t::opaque</a>, <a class="el" href="frame_8c_source.html#l00590">open_payload_with_opaque()</a>, <a class="el" href="frame_8c_source.html#l00467">parse_redirect()</a>, <a class="el" href="frame_8c_source.html#l00456">redir_tgt_t::port</a>, <a class="el" href="frame_8c_source.html#l00576">rt_req_t::reqid</a>, <a class="el" href="frame_8c_source.html#l00517">tried_seen()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00062">XRDC_EREDIRECT</a>, <a class="el" href="brix__net_8h_source.html#l00082">XRDC_HOSTPORT_MAX</a>, and <a class="el" href="brix__net_8h_source.html#l00081">XRDC_REDIR_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00720">roundtrip_loop()</a>.</p>
+
+</div>
+</div>
+<a id="ab15868fa3fc0f17f994766dac9b0d331" name="ab15868fa3fc0f17f994766dac9b0d331"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab15868fa3fc0f17f994766dac9b0d331">&#9670;&#160;</a></span>rt_handle_wait()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rt_handle_wait </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>bd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>bl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>waits</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00692">692</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="trace_8c_source.html#l00057">brix_jitter_ms()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame__hdr_8h_source.html#l00098">xrd_wait_secs_parse()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix__net_8h_source.html#l00081">XRDC_REDIR_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00720">roundtrip_loop()</a>.</p>
+
+</div>
+</div>
+<a id="a99ffbd4c02b285a2bdcffd7280d12f6d" name="a99ffbd4c02b285a2bdcffd7280d12f6d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a99ffbd4c02b285a2bdcffd7280d12f6d">&#9670;&#160;</a></span>set_kxr_error_status()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void set_kxr_error_status </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>dlen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00166">166</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00050">brix_kxr_name()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, and <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00227">asynresp_deliver()</a>, and <a class="el" href="frame_8c_source.html#l00382">recv_dispatch()</a>.</p>
 
 </div>
 </div>
@@ -844,11 +1210,53 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00398">398</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00517">517</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00484">roundtrip_loop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00622">rt_handle_redirect()</a>.</p>
+
+</div>
+</div>
+<a id="a28fc1568c3da2ca8965296bd16fefe1a" name="a28fc1568c3da2ca8965296bd16fefe1a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a28fc1568c3da2ca8965296bd16fefe1a">&#9670;&#160;</a></span>waitresp_extend_window()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void waitresp_extend_window </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrx__frame__t.html">rx_frame_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="frame_8c_source.html#l00206">206</a> of file <a class="el" href="frame_8c_source.html">frame.c</a>.</p>
+
+<p class="reference">References <a class="el" href="frame_8c_source.html#l00098">rx_frame_t::buf</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="frame_8c_source.html#l00097">rx_frame_t::dlen</a>, and <a class="el" href="frame__hdr_8h_source.html#l00038">xrd_get_u32_be()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00278">recv_after_waitresp()</a>.</p>
 
 </div>
 </div>

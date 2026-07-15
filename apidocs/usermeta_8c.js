@@ -6,6 +6,7 @@ var usermeta_8c =
     [ "S3_USERMETA_XATTR", "usermeta_8c.html#a10683ae8f9fc78eeecbb7d2295093553", null ],
     [ "s3_apply_put_user_metadata", "usermeta_8c.html#af70aed484e05ccabf25c889058de83ec", null ],
     [ "s3_echo_user_metadata", "usermeta_8c.html#a80f04b1d81f84f16780c27a179d65c49", null ],
+    [ "s3_user_meta_append_kv", "usermeta_8c.html#a12a2850d0820bfbca63a13d100465514", null ],
     [ "s3_user_meta_blob_from_headers", "usermeta_8c.html#a72ca28f4c2696d2fb73ed98d79a93f7e", null ],
     [ "s3_user_meta_copy", "usermeta_8c.html#a7bbc5db42ef506aa1ac37c88c3f14241", null ],
     [ "s3_user_meta_load", "usermeta_8c.html#a3bb93832e1558d1932ec368c03a62771", null ],

@@ -3,6 +3,7 @@ var api_8c =
     [ "X", "api_8c.html#a8573c19949b5211091fbffe7ae70bb32", null ],
     [ "dashboard_avg_bps", "api_8c.html#ab14371d0b127dc34df6c187306d158dc", null ],
     [ "dashboard_direction_name", "api_8c.html#af56876a6e278c3a3efac593355633561", null ],
+    [ "dashboard_dispatch_builder", "api_8c.html#a300ffec7d20022f65be09ae79e0c906f", null ],
     [ "dashboard_endpoint_is_anon_allowed", "api_8c.html#a918d3f901c048073ed27fd8ced373da4", null ],
     [ "dashboard_event_class_name", "api_8c.html#ab5ac51b2d172163b2fb461e55f531cc7", null ],
     [ "dashboard_proto_name", "api_8c.html#a719051af8509f131d2fb670812f36cef", null ],

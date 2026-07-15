@@ -117,9 +117,15 @@ $(document).ready(function(){initNavTree('read__compress_8c.html',''); initResiz
 Functions</h2></td></tr>
 <tr class="memitem:a598dd52636052ec7cd85eda514ae9bf2" id="r_a598dd52636052ec7cd85eda514ae9bf2"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="read__compress_8c.html#a598dd52636052ec7cd85eda514ae9bf2">brix_codec_max_out</a> (size_t plain)</td></tr>
 <tr class="separator:a598dd52636052ec7cd85eda514ae9bf2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7d27f835eea0a9b4405abb54a0ab4769" id="r_a7d27f835eea0a9b4405abb54a0ab4769"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="read__compress_8c.html#a7d27f835eea0a9b4405abb54a0ab4769">brix_compress_frame</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint8_t codec_id, const u_char *in, size_t in_len)</td></tr>
+<tr class="memitem:a7d27f835eea0a9b4405abb54a0ab4769" id="r_a7d27f835eea0a9b4405abb54a0ab4769"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="read__compress_8c.html#a7d27f835eea0a9b4405abb54a0ab4769">brix_compress_frame</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint8_t codec_id, const u_char *in, size_t in_len)</td></tr>
 <tr class="separator:a7d27f835eea0a9b4405abb54a0ab4769"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afee0e80b2b395b6cb736a76211f513dd" id="r_afee0e80b2b395b6cb736a76211f513dd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="read__compress_8c.html#afee0e80b2b395b6cb736a76211f513dd">brix_read_compressed</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *rconf, int idx, off_t offset, size_t rlen)</td></tr>
+<tr class="memitem:a556b28231eea17dc0bf1ef2f89f8bcac" id="r_a556b28231eea17dc0bf1ef2f89f8bcac"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="read__compress_8c.html#a556b28231eea17dc0bf1ef2f89f8bcac">brix_compressed_extent</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, int idx, off_t offset, size_t rlen, off_t *file_size, size_t *data_total, int *io_err)</td></tr>
+<tr class="separator:a556b28231eea17dc0bf1ef2f89f8bcac"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a44b9936ae2ce17493bfcb53dc2433165" id="r_a44b9936ae2ce17493bfcb53dc2433165"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="read__compress_8c.html#a44b9936ae2ce17493bfcb53dc2433165">brix_compressed_read_window</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, int idx, off_t offset, u_char *plain, size_t data_total, size_t *nread_out, int *io_err)</td></tr>
+<tr class="separator:a44b9936ae2ce17493bfcb53dc2433165"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b2879f5861ea801a371f586859e6303" id="r_a8b2879f5861ea801a371f586859e6303"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="read__compress_8c.html#a8b2879f5861ea801a371f586859e6303">brix_compressed_account</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *rconf, int idx, off_t offset, size_t data_total, size_t clen)</td></tr>
+<tr class="separator:a8b2879f5861ea801a371f586859e6303"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afee0e80b2b395b6cb736a76211f513dd" id="r_afee0e80b2b395b6cb736a76211f513dd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="read__compress_8c.html#afee0e80b2b395b6cb736a76211f513dd">brix_read_compressed</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *rconf, int idx, off_t offset, size_t rlen)</td></tr>
 <tr class="separator:afee0e80b2b395b6cb736a76211f513dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -207,9 +213,225 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="read__compress_8c_source.html#l00056">56</a> of file <a class="el" href="read__compress_8c_source.html">read_compress.c</a>.</p>
 
-<p class="reference">References <a class="el" href="codec__core_8c_source.html#l00229">brix_codec_close()</a>, <a class="el" href="codec__core_8h_source.html#l00046">BRIX_CODEC_DIR_COMPRESS</a>, <a class="el" href="codec__core_8h_source.html#l00053">BRIX_CODEC_END</a>, <a class="el" href="read__compress_8c_source.html#l00044">brix_codec_max_out()</a>, <a class="el" href="codec__core_8h_source.html#l00052">BRIX_CODEC_OK</a>, <a class="el" href="codec__core_8c_source.html#l00159">brix_codec_open()</a>, <a class="el" href="codec__core_8c_source.html#l00191">brix_codec_step()</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00076">BRIX_GET_SCRATCH</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00218">brix_ctx_rd_t::cmp_scratch</a>, <a class="el" href="ctx__structs_8h_source.html#l00219">brix_ctx_rd_t::cmp_scratch_size</a>, <a class="el" href="context_8h_source.html#l00137">brix_ctx_t::rd</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="codec__core_8c_source.html#l00229">brix_codec_close()</a>, <a class="el" href="codec__core_8h_source.html#l00046">BRIX_CODEC_DIR_COMPRESS</a>, <a class="el" href="codec__core_8h_source.html#l00053">BRIX_CODEC_END</a>, <a class="el" href="read__compress_8c_source.html#l00044">brix_codec_max_out()</a>, <a class="el" href="codec__core_8h_source.html#l00052">BRIX_CODEC_OK</a>, <a class="el" href="codec__core_8c_source.html#l00159">brix_codec_open()</a>, <a class="el" href="codec__core_8c_source.html#l00191">brix_codec_step()</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00076">BRIX_GET_SCRATCH</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00224">brix_ctx_rd_t::cmp_scratch</a>, <a class="el" href="ctx__structs_8h_source.html#l00225">brix_ctx_rd_t::cmp_scratch_size</a>, <a class="el" href="context_8h_source.html#l00137">brix_ctx_t::rd</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00109">brix_read_compressed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00258">brix_read_compressed()</a>.</p>
+
+</div>
+</div>
+<a id="a8b2879f5861ea801a371f586859e6303" name="a8b2879f5861ea801a371f586859e6303"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b2879f5861ea801a371f586859e6303">&#9670;&#160;</a></span>brix_compressed_account()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_compressed_account </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>rconf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>idx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>data_total</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>clen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="read__compress_8c_source.html#l00210">210</a> of file <a class="el" href="read__compress_8c_source.html">read_compress.c</a>.</p>
+
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00036">BRIX_OP_READ</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00305">brix_rl_charge_ctx()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00153">brix_transfer_slot_count_op()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00100">brix_transfer_slot_update()</a>, <a class="el" href="ctx__structs_8h_source.html#l00064">brix_ctx_totals_t::bytes</a>, <a class="el" href="core_2types_2file_8h_source.html#l00067">brix_file_t::bytes_read</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00237">brix_file_t::dashboard_slot</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="core_2types_2file_8h_source.html#l00066">brix_file_t::path</a>, and <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00258">brix_read_compressed()</a>.</p>
+
+</div>
+</div>
+<a id="a556b28231eea17dc0bf1ef2f89f8bcac" name="a556b28231eea17dc0bf1ef2f89f8bcac"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a556b28231eea17dc0bf1ef2f89f8bcac">&#9670;&#160;</a></span>brix_compressed_extent()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_compressed_extent </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>idx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>rlen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>file_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>data_total</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>io_err</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="read__compress_8c_source.html#l00125">125</a> of file <a class="el" href="read__compress_8c_source.html">read_compress.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00032">BRIX_READ_CHUNK_MAX</a>, <a class="el" href="core_2types_2file_8h_source.html#l00079">brix_file_t::cached_size</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00071">brix_file_t::writable</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00258">brix_read_compressed()</a>.</p>
+
+</div>
+</div>
+<a id="a44b9936ae2ce17493bfcb53dc2433165" name="a44b9936ae2ce17493bfcb53dc2433165"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a44b9936ae2ce17493bfcb53dc2433165">&#9670;&#160;</a></span>brix_compressed_read_window()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_compressed_read_window </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>idx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>plain</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>data_total</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>nread_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>io_err</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="read__compress_8c_source.html#l00173">173</a> of file <a class="el" href="read__compress_8c_source.html">read_compress.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__io__core_8c_source.html#l00726">brix_vfs_io_execute()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00115">brix_vfs_job_read_init()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="vfs__io__core_8h_source.html#l00099">brix_vfs_job_t::io_errno</a>, and <a class="el" href="vfs__io__core_8h_source.html#l00096">brix_vfs_job_t::nio</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00258">brix_read_compressed()</a>.</p>
 
 </div>
 </div>
@@ -263,11 +485,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="read__compress_8c_source.html#l00109">109</a> of file <a class="el" href="read__compress_8c_source.html">read_compress.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="read__compress_8c_source.html#l00258">258</a> of file <a class="el" href="read__compress_8c_source.html">read_compress.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00306">ngx_stream_brix_srv_conf_t::access_log_fd</a>, <a class="el" href="buffers_8c_source.html#l00456">brix_build_chunked_chain()</a>, <a class="el" href="read__compress_8c_source.html#l00056">brix_compress_frame()</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00076">BRIX_GET_SCRATCH</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00348">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00036">BRIX_OP_READ</a>, <a class="el" href="prefetch_8c_source.html#l00036">brix_prefetch_read_file()</a>, <a class="el" href="write__helpers_8c_source.html#l00195">brix_queue_response_chain()</a>, <a class="el" href="tunables_8h_source.html#l00032">BRIX_READ_CHUNK_MAX</a>, <a class="el" href="buffers_8c_source.html#l00076">brix_release_read_buffer()</a>, <a class="el" href="tunables_8h_source.html#l00285">BRIX_RETURN_ERR</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00187">brix_rl_charge_ctx()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00153">brix_transfer_slot_count_op()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00100">brix_transfer_slot_update()</a>, <a class="el" href="vfs__io__core_8c_source.html#l00727">brix_vfs_io_execute()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00115">brix_vfs_job_read_init()</a>, <a class="el" href="ctx__structs_8h_source.html#l00064">brix_ctx_totals_t::bytes</a>, <a class="el" href="core_2types_2file_8h_source.html#l00059">brix_file_t::bytes_read</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00071">brix_file_t::cached_size</a>, <a class="el" href="ctx__structs_8h_source.html#l00218">brix_ctx_rd_t::cmp_scratch</a>, <a class="el" href="core_2types_2file_8h_source.html#l00229">brix_file_t::dashboard_slot</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00099">brix_vfs_job_t::io_errno</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="vfs__io__core_8h_source.html#l00096">brix_vfs_job_t::nio</a>, <a class="el" href="core_2types_2file_8h_source.html#l00058">brix_file_t::path</a>, <a class="el" href="context_8h_source.html#l00137">brix_ctx_t::rd</a>, <a class="el" href="core_2types_2file_8h_source.html#l00085">brix_file_t::read_codec</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>, <a class="el" href="core_2types_2file_8h_source.html#l00063">brix_file_t::writable</a>, and <a class="el" href="state_8h_source.html#l00028">XRD_ST_SENDING</a>.</p>
+<p class="reference">References <a class="el" href="buffers_8c_source.html#l00337">brix_build_chunked_chain()</a>, <a class="el" href="read__compress_8c_source.html#l00056">brix_compress_frame()</a>, <a class="el" href="read__compress_8c_source.html#l00210">brix_compressed_account()</a>, <a class="el" href="read__compress_8c_source.html#l00125">brix_compressed_extent()</a>, <a class="el" href="read__compress_8c_source.html#l00173">brix_compressed_read_window()</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00076">BRIX_GET_SCRATCH</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00036">BRIX_OP_READ</a>, <a class="el" href="prefetch_8c_source.html#l00136">brix_prefetch_read_file()</a>, <a class="el" href="write__helpers_8c_source.html#l00198">brix_queue_response_chain()</a>, <a class="el" href="buffers__scratch_8c_source.html#l00083">brix_release_read_buffer()</a>, <a class="el" href="tunables_8h_source.html#l00285">BRIX_RETURN_ERR</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00224">brix_ctx_rd_t::cmp_scratch</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="core_2types_2file_8h_source.html#l00066">brix_file_t::path</a>, <a class="el" href="context_8h_source.html#l00137">brix_ctx_t::rd</a>, <a class="el" href="core_2types_2file_8h_source.html#l00093">brix_file_t::read_codec</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, and <a class="el" href="state_8h_source.html#l00028">XRD_ST_SENDING</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="read_8c_source.html#l00156">brix_handle_read()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="read_8c_source.html#l00099">brix_handle_read()</a>.</p>
 
 </div>
 </div>

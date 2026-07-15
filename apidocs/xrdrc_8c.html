@@ -99,6 +99,7 @@ $(document).ready(function(){initNavTree('xrdrc_8c.html',''); initResizable(); }
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="brix_8h_source.html">brix.h</a>&quot;</code><br />
+<code>#include &lt;stddef.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
@@ -116,6 +117,10 @@ $(document).ready(function(){initNavTree('xrdrc_8c.html',''); initResizable(); }
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structxrdrc__alias.html">xrdrc_alias</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrc__alias__field.html">rc_alias_field</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrc__default__field.html">rc_default_field</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -128,6 +133,18 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a59286cda46e69b1b89119ccdc7294908" id="r_a59286cda46e69b1b89119ccdc7294908"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a59286cda46e69b1b89119ccdc7294908">rstrip</a> (char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:a59286cda46e69b1b89119ccdc7294908"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aab4b1ab47842aef403dfa693eb022558" id="r_aab4b1ab47842aef403dfa693eb022558"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#aab4b1ab47842aef403dfa693eb022558">rc_next_line</a> (char *line)</td></tr>
+<tr class="separator:aab4b1ab47842aef403dfa693eb022558"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1fdb7a8800a8f283da458bc668c235af" id="r_a1fdb7a8800a8f283da458bc668c235af"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a1fdb7a8800a8f283da458bc668c235af">rc_open_section</a> (char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, int *cur, int *in_defaults)</td></tr>
+<tr class="separator:a1fdb7a8800a8f283da458bc668c235af"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1a9895a10a98663454fa52a0c19b2681" id="r_a1a9895a10a98663454fa52a0c19b2681"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a1a9895a10a98663454fa52a0c19b2681">rc_parse_kv</a> (char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, char **out_k, char **out_v)</td></tr>
+<tr class="separator:a1a9895a10a98663454fa52a0c19b2681"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af7b279c1c5a84fe5f30341e3dd921efb" id="r_af7b279c1c5a84fe5f30341e3dd921efb"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#af7b279c1c5a84fe5f30341e3dd921efb">rc_apply_default</a> (const char *k, const char *v)</td></tr>
+<tr class="separator:af7b279c1c5a84fe5f30341e3dd921efb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7e19b92b0dae2f1997fcd12c51b8ba6e" id="r_a7e19b92b0dae2f1997fcd12c51b8ba6e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a7e19b92b0dae2f1997fcd12c51b8ba6e">rc_apply_alias</a> (int cur, const char *k, const char *v)</td></tr>
+<tr class="separator:a7e19b92b0dae2f1997fcd12c51b8ba6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2839598ee9e4b6ab59b19199fe2b785e" id="r_a2839598ee9e4b6ab59b19199fe2b785e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a2839598ee9e4b6ab59b19199fe2b785e">rc_apply_setting</a> (int in_defaults, int cur, const char *k, const char *v)</td></tr>
+<tr class="separator:a2839598ee9e4b6ab59b19199fe2b785e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a149627a004fd47e1798d29294e4dd967" id="r_a149627a004fd47e1798d29294e4dd967"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a149627a004fd47e1798d29294e4dd967">xrdrc_load</a> (void)</td></tr>
 <tr class="separator:a149627a004fd47e1798d29294e4dd967"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a75ad4f3adbaa451abe22dc2c573bc4c9" id="r_a75ad4f3adbaa451abe22dc2c573bc4c9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a75ad4f3adbaa451abe22dc2c573bc4c9">brix_alias_resolve</a> (const char *arg, char *out, size_t outsz)</td></tr>
@@ -136,7 +153,7 @@ Functions</h2></td></tr>
 <tr class="separator:a9da1f995dd5e212b2ec76c0eb5ae48dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0ca0211996e3311ec6e6bd0f707a3e98" id="r_a0ca0211996e3311ec6e6bd0f707a3e98"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a0ca0211996e3311ec6e6bd0f707a3e98">brix_alias_lookup</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <a class="el" href="structbrix__alias__info.html">brix_alias_info</a> *info)</td></tr>
 <tr class="separator:a0ca0211996e3311ec6e6bd0f707a3e98"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5f40488d4f111b9e9dbd47c78c243c54" id="r_a5f40488d4f111b9e9dbd47c78c243c54"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a5f40488d4f111b9e9dbd47c78c243c54">brix_xrdrc_default_ms</a> (const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, int *out_ms)</td></tr>
+<tr class="memitem:a5f40488d4f111b9e9dbd47c78c243c54" id="r_a5f40488d4f111b9e9dbd47c78c243c54"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a5f40488d4f111b9e9dbd47c78c243c54">brix_xrdrc_default_ms</a> (const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, int *out_ms)</td></tr>
 <tr class="separator:a5f40488d4f111b9e9dbd47c78c243c54"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
@@ -155,6 +172,10 @@ Variables</h2></td></tr>
 <tr class="separator:acefac7f23ff0e5ff982eca4bb123dd64"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a69a9a60d4b588d6fa5655500a3aa6d94" id="r_a69a9a60d4b588d6fa5655500a3aa6d94"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a69a9a60d4b588d6fa5655500a3aa6d94">g_def_backoff_ms</a> = 0</td></tr>
 <tr class="separator:a69a9a60d4b588d6fa5655500a3aa6d94"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a544928550eefb239f1c547f65b7a69ea" id="r_a544928550eefb239f1c547f65b7a69ea"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structrc__alias__field.html">rc_alias_field</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a544928550eefb239f1c547f65b7a69ea">rc_alias_fields</a> []</td></tr>
+<tr class="separator:a544928550eefb239f1c547f65b7a69ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9f5b7eac447130ad384568850195aa4a" id="r_a9f5b7eac447130ad384568850195aa4a"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structrc__default__field.html">rc_default_field</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdrc_8c.html#a9f5b7eac447130ad384568850195aa4a">rc_default_fields</a> []</td></tr>
+<tr class="separator:a9f5b7eac447130ad384568850195aa4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a00038cdeeaf4a371b68b0302f335d2e6" name="a00038cdeeaf4a371b68b0302f335d2e6"></a>
@@ -169,7 +190,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00025">25</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00026">26</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
 </div>
 </div>
@@ -185,7 +206,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00026">26</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00027">27</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
 </div>
 </div>
@@ -216,11 +237,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00233">233</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00380">380</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00418">brix_alias_info::bearer</a>, <a class="el" href="brix__net_8h_source.html#l00417">brix_alias_info::found</a>, <a class="el" href="xrdrc_8c_source.html#l00040">g_aliases</a>, <a class="el" href="xrdrc_8c_source.html#l00042">g_loaded</a>, <a class="el" href="xrdrc_8c_source.html#l00041">g_nalias</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix__net_8h_source.html#l00422">brix_alias_info::proxy</a>, <a class="el" href="xrdrc_8c_source.html#l00037">xrdrc_alias::proxy</a>, <a class="el" href="xrdrc_8c_source.html#l00210">read_first_line()</a>, <a class="el" href="brix__net_8h_source.html#l00419">brix_alias_info::s3_access</a>, <a class="el" href="xrdrc_8c_source.html#l00034">xrdrc_alias::s3_access</a>, <a class="el" href="brix__net_8h_source.html#l00421">brix_alias_info::s3_region</a>, <a class="el" href="xrdrc_8c_source.html#l00036">xrdrc_alias::s3_region</a>, <a class="el" href="brix__net_8h_source.html#l00420">brix_alias_info::s3_secret</a>, <a class="el" href="xrdrc_8c_source.html#l00035">xrdrc_alias::s3_secret</a>, <a class="el" href="xrdrc_8c_source.html#l00032">xrdrc_alias::token</a>, <a class="el" href="brix__net_8h_source.html#l00423">brix_alias_info::token_file</a>, <a class="el" href="xrdrc_8c_source.html#l00033">xrdrc_alias::token_file</a>, <a class="el" href="brix__net_8h_source.html#l00424">brix_alias_info::token_file_failed</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00418">brix_alias_info::bearer</a>, <a class="el" href="brix__net_8h_source.html#l00417">brix_alias_info::found</a>, <a class="el" href="xrdrc_8c_source.html#l00041">g_aliases</a>, <a class="el" href="xrdrc_8c_source.html#l00043">g_loaded</a>, <a class="el" href="xrdrc_8c_source.html#l00042">g_nalias</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix__net_8h_source.html#l00422">brix_alias_info::proxy</a>, <a class="el" href="xrdrc_8c_source.html#l00038">xrdrc_alias::proxy</a>, <a class="el" href="xrdrc_8c_source.html#l00357">read_first_line()</a>, <a class="el" href="brix__net_8h_source.html#l00419">brix_alias_info::s3_access</a>, <a class="el" href="xrdrc_8c_source.html#l00035">xrdrc_alias::s3_access</a>, <a class="el" href="brix__net_8h_source.html#l00421">brix_alias_info::s3_region</a>, <a class="el" href="xrdrc_8c_source.html#l00037">xrdrc_alias::s3_region</a>, <a class="el" href="brix__net_8h_source.html#l00420">brix_alias_info::s3_secret</a>, <a class="el" href="xrdrc_8c_source.html#l00036">xrdrc_alias::s3_secret</a>, <a class="el" href="xrdrc_8c_source.html#l00033">xrdrc_alias::token</a>, <a class="el" href="brix__net_8h_source.html#l00423">brix_alias_info::token_file</a>, <a class="el" href="xrdrc_8c_source.html#l00034">xrdrc_alias::token_file</a>, <a class="el" href="brix__net_8h_source.html#l00424">brix_alias_info::token_file_failed</a>, and <a class="el" href="xrdrc_8c_source.html#l00263">xrdrc_load()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00115">merge_alias_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00265">merge_alias_auth()</a>.</p>
 
 </div>
 </div>
@@ -256,11 +277,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00162">162</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00309">309</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00040">g_aliases</a>, <a class="el" href="xrdrc_8c_source.html#l00042">g_loaded</a>, <a class="el" href="xrdrc_8c_source.html#l00041">g_nalias</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="xrdrc_8c_source.html#l00030">xrdrc_alias::url</a>, <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>, and <a class="el" href="xrdrc_8c_source.html#l00026">XRDRC_NAME_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00041">g_aliases</a>, <a class="el" href="xrdrc_8c_source.html#l00043">g_loaded</a>, <a class="el" href="xrdrc_8c_source.html#l00042">g_nalias</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="xrdrc_8c_source.html#l00031">xrdrc_alias::url</a>, <a class="el" href="xrdrc_8c_source.html#l00263">xrdrc_load()</a>, and <a class="el" href="xrdrc_8c_source.html#l00027">XRDRC_NAME_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__fmt_8c_source.html#l00008">endpoint_to_url()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>, <a class="el" href="xrdcp_8c_source.html#l00349">main()</a>, <a class="el" href="xrd_8c_source.html#l00122">map_fs_arg()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00318">xrd_mount()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__fmt_8c_source.html#l00008">endpoint_to_url()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>, <a class="el" href="xrd_8c_source.html#l00398">fs_find_endpoint()</a>, <a class="el" href="xrd_8c_source.html#l00122">map_fs_arg()</a>, <a class="el" href="xrdcp_8c_source.html#l00578">validate_and_finalize_args()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00430">xrd_mount_build_argv()</a>.</p>
 
 </div>
 </div>
@@ -290,11 +311,283 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00281">281</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00428">428</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00050">g_def_backoff_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00047">g_def_connect_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00048">g_def_io_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00049">g_def_stall_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00042">g_loaded</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00051">g_def_backoff_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00048">g_def_connect_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00049">g_def_io_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00050">g_def_stall_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00043">g_loaded</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="xrdrc_8c_source.html#l00263">xrdrc_load()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00145">backoff_base_ms()</a>, <a class="el" href="http_8c_source.html#l00314">httpx_window_ms()</a>, <a class="el" href="resilient_8c_source.html#l00044">opts_window_ms()</a>, <a class="el" href="nettmo_8c_source.html#l00056">resolve_ms()</a>, and <a class="el" href="webfile__io_8c_source.html#l00292">webfile_window_ms()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00145">backoff_base_ms()</a>, <a class="el" href="http_8c_source.html#l00385">httpx_window_ms()</a>, <a class="el" href="resilient_8c_source.html#l00044">opts_window_ms()</a>, <a class="el" href="nettmo_8c_source.html#l00056">resolve_ms()</a>, and <a class="el" href="webfile__io_8c_source.html#l00387">webfile_window_ms()</a>.</p>
+
+</div>
+</div>
+<a id="a7e19b92b0dae2f1997fcd12c51b8ba6e" name="a7e19b92b0dae2f1997fcd12c51b8ba6e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7e19b92b0dae2f1997fcd12c51b8ba6e">&#9670;&#160;</a></span>rc_apply_alias()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void rc_apply_alias </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>cur</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>k</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>v</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00229">229</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00041">g_aliases</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="xrdrc_8c_source.html#l00082">rc_alias_fields</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00252">rc_apply_setting()</a>.</p>
+
+</div>
+</div>
+<a id="af7b279c1c5a84fe5f30341e3dd921efb" name="af7b279c1c5a84fe5f30341e3dd921efb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af7b279c1c5a84fe5f30341e3dd921efb">&#9670;&#160;</a></span>rc_apply_default()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void rc_apply_default </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>k</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>v</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00200">200</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00095">rc_default_field::dst</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="xrdrc_8c_source.html#l00098">rc_default_fields</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00252">rc_apply_setting()</a>.</p>
+
+</div>
+</div>
+<a id="a2839598ee9e4b6ab59b19199fe2b785e" name="a2839598ee9e4b6ab59b19199fe2b785e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2839598ee9e4b6ab59b19199fe2b785e">&#9670;&#160;</a></span>rc_apply_setting()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void rc_apply_setting </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>in_defaults</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>cur</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>k</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>v</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00252">252</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00229">rc_apply_alias()</a>, and <a class="el" href="xrdrc_8c_source.html#l00200">rc_apply_default()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00263">xrdrc_load()</a>.</p>
+
+</div>
+</div>
+<a id="aab4b1ab47842aef403dfa693eb022558" name="aab4b1ab47842aef403dfa693eb022558"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aab4b1ab47842aef403dfa693eb022558">&#9670;&#160;</a></span>rc_next_line()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static char * rc_next_line </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>line</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00117">117</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00055">rstrip()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00263">xrdrc_load()</a>.</p>
+
+</div>
+</div>
+<a id="a1fdb7a8800a8f283da458bc668c235af" name="a1fdb7a8800a8f283da458bc668c235af"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1fdb7a8800a8f283da458bc668c235af">&#9670;&#160;</a></span>rc_open_section()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void rc_open_section </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>cur</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>in_defaults</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00140">140</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00041">g_aliases</a>, <a class="el" href="xrdrc_8c_source.html#l00042">g_nalias</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="xrdrc_8c_source.html#l00031">xrdrc_alias::url</a>, and <a class="el" href="xrdrc_8c_source.html#l00026">XRDRC_MAX_ALIASES</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00263">xrdrc_load()</a>.</p>
+
+</div>
+</div>
+<a id="a1a9895a10a98663454fa52a0c19b2681" name="a1a9895a10a98663454fa52a0c19b2681"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1a9895a10a98663454fa52a0c19b2681">&#9670;&#160;</a></span>rc_parse_kv()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rc_parse_kv </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>out_k</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>out_v</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00174">174</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00263">xrdrc_load()</a>.</p>
 
 </div>
 </div>
@@ -338,11 +631,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00210">210</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00357">357</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00054">rstrip()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00055">rstrip()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00233">brix_alias_lookup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00380">brix_alias_lookup()</a>.</p>
 
 </div>
 </div>
@@ -370,11 +663,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00054">54</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00055">55</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00210">read_first_line()</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00117">rc_next_line()</a>, and <a class="el" href="xrdrc_8c_source.html#l00357">read_first_line()</a>.</p>
 
 </div>
 </div>
@@ -402,11 +695,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00064">64</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00263">263</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00040">g_aliases</a>, <a class="el" href="xrdrc_8c_source.html#l00050">g_def_backoff_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00047">g_def_connect_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00048">g_def_io_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00049">g_def_stall_ms</a>, <a class="el" href="xrdrc_8c_source.html#l00042">g_loaded</a>, <a class="el" href="xrdrc_8c_source.html#l00041">g_nalias</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="xrdrc_8c_source.html#l00054">rstrip()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="xrdrc_8c_source.html#l00030">xrdrc_alias::url</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdrc_8c_source.html#l00025">XRDRC_MAX_ALIASES</a>.</p>
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00043">g_loaded</a>, <a class="el" href="xrdrc_8c_source.html#l00252">rc_apply_setting()</a>, <a class="el" href="xrdrc_8c_source.html#l00117">rc_next_line()</a>, <a class="el" href="xrdrc_8c_source.html#l00140">rc_open_section()</a>, <a class="el" href="xrdrc_8c_source.html#l00174">rc_parse_kv()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00233">brix_alias_lookup()</a>, <a class="el" href="xrdrc_8c_source.html#l00162">brix_alias_resolve()</a>, and <a class="el" href="xrdrc_8c_source.html#l00281">brix_xrdrc_default_ms()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00380">brix_alias_lookup()</a>, <a class="el" href="xrdrc_8c_source.html#l00309">brix_alias_resolve()</a>, and <a class="el" href="xrdrc_8c_source.html#l00428">brix_xrdrc_default_ms()</a>.</p>
 
 </div>
 </div>
@@ -431,9 +724,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00040">40</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00041">41</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00233">brix_alias_lookup()</a>, <a class="el" href="xrdrc_8c_source.html#l00162">brix_alias_resolve()</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00380">brix_alias_lookup()</a>, <a class="el" href="xrdrc_8c_source.html#l00309">brix_alias_resolve()</a>, <a class="el" href="xrdrc_8c_source.html#l00229">rc_apply_alias()</a>, and <a class="el" href="xrdrc_8c_source.html#l00140">rc_open_section()</a>.</p>
 
 </div>
 </div>
@@ -457,9 +750,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00050">50</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00051">51</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00281">brix_xrdrc_default_ms()</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00428">brix_xrdrc_default_ms()</a>.</p>
 
 </div>
 </div>
@@ -483,9 +776,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00047">47</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00048">48</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00281">brix_xrdrc_default_ms()</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00428">brix_xrdrc_default_ms()</a>.</p>
 
 </div>
 </div>
@@ -509,9 +802,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00048">48</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00049">49</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00281">brix_xrdrc_default_ms()</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00428">brix_xrdrc_default_ms()</a>.</p>
 
 </div>
 </div>
@@ -535,9 +828,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00049">49</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00050">50</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00281">brix_xrdrc_default_ms()</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00428">brix_xrdrc_default_ms()</a>.</p>
 
 </div>
 </div>
@@ -561,9 +854,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00042">42</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00043">43</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00233">brix_alias_lookup()</a>, <a class="el" href="xrdrc_8c_source.html#l00162">brix_alias_resolve()</a>, <a class="el" href="xrdrc_8c_source.html#l00281">brix_xrdrc_default_ms()</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00380">brix_alias_lookup()</a>, <a class="el" href="xrdrc_8c_source.html#l00309">brix_alias_resolve()</a>, <a class="el" href="xrdrc_8c_source.html#l00428">brix_xrdrc_default_ms()</a>, and <a class="el" href="xrdrc_8c_source.html#l00263">xrdrc_load()</a>.</p>
 
 </div>
 </div>
@@ -587,9 +880,82 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00041">41</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00042">42</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00233">brix_alias_lookup()</a>, <a class="el" href="xrdrc_8c_source.html#l00162">brix_alias_resolve()</a>, and <a class="el" href="xrdrc_8c_source.html#l00064">xrdrc_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00380">brix_alias_lookup()</a>, <a class="el" href="xrdrc_8c_source.html#l00309">brix_alias_resolve()</a>, and <a class="el" href="xrdrc_8c_source.html#l00140">rc_open_section()</a>.</p>
+
+</div>
+</div>
+<a id="a544928550eefb239f1c547f65b7a69ea" name="a544928550eefb239f1c547f65b7a69ea"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a544928550eefb239f1c547f65b7a69ea">&#9670;&#160;</a></span>rc_alias_fields</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structrc__alias__field.html">rc_alias_field</a> rc_alias_fields[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { <span class="stringliteral">&quot;url&quot;</span>,               offsetof(<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a>, url),        <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a> *) 0)-&gt;url) },</div>
+<div class="line">    { <span class="stringliteral">&quot;token&quot;</span>,             offsetof(<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a>, token),      <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a> *) 0)-&gt;token) },</div>
+<div class="line">    { <span class="stringliteral">&quot;token_file&quot;</span>,        offsetof(<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a>, token_file), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a> *) 0)-&gt;token_file) },</div>
+<div class="line">    { <span class="stringliteral">&quot;bearer_token_file&quot;</span>, offsetof(<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a>, token_file), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a> *) 0)-&gt;token_file) },</div>
+<div class="line">    { <span class="stringliteral">&quot;s3_access&quot;</span>,         offsetof(<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a>, s3_access),  <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a> *) 0)-&gt;s3_access) },</div>
+<div class="line">    { <span class="stringliteral">&quot;s3_secret&quot;</span>,         offsetof(<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a>, s3_secret),  <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a> *) 0)-&gt;s3_secret) },</div>
+<div class="line">    { <span class="stringliteral">&quot;s3_region&quot;</span>,         offsetof(<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a>, s3_region),  <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a> *) 0)-&gt;s3_region) },</div>
+<div class="line">    { <span class="stringliteral">&quot;proxy&quot;</span>,             offsetof(<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a>, proxy),      <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structxrdrc__alias.html">xrdrc_alias</a> *) 0)-&gt;proxy) },</div>
+<div class="line">}</div>
+<div class="ttc" id="astructxrdrc__alias_html"><div class="ttname"><a href="structxrdrc__alias.html">xrdrc_alias</a></div><div class="ttdef"><b>Definition</b> <a href="xrdrc_8c_source.html#l00029">xrdrc.c:29</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00082">82</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00229">rc_apply_alias()</a>.</p>
+
+</div>
+</div>
+<a id="a9f5b7eac447130ad384568850195aa4a" name="a9f5b7eac447130ad384568850195aa4a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9f5b7eac447130ad384568850195aa4a">&#9670;&#160;</a></span>rc_default_fields</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structrc__default__field.html">rc_default_field</a> rc_default_fields[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { <span class="stringliteral">&quot;connect_timeout_ms&quot;</span>, &amp;<a class="code hl_variable" href="xrdrc_8c.html#a3795c833378807dbc83c2f1712a2dfe7">g_def_connect_ms</a> },</div>
+<div class="line">    { <span class="stringliteral">&quot;io_timeout_ms&quot;</span>,      &amp;<a class="code hl_variable" href="xrdrc_8c.html#adca4cc3abe2f43f20915dc8168f00c33">g_def_io_ms</a> },</div>
+<div class="line">    { <span class="stringliteral">&quot;max_stall_ms&quot;</span>,       &amp;<a class="code hl_variable" href="xrdrc_8c.html#acefac7f23ff0e5ff982eca4bb123dd64">g_def_stall_ms</a> },</div>
+<div class="line">    { <span class="stringliteral">&quot;backoff_base_ms&quot;</span>,    &amp;<a class="code hl_variable" href="xrdrc_8c.html#a69a9a60d4b588d6fa5655500a3aa6d94">g_def_backoff_ms</a> },</div>
+<div class="line">}</div>
+<div class="ttc" id="axrdrc_8c_html_a3795c833378807dbc83c2f1712a2dfe7"><div class="ttname"><a href="xrdrc_8c.html#a3795c833378807dbc83c2f1712a2dfe7">g_def_connect_ms</a></div><div class="ttdeci">static int g_def_connect_ms</div><div class="ttdef"><b>Definition</b> <a href="xrdrc_8c_source.html#l00048">xrdrc.c:48</a></div></div>
+<div class="ttc" id="axrdrc_8c_html_a69a9a60d4b588d6fa5655500a3aa6d94"><div class="ttname"><a href="xrdrc_8c.html#a69a9a60d4b588d6fa5655500a3aa6d94">g_def_backoff_ms</a></div><div class="ttdeci">static int g_def_backoff_ms</div><div class="ttdef"><b>Definition</b> <a href="xrdrc_8c_source.html#l00051">xrdrc.c:51</a></div></div>
+<div class="ttc" id="axrdrc_8c_html_acefac7f23ff0e5ff982eca4bb123dd64"><div class="ttname"><a href="xrdrc_8c.html#acefac7f23ff0e5ff982eca4bb123dd64">g_def_stall_ms</a></div><div class="ttdeci">static int g_def_stall_ms</div><div class="ttdef"><b>Definition</b> <a href="xrdrc_8c_source.html#l00050">xrdrc.c:50</a></div></div>
+<div class="ttc" id="axrdrc_8c_html_adca4cc3abe2f43f20915dc8168f00c33"><div class="ttname"><a href="xrdrc_8c.html#adca4cc3abe2f43f20915dc8168f00c33">g_def_io_ms</a></div><div class="ttdeci">static int g_def_io_ms</div><div class="ttdef"><b>Definition</b> <a href="xrdrc_8c_source.html#l00049">xrdrc.c:49</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="xrdrc_8c_source.html#l00098">98</a> of file <a class="el" href="xrdrc_8c_source.html">xrdrc.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdrc_8c_source.html#l00200">rc_apply_default()</a>.</p>
 
 </div>
 </div>

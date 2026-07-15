@@ -311,7 +311,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="codec__core_8h_source.html#l00127">brix_codec_desc_t::backend</a>, and <a class="el" href="codec__core_8c_source.html#l00092">brix_codec_by_id()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ops__file_8c_source.html#l00061">brix_file_open_opaque()</a>, and <a class="el" href="aio__mgr_8c_source.html#l00316">mfile_do_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ops__file_8c_source.html#l00090">brix_open_apply_inline_codec()</a>, and <a class="el" href="aio__mgr_8c_source.html#l00438">mfile_learn_codec()</a>.</p>
 
 </div>
 </div>
@@ -345,7 +345,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="codec__core_8c_source.html#l00118">codec_match()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00101">open_negotiate_compress_codec()</a>, <a class="el" href="s3_2put_8c_source.html#l00262">s3_put_body_inner()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00176">open_negotiate_compress_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, and <a class="el" href="put__body_8c_source.html#l00273">webdav_put_select_codec()</a>.</p>
 
 </div>
 </div>
@@ -369,7 +369,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="codec__core_8h_source.html#l00042">BRIX_CODEC_MAX</a>, and <a class="el" href="codec__core_8c_source.html#l00079">codec_table</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="codec__core_8c_source.html#l00151">brix_codec_available()</a>, <a class="el" href="codec__core_8c_source.html#l00159">brix_codec_open()</a>, <a class="el" href="http__compress_8c_source.html#l00112">brix_http_compress_negotiate()</a>, <a class="el" href="http__compress_8c_source.html#l00170">brix_http_send_file_compressed()</a>, and <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00099">brix_query_config()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="codec__core_8c_source.html#l00151">brix_codec_available()</a>, <a class="el" href="codec__core_8c_source.html#l00159">brix_codec_open()</a>, <a class="el" href="http__compress_8c_source.html#l00138">brix_http_compress_negotiate()</a>, <a class="el" href="http__compress_8c_source.html#l00338">brix_http_send_file_compressed()</a>, and <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00115">brix_qconfig_codec_list()</a>.</p>
 
 </div>
 </div>
@@ -403,7 +403,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="codec__core_8c_source.html#l00118">codec_match()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00101">open_negotiate_compress_codec()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00176">open_negotiate_compress_codec()</a>.</p>
 
 </div>
 </div>
@@ -427,7 +427,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00056">brix_compress_frame()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00161">brix_deflate_frame()</a>, <a class="el" href="http__body_8c_source.html#l00593">brix_http_body_decode_to_fd()</a>, <a class="el" href="http__compress_8c_source.html#l00170">brix_http_send_file_compressed()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00016">brix_inflate_frame()</a>, and <a class="el" href="write__compress_8c_source.html#l00047">brix_write_compressed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00056">brix_compress_frame()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00162">brix_deflate_frame()</a>, <a class="el" href="http__body__decode_8c_source.html#l00314">brix_http_body_decode_to_fd()</a>, <a class="el" href="http__compress_8c_source.html#l00338">brix_http_send_file_compressed()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00016">brix_inflate_frame()</a>, <a class="el" href="write__compress_8c_source.html#l00143">brix_write_compressed()</a>, and <a class="el" href="http__body__decode_8c_source.html#l00246">codec_ctx_setup()</a>.</p>
 
 </div>
 </div>
@@ -473,7 +473,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="codec__core_8h_source.html#l00127">brix_codec_desc_t::backend</a>, <a class="el" href="codec__core_8c_source.html#l00092">brix_codec_by_id()</a>, <a class="el" href="codec__core_8h_source.html#l00108">brix_codec_backend_t::init</a>, <a class="el" href="codec__core_8h_source.html#l00126">brix_codec_desc_t::level_default</a>, <a class="el" href="codec__core_8h_source.html#l00126">brix_codec_desc_t::level_max</a>, <a class="el" href="codec__core_8h_source.html#l00126">brix_codec_desc_t::level_min</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00056">brix_compress_frame()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00161">brix_deflate_frame()</a>, <a class="el" href="http__body_8c_source.html#l00593">brix_http_body_decode_to_fd()</a>, <a class="el" href="http__compress_8c_source.html#l00170">brix_http_send_file_compressed()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00016">brix_inflate_frame()</a>, and <a class="el" href="write__compress_8c_source.html#l00047">brix_write_compressed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00056">brix_compress_frame()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00162">brix_deflate_frame()</a>, <a class="el" href="http__compress_8c_source.html#l00338">brix_http_send_file_compressed()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00016">brix_inflate_frame()</a>, <a class="el" href="write__compress_8c_source.html#l00143">brix_write_compressed()</a>, and <a class="el" href="http__body__decode_8c_source.html#l00246">codec_ctx_setup()</a>.</p>
 
 </div>
 </div>
@@ -543,7 +543,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="codec__core_8h_source.html#l00047">BRIX_CODEC_DIR_DECOMPRESS</a>, <a class="el" href="codec__core_8h_source.html#l00057">BRIX_CODEC_ERR_BOMB</a>, <a class="el" href="codec__core_8h_source.html#l00058">BRIX_CODEC_ERR_PARAM</a>, <a class="el" href="codec__core_8h_source.html#l00079">BRIX_CODEC_RATIO_FLOOR</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00056">brix_compress_frame()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00161">brix_deflate_frame()</a>, <a class="el" href="http__compress_8c_source.html#l00170">brix_http_send_file_compressed()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00016">brix_inflate_frame()</a>, <a class="el" href="write__compress_8c_source.html#l00047">brix_write_compressed()</a>, and <a class="el" href="http__body_8c_source.html#l00436">codec_feed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="read__compress_8c_source.html#l00056">brix_compress_frame()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00162">brix_deflate_frame()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00016">brix_inflate_frame()</a>, <a class="el" href="write__compress_8c_source.html#l00106">brix_wcmp_decompress_stream()</a>, <a class="el" href="http__body__decode_8c_source.html#l00069">codec_feed()</a>, and <a class="el" href="http__compress_8c_source.html#l00265">compress_drain_chunk()</a>.</p>
 
 </div>
 </div>

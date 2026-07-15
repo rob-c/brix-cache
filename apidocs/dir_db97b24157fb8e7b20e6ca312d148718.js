@@ -8,6 +8,8 @@ var dir_db97b24157fb8e7b20e6ca312d148718 =
     [ "fs_list.h", "fs__list_8h.html", "fs__list_8h" ],
     [ "identity.c", "identity_8c.html", "identity_8c" ],
     [ "identity.h", "identity_8h.html", "identity_8h" ],
+    [ "identity_attrs.c", "identity__attrs_8c.html", "identity__attrs_8c" ],
+    [ "identity_internal.h", "identity__internal_8h.html", "identity__internal_8h" ],
     [ "proto_list.h", "proto__list_8h.html", "proto__list_8h" ],
     [ "state.h", "state_8h.html", "state_8h" ],
     [ "tunables.h", "tunables_8h.html", "tunables_8h" ]

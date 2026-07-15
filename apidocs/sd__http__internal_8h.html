@@ -93,7 +93,8 @@ $(document).ready(function(){initNavTree('sd__http__internal_8h.html',''); initR
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
-<a href="#func-members">Functions</a>  </div>
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">sd_http_internal.h File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -111,7 +112,7 @@ $(document).ready(function(){initNavTree('sd__http__internal_8h.html',''); initR
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="sd__http__internal_8h__dep__incl.svg" width="339" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="sd__http__internal_8h__dep__incl.svg" width="100%" height="404"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="sd__http__internal_8h_source.html">Go to the source code of this file.</a></p>
@@ -122,12 +123,14 @@ Data Structures</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__http__inst__state.html">sd_http_inst_state</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__http__req__t.html">sd_http_req_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a9bc50059d88e093674c668840e299ff8" id="r_a9bc50059d88e093674c668840e299ff8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a9bc50059d88e093674c668840e299ff8">SD_HTTP_BASE_MAX</a>&#160;&#160;&#160;512                  /* URL base path prefix */</td></tr>
 <tr class="separator:a9bc50059d88e093674c668840e299ff8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7ce805cfa5a98e4807d212c8937ae4c7" id="r_a7ce805cfa5a98e4807d212c8937ae4c7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a7ce805cfa5a98e4807d212c8937ae4c7">SD_HTTP_PATH_MAX</a>&#160;&#160;&#160;2048                 /* full URL path = base + <a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> */</td></tr>
+<tr class="memitem:a7ce805cfa5a98e4807d212c8937ae4c7" id="r_a7ce805cfa5a98e4807d212c8937ae4c7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a7ce805cfa5a98e4807d212c8937ae4c7">SD_HTTP_PATH_MAX</a>&#160;&#160;&#160;2048                 /* full URL path = base + <a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> */</td></tr>
 <tr class="separator:a7ce805cfa5a98e4807d212c8937ae4c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7dca6e23d5c015632f94c8d9e09d132b" id="r_a7dca6e23d5c015632f94c8d9e09d132b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a7dca6e23d5c015632f94c8d9e09d132b">SD_HTTP_AUTH_MAX</a>&#160;&#160;&#160;4160                 /* &quot;Authorization: Bearer &lt;tok&gt;\r\n&quot; */</td></tr>
 <tr class="separator:a7dca6e23d5c015632f94c8d9e09d132b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -138,6 +141,45 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:acf0e6ca73e19fd1ff8474598833fea3c" id="r_acf0e6ca73e19fd1ff8474598833fea3c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a> (const brix_sd_instance_t *inst)</td></tr>
 <tr class="separator:acf0e6ca73e19fd1ff8474598833fea3c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a52839a21722cdbec5990483c4efa2cb3" id="r_a52839a21722cdbec5990483c4efa2cb3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a52839a21722cdbec5990483c4efa2cb3">sd_http_write_path</a> (const <a class="el" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *dst, size_t cap)</td></tr>
+<tr class="separator:a52839a21722cdbec5990483c4efa2cb3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a56017b15471a82f4b0089f25482ed36f" id="r_a56017b15471a82f4b0089f25482ed36f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a56017b15471a82f4b0089f25482ed36f">sd_http_request_fo</a> (const <a class="el" href="structsd__http__req__t.html">sd_http_req_t</a> *rq, <a class="el" href="structsd__http__endpoint.html">sd_http_endpoint</a> **used)</td></tr>
+<tr class="separator:a56017b15471a82f4b0089f25482ed36f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac2dcf1ed5245e5ddb701afaf6a270959" id="r_ac2dcf1ed5245e5ddb701afaf6a270959"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#ac2dcf1ed5245e5ddb701afaf6a270959">sd_http_cred_gate</a> (<a class="el" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:ac2dcf1ed5245e5ddb701afaf6a270959"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab8595844364fad87ae7cea50032dbcf6" id="r_ab8595844364fad87ae7cea50032dbcf6"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#ab8595844364fad87ae7cea50032dbcf6">sd_http_resolve_open_cred</a> (<a class="el" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, char *open_auth, size_t auth_cap)</td></tr>
+<tr class="separator:ab8595844364fad87ae7cea50032dbcf6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a086775137ab947dcf1a5b12c4ecde983" id="r_a086775137ab947dcf1a5b12c4ecde983"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a086775137ab947dcf1a5b12c4ecde983">sd_http_open</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</td></tr>
+<tr class="separator:a086775137ab947dcf1a5b12c4ecde983"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a703b2639ae8740a9ee42e4baea229e84" id="r_a703b2639ae8740a9ee42e4baea229e84"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a703b2639ae8740a9ee42e4baea229e84">sd_http_open_cred</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:a703b2639ae8740a9ee42e4baea229e84"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a93110c9d0c55ad0f6af6a13ed43edb07" id="r_a93110c9d0c55ad0f6af6a13ed43edb07"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a93110c9d0c55ad0f6af6a13ed43edb07">sd_http_close</a> (brix_sd_obj_t *obj)</td></tr>
+<tr class="separator:a93110c9d0c55ad0f6af6a13ed43edb07"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7382a1859f7ec788da7f9c6b5e863fb5" id="r_a7382a1859f7ec788da7f9c6b5e863fb5"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a7382a1859f7ec788da7f9c6b5e863fb5">sd_http_pread</a> (brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</td></tr>
+<tr class="separator:a7382a1859f7ec788da7f9c6b5e863fb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aba3341b0a9d1dc3361411cacf65dfd08" id="r_aba3341b0a9d1dc3361411cacf65dfd08"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#aba3341b0a9d1dc3361411cacf65dfd08">sd_http_fstat</a> (brix_sd_obj_t *obj, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
+<tr class="separator:aba3341b0a9d1dc3361411cacf65dfd08"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3fe4c203ac525d0bec19396e26c38174" id="r_a3fe4c203ac525d0bec19396e26c38174"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a3fe4c203ac525d0bec19396e26c38174">sd_http_stat</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
+<tr class="separator:a3fe4c203ac525d0bec19396e26c38174"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af742468cc1628344fab98d4e6170c569" id="r_af742468cc1628344fab98d4e6170c569"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#af742468cc1628344fab98d4e6170c569">sd_http_stat_cred</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:af742468cc1628344fab98d4e6170c569"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad68e914180622f2bfb60dd16cd8585be" id="r_ad68e914180622f2bfb60dd16cd8585be"><td class="memItemLeft" align="right" valign="top">brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#ad68e914180622f2bfb60dd16cd8585be">sd_http_staged_open</a> (brix_sd_instance_t *inst, const char *final_path, mode_t mode, int *err_out)</td></tr>
+<tr class="separator:ad68e914180622f2bfb60dd16cd8585be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4a1f1294a28fcc17d7ae138b5fb717c9" id="r_a4a1f1294a28fcc17d7ae138b5fb717c9"><td class="memItemLeft" align="right" valign="top">brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a4a1f1294a28fcc17d7ae138b5fb717c9">sd_http_staged_open_cred</a> (brix_sd_instance_t *inst, const char *final_path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:a4a1f1294a28fcc17d7ae138b5fb717c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0610f5668634a4d9db6424abed4bab78" id="r_a0610f5668634a4d9db6424abed4bab78"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a0610f5668634a4d9db6424abed4bab78">sd_http_staged_write</a> (brix_sd_staged_t *h, const void *buf, size_t len, off_t off)</td></tr>
+<tr class="separator:a0610f5668634a4d9db6424abed4bab78"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeaedf26b7bc59446346056a82b9107fa" id="r_aeaedf26b7bc59446346056a82b9107fa"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#aeaedf26b7bc59446346056a82b9107fa">sd_http_staged_commit</a> (brix_sd_staged_t *h, int noreplace)</td></tr>
+<tr class="separator:aeaedf26b7bc59446346056a82b9107fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a64c26777483274f8f142bf76165a2e33" id="r_a64c26777483274f8f142bf76165a2e33"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a64c26777483274f8f142bf76165a2e33">sd_http_staged_abort</a> (brix_sd_staged_t *h)</td></tr>
+<tr class="separator:a64c26777483274f8f142bf76165a2e33"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa323dc43b81655c121f1d1ac4e2b156d" id="r_aa323dc43b81655c121f1d1ac4e2b156d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#aa323dc43b81655c121f1d1ac4e2b156d">sd_http_unlink</a> (brix_sd_instance_t *inst, const char *path, int is_dir)</td></tr>
+<tr class="separator:aa323dc43b81655c121f1d1ac4e2b156d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:affc432806dd4bb00cc5dda7070eb1f8c" id="r_affc432806dd4bb00cc5dda7070eb1f8c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#affc432806dd4bb00cc5dda7070eb1f8c">g_sd_http_force_primary</a></td></tr>
+<tr class="separator:affc432806dd4bb00cc5dda7070eb1f8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a7dca6e23d5c015632f94c8d9e09d132b" name="a7dca6e23d5c015632f94c8d9e09d132b"></a>
@@ -179,7 +221,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define SD_HTTP_PATH_MAX&#160;&#160;&#160;2048                 /* full URL path = base + <a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> */</td>
+          <td class="memname">#define SD_HTTP_PATH_MAX&#160;&#160;&#160;2048                 /* full URL path = base + <a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -205,6 +247,90 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a93110c9d0c55ad0f6af6a13ed43edb07" name="a93110c9d0c55ad0f6af6a13ed43edb07"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a93110c9d0c55ad0f6af6a13ed43edb07">&#9670;&#160;</a></span>sd_http_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_http_close </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00305">305</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+</div>
+</div>
+<a id="ac2dcf1ed5245e5ddb701afaf6a270959" name="ac2dcf1ed5245e5ddb701afaf6a270959"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac2dcf1ed5245e5ddb701afaf6a270959">&#9670;&#160;</a></span>sd_http_cred_gate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sd_http_cred_gate </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structsd__http__inst__state.html">sd_http_inst_state</a> *&#160;</td>
+          <td class="paramname"><em>is</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00108">108</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00202">brix_sd_cred_t::bearer</a>, <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00059">brix_s3_transport_t::request_cred</a>, <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>, and <a class="el" href="sd_8h_source.html#l00201">brix_sd_cred_t::x509_proxy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00233">sd_http_open_common()</a>, <a class="el" href="sd__http__write_8c_source.html#l00071">sd_http_staged_open_common()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00446">sd_http_stat_cred()</a>.</p>
+
+</div>
+</div>
+<a id="aba3341b0a9d1dc3361411cacf65dfd08" name="aba3341b0a9d1dc3361411cacf65dfd08"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aba3341b0a9d1dc3361411cacf65dfd08">&#9670;&#160;</a></span>sd_http_fstat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_http_fstat </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00383">383</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+</div>
+</div>
 <a id="acf0e6ca73e19fd1ff8474598833fea3c" name="acf0e6ca73e19fd1ff8474598833fea3c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#acf0e6ca73e19fd1ff8474598833fea3c">&#9670;&#160;</a></span>sd_http_instance_is()</h2>
 
@@ -221,11 +347,626 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http_8c_source.html#l00632">632</a> of file <a class="el" href="sd__http_8c_source.html">sd_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http_8c_source.html#l00055">55</a> of file <a class="el" href="sd__http_8c_source.html">sd_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__http_8c_source.html#l00613">brix_sd_http_driver</a>.</p>
+<p class="reference">References <a class="el" href="sd__http_8c_source.html#l00030">brix_sd_http_driver</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__http__introspect_8c_source.html#l00039">sd_http_endpoint_list()</a>, <a class="el" href="sd__http__introspect_8c_source.html#l00095">sd_http_health_snapshot()</a>, <a class="el" href="sd__http__introspect_8c_source.html#l00068">sd_http_last_origin()</a>, <a class="el" href="sd__http__introspect_8c_source.html#l00086">sd_http_last_was_failover()</a>, <a class="el" href="sd__http__introspect_8c_source.html#l00059">sd_http_n_endpoints()</a>, and <a class="el" href="sd__http__introspect_8c_source.html#l00022">sd_http_set_ranks()</a>.</p>
+
+</div>
+</div>
+<a id="a086775137ab947dcf1a5b12c4ecde983" name="a086775137ab947dcf1a5b12c4ecde983"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a086775137ab947dcf1a5b12c4ecde983">&#9670;&#160;</a></span>sd_http_open()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_obj_t * sd_http_open </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>sd_flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00279">279</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__read_8c_source.html#l00233">sd_http_open_common()</a>.</p>
+
+</div>
+</div>
+<a id="a703b2639ae8740a9ee42e4baea229e84" name="a703b2639ae8740a9ee42e4baea229e84"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a703b2639ae8740a9ee42e4baea229e84">&#9670;&#160;</a></span>sd_http_open_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_obj_t * sd_http_open_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>sd_flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00296">296</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__read_8c_source.html#l00233">sd_http_open_common()</a>.</p>
+
+</div>
+</div>
+<a id="a7382a1859f7ec788da7f9c6b5e863fb5" name="a7382a1859f7ec788da7f9c6b5e863fb5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7382a1859f7ec788da7f9c6b5e863fb5">&#9670;&#160;</a></span>sd_http_pread()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ssize_t sd_http_pread </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00315">315</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00055">sd_http_inst_state::auth_hdr</a>, <a class="el" href="sd__http__read_8c_source.html#l00041">sd_http_obj_state::auth_hdr</a>, <a class="el" href="sd__http__read_8c_source.html#l00048">sd_http_obj_state::cert_pem</a>, <a class="el" href="sd__http__select_8c_source.html#l00041">g_sd_http_force_primary</a>, <a class="el" href="sd__http__read_8c_source.html#l00039">sd_http_obj_state::key</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00072">brix_s3_transport_t::resp_body</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00075">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__http__internal_8h_source.html#l00019">SD_HTTP_AUTH_MAX</a>, <a class="el" href="sd__http__read_8c_source.html#l00034">SD_HTTP_PREAD_MAX</a>, <a class="el" href="sd__http__select_8c_source.html#l00361">sd_http_request_fo()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, and <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>.</p>
+
+</div>
+</div>
+<a id="a56017b15471a82f4b0089f25482ed36f" name="a56017b15471a82f4b0089f25482ed36f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a56017b15471a82f4b0089f25482ed36f">&#9670;&#160;</a></span>sd_http_request_fo()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sd_http_request_fo </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structsd__http__req__t.html">sd_http_req_t</a> *&#160;</td>
+          <td class="paramname"><em>rq</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsd__http__endpoint.html">sd_http_endpoint</a> **&#160;</td>
+          <td class="paramname"><em>used</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__select_8c_source.html#l00361">361</a> of file <a class="el" href="sd__http__select_8c_source.html">sd_http_select.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00029">sd_http_endpoint::fail_score</a>, <a class="el" href="sd__http__internal_8h_source.html#l00085">sd_http_req_t::force_primary</a>, <a class="el" href="sd__http__internal_8h_source.html#l00079">sd_http_req_t::is</a>, <a class="el" href="sd__http__internal_8h_source.html#l00081">sd_http_req_t::key</a>, <a class="el" href="sd__http__internal_8h_source.html#l00060">sd_http_inst_state::log</a>, <a class="el" href="sd__http__internal_8h_source.html#l00080">sd_http_req_t::method</a>, <a class="el" href="sd__http__internal_8h_source.html#l00040">sd_http_inst_state::n_eps</a>, <a class="el" href="sd__http__select_8c_source.html#l00297">sd_http_fo_next()</a>, <a class="el" href="sd__http__select_8c_source.html#l00333">sd_http_fo_note_fail()</a>, <a class="el" href="sd__http__select_8c_source.html#l00274">sd_http_fo_note_success()</a>, <a class="el" href="sd__http__select_8c_source.html#l00240">sd_http_fo_perform()</a>, <a class="el" href="sd__http__select_8c_source.html#l00201">sd_http_fo_select()</a>, and <a class="el" href="sd__http__select_8c_source.html#l00138">sd_http_log_key()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00061">sd_http_head_size()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00315">sd_http_pread()</a>.</p>
+
+</div>
+</div>
+<a id="ab8595844364fad87ae7cea50032dbcf6" name="ab8595844364fad87ae7cea50032dbcf6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab8595844364fad87ae7cea50032dbcf6">&#9670;&#160;</a></span>sd_http_resolve_open_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const char * sd_http_resolve_open_cred </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structsd__http__inst__state.html">sd_http_inst_state</a> *&#160;</td>
+          <td class="paramname"><em>is</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>open_auth</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>auth_cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00140">140</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00202">brix_sd_cred_t::bearer</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00059">brix_s3_transport_t::request_cred</a>, <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>, and <a class="el" href="sd_8h_source.html#l00201">brix_sd_cred_t::x509_proxy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00233">sd_http_open_common()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00446">sd_http_stat_cred()</a>.</p>
+
+</div>
+</div>
+<a id="a64c26777483274f8f142bf76165a2e33" name="a64c26777483274f8f142bf76165a2e33"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a64c26777483274f8f142bf76165a2e33">&#9670;&#160;</a></span>sd_http_staged_abort()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void sd_http_staged_abort </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_staged_t *&#160;</td>
+          <td class="paramname"><em>h</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00227">227</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00044">sd_http_staged_state::buf</a>.</p>
+
+</div>
+</div>
+<a id="aeaedf26b7bc59446346056a82b9107fa" name="aeaedf26b7bc59446346056a82b9107fa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeaedf26b7bc59446346056a82b9107fa">&#9670;&#160;</a></span>sd_http_staged_commit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_http_staged_commit </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_staged_t *&#160;</td>
+          <td class="paramname"><em>h</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>noreplace</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00173">173</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00055">sd_http_inst_state::auth_hdr</a>, <a class="el" href="sd__http__write_8c_source.html#l00047">sd_http_staged_state::auth_hdr</a>, <a class="el" href="sd__http__write_8c_source.html#l00044">sd_http_staged_state::buf</a>, <a class="el" href="sd__http__write_8c_source.html#l00048">sd_http_staged_state::cert_pem</a>, <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00025">sd_http_endpoint::host</a>, <a class="el" href="sd__http__write_8c_source.html#l00045">sd_http_staged_state::len</a>, <a class="el" href="sd__http__write_8c_source.html#l00043">sd_http_staged_state::path</a>, <a class="el" href="sd__http__internal_8h_source.html#l00026">sd_http_endpoint::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00059">brix_s3_transport_t::request_cred</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00075">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__http__internal_8h_source.html#l00042">sd_http_inst_state::tctx</a>, <a class="el" href="sd__http__internal_8h_source.html#l00043">sd_http_inst_state::timeout_ms</a>, <a class="el" href="sd__http__internal_8h_source.html#l00027">sd_http_endpoint::tls</a>, and <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>.</p>
+
+</div>
+</div>
+<a id="ad68e914180622f2bfb60dd16cd8585be" name="ad68e914180622f2bfb60dd16cd8585be"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad68e914180622f2bfb60dd16cd8585be">&#9670;&#160;</a></span>sd_http_staged_open()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_staged_t * sd_http_staged_open </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>final_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00118">118</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00071">sd_http_staged_open_common()</a>.</p>
+
+</div>
+</div>
+<a id="a4a1f1294a28fcc17d7ae138b5fb717c9" name="a4a1f1294a28fcc17d7ae138b5fb717c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4a1f1294a28fcc17d7ae138b5fb717c9">&#9670;&#160;</a></span>sd_http_staged_open_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_staged_t * sd_http_staged_open_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>final_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00135">135</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00071">sd_http_staged_open_common()</a>.</p>
+
+</div>
+</div>
+<a id="a0610f5668634a4d9db6424abed4bab78" name="a0610f5668634a4d9db6424abed4bab78"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0610f5668634a4d9db6424abed4bab78">&#9670;&#160;</a></span>sd_http_staged_write()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ssize_t sd_http_staged_write </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_staged_t *&#160;</td>
+          <td class="paramname"><em>h</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00142">142</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00044">sd_http_staged_state::buf</a>, <a class="el" href="sd__http__write_8c_source.html#l00046">sd_http_staged_state::cap</a>, <a class="el" href="sd__http__write_8c_source.html#l00045">sd_http_staged_state::len</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+</div>
+</div>
+<a id="a3fe4c203ac525d0bec19396e26c38174" name="a3fe4c203ac525d0bec19396e26c38174"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3fe4c203ac525d0bec19396e26c38174">&#9670;&#160;</a></span>sd_http_stat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_http_stat </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00407">407</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00055">sd_http_inst_state::auth_hdr</a>, <a class="el" href="sd__http__read_8c_source.html#l00061">sd_http_head_size()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00398">sd_http_stat_fill()</a>.</p>
+
+</div>
+</div>
+<a id="af742468cc1628344fab98d4e6170c569" name="af742468cc1628344fab98d4e6170c569"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af742468cc1628344fab98d4e6170c569">&#9670;&#160;</a></span>sd_http_stat_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_http_stat_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00446">446</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00055">sd_http_inst_state::auth_hdr</a>, <a class="el" href="sd__http__internal_8h_source.html#l00019">SD_HTTP_AUTH_MAX</a>, <a class="el" href="sd__http__read_8c_source.html#l00108">sd_http_cred_gate()</a>, <a class="el" href="sd__http__read_8c_source.html#l00061">sd_http_head_size()</a>, <a class="el" href="sd__http__read_8c_source.html#l00140">sd_http_resolve_open_cred()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00398">sd_http_stat_fill()</a>.</p>
+
+</div>
+</div>
+<a id="aa323dc43b81655c121f1d1ac4e2b156d" name="aa323dc43b81655c121f1d1ac4e2b156d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa323dc43b81655c121f1d1ac4e2b156d">&#9670;&#160;</a></span>sd_http_unlink()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_http_unlink </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>is_dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00237">237</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00055">sd_http_inst_state::auth_hdr</a>, <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00025">sd_http_endpoint::host</a>, <a class="el" href="sd__http__internal_8h_source.html#l00026">sd_http_endpoint::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00075">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__http__internal_8h_source.html#l00018">SD_HTTP_PATH_MAX</a>, <a class="el" href="sd__http__select_8c_source.html#l00053">sd_http_write_path()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__http__internal_8h_source.html#l00042">sd_http_inst_state::tctx</a>, <a class="el" href="sd__http__internal_8h_source.html#l00043">sd_http_inst_state::timeout_ms</a>, <a class="el" href="sd__http__internal_8h_source.html#l00027">sd_http_endpoint::tls</a>, and <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>.</p>
+
+</div>
+</div>
+<a id="a52839a21722cdbec5990483c4efa2cb3" name="a52839a21722cdbec5990483c4efa2cb3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a52839a21722cdbec5990483c4efa2cb3">&#9670;&#160;</a></span>sd_http_write_path()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void sd_http_write_path </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structsd__http__inst__state.html">sd_http_inst_state</a> *&#160;</td>
+          <td class="paramname"><em>is</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__select_8c_source.html#l00053">53</a> of file <a class="el" href="sd__http__select_8c_source.html">sd_http_select.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00028">sd_http_endpoint::base_path</a>, <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__http__write_8c_source.html#l00071">sd_http_staged_open_common()</a>, and <a class="el" href="sd__http__write_8c_source.html#l00237">sd_http_unlink()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="affc432806dd4bb00cc5dda7070eb1f8c" name="affc432806dd4bb00cc5dda7070eb1f8c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#affc432806dd4bb00cc5dda7070eb1f8c">&#9670;&#160;</a></span>g_sd_http_force_primary</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">int g_sd_http_force_primary</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">extern</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__select_8c_source.html#l00041">41</a> of file <a class="el" href="sd__http__select_8c_source.html">sd_http_select.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__http__select_8c_source.html#l00044">sd_http_force_primary_set()</a>, <a class="el" href="sd__http__read_8c_source.html#l00061">sd_http_head_size()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00315">sd_http_pread()</a>.</p>
 
 </div>
 </div>

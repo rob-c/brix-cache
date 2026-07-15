@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('sd__ceph_8c.html',''); initResizable()
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">sd_ceph.c File Reference</div></div>
 </div><!--header-->
@@ -109,8 +110,23 @@ $(document).ready(function(){initNavTree('sd__ceph_8c.html',''); initResizable()
 </div>
 <p><a href="sd__ceph_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a6f3f909f1bb43070c6fbb9d3aaa63b79" id="r_a6f3f909f1bb43070c6fbb9d3aaa63b79"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph_8c.html#a6f3f909f1bb43070c6fbb9d3aaa63b79">sd_ceph_next_seg</a> (const char **cursor, <a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a> *seg)</td></tr>
+<tr class="separator:a6f3f909f1bb43070c6fbb9d3aaa63b79"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad26e35b3e852adfe09797ca6fff35199" id="r_ad26e35b3e852adfe09797ca6fff35199"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph_8c.html#ad26e35b3e852adfe09797ca6fff35199">sd_ceph_norm_pop</a> (char *out, size_t w)</td></tr>
+<tr class="separator:ad26e35b3e852adfe09797ca6fff35199"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a77774c0f7e5c4b4ecbfa83c03a392cf9" id="r_a77774c0f7e5c4b4ecbfa83c03a392cf9"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph_8c.html#a77774c0f7e5c4b4ecbfa83c03a392cf9">sd_ceph_norm_append</a> (char *out, size_t cap, size_t w, const <a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a> *seg)</td></tr>
+<tr class="separator:a77774c0f7e5c4b4ecbfa83c03a392cf9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a26b38b66e36809298183c98f51526650" id="r_a26b38b66e36809298183c98f51526650"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph_8c.html#a26b38b66e36809298183c98f51526650">sd_ceph_seg_is_dot</a> (const <a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a> *seg)</td></tr>
+<tr class="separator:a26b38b66e36809298183c98f51526650"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a531640f18035c653a5c5efc6c9e335cf" id="r_a531640f18035c653a5c5efc6c9e335cf"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph_8c.html#a531640f18035c653a5c5efc6c9e335cf">sd_ceph_seg_is_dotdot</a> (const <a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a> *seg)</td></tr>
+<tr class="separator:a531640f18035c653a5c5efc6c9e335cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a879e0cd775bd7931897417bf847a454f" id="r_a879e0cd775bd7931897417bf847a454f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph_8c.html#a879e0cd775bd7931897417bf847a454f">sd_ceph_normalize</a> (const char *lfn, char *out, size_t cap)</td></tr>
 <tr class="separator:a879e0cd775bd7931897417bf847a454f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a168fba5daa4deb3c88d469b67e128f0c" id="r_a168fba5daa4deb3c88d469b67e128f0c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph_8c.html#a168fba5daa4deb3c88d469b67e128f0c">sd_ceph_key</a> (const char *key_prefix, const char *lfn, char *out, size_t cap)</td></tr>
@@ -135,9 +151,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00131">131</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00233">233</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__ceph__unittest_8c_source.html#l00062">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__ceph__unittest_8c_source.html#l00182">test_ino_hash()</a>.</p>
 
 </div>
 </div>
@@ -179,11 +195,147 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00107">107</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00206">206</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__ceph_8c_source.html#l00042">sd_ceph_normalize()</a>.</p>
+<p class="reference">References <a class="el" href="sd__ceph_8c_source.html#l00166">sd_ceph_normalize()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__ceph__unittest_8c_source.html#l00049">check_key()</a>, and <a class="el" href="sd__ceph__unittest_8c_source.html#l00062">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__ceph__unittest_8c_source.html#l00049">check_key()</a>, and <a class="el" href="sd__ceph__unittest_8c_source.html#l00107">test_key_alias_injectivity()</a>.</p>
+
+</div>
+</div>
+<a id="a6f3f909f1bb43070c6fbb9d3aaa63b79" name="a6f3f909f1bb43070c6fbb9d3aaa63b79"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6f3f909f1bb43070c6fbb9d3aaa63b79">&#9670;&#160;</a></span>sd_ceph_next_seg()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sd_ceph_next_seg </td>
+          <td>(</td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>cursor</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a> *&#160;</td>
+          <td class="paramname"><em>seg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00092">92</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__ceph_8c_source.html#l00075">sd_ceph_seg_t::len</a>, and <a class="el" href="sd__ceph_8c_source.html#l00074">sd_ceph_seg_t::start</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__ceph_8c_source.html#l00166">sd_ceph_normalize()</a>.</p>
+
+</div>
+</div>
+<a id="a77774c0f7e5c4b4ecbfa83c03a392cf9" name="a77774c0f7e5c4b4ecbfa83c03a392cf9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a77774c0f7e5c4b4ecbfa83c03a392cf9">&#9670;&#160;</a></span>sd_ceph_norm_append()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t sd_ceph_norm_append </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a> *&#160;</td>
+          <td class="paramname"><em>seg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00136">136</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__ceph_8c_source.html#l00075">sd_ceph_seg_t::len</a>, and <a class="el" href="sd__ceph_8c_source.html#l00074">sd_ceph_seg_t::start</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__ceph_8c_source.html#l00166">sd_ceph_normalize()</a>.</p>
+
+</div>
+</div>
+<a id="ad26e35b3e852adfe09797ca6fff35199" name="ad26e35b3e852adfe09797ca6fff35199"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad26e35b3e852adfe09797ca6fff35199">&#9670;&#160;</a></span>sd_ceph_norm_pop()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t sd_ceph_norm_pop </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>w</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00117">117</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__ceph_8c_source.html#l00166">sd_ceph_normalize()</a>.</p>
 
 </div>
 </div>
@@ -219,9 +371,75 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00042">42</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00166">166</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__ceph__unittest_8c_source.html#l00024">check_norm_ok()</a>, <a class="el" href="sd__ceph__unittest_8c_source.html#l00037">check_norm_reject()</a>, and <a class="el" href="sd__ceph_8c_source.html#l00107">sd_ceph_key()</a>.</p>
+<p class="reference">References <a class="el" href="sd__ceph_8c_source.html#l00092">sd_ceph_next_seg()</a>, <a class="el" href="sd__ceph_8c_source.html#l00136">sd_ceph_norm_append()</a>, <a class="el" href="sd__ceph_8c_source.html#l00117">sd_ceph_norm_pop()</a>, <a class="el" href="sd__ceph_8c_source.html#l00151">sd_ceph_seg_is_dot()</a>, and <a class="el" href="sd__ceph_8c_source.html#l00157">sd_ceph_seg_is_dotdot()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__ceph__unittest_8c_source.html#l00024">check_norm_ok()</a>, <a class="el" href="sd__ceph__unittest_8c_source.html#l00037">check_norm_reject()</a>, and <a class="el" href="sd__ceph_8c_source.html#l00206">sd_ceph_key()</a>.</p>
+
+</div>
+</div>
+<a id="a26b38b66e36809298183c98f51526650" name="a26b38b66e36809298183c98f51526650"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a26b38b66e36809298183c98f51526650">&#9670;&#160;</a></span>sd_ceph_seg_is_dot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sd_ceph_seg_is_dot </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a> *&#160;</td>
+          <td class="paramname"><em>seg</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00151">151</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__ceph_8c_source.html#l00075">sd_ceph_seg_t::len</a>, and <a class="el" href="sd__ceph_8c_source.html#l00074">sd_ceph_seg_t::start</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__ceph_8c_source.html#l00166">sd_ceph_normalize()</a>.</p>
+
+</div>
+</div>
+<a id="a531640f18035c653a5c5efc6c9e335cf" name="a531640f18035c653a5c5efc6c9e335cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a531640f18035c653a5c5efc6c9e335cf">&#9670;&#160;</a></span>sd_ceph_seg_is_dotdot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sd_ceph_seg_is_dotdot </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structsd__ceph__seg__t.html">sd_ceph_seg_t</a> *&#160;</td>
+          <td class="paramname"><em>seg</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__ceph_8c_source.html#l00157">157</a> of file <a class="el" href="sd__ceph_8c_source.html">sd_ceph.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__ceph_8c_source.html#l00075">sd_ceph_seg_t::len</a>, and <a class="el" href="sd__ceph_8c_source.html#l00074">sd_ceph_seg_t::start</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__ceph_8c_source.html#l00166">sd_ceph_normalize()</a>.</p>
 
 </div>
 </div>

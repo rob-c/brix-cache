@@ -128,7 +128,7 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a52adc0c7b08efd10887b81333c078e3e" id="r_a52adc0c7b08efd10887b81333c078e3e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred_8c.html#a52adc0c7b08efd10887b81333c078e3e">cfg_copy_free</a> (<a class="el" href="structbrix__cred__config.html">brix_cred_config</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:a52adc0c7b08efd10887b81333c078e3e" id="r_a52adc0c7b08efd10887b81333c078e3e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred_8c.html#a52adc0c7b08efd10887b81333c078e3e">cfg_copy_free</a> (<a class="el" href="structbrix__cred__config.html">brix_cred_config</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:a52adc0c7b08efd10887b81333c078e3e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae3e6bf33239fda610b71bd2c591b6842" id="r_ae3e6bf33239fda610b71bd2c591b6842"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__cred__handler.html">brix_cred_handler</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred_8c.html#ae3e6bf33239fda610b71bd2c591b6842">brix_cred_x509</a> (void)</td></tr>
 <tr class="separator:ae3e6bf33239fda610b71bd2c591b6842"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -195,14 +195,14 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">    <span class="keywordflow">do</span> {                                                                    \</div>
 <div class="line">        if (src-&gt;field != NULL) {                                           \</div>
-<div class="line">            <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;field = strdup(src-&gt;field);                                  \</div>
-<div class="line">            if (<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;field == NULL) {                                         \</div>
-<div class="line">                cfg_copy_free(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>);                                           \</div>
+<div class="line">            <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;field = strdup(src-&gt;field);                                  \</div>
+<div class="line">            if (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;field == NULL) {                                         \</div>
+<div class="line">                cfg_copy_free(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>);                                           \</div>
 <div class="line">                <span class="keywordflow">return</span> NULL;                                                \</div>
 <div class="line">            }                                                               \</div>
 <div class="line">        }                                                                   \</div>
 <div class="line">    } <span class="keywordflow">while</span> (0)</div>
-<div class="ttc" id="aroot_2session_2session_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="root_2session_2session_8h_source.html#l00059">session.h:59</a></div></div>
+<div class="ttc" id="aparse__x509__internal_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="parse__x509__internal_8h_source.html#l00035">parse_x509_internal.h:35</a></div></div>
 </div><!-- fragment -->
 </div>
 </div>
@@ -255,7 +255,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="cred_8c_source.html#l00379">do_acquire()</a>, <a class="el" href="cred_8c_source.html#l00237">kind_name()</a>, <a class="el" href="cred_8c_source.html#l00133">cred_slot::loaded</a>, <a class="el" href="cred_8h_source.html#l00084">brix_cred_handler::refresh</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="cred_8c_source.html#l00351">should_refresh()</a>, <a class="el" href="cred_8c_source.html#l00134">cred_slot::view</a>, <a class="el" href="cred_8h_source.html#l00029">XRDC_CRED_KIND_COUNT</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sec__gsi_8c_source.html#l00191">gsi_resolve_proxy()</a>, <a class="el" href="sec__sss_8c_source.html#l00077">sss_first()</a>, <a class="el" href="sec__token_8c_source.html#l00133">token_first()</a>, and <a class="el" href="copy__recursive_8c_source.html#l00645">web_auth_headers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__recursive_8c_source.html#l00860">auth_hdr_bearer()</a>, <a class="el" href="sec__gsi_8c_source.html#l00191">gsi_resolve_proxy()</a>, <a class="el" href="copy__recursive_8c_source.html#l00785">s3_resolve_keys()</a>, <a class="el" href="sec__sss_8c_source.html#l00077">sss_first()</a>, and <a class="el" href="sec__token_8c_source.html#l00133">token_first()</a>.</p>
 
 </div>
 </div>
@@ -379,9 +379,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00332">332</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00358">358</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00316">s_s3keys_handler</a>.</p>
+<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00342">s_s3keys_handler</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cred_8c_source.html#l00261">brix_cred_store_new()</a>.</p>
 
@@ -439,7 +439,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cred_8c_source.html#l00107">cfg_copy_free()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="cred_8c_source.html#l00161">slot_clear_owned()</a>, and <a class="el" href="cred_8h_source.html#l00029">XRDC_CRED_KIND_COUNT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00349">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01349">main()</a>.</p>
 
 </div>
 </div>
@@ -461,7 +461,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cred_8c_source.html#l00261">261</a> of file <a class="el" href="cred_8c_source.html">cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred__bearer_8c_source.html#l00241">brix_cred_bearer()</a>, <a class="el" href="cred__krb5_8c_source.html#l00264">brix_cred_krb5()</a>, <a class="el" href="cred__s3_8c_source.html#l00332">brix_cred_s3keys()</a>, <a class="el" href="cred__sss_8c_source.html#l00152">brix_cred_sss()</a>, <a class="el" href="cred__x509_8c_source.html#l00232">brix_cred_x509()</a>, <a class="el" href="cred_8c_source.html#l00065">cfg_copy_alloc()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="cred_8h_source.html#l00025">XRDC_CRED_BEARER</a>, <a class="el" href="cred_8h_source.html#l00026">XRDC_CRED_KRB5</a>, <a class="el" href="cred_8h_source.html#l00028">XRDC_CRED_S3KEYS</a>, <a class="el" href="cred_8h_source.html#l00027">XRDC_CRED_SSS</a>, and <a class="el" href="cred_8h_source.html#l00024">XRDC_CRED_X509_PROXY</a>.</p>
+<p class="reference">References <a class="el" href="cred__bearer_8c_source.html#l00241">brix_cred_bearer()</a>, <a class="el" href="cred__krb5_8c_source.html#l00264">brix_cred_krb5()</a>, <a class="el" href="cred__s3_8c_source.html#l00358">brix_cred_s3keys()</a>, <a class="el" href="cred__sss_8c_source.html#l00152">brix_cred_sss()</a>, <a class="el" href="cred__x509_8c_source.html#l00232">brix_cred_x509()</a>, <a class="el" href="cred_8c_source.html#l00065">cfg_copy_alloc()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="cred_8h_source.html#l00025">XRDC_CRED_BEARER</a>, <a class="el" href="cred_8h_source.html#l00026">XRDC_CRED_KRB5</a>, <a class="el" href="cred_8h_source.html#l00028">XRDC_CRED_S3KEYS</a>, <a class="el" href="cred_8h_source.html#l00027">XRDC_CRED_SSS</a>, and <a class="el" href="cred_8h_source.html#l00024">XRDC_CRED_X509_PROXY</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cli__cred_8c_source.html#l00063">brix_cli_cred_store_build()</a>.</p>
 
@@ -525,7 +525,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cred_8c_source.html#l00065">65</a> of file <a class="el" href="cred_8c_source.html">cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred_8h_source.html#l00054">brix_cred_config::auto_refresh</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="cred_8c.html#af149dedee751f672a33ace159f9ce755">DUP_FIELD</a>, and <a class="el" href="sec__gsi_8c_source.html#l00039">proxy_path()</a>.</p>
+<p class="reference">References <a class="el" href="cred_8h_source.html#l00054">brix_cred_config::auto_refresh</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="cred_8c.html#af149dedee751f672a33ace159f9ce755">DUP_FIELD</a>, and <a class="el" href="sec__gsi_8c_source.html#l00039">proxy_path()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cred_8c_source.html#l00261">brix_cred_store_new()</a>.</p>
 
@@ -557,7 +557,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cred_8c_source.html#l00107">107</a> of file <a class="el" href="cred_8c_source.html">cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cred_8c_source.html#l00303">brix_cred_store_free()</a>.</p>
 

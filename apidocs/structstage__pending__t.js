@@ -1,5 +1,6 @@
 var structstage__pending__t =
 [
+    [ "cred", "structstage__pending__t.html#a347a5e97f3955f389cafc0677718eb1e", null ],
     [ "dst", "structstage__pending__t.html#ac6b06b1d0ec7d566c175973f0070f5b5", null ],
     [ "dst_key", "structstage__pending__t.html#ab211e4c3f6da956d6739fd156a1f2964", null ],
     [ "export_root", "structstage__pending__t.html#ab856fa8038a43a76ae367566c076a4e8", null ],

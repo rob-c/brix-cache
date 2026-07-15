@@ -130,85 +130,200 @@ $(document).ready(function(){initNavTree('file_8c_source.html',''); initResizabl
 <div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#include &lt;fcntl.h&gt;</span></div>
 <div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
 <div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span> </div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00034" data-start="{" data-end="}">
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno"><a class="line" href="file_8c.html#ada5899fcbd61429e689dea61508d0c22">   34</a></span><a class="code hl_function" href="file_8c.html#ada5899fcbd61429e689dea61508d0c22">brix_token_read_file</a>(<span class="keyword">const</span> ngx_str_t *path, u_char *buf, <span class="keywordtype">size_t</span> buf_sz,</div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <span class="keywordtype">size_t</span> *out_len, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *label)</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>{</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <span class="keywordtype">char</span>   pathz[NGX_MAX_PATH];</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    FILE  *fp;</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    <span class="keywordtype">size_t</span> n;</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordflow">if</span> (out_len != NULL) {</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        *out_len = 0;</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    }</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span> </div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <span class="keywordflow">if</span> (path == NULL || path-&gt;len == 0 || path-&gt;len &gt;= <span class="keyword">sizeof</span>(pathz)</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>        || buf == NULL || buf_sz &lt; 2)</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    {</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>        <span class="keywordflow">if</span> (<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a> != NULL) {</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>            ngx_log_error(NGX_LOG_ERR, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, 0,</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>                          <span class="stringliteral">&quot;%s token file path missing or too long&quot;</span>,</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>                          label ? label : <span class="stringliteral">&quot;xrootd&quot;</span>);</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>        }</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>        errno = EINVAL;</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    }</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span> </div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(pathz, path-&gt;data, path-&gt;len);</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    pathz[path-&gt;len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    fp = fopen(pathz, <span class="stringliteral">&quot;rb&quot;</span>);</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    <span class="keywordflow">if</span> (fp == NULL) {</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>        <span class="keywordflow">if</span> (<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a> != NULL) {</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>            ngx_log_error(NGX_LOG_ERR, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_errno,</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>                          <span class="stringliteral">&quot;%s cannot open token file \&quot;%s\&quot;&quot;</span>,</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>                          label ? label : <span class="stringliteral">&quot;xrootd&quot;</span>, pathz);</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>        }</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>    }</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    (void) fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span> </div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    n = fread(buf, 1, buf_sz - 1, fp);</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    <span class="keywordflow">if</span> (ferror(fp)) {</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        <span class="keywordtype">int</span> saved = errno;</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        fclose(fp);</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        errno = saved;</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>        <span class="keywordflow">if</span> (<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a> != NULL) {</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>            ngx_log_error(NGX_LOG_ERR, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_errno,</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>                          <span class="stringliteral">&quot;%s cannot read token file \&quot;%s\&quot;&quot;</span>,</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>                          label ? label : <span class="stringliteral">&quot;xrootd&quot;</span>, pathz);</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        }</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    }</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    fclose(fp);</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    buf[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    <span class="keywordflow">while</span> (n &gt; 0 &amp;&amp; isspace((<span class="keywordtype">unsigned</span> <span class="keywordtype">char</span>) buf[n - 1])) {</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>        buf[--n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    }</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span> </div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <span class="keywordflow">if</span> (n == 0) {</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>        <span class="keywordflow">if</span> (<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a> != NULL) {</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>            ngx_log_error(NGX_LOG_ERR, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, 0,</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>                          <span class="stringliteral">&quot;%s token file \&quot;%s\&quot; is empty&quot;</span>,</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>                          label ? label : <span class="stringliteral">&quot;xrootd&quot;</span>, pathz);</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        }</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        errno = EINVAL;</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    }</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span> </div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <span class="keywordflow">if</span> (out_len != NULL) {</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>        *out_len = n;</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    }</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>}</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="comment"> * brix_token_diag_t - diagnostic context bundling the log sink and its label.</span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment"> * WHAT: Pairs the optional ngx_log_t and the caller&#39;s context label so every</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment"> *       stage receives error-reporting state as a single argument.</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="comment"> * WHY:  log and label travel together to every failure path; bundling them</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="comment"> *       keeps each helper at or below the five-parameter limit without adding</span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="comment"> *       a global or duplicating the NULL-label fallback per call site.</span></div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="comment"> * HOW:  Plain-old-data value; callers pass it by const pointer.</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment"> */</span></div>
+<div class="foldopen" id="foldopen00043" data-start="{" data-end="};">
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno"><a class="line" href="structbrix__token__diag__t.html">   43</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno"><a class="line" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">   44</a></span>    ngx_log_t  *<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a>;</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno"><a class="line" href="structbrix__token__diag__t.html#a8aa2a353047db5b14df1b921fdb27531">   45</a></span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="structbrix__token__diag__t.html#a8aa2a353047db5b14df1b921fdb27531">label</a>;</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>} <a class="code hl_struct" href="structbrix__token__diag__t.html">brix_token_diag_t</a>;</div>
+</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment"> * brix_token_label - resolve the diagnostic label with a default.</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment"> * WHAT: Returns diag-&gt;label, or &quot;xrootd&quot; when the caller left it NULL.</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment"> * WHY:  Every error path prefixes its message with the caller&#39;s context; a</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment"> *       single resolver keeps the fallback identical across all call sites.</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="comment"> * HOW:  Ternary select — no allocation, no side effects.</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="keyword">static</span> <span class="keyword">const</span> <span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00057" data-start="{" data-end="}">
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno"><a class="line" href="file_8c.html#a96a37299d0423ec305693d36932ef7ab">   57</a></span><a class="code hl_function" href="file_8c.html#a96a37299d0423ec305693d36932ef7ab">brix_token_label</a>(<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *diag)</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>{</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="keywordflow">return</span> diag-&gt;<a class="code hl_variable" href="structbrix__token__diag__t.html#a8aa2a353047db5b14df1b921fdb27531">label</a> ? diag-&gt;<a class="code hl_variable" href="structbrix__token__diag__t.html#a8aa2a353047db5b14df1b921fdb27531">label</a> : <span class="stringliteral">&quot;xrootd&quot;</span>;</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>}</div>
+</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment"> * brix_token_validate_args - reject malformed arguments and build a C path.</span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="comment"> * WHAT: Validates path/buffer arguments and copies path into a NUL-terminated</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="comment"> *       pathz buffer (size NGX_MAX_PATH) on success.</span></div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment"> * WHY:  Bounds must be checked before any file access; concentrating the guard</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment"> *       in one helper keeps the reader loop free of validation branches while</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment"> *       preserving the original EINVAL semantics and log message.</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment"> * HOW:  Rejects NULL/empty/over-long path, NULL buf, or capacity &lt; 2 bytes.</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> *       On rejection logs (when log != NULL), sets errno=EINVAL, returns</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> *       NGX_ERROR. On success copies path-&gt;data + NUL terminator into pathz</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> *       (a fixed NGX_MAX_PATH-byte buffer owned by the caller).</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00076" data-start="{" data-end="}">
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno"><a class="line" href="file_8c.html#aec8fc7d4db689d971ce466bb3f3650bc">   76</a></span><a class="code hl_function" href="file_8c.html#aec8fc7d4db689d971ce466bb3f3650bc">brix_token_validate_args</a>(<span class="keyword">const</span> ngx_str_t *path, <span class="keyword">const</span> u_char *buf,</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    <span class="keywordtype">size_t</span> buf_sz, <span class="keywordtype">char</span> *pathz, <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *diag)</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>{</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="keywordflow">if</span> (path == NULL || path-&gt;len == 0 || path-&gt;len &gt;= NGX_MAX_PATH</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        || buf == NULL || buf_sz &lt; 2)</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    {</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>        <span class="keywordflow">if</span> (diag-&gt;<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a> != NULL) {</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>            ngx_log_error(NGX_LOG_ERR, diag-&gt;<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a>, 0,</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>                          <span class="stringliteral">&quot;%s token file path missing or too long&quot;</span>,</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>                          <a class="code hl_function" href="file_8c.html#a96a37299d0423ec305693d36932ef7ab">brix_token_label</a>(diag));</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>        }</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>        errno = EINVAL;</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    }</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span> </div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(pathz, path-&gt;data, path-&gt;len);</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>    pathz[path-&gt;len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>}</div>
+</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span> </div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="comment"> * brix_token_slurp - bounded read of a token file into buf.</span></div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="comment"> * WHAT: Opens pathz, reads up to buf_sz-1 bytes into buf, and returns the byte</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="comment"> *       count via *n_out. Does not NUL-terminate or trim (caller&#39;s job).</span></div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="comment"> * WHY:  Isolates all stdio + errno handling (open failure, read error with</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment"> *       errno preservation across fclose) so the top-level flow stays linear.</span></div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment"> * HOW:  fopen(&quot;rb&quot;), set FD_CLOEXEC, fread. On ferror, saves errno across</span></div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> *       fclose, logs, returns NGX_ERROR. On success closes and reports count.</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> *       Read-only stream: fclose status cannot affect already-consumed data.</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00108" data-start="{" data-end="}">
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno"><a class="line" href="file_8c.html#a868cf7c9cc7731918cb5b56389173e20">  108</a></span><a class="code hl_function" href="file_8c.html#a868cf7c9cc7731918cb5b56389173e20">brix_token_slurp</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *pathz, u_char *buf, <span class="keywordtype">size_t</span> buf_sz, <span class="keywordtype">size_t</span> *n_out,</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *diag)</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>{</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    FILE  *fp;</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordtype">size_t</span> n;</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span> </div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    fp = fopen(pathz, <span class="stringliteral">&quot;rb&quot;</span>);</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <span class="keywordflow">if</span> (fp == NULL) {</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>        <span class="keywordflow">if</span> (diag-&gt;<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a> != NULL) {</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>            ngx_log_error(NGX_LOG_ERR, diag-&gt;<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a>, ngx_errno,</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>                          <span class="stringliteral">&quot;%s cannot open token file \&quot;%s\&quot;&quot;</span>,</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>                          <a class="code hl_function" href="file_8c.html#a96a37299d0423ec305693d36932ef7ab">brix_token_label</a>(diag), pathz);</div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>        }</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    }</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    (void) fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span> </div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    n = fread(buf, 1, buf_sz - 1, fp);</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    <span class="keywordflow">if</span> (ferror(fp)) {</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        <span class="keywordtype">int</span> saved = errno;</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        (void) fclose(fp); <span class="comment">/* phase74-fp: read-only stream, ferror already latched the read failure being reported */</span></div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        errno = saved;</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <span class="keywordflow">if</span> (diag-&gt;<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a> != NULL) {</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>            ngx_log_error(NGX_LOG_ERR, diag-&gt;<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a>, ngx_errno,</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>                          <span class="stringliteral">&quot;%s cannot read token file \&quot;%s\&quot;&quot;</span>,</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>                          <a class="code hl_function" href="file_8c.html#a96a37299d0423ec305693d36932ef7ab">brix_token_label</a>(diag), pathz);</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        }</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    }</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    (void) fclose(fp); <span class="comment">/* phase74-fp: read-only stream fully consumed, ferror checked above — close status cannot affect the data */</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span> </div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    *n_out = n;</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>}</div>
+</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span> </div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="comment"> * brix_token_trim - NUL-terminate and strip trailing whitespace in place.</span></div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="comment"> * WHAT: NUL-terminates buf at n, then removes trailing isspace() bytes,</span></div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="comment"> *       returning the trimmed length.</span></div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="comment"> * WHY:  Token files commonly carry trailing CR/LF/space; trimming is a pure</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment"> *       string transform best kept out of the I/O and validation stages.</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment"> * HOW:  Terminates at n, then walks back over isspace() bytes, NUL-terminating</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment"> *       as it shrinks. Returns the resulting length.</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="keyword">static</span> <span class="keywordtype">size_t</span></div>
+<div class="foldopen" id="foldopen00154" data-start="{" data-end="}">
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno"><a class="line" href="file_8c.html#ac0a0f6a50098f68f8a37265e38fd04ce">  154</a></span><a class="code hl_function" href="file_8c.html#ac0a0f6a50098f68f8a37265e38fd04ce">brix_token_trim</a>(u_char *buf, <span class="keywordtype">size_t</span> n)</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>{</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    buf[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    <span class="keywordflow">while</span> (n &gt; 0 &amp;&amp; isspace((<span class="keywordtype">unsigned</span> <span class="keywordtype">char</span>) buf[n - 1])) {</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>        buf[--n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    }</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    <span class="keywordflow">return</span> n;</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>}</div>
+</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span> </div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00164" data-start="{" data-end="}">
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno"><a class="line" href="file_8c.html#ada5899fcbd61429e689dea61508d0c22">  164</a></span><a class="code hl_function" href="file_8c.html#ada5899fcbd61429e689dea61508d0c22">brix_token_read_file</a>(<span class="keyword">const</span> ngx_str_t *path, u_char *buf, <span class="keywordtype">size_t</span> buf_sz,</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    <span class="keywordtype">size_t</span> *out_len, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *label)</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>{</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="keywordtype">char</span>              pathz[NGX_MAX_PATH];</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    <span class="keywordtype">size_t</span>            n = 0;</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    <a class="code hl_struct" href="structbrix__token__diag__t.html">brix_token_diag_t</a> diag;</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span> </div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    diag.<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a> = <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>;</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    diag.<a class="code hl_variable" href="structbrix__token__diag__t.html#a8aa2a353047db5b14df1b921fdb27531">label</a> = label;</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span> </div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    <span class="keywordflow">if</span> (out_len != NULL) {</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        *out_len = 0;</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    }</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span> </div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="file_8c.html#aec8fc7d4db689d971ce466bb3f3650bc">brix_token_validate_args</a>(path, buf, buf_sz, pathz, &amp;diag) != NGX_OK) {</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    }</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span> </div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="file_8c.html#a868cf7c9cc7731918cb5b56389173e20">brix_token_slurp</a>(pathz, buf, buf_sz, &amp;n, &amp;diag) != NGX_OK) {</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    }</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span> </div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    n = <a class="code hl_function" href="file_8c.html#ac0a0f6a50098f68f8a37265e38fd04ce">brix_token_trim</a>(buf, n);</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span> </div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="keywordflow">if</span> (n == 0) {</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>        <span class="keywordflow">if</span> (diag.<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a> != NULL) {</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>            ngx_log_error(NGX_LOG_ERR, diag.<a class="code hl_variable" href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">log</a>, 0,</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>                          <span class="stringliteral">&quot;%s token file \&quot;%s\&quot; is empty&quot;</span>,</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>                          <a class="code hl_function" href="file_8c.html#a96a37299d0423ec305693d36932ef7ab">brix_token_label</a>(&amp;diag), pathz);</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>        }</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        errno = EINVAL;</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    }</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span> </div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    <span class="keywordflow">if</span> (out_len != NULL) {</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>        *out_len = n;</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    }</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span> </div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>}</div>
 </div>
 <div class="ttc" id="acore_2types_2file_8h_html"><div class="ttname"><a href="core_2types_2file_8h.html">file.h</a></div></div>
-<div class="ttc" id="afile_8c_html_ada5899fcbd61429e689dea61508d0c22"><div class="ttname"><a href="file_8c.html#ada5899fcbd61429e689dea61508d0c22">brix_token_read_file</a></div><div class="ttdeci">ngx_int_t brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz, size_t *out_len, ngx_log_t *log, const char *label)</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00034">file.c:34</a></div></div>
+<div class="ttc" id="afile_8c_html_a868cf7c9cc7731918cb5b56389173e20"><div class="ttname"><a href="file_8c.html#a868cf7c9cc7731918cb5b56389173e20">brix_token_slurp</a></div><div class="ttdeci">static ngx_int_t brix_token_slurp(const char *pathz, u_char *buf, size_t buf_sz, size_t *n_out, const brix_token_diag_t *diag)</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00108">file.c:108</a></div></div>
+<div class="ttc" id="afile_8c_html_a96a37299d0423ec305693d36932ef7ab"><div class="ttname"><a href="file_8c.html#a96a37299d0423ec305693d36932ef7ab">brix_token_label</a></div><div class="ttdeci">static const char * brix_token_label(const brix_token_diag_t *diag)</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00057">file.c:57</a></div></div>
+<div class="ttc" id="afile_8c_html_ac0a0f6a50098f68f8a37265e38fd04ce"><div class="ttname"><a href="file_8c.html#ac0a0f6a50098f68f8a37265e38fd04ce">brix_token_trim</a></div><div class="ttdeci">static size_t brix_token_trim(u_char *buf, size_t n)</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00154">file.c:154</a></div></div>
+<div class="ttc" id="afile_8c_html_ada5899fcbd61429e689dea61508d0c22"><div class="ttname"><a href="file_8c.html#ada5899fcbd61429e689dea61508d0c22">brix_token_read_file</a></div><div class="ttdeci">ngx_int_t brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz, size_t *out_len, ngx_log_t *log, const char *label)</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00164">file.c:164</a></div></div>
+<div class="ttc" id="afile_8c_html_aec8fc7d4db689d971ce466bb3f3650bc"><div class="ttname"><a href="file_8c.html#aec8fc7d4db689d971ce466bb3f3650bc">brix_token_validate_args</a></div><div class="ttdeci">static ngx_int_t brix_token_validate_args(const ngx_str_t *path, const u_char *buf, size_t buf_sz, char *pathz, const brix_token_diag_t *diag)</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00076">file.c:76</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
+<div class="ttc" id="astructbrix__token__diag__t_html"><div class="ttname"><a href="structbrix__token__diag__t.html">brix_token_diag_t</a></div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00043">file.c:43</a></div></div>
+<div class="ttc" id="astructbrix__token__diag__t_html_a1c1414872481febe1b293991ab05eda4"><div class="ttname"><a href="structbrix__token__diag__t.html#a1c1414872481febe1b293991ab05eda4">brix_token_diag_t::log</a></div><div class="ttdeci">ngx_log_t * log</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00044">file.c:44</a></div></div>
+<div class="ttc" id="astructbrix__token__diag__t_html_a8aa2a353047db5b14df1b921fdb27531"><div class="ttname"><a href="structbrix__token__diag__t.html#a8aa2a353047db5b14df1b921fdb27531">brix_token_diag_t::label</a></div><div class="ttdeci">const char * label</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00045">file.c:45</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

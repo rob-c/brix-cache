@@ -1,0 +1,35 @@
+<map id="webdav_tpc_ms_ctx_t" name="webdav_tpc_ms_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1332,437,1499,462"/>
+<area shape="rect" id="Node000002" href="$structngx__http__brix__webdav__loc__conf__t.html" title=" " alt="" coords="1049,240,1219,280"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1178,286,1397,434,1394,439,1175,290"/>
+<area shape="rect" id="Node000003" href="$structngx__http__brix__shared__conf__t.html" title=" " alt="" coords="755,5,918,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="932,39,981,56,1027,83,1064,120,1093,163,1114,205,1128,238,1123,240,1109,207,1088,166,1059,124,1024,87,979,61,930,44"/>
+<area shape="rect" id="Node000004" href="$structbrix__pmark__conf__t.html" title=" " alt="" coords="502,13,645,38"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="658,23,755,23,755,28,658,28"/>
+<area shape="rect" id="Node000005" href="$structngx__http__brix__tpc__conf__t.html" title=" " alt="" coords="744,70,929,95"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="936,96,982,111,1027,134,1057,158,1084,186,1123,238,1118,241,1080,190,1054,162,1024,138,980,116,934,101"/>
+<area shape="rect" id="Node000006" href="$structbrix__jwks__key__t.html" title=" " alt="" coords="773,119,900,145"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="914,142,970,156,1027,178,1074,207,1113,238,1109,242,1071,211,1024,182,969,161,913,147"/>
+<area shape="rect" id="Node000007" href="$structbrix__kv__t.html" title=" " alt="" coords="532,210,615,235"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="628,217,673,215,773,214,850,217,1026,237,1049,241,1049,246,1025,243,850,222,773,219,673,220,629,222"/>
+<area shape="rect" id="Node000012" href="$structbrix__rate__limit__conf__t.html" title=" " alt="" coords="755,247,919,273"/>
+<area shape="poly" id="edge12_Node000012_Node000007" title=" " alt="" coords="629,228,755,246,754,251,628,233"/>
+<area shape="rect" id="Node000008" href="$structbrix__token__l1__s.html" title=" " alt="" coords="776,297,897,322"/>
+<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="911,296,1025,277,1048,273,1049,278,1026,283,911,301"/>
+<area shape="rect" id="Node000009" href="$structbrix__token__l1__slot__t.html" title=" " alt="" coords="497,297,649,322"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="663,307,776,307,776,312,663,312"/>
+<area shape="rect" id="Node000010" href="$structbrix__token__claims__t.html" title=" " alt="" coords="249,297,401,322"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="415,307,497,307,497,312,415,312"/>
+<area shape="rect" id="Node000011" href="$structbrix__token__scope__t.html" title=" " alt="" coords="5,297,152,322"/>
+<area shape="poly" id="edge10_Node000010_Node000011" title=" " alt="" coords="166,307,249,307,249,312,166,312"/>
+<area shape="poly" id="edge11_Node000002_Node000012" title=" " alt="" coords="932,257,1049,257,1049,263,932,263"/>
+<area shape="rect" id="Node000013" href="$structbrix__mirror__conf__t.html" title=" " alt="" coords="766,346,907,371"/>
+<area shape="poly" id="edge13_Node000002_Node000013" title=" " alt="" coords="916,340,1024,309,1095,278,1097,283,1026,315,917,346"/>
+<area shape="rect" id="Node000014" href="$structbrix__acc__http__t.html" title=" " alt="" coords="776,395,897,421"/>
+<area shape="poly" id="edge14_Node000002_Node000014" title=" " alt="" coords="910,393,968,377,1024,352,1074,316,1113,278,1117,282,1078,320,1027,357,969,382,912,398"/>
+<area shape="rect" id="Node000015" href="$structms__stream__ctx__t.html" title=" " alt="" coords="1067,498,1201,523"/>
+<area shape="poly" id="edge15_Node000001_Node000015" title=" " alt="" coords="1214,498,1307,480,1377,459,1379,465,1309,485,1215,503"/>
+<area shape="rect" id="Node000016" href="$structtpc__ms__progress__t.html" title=" " alt="" coords="765,457,909,482"/>
+<area shape="poly" id="edge17_Node000001_Node000016" title=" " alt="" coords="923,464,1332,450,1332,455,923,469"/>
+<area shape="poly" id="edge16_Node000015_Node000016" title=" " alt="" coords="923,479,1067,499,1066,504,922,484"/>
+</map>

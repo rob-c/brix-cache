@@ -121,6 +121,10 @@ $(document).ready(function(){initNavTree('multipart__complete__list__uploads_8c.
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmpu__upload__entry__t.html">mpu_upload_entry_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmpu__scan__t.html">mpu_scan_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmpu__page__t.html">mpu_page_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -131,10 +135,20 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:acb2604c894c4e5959c493f173ba01d32" id="r_acb2604c894c4e5959c493f173ba01d32"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#acb2604c894c4e5959c493f173ba01d32">mpu_collect</a> (<a class="el" href="structmpu__scan__t.html">mpu_scan_t</a> *scan, const char *dir_path, const char *key_prefix, int depth)</td></tr>
+<tr class="separator:acb2604c894c4e5959c493f173ba01d32"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac38c98c02ff7b639020a178db33a768a" id="r_ac38c98c02ff7b639020a178db33a768a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#ac38c98c02ff7b639020a178db33a768a">mpu_upload_entry_cmp</a> (const void *a, const void *b)</td></tr>
 <tr class="separator:ac38c98c02ff7b639020a178db33a768a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa5777ac560eee8bd6c076affb61abde5" id="r_aa5777ac560eee8bd6c076affb61abde5"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#aa5777ac560eee8bd6c076affb61abde5">mpu_collect</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const char *dir_path, const char *key_prefix, <a class="el" href="structmpu__upload__entry__t.html">mpu_upload_entry_t</a> *uploads, int max, int *n, int depth)</td></tr>
-<tr class="separator:aa5777ac560eee8bd6c076affb61abde5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a86b5f6ef4e6a20b69406d87bde84dd3d" id="r_a86b5f6ef4e6a20b69406d87bde84dd3d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#a86b5f6ef4e6a20b69406d87bde84dd3d">mpu_record_staging</a> (<a class="el" href="structmpu__scan__t.html">mpu_scan_t</a> *scan, const char *dname, const char *key_prefix, time_t mtime)</td></tr>
+<tr class="separator:a86b5f6ef4e6a20b69406d87bde84dd3d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a99efbe776fe5e7e6eee723c7bd24143a" id="r_a99efbe776fe5e7e6eee723c7bd24143a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#a99efbe776fe5e7e6eee723c7bd24143a">mpu_scan_entry</a> (<a class="el" href="structmpu__scan__t.html">mpu_scan_t</a> *scan, const char *dir_path, const char *key_prefix, const char *dname, int depth)</td></tr>
+<tr class="separator:a99efbe776fe5e7e6eee723c7bd24143a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5adfa6936209b054c8d30f4162c198fa" id="r_a5adfa6936209b054c8d30f4162c198fa"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#a5adfa6936209b054c8d30f4162c198fa">mpu_parse_max_uploads</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:a5adfa6936209b054c8d30f4162c198fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b69474d447e86ed1eb8dbc01ec278a4" id="r_a2b69474d447e86ed1eb8dbc01ec278a4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#a2b69474d447e86ed1eb8dbc01ec278a4">mpu_marker_start_idx</a> (const <a class="el" href="structmpu__upload__entry__t.html">mpu_upload_entry_t</a> *uploads, int nuploads, const char *key_marker)</td></tr>
+<tr class="separator:a2b69474d447e86ed1eb8dbc01ec278a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac1ea4c2efcf5b757d6d51bddf8b14f45" id="r_ac1ea4c2efcf5b757d6d51bddf8b14f45"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#ac1ea4c2efcf5b757d6d51bddf8b14f45">mpu_render_and_send</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const <a class="el" href="structmpu__page__t.html">mpu_page_t</a> *pg)</td></tr>
+<tr class="separator:ac1ea4c2efcf5b757d6d51bddf8b14f45"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8a93381df6b4344ab24788e3a68f97c2" id="r_a8a93381df6b4344ab24788e3a68f97c2"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__list__uploads_8c.html#a8a93381df6b4344ab24788e3a68f97c2">s3_handle_list_multipart_uploads</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
 <tr class="separator:a8a93381df6b4344ab24788e3a68f97c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -172,8 +186,8 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="aa5777ac560eee8bd6c076affb61abde5" name="aa5777ac560eee8bd6c076affb61abde5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa5777ac560eee8bd6c076affb61abde5">&#9670;&#160;</a></span>mpu_collect()</h2>
+<a id="acb2604c894c4e5959c493f173ba01d32" name="acb2604c894c4e5959c493f173ba01d32"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acb2604c894c4e5959c493f173ba01d32">&#9670;&#160;</a></span>mpu_collect()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -184,14 +198,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">static void mpu_collect </td>
           <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>cf</em>, </td>
+          <td class="paramtype"><a class="el" href="structmpu__scan__t.html">mpu_scan_t</a> *&#160;</td>
+          <td class="paramname"><em>scan</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -204,24 +212,6 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>key_prefix</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structmpu__upload__entry__t.html">mpu_upload_entry_t</a> *&#160;</td>
-          <td class="paramname"><em>uploads</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>max</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>n</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -242,11 +232,253 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00095">95</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00234">234</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__dir_8c_source.html#l00359">brix_vfs_closedir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00161">brix_vfs_opendir_quiet()</a>, <a class="el" href="vfs__stat_8c_source.html#l00172">brix_vfs_probe()</a>, <a class="el" href="vfs__dir_8c_source.html#l00278">brix_vfs_readdir_kind()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::is_directory</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00095">mpu_collect()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00063">MPU_LIST_MAX_DEPTH</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00050">mpu_upload_entry_t::mtime</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__dir_8c_source.html#l00499">brix_vfs_closedir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00221">brix_vfs_opendir_quiet()</a>, <a class="el" href="vfs__dir_8c_source.html#l00458">brix_vfs_readdir_kind()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00078">mpu_scan_t::cf</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00080">mpu_scan_t::max</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00063">MPU_LIST_MAX_DEPTH</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00173">mpu_scan_entry()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00081">mpu_scan_t::n</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00077">mpu_scan_t::r</a>, and <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00095">mpu_collect()</a>, and <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00188">s3_handle_list_multipart_uploads()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00173">mpu_scan_entry()</a>, and <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00425">s3_handle_list_multipart_uploads()</a>.</p>
+
+</div>
+</div>
+<a id="a2b69474d447e86ed1eb8dbc01ec278a4" name="a2b69474d447e86ed1eb8dbc01ec278a4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b69474d447e86ed1eb8dbc01ec278a4">&#9670;&#160;</a></span>mpu_marker_start_idx()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int mpu_marker_start_idx </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structmpu__upload__entry__t.html">mpu_upload_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>uploads</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>nuploads</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key_marker</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00309">309</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00425">s3_handle_list_multipart_uploads()</a>.</p>
+
+</div>
+</div>
+<a id="a5adfa6936209b054c8d30f4162c198fa" name="a5adfa6936209b054c8d30f4162c198fa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5adfa6936209b054c8d30f4162c198fa">&#9670;&#160;</a></span>mpu_parse_max_uploads()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int mpu_parse_max_uploads </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00282">282</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
+
+<p class="reference">References <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00057">MPU_MAX_LISTED_UPLOADS</a>, and <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00425">s3_handle_list_multipart_uploads()</a>.</p>
+
+</div>
+</div>
+<a id="a86b5f6ef4e6a20b69406d87bde84dd3d" name="a86b5f6ef4e6a20b69406d87bde84dd3d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a86b5f6ef4e6a20b69406d87bde84dd3d">&#9670;&#160;</a></span>mpu_record_staging()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void mpu_record_staging </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmpu__scan__t.html">mpu_scan_t</a> *&#160;</td>
+          <td class="paramname"><em>scan</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dname</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key_prefix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>mtime</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00128">128</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
+
+<p class="reference">References <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00048">mpu_upload_entry_t::key</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00050">mpu_upload_entry_t::mtime</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00081">mpu_scan_t::n</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00049">mpu_upload_entry_t::upload_id</a>, and <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00079">mpu_scan_t::uploads</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00173">mpu_scan_entry()</a>.</p>
+
+</div>
+</div>
+<a id="ac1ea4c2efcf5b757d6d51bddf8b14f45" name="ac1ea4c2efcf5b757d6d51bddf8b14f45"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac1ea4c2efcf5b757d6d51bddf8b14f45">&#9670;&#160;</a></span>mpu_render_and_send()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t mpu_render_and_send </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structmpu__page__t.html">mpu_page_t</a> *&#160;</td>
+          <td class="paramname"><em>pg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00344">344</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
+
+<p class="reference">References <a class="el" href="time_8c_source.html#l00029">brix_format_iso8601()</a>, <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00102">mpu_page_t::end_idx</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00099">mpu_page_t::key_marker</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00100">mpu_page_t::max_uploads</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00101">mpu_page_t::start_idx</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00103">mpu_page_t::truncated</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00098">mpu_page_t::uploads</a>, <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00205">XML_APPEND_ELEM</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00425">s3_handle_list_multipart_uploads()</a>.</p>
+
+</div>
+</div>
+<a id="a99efbe776fe5e7e6eee723c7bd24143a" name="a99efbe776fe5e7e6eee723c7bd24143a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a99efbe776fe5e7e6eee723c7bd24143a">&#9670;&#160;</a></span>mpu_scan_entry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void mpu_scan_entry </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structmpu__scan__t.html">mpu_scan_t</a> *&#160;</td>
+          <td class="paramname"><em>scan</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key_prefix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dname</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>depth</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00173">173</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00078">mpu_scan_t::cf</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::is_directory</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00234">mpu_collect()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00128">mpu_record_staging()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00077">mpu_scan_t::r</a>, and <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00234">mpu_collect()</a>.</p>
 
 </div>
 </div>
@@ -284,11 +516,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00066">66</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00107">107</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00188">s3_handle_list_multipart_uploads()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00425">s3_handle_list_multipart_uploads()</a>.</p>
 
 </div>
 </div>
@@ -318,11 +550,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00188">188</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00425">425</a> of file <a class="el" href="multipart__complete__list__uploads_8c_source.html">multipart_complete_list_uploads.c</a>.</p>
 
-<p class="reference">References <a class="el" href="time_8c_source.html#l00029">brix_format_iso8601()</a>, <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00095">mpu_collect()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00057">MPU_MAX_LISTED_UPLOADS</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00066">mpu_upload_entry_cmp()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="s3_8h_source.html#l00186">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00196">XML_APPEND_ELEM</a>.</p>
+<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00078">mpu_scan_t::cf</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00102">mpu_page_t::end_idx</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00099">mpu_page_t::key_marker</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00080">mpu_scan_t::max</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00100">mpu_page_t::max_uploads</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00234">mpu_collect()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00309">mpu_marker_start_idx()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00057">MPU_MAX_LISTED_UPLOADS</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00282">mpu_parse_max_uploads()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00344">mpu_render_and_send()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00107">mpu_upload_entry_cmp()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00081">mpu_scan_t::n</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00077">mpu_scan_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00101">mpu_page_t::start_idx</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00103">mpu_page_t::truncated</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00079">mpu_scan_t::uploads</a>, and <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00098">mpu_page_t::uploads</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00231">s3_dispatch_bucket_get()</a>.</p>
 
 </div>
 </div>

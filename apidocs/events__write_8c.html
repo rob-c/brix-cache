@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('events__write_8c.html',''); initResiza
 
 <div class="header">
   <div class="summary">
+<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">events_write.c File Reference</div></div>
 </div><!--header-->
@@ -109,12 +110,228 @@ $(document).ready(function(){initNavTree('events__write_8c.html',''); initResiza
 </div>
 <p><a href="events__write_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:ab7601da07db961757e3a050d363fdf88" id="r_ab7601da07db961757e3a050d363fdf88"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88">brix_pw_outcome_t</a> { <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88a517f32c95d1860443bbc88882129221b">PW_CONTINUE</a> = 0
+, <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88a1fed2c5de551c05c38c620763968288b">PW_DONE</a>
+ }</td></tr>
+<tr class="separator:ab7601da07db961757e3a050d363fdf88"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ae417febe8bf97bec1df7dcd7f025dd7d" id="r_ae417febe8bf97bec1df7dcd7f025dd7d"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88">brix_pw_outcome_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__write_8c.html#ae417febe8bf97bec1df7dcd7f025dd7d">brix_proxy_check_connect</a> (ngx_connection_t *uconn, brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:ae417febe8bf97bec1df7dcd7f025dd7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac6e3cc02fdbbab974e4aeb5193832e66" id="r_ac6e3cc02fdbbab974e4aeb5193832e66"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88">brix_pw_outcome_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__write_8c.html#ac6e3cc02fdbbab974e4aeb5193832e66">brix_proxy_handle_connecting</a> (ngx_connection_t *uconn, brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:ac6e3cc02fdbbab974e4aeb5193832e66"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a96e1f233a68c582cff40c3cc6379795a" id="r_a96e1f233a68c582cff40c3cc6379795a"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88">brix_pw_outcome_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__write_8c.html#a96e1f233a68c582cff40c3cc6379795a">brix_proxy_flush_buffered</a> (ngx_connection_t *uconn, brix_proxy_ctx_t *proxy)</td></tr>
+<tr class="separator:a96e1f233a68c582cff40c3cc6379795a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aada565e13b1391f448883519a4776a40" id="r_aada565e13b1391f448883519a4776a40"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__write_8c.html#aada565e13b1391f448883519a4776a40">brix_proxy_write_complete</a> (ngx_connection_t *uconn, brix_proxy_ctx_t *proxy)</td></tr>
+<tr class="separator:aada565e13b1391f448883519a4776a40"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a88366a4ce5d75d9b0da8f74e22c6b264" id="r_a88366a4ce5d75d9b0da8f74e22c6b264"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__write_8c.html#a88366a4ce5d75d9b0da8f74e22c6b264">brix_proxy_write_handler</a> (ngx_event_t *wev)</td></tr>
 <tr class="separator:a88366a4ce5d75d9b0da8f74e22c6b264"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="ab7601da07db961757e3a050d363fdf88" name="ab7601da07db961757e3a050d363fdf88"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab7601da07db961757e3a050d363fdf88">&#9670;&#160;</a></span>brix_pw_outcome_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88">brix_pw_outcome_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ab7601da07db961757e3a050d363fdf88a517f32c95d1860443bbc88882129221b" name="ab7601da07db961757e3a050d363fdf88a517f32c95d1860443bbc88882129221b"></a>PW_CONTINUE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="ab7601da07db961757e3a050d363fdf88a1fed2c5de551c05c38c620763968288b" name="ab7601da07db961757e3a050d363fdf88a1fed2c5de551c05c38c620763968288b"></a>PW_DONE&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+<p class="definition">Definition at line <a class="el" href="events__write_8c_source.html#l00018">18</a> of file <a class="el" href="events__write_8c_source.html">events_write.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ae417febe8bf97bec1df7dcd7f025dd7d" name="ae417febe8bf97bec1df7dcd7f025dd7d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae417febe8bf97bec1df7dcd7f025dd7d">&#9670;&#160;</a></span>brix_proxy_check_connect()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88">brix_pw_outcome_t</a> brix_proxy_check_connect </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>uconn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__write_8c_source.html#l00034">34</a> of file <a class="el" href="events__write_8c_source.html">events_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="events__write_8c_source.html#l00019">PW_CONTINUE</a>, and <a class="el" href="events__write_8c_source.html#l00020">PW_DONE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__write_8c_source.html#l00140">brix_proxy_handle_connecting()</a>.</p>
+
+</div>
+</div>
+<a id="a96e1f233a68c582cff40c3cc6379795a" name="a96e1f233a68c582cff40c3cc6379795a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96e1f233a68c582cff40c3cc6379795a">&#9670;&#160;</a></span>brix_proxy_flush_buffered()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88">brix_pw_outcome_t</a> brix_proxy_flush_buffered </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>uconn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__write_8c_source.html#l00171">171</a> of file <a class="el" href="events__write_8c_source.html">events_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00020">brix_proxy_flush()</a>, <a class="el" href="events__write_8c_source.html#l00019">PW_CONTINUE</a>, and <a class="el" href="events__write_8c_source.html#l00020">PW_DONE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__write_8c_source.html#l00244">brix_proxy_write_handler()</a>.</p>
+
+</div>
+</div>
+<a id="ac6e3cc02fdbbab974e4aeb5193832e66" name="ac6e3cc02fdbbab974e4aeb5193832e66"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac6e3cc02fdbbab974e4aeb5193832e66">&#9670;&#160;</a></span>brix_proxy_handle_connecting()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="events__write_8c.html#ab7601da07db961757e3a050d363fdf88">brix_pw_outcome_t</a> brix_proxy_handle_connecting </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>uconn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__write_8c_source.html#l00140">140</a> of file <a class="el" href="events__write_8c_source.html">events_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="events__write_8c_source.html#l00034">brix_proxy_check_connect()</a>, <a class="el" href="events__write_8c_source.html#l00019">PW_CONTINUE</a>, <a class="el" href="events__write_8c_source.html#l00020">PW_DONE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00075">XRD_PX_BOOTSTRAP</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00081">XRD_PX_BS_HANDSHAKE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__write_8c_source.html#l00244">brix_proxy_write_handler()</a>.</p>
+
+</div>
+</div>
+<a id="aada565e13b1391f448883519a4776a40" name="aada565e13b1391f448883519a4776a40"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aada565e13b1391f448883519a4776a40">&#9670;&#160;</a></span>brix_proxy_write_complete()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_proxy_write_complete </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>uconn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="events__write_8c_source.html#l00209">209</a> of file <a class="el" href="events__write_8c_source.html">events_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00254">brix_proxy_wbuf_release()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="events__write_8c_source.html#l00244">brix_proxy_write_handler()</a>.</p>
+
+</div>
+</div>
 <a id="a88366a4ce5d75d9b0da8f74e22c6b264" name="a88366a4ce5d75d9b0da8f74e22c6b264"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a88366a4ce5d75d9b0da8f74e22c6b264">&#9670;&#160;</a></span>brix_proxy_write_handler()</h2>
 
@@ -131,11 +348,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="events__write_8c_source.html#l00019">19</a> of file <a class="el" href="events__write_8c_source.html">events_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="events__write_8c_source.html#l00244">244</a> of file <a class="el" href="events__write_8c_source.html">events_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00146">brix_proxy_cleanup()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00020">brix_proxy_flush()</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00254">brix_proxy_wbuf_release()</a>, <a class="el" href="context_8h_source.html#l00204">brix_ctx_t::destroyed</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00075">XRD_PX_BOOTSTRAP</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00081">XRD_PX_BS_HANDSHAKE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00073">XRD_PX_CONNECTING</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00074">XRD_PX_TLS_HANDSHAKE</a>.</p>
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00332">brix_proxy_cleanup()</a>, <a class="el" href="events__write_8c_source.html#l00171">brix_proxy_flush_buffered()</a>, <a class="el" href="events__write_8c_source.html#l00140">brix_proxy_handle_connecting()</a>, <a class="el" href="events__write_8c_source.html#l00209">brix_proxy_write_complete()</a>, <a class="el" href="context_8h_source.html#l00204">brix_ctx_t::destroyed</a>, <a class="el" href="events__write_8c_source.html#l00020">PW_DONE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00073">XRD_PX_CONNECTING</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00074">XRD_PX_TLS_HANDSHAKE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00186">brix_proxy_connect()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00263">brix_proxy_pool_get()</a>, and <a class="el" href="gsi__upstream__login_8c_source.html#l00098">proxy_gsi_promote_fd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00270">brix_proxy_pool_get()</a>, <a class="el" href="connect__upstream_8c_source.html#l00420">pc_open_socket()</a>, and <a class="el" href="gsi__upstream__login_8c_source.html#l00098">proxy_gsi_promote_fd()</a>.</p>
 
 </div>
 </div>

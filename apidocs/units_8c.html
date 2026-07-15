@@ -114,12 +114,46 @@ $(document).ready(function(){initNavTree('units_8c.html',''); initResizable(); }
 Functions</h2></td></tr>
 <tr class="memitem:a5928086bf7384951fce89995f2b7f6b2" id="r_a5928086bf7384951fce89995f2b7f6b2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="units_8c.html#a5928086bf7384951fce89995f2b7f6b2">brix_fmt_size</a> (int64_t n, char *out, size_t sz, int human)</td></tr>
 <tr class="separator:a5928086bf7384951fce89995f2b7f6b2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8cbd49c0117c1615d339ca5279270cfd" id="r_a8cbd49c0117c1615d339ca5279270cfd"><td class="memItemLeft" align="right" valign="top">static int64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="units_8c.html#a8cbd49c0117c1615d339ca5279270cfd">brix_bytes_suffix_multiplier</a> (char <a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:a8cbd49c0117c1615d339ca5279270cfd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac25def4fd0b27944a842d9288949dbbe" id="r_ac25def4fd0b27944a842d9288949dbbe"><td class="memItemLeft" align="right" valign="top">int64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="units_8c.html#ac25def4fd0b27944a842d9288949dbbe">brix_parse_bytes</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:ac25def4fd0b27944a842d9288949dbbe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad528deb27492b515c321c5c5954b0f52" id="r_ad528deb27492b515c321c5c5954b0f52"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="units_8c.html#ad528deb27492b515c321c5c5954b0f52">brix_rate_pace</a> (const struct timespec *start, int64_t sent, double rate)</td></tr>
 <tr class="separator:ad528deb27492b515c321c5c5954b0f52"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a8cbd49c0117c1615d339ca5279270cfd" name="a8cbd49c0117c1615d339ca5279270cfd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8cbd49c0117c1615d339ca5279270cfd">&#9670;&#160;</a></span>brix_bytes_suffix_multiplier()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int64_t brix_bytes_suffix_multiplier </td>
+          <td>(</td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>c</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="units_8c_source.html#l00050">50</a> of file <a class="el" href="units_8c_source.html">units.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="units_8c_source.html#l00062">brix_parse_bytes()</a>.</p>
+
+</div>
+</div>
 <a id="a5928086bf7384951fce89995f2b7f6b2" name="a5928086bf7384951fce89995f2b7f6b2"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a5928086bf7384951fce89995f2b7f6b2">&#9670;&#160;</a></span>brix_fmt_size()</h2>
 
@@ -160,7 +194,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="units_8c_source.html#l00017">17</a> of file <a class="el" href="units_8c_source.html">units.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__fmt_8c_source.html#l00312">fmt_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__fmt_8c_source.html#l00386">fmt_size()</a>.</p>
 
 </div>
 </div>
@@ -180,11 +214,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="units_8c_source.html#l00034">34</a> of file <a class="el" href="units_8c_source.html">units.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="units_8c_source.html#l00062">62</a> of file <a class="el" href="units_8c_source.html">units.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="units_8c_source.html#l00050">brix_bytes_suffix_multiplier()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__fmt_8c_source.html#l00265">parse_bytes()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00475">parse_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__fmt_8c_source.html#l00339">parse_bytes()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00633">parse_list()</a>.</p>
 
 </div>
 </div>
@@ -220,9 +254,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="units_8c_source.html#l00058">58</a> of file <a class="el" href="units_8c_source.html">units.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="units_8c_source.html#l00081">81</a> of file <a class="el" href="units_8c_source.html">units.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__fmt_8c_source.html#l00272">rate_pace()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__fmt_8c_source.html#l00346">rate_pace()</a>.</p>
 
 </div>
 </div>

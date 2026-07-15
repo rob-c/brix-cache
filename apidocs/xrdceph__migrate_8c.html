@@ -124,10 +124,16 @@ Functions</h2></td></tr>
 <tr class="separator:ae28be76366886c36db56889cfc779768"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad7ab1e54a793edb944d8dbc0e2e64f24" id="r_ad7ab1e54a793edb944d8dbc0e2e64f24"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#ad7ab1e54a793edb944d8dbc0e2e64f24">mkdirs_for</a> (const char *path)</td></tr>
 <tr class="separator:ad7ab1e54a793edb944d8dbc0e2e64f24"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a55bda9f29cad1770fd310bdc7ff14aa1" id="r_a55bda9f29cad1770fd310bdc7ff14aa1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#a55bda9f29cad1770fd310bdc7ff14aa1">carry_xattrs</a> (sd_ceph_conn_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *oid, int fd)</td></tr>
+<tr class="memitem:a55bda9f29cad1770fd310bdc7ff14aa1" id="r_a55bda9f29cad1770fd310bdc7ff14aa1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#a55bda9f29cad1770fd310bdc7ff14aa1">carry_xattrs</a> (sd_ceph_conn_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *oid, int fd)</td></tr>
 <tr class="separator:a55bda9f29cad1770fd310bdc7ff14aa1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a25811f4938c8ef95615edbd7ed7acf63" id="r_a25811f4938c8ef95615edbd7ed7acf63"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#a25811f4938c8ef95615edbd7ed7acf63">stream_object</a> (sd_ceph_conn_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *oid, int fd)</td></tr>
+<tr class="memitem:a25811f4938c8ef95615edbd7ed7acf63" id="r_a25811f4938c8ef95615edbd7ed7acf63"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#a25811f4938c8ef95615edbd7ed7acf63">stream_object</a> (sd_ceph_conn_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *oid, int fd)</td></tr>
 <tr class="separator:a25811f4938c8ef95615edbd7ed7acf63"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7127b0decde79f5d0325761d927b27f7" id="r_a7127b0decde79f5d0325761d927b27f7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#a7127b0decde79f5d0325761d927b27f7">open_source_and_dest</a> (const char *pool, const char *dest, sd_ceph_conn_t **conn_out, rados_list_ctx_t *lc_out)</td></tr>
+<tr class="separator:a7127b0decde79f5d0325761d927b27f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aefdf84f092dcd97c8c455cf1add83f71" id="r_aefdf84f092dcd97c8c455cf1add83f71"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#aefdf84f092dcd97c8c455cf1add83f71">migrate_one_object</a> (sd_ceph_conn_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *dest, const char *entry, unsigned long long *bytes)</td></tr>
+<tr class="separator:aefdf84f092dcd97c8c455cf1add83f71"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab8f72cb74c1ef99a77936f26a77b54ad" id="r_ab8f72cb74c1ef99a77936f26a77b54ad"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#ab8f72cb74c1ef99a77936f26a77b54ad">migrate_pool</a> (sd_ceph_conn_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *dest, rados_list_ctx_t lc, unsigned long long *files, unsigned long long *bytes, unsigned long long *<a class="el" href="xfer__spawn__unittest_8c.html#a6d1c47a9da2e93fc76be86a291b7656f">fails</a>)</td></tr>
+<tr class="separator:ab8f72cb74c1ef99a77936f26a77b54ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c04138a5bfe5d72780bb7e82a18e627" id="r_a3c04138a5bfe5d72780bb7e82a18e627"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdceph__migrate_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a3c04138a5bfe5d72780bb7e82a18e627"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -174,9 +180,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdceph__migrate_8c_source.html#l00066">66</a> of file <a class="el" href="xrdceph__migrate_8c_source.html">xrdceph_migrate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00109">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00182">migrate_one_object()</a>.</p>
 
 </div>
 </div>
@@ -206,9 +212,129 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdceph__migrate_8c_source.html#l00109">109</a> of file <a class="el" href="xrdceph__migrate_8c_source.html">xrdceph_migrate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdceph__migrate_8c_source.html#l00257">257</a> of file <a class="el" href="xrdceph__migrate_8c_source.html">xrdceph_migrate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00066">carry_xattrs()</a>, <a class="el" href="xfer__spawn__unittest_8c_source.html#l00019">fails</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00047">mkdirs_for()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00089">stream_object()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xfer__spawn__unittest_8c_source.html#l00019">fails</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00238">migrate_pool()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00129">open_source_and_dest()</a>.</p>
+
+</div>
+</div>
+<a id="aefdf84f092dcd97c8c455cf1add83f71" name="aefdf84f092dcd97c8c455cf1add83f71"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aefdf84f092dcd97c8c455cf1add83f71">&#9670;&#160;</a></span>migrate_one_object()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int migrate_one_object </td>
+          <td>(</td>
+          <td class="paramtype">sd_ceph_conn_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dest</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>entry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long long *&#160;</td>
+          <td class="paramname"><em>bytes</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdceph__migrate_8c_source.html#l00182">182</a> of file <a class="el" href="xrdceph__migrate_8c_source.html">xrdceph_migrate.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00066">carry_xattrs()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00047">mkdirs_for()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00089">stream_object()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00238">migrate_pool()</a>.</p>
+
+</div>
+</div>
+<a id="ab8f72cb74c1ef99a77936f26a77b54ad" name="ab8f72cb74c1ef99a77936f26a77b54ad"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab8f72cb74c1ef99a77936f26a77b54ad">&#9670;&#160;</a></span>migrate_pool()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void migrate_pool </td>
+          <td>(</td>
+          <td class="paramtype">sd_ceph_conn_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dest</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">rados_list_ctx_t&#160;</td>
+          <td class="paramname"><em>lc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long long *&#160;</td>
+          <td class="paramname"><em>files</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long long *&#160;</td>
+          <td class="paramname"><em>bytes</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long long *&#160;</td>
+          <td class="paramname"><em>fails</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdceph__migrate_8c_source.html#l00238">238</a> of file <a class="el" href="xrdceph__migrate_8c_source.html">xrdceph_migrate.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00182">migrate_one_object()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00257">main()</a>.</p>
 
 </div>
 </div>
@@ -240,7 +366,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00109">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00182">migrate_one_object()</a>.</p>
 
 </div>
 </div>
@@ -304,6 +430,60 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a7127b0decde79f5d0325761d927b27f7" name="a7127b0decde79f5d0325761d927b27f7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7127b0decde79f5d0325761d927b27f7">&#9670;&#160;</a></span>open_source_and_dest()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int open_source_and_dest </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>pool</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dest</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">sd_ceph_conn_t **&#160;</td>
+          <td class="paramname"><em>conn_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">rados_list_ctx_t *&#160;</td>
+          <td class="paramname"><em>lc_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdceph__migrate_8c_source.html#l00129">129</a> of file <a class="el" href="xrdceph__migrate_8c_source.html">xrdceph_migrate.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00257">main()</a>.</p>
+
+</div>
+</div>
 <a id="a25811f4938c8ef95615edbd7ed7acf63" name="a25811f4938c8ef95615edbd7ed7acf63"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a25811f4938c8ef95615edbd7ed7acf63">&#9670;&#160;</a></span>stream_object()</h2>
 
@@ -346,9 +526,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdceph__migrate_8c_source.html#l00089">89</a> of file <a class="el" href="xrdceph__migrate_8c_source.html">xrdceph_migrate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00109">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdceph__migrate_8c_source.html#l00182">migrate_one_object()</a>.</p>
 
 </div>
 </div>

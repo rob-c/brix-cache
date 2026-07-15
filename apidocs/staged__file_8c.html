@@ -91,9 +91,7 @@ $(document).ready(function(){initNavTree('staged__file_8c.html',''); initResizab
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">staged_file.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -101,13 +99,8 @@ $(document).ready(function(){initNavTree('staged__file_8c.html',''); initResizab
 <code>#include &quot;<a class="el" href="tmp__path_8h_source.html">tmp_path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="beneath_8h_source.html">fs/path/beneath.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="sd_8h_source.html">fs/backend/sd.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="xfer_8h_source.html">fs/xfer/xfer.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="vfs__backend__registry_8h_source.html">fs/vfs/vfs_backend_registry.h</a>&quot;</code><br />
-<code>#include &lt;dirent.h&gt;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
-<code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;sys/stat.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
@@ -121,39 +114,12 @@ $(document).ready(function(){initNavTree('staged__file_8c.html',''); initResizab
 </div>
 <p><a href="staged__file_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:a835b07c881ef3da99e0f0996fec9d9e9" id="r_a835b07c881ef3da99e0f0996fec9d9e9"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a835b07c881ef3da99e0f0996fec9d9e9">BRIX_STAGE_COMMIT_SUFFIX</a>&#160;&#160;&#160;&quot;.commit&quot;</td></tr>
-<tr class="separator:a835b07c881ef3da99e0f0996fec9d9e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0ac5b4a49dce96b307e827253122fa14" id="r_a0ac5b4a49dce96b307e827253122fa14"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a0ac5b4a49dce96b307e827253122fa14">BRIX_STAGE_MAX_DIRS</a>&#160;&#160;&#160;32</td></tr>
-<tr class="separator:a0ac5b4a49dce96b307e827253122fa14"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ad5101cda5fadfc4da958b3c544ecbac8" id="r_ad5101cda5fadfc4da958b3c544ecbac8"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#ad5101cda5fadfc4da958b3c544ecbac8">brix_staged_open</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *final_path, int open_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, ngx_uint_t attempts, <a class="el" href="structbrix__staged__file__t.html">brix_staged_file_t</a> *staged)</td></tr>
-<tr class="separator:ad5101cda5fadfc4da958b3c544ecbac8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af0b2045148a710fd25980ba37cdc3555" id="r_af0b2045148a710fd25980ba37cdc3555"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#af0b2045148a710fd25980ba37cdc3555">brix_staged_open_resume</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *final_path, const char *principal, const char *stage_dir, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, <a class="el" href="structbrix__staged__file__t.html">brix_staged_file_t</a> *staged, off_t *cur_size)</td></tr>
-<tr class="separator:af0b2045148a710fd25980ba37cdc3555"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aad49fd39ba8b06884432d51b4070344b" id="r_aad49fd39ba8b06884432d51b4070344b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#aad49fd39ba8b06884432d51b4070344b">stage_move_objects</a> (brix_sd_obj_t *src, brix_sd_obj_t *dst)</td></tr>
-<tr class="separator:aad49fd39ba8b06884432d51b4070344b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac4e9f4ca1e0b43b10bb47753a74a30e1" id="r_ac4e9f4ca1e0b43b10bb47753a74a30e1"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#ac4e9f4ca1e0b43b10bb47753a74a30e1">commit_be_logical</a> (const char *abs, const char *root)</td></tr>
-<tr class="separator:ac4e9f4ca1e0b43b10bb47753a74a30e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a56fc6387ad2a9a86f1e44a1238e2f3fa" id="r_a56fc6387ad2a9a86f1e44a1238e2f3fa"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a56fc6387ad2a9a86f1e44a1238e2f3fa">commit_staged_to_backend</a> (ngx_fd_t fd, const char *stage_path, const char *final_path, brix_sd_instance_t *dst, const char *root_canon, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:a56fc6387ad2a9a86f1e44a1238e2f3fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0c2a1d80936874a767904bc20b10b176" id="r_a0c2a1d80936874a767904bc20b10b176"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a0c2a1d80936874a767904bc20b10b176">brix_commit_staged</a> (ngx_fd_t fd, const char *stage_path, const char *final_path, mode_t final_mode, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:a0c2a1d80936874a767904bc20b10b176"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6a6c3ab1c522b7dfed625f0f1023cc6b" id="r_a6a6c3ab1c522b7dfed625f0f1023cc6b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a6a6c3ab1c522b7dfed625f0f1023cc6b">brix_stage_dir_register</a> (const char *canon)</td></tr>
-<tr class="separator:a6a6c3ab1c522b7dfed625f0f1023cc6b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ace3041e12b0829c8895da90606f5b188" id="r_ace3041e12b0829c8895da90606f5b188"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#ace3041e12b0829c8895da90606f5b188">brix_stage_dir_count</a> (void)</td></tr>
-<tr class="separator:ace3041e12b0829c8895da90606f5b188"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9bf963501143897f8d1a97c0936b00f3" id="r_a9bf963501143897f8d1a97c0936b00f3"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a9bf963501143897f8d1a97c0936b00f3">brix_stage_mark_pending</a> (const char *stage_partial, const char *final_path, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:a9bf963501143897f8d1a97c0936b00f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a89b9e8d3cc2d9fcc159da1c223a52dd3" id="r_a89b9e8d3cc2d9fcc159da1c223a52dd3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a89b9e8d3cc2d9fcc159da1c223a52dd3">brix_stage_unmark_pending</a> (const char *stage_partial)</td></tr>
-<tr class="separator:a89b9e8d3cc2d9fcc159da1c223a52dd3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa1b9b72106fd4eb5a0b2eab111c41caf" id="r_aa1b9b72106fd4eb5a0b2eab111c41caf"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#aa1b9b72106fd4eb5a0b2eab111c41caf">brix_stage_reap_dir</a> (const char *stage_dir, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:aa1b9b72106fd4eb5a0b2eab111c41caf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a263ce0580da0f97338ae6db43c834e06" id="r_a263ce0580da0f97338ae6db43c834e06"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a263ce0580da0f97338ae6db43c834e06">brix_stage_reap_all</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:a263ce0580da0f97338ae6db43c834e06"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a81e3974d76e97f00c8283fb702d9144a" id="r_a81e3974d76e97f00c8283fb702d9144a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a81e3974d76e97f00c8283fb702d9144a">brix_staged_open</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const <a class="el" href="structbrix__staged__open__req__t.html">brix_staged_open_req_t</a> *req, <a class="el" href="structbrix__staged__file__t.html">brix_staged_file_t</a> *staged)</td></tr>
+<tr class="separator:a81e3974d76e97f00c8283fb702d9144a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a69b06261e355a570b3a9e9f4e251f90f" id="r_a69b06261e355a570b3a9e9f4e251f90f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a69b06261e355a570b3a9e9f4e251f90f">brix_staged_open_resume</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const <a class="el" href="structbrix__staged__open__req__t.html">brix_staged_open_req_t</a> *req, <a class="el" href="structbrix__staged__file__t.html">brix_staged_file_t</a> *staged, off_t *cur_size)</td></tr>
+<tr class="separator:a69b06261e355a570b3a9e9f4e251f90f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a37e9454f8b51efe80ab539704dca1022" id="r_a37e9454f8b51efe80ab539704dca1022"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a37e9454f8b51efe80ab539704dca1022">staged_commit_internal</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, <a class="el" href="structbrix__staged__file__t.html">brix_staged_file_t</a> *staged, const char *final_path, int exclusive)</td></tr>
 <tr class="separator:a37e9454f8b51efe80ab539704dca1022"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afe8b29eabc748165e31a7f1b45d8b1cc" id="r_afe8b29eabc748165e31a7f1b45d8b1cc"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#afe8b29eabc748165e31a7f1b45d8b1cc">brix_staged_commit</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, <a class="el" href="structbrix__staged__file__t.html">brix_staged_file_t</a> *staged, const char *final_path)</td></tr>
@@ -162,270 +128,8 @@ Functions</h2></td></tr>
 <tr class="separator:a32d9906a761ff16603bba23040479ff6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a291932846d512a16e84334f85da816dc" id="r_a291932846d512a16e84334f85da816dc"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a291932846d512a16e84334f85da816dc">brix_staged_abort</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, <a class="el" href="structbrix__staged__file__t.html">brix_staged_file_t</a> *staged, ngx_flag_t remove_tmp)</td></tr>
 <tr class="separator:a291932846d512a16e84334f85da816dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:a0e002e9c9383b6b581e6102a72b1f3ff" id="r_a0e002e9c9383b6b581e6102a72b1f3ff"><td class="memItemLeft" align="right" valign="top">static char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#a0e002e9c9383b6b581e6102a72b1f3ff">s_stage_dirs</a> [32][<a class="el" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>]</td></tr>
-<tr class="separator:a0e002e9c9383b6b581e6102a72b1f3ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af1bc1d6dc43e73cb9e703f7e80067efe" id="r_af1bc1d6dc43e73cb9e703f7e80067efe"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="staged__file_8c.html#af1bc1d6dc43e73cb9e703f7e80067efe">s_stage_dir_count</a></td></tr>
-<tr class="separator:af1bc1d6dc43e73cb9e703f7e80067efe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a835b07c881ef3da99e0f0996fec9d9e9" name="a835b07c881ef3da99e0f0996fec9d9e9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a835b07c881ef3da99e0f0996fec9d9e9">&#9670;&#160;</a></span>BRIX_STAGE_COMMIT_SUFFIX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_STAGE_COMMIT_SUFFIX&#160;&#160;&#160;&quot;.commit&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00469">469</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-</div>
-</div>
-<a id="a0ac5b4a49dce96b307e827253122fa14" name="a0ac5b4a49dce96b307e827253122fa14"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0ac5b4a49dce96b307e827253122fa14">&#9670;&#160;</a></span>BRIX_STAGE_MAX_DIRS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_STAGE_MAX_DIRS&#160;&#160;&#160;32</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00470">470</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a0c2a1d80936874a767904bc20b10b176" name="a0c2a1d80936874a767904bc20b10b176"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0c2a1d80936874a767904bc20b10b176">&#9670;&#160;</a></span>brix_commit_staged()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_commit_staged </td>
-          <td>(</td>
-          <td class="paramtype">ngx_fd_t&#160;</td>
-          <td class="paramname"><em>fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>stage_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>final_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>final_mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00368">368</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="tmp__path_8c_source.html#l00044">brix_make_tmp_path()</a>, <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="sd_8h_source.html#l00457">brix_sd_posix_wrap()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00480">brix_vfs_backend_resolve_for_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8c_source.html#l00260">commit_staged_to_backend()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="staged__file_8c_source.html#l00223">stage_move_objects()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00127">brix_handle_close()</a>, <a class="el" href="staged__file_8c_source.html#l00544">brix_stage_reap_dir()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>.</p>
-
-</div>
-</div>
-<a id="ace3041e12b0829c8895da90606f5b188" name="ace3041e12b0829c8895da90606f5b188"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ace3041e12b0829c8895da90606f5b188">&#9670;&#160;</a></span>brix_stage_dir_count()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_uint_t brix_stage_dir_count </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00496">496</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00473">s_stage_dir_count</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
-
-</div>
-</div>
-<a id="a6a6c3ab1c522b7dfed625f0f1023cc6b" name="a6a6c3ab1c522b7dfed625f0f1023cc6b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6a6c3ab1c522b7dfed625f0f1023cc6b">&#9670;&#160;</a></span>brix_stage_dir_register()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_stage_dir_register </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>canon</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00476">476</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00470">BRIX_STAGE_MAX_DIRS</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="staged__file_8c_source.html#l00473">s_stage_dir_count</a>, and <a class="el" href="staged__file_8c_source.html#l00472">s_stage_dirs</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00233">brix_config_prepare_server()</a>, and <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>.</p>
-
-</div>
-</div>
-<a id="a9bf963501143897f8d1a97c0936b00f3" name="a9bf963501143897f8d1a97c0936b00f3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9bf963501143897f8d1a97c0936b00f3">&#9670;&#160;</a></span>brix_stage_mark_pending()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_stage_mark_pending </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>stage_partial</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>final_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00502">502</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00469">BRIX_STAGE_COMMIT_SUFFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00127">brix_handle_close()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>.</p>
-
-</div>
-</div>
-<a id="a263ce0580da0f97338ae6db43c834e06" name="a263ce0580da0f97338ae6db43c834e06"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a263ce0580da0f97338ae6db43c834e06">&#9670;&#160;</a></span>brix_stage_reap_all()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_uint_t brix_stage_reap_all </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00623">623</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00544">brix_stage_reap_dir()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="staged__file_8c_source.html#l00473">s_stage_dir_count</a>, and <a class="el" href="staged__file_8c_source.html#l00472">s_stage_dirs</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00144">brix_stage_reap_handler()</a>.</p>
-
-</div>
-</div>
-<a id="aa1b9b72106fd4eb5a0b2eab111c41caf" name="aa1b9b72106fd4eb5a0b2eab111c41caf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa1b9b72106fd4eb5a0b2eab111c41caf">&#9670;&#160;</a></span>brix_stage_reap_dir()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_uint_t brix_stage_reap_dir </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>stage_dir</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00544">544</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00368">brix_commit_staged()</a>, <a class="el" href="staged__file_8c_source.html#l00469">BRIX_STAGE_COMMIT_SUFFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00623">brix_stage_reap_all()</a>.</p>
-
-</div>
-</div>
-<a id="a89b9e8d3cc2d9fcc159da1c223a52dd3" name="a89b9e8d3cc2d9fcc159da1c223a52dd3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a89b9e8d3cc2d9fcc159da1c223a52dd3">&#9670;&#160;</a></span>brix_stage_unmark_pending()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_stage_unmark_pending </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>stage_partial</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00530">530</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00469">BRIX_STAGE_COMMIT_SUFFIX</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00127">brix_handle_close()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>.</p>
-
-</div>
-</div>
 <a id="a291932846d512a16e84334f85da816dc" name="a291932846d512a16e84334f85da816dc"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a291932846d512a16e84334f85da816dc">&#9670;&#160;</a></span>brix_staged_abort()</h2>
 
@@ -464,11 +168,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00770">770</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00350">350</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
 
 <p class="reference">References <a class="el" href="staged__file_8h_source.html#l00030">brix_staged_file_t::active</a>, <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00341">brix_ns_local_copy()</a>, <a class="el" href="vfs__staged_8c_source.html#l00311">brix_vfs_staged_abort()</a>, <a class="el" href="chkpoint_8c_source.html#l00299">ckp_recover_one()</a>, <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, <a class="el" href="sd__posix_8c_source.html#l00701">sd_posix_staged_abort()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00397">brix_vfs_staged_abort()</a>, <a class="el" href="chkpoint__recover_8c_source.html#l00035">ckp_recover_one()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00223">ns_copy_finalize()</a>, <a class="el" href="sd__posix__ns_8c_source.html#l00407">sd_posix_staged_abort()</a>, <a class="el" href="put__setup_8c_source.html#l00094">webdav_put_ranged_resume()</a>, <a class="el" href="tpc__pull_8c_source.html#l00290">webdav_tpc_commit_pulled_file()</a>, <a class="el" href="tpc__pull_8c_source.html#l00173">webdav_tpc_pull_marker_exec()</a>, <a class="el" href="tpc__pull_8c_source.html#l00249">webdav_tpc_pull_sync_exec()</a>, and <a class="el" href="tpc__pull_8c_source.html#l00219">webdav_tpc_pull_thread_exec()</a>.</p>
 
 </div>
 </div>
@@ -510,11 +214,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00739">739</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00319">319</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="staged__file_8c_source.html#l00650">staged_commit_internal()</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="staged__file_8c_source.html#l00230">staged_commit_internal()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00341">brix_ns_local_copy()</a>, <a class="el" href="vfs__staged_8c_source.html#l00236">brix_vfs_staged_commit()</a>, <a class="el" href="chkpoint_8c_source.html#l00299">ckp_recover_one()</a>, <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="sd__posix_8c_source.html#l00683">sd_posix_staged_commit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00322">brix_vfs_staged_commit()</a>, <a class="el" href="chkpoint__recover_8c_source.html#l00035">ckp_recover_one()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00223">ns_copy_finalize()</a>, <a class="el" href="sd__posix__ns_8c_source.html#l00389">sd_posix_staged_commit()</a>, and <a class="el" href="tpc__pull_8c_source.html#l00290">webdav_tpc_commit_pulled_file()</a>.</p>
 
 </div>
 </div>
@@ -556,16 +260,16 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00746">746</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00326">326</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="staged__file_8c_source.html#l00650">staged_commit_internal()</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="staged__file_8c_source.html#l00230">staged_commit_internal()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00236">brix_vfs_staged_commit()</a>, and <a class="el" href="sd__posix_8c_source.html#l00683">sd_posix_staged_commit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00322">brix_vfs_staged_commit()</a>, and <a class="el" href="sd__posix__ns_8c_source.html#l00389">sd_posix_staged_commit()</a>.</p>
 
 </div>
 </div>
-<a id="ad5101cda5fadfc4da958b3c544ecbac8" name="ad5101cda5fadfc4da958b3c544ecbac8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad5101cda5fadfc4da958b3c544ecbac8">&#9670;&#160;</a></span>brix_staged_open()</h2>
+<a id="a81e3974d76e97f00c8283fb702d9144a" name="a81e3974d76e97f00c8283fb702d9144a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a81e3974d76e97f00c8283fb702d9144a">&#9670;&#160;</a></span>brix_staged_open()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -579,32 +283,8 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>final_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>open_flags</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>attempts</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__staged__open__req__t.html">brix_staged_open_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -620,16 +300,16 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00059">59</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00051">51</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="staged__file_8h_source.html#l00030">brix_staged_file_t::active</a>, <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="tmp__path_8c_source.html#l00044">brix_make_tmp_path()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="staged__file_8h_source.html#l00032">brix_staged_file_t::final_mode</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, and <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>.</p>
+<p class="reference">References <a class="el" href="staged__file_8h_source.html#l00030">brix_staged_file_t::active</a>, <a class="el" href="staged__file_8h_source.html#l00069">brix_staged_open_req_t::attempts</a>, <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="tmp__path_8c_source.html#l00044">brix_make_tmp_path()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="staged__file_8h_source.html#l00032">brix_staged_file_t::final_mode</a>, <a class="el" href="staged__file_8h_source.html#l00066">brix_staged_open_req_t::final_path</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="staged__file_8h_source.html#l00067">brix_staged_open_req_t::mode</a>, <a class="el" href="staged__file_8h_source.html#l00068">brix_staged_open_req_t::open_flags</a>, <a class="el" href="staged__file_8h_source.html#l00065">brix_staged_open_req_t::root_canon</a>, and <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00341">brix_ns_local_copy()</a>, <a class="el" href="vfs__staged_8c_source.html#l00065">brix_vfs_staged_open()</a>, <a class="el" href="chkpoint_8c_source.html#l00299">ckp_recover_one()</a>, <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="sd__posix_8c_source.html#l00616">sd_posix_staged_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="chkpoint__recover_8c_source.html#l00035">ckp_recover_one()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00174">ns_copy_open_dst()</a>, <a class="el" href="sd__posix__ns_8c_source.html#l00316">sd_posix_staged_open()</a>, <a class="el" href="vfs__staged_8c_source.html#l00208">staged_open_posix()</a>, and <a class="el" href="tpc__pull_8c_source.html#l00106">webdav_tpc_prepare_pull_target()</a>.</p>
 
 </div>
 </div>
-<a id="af0b2045148a710fd25980ba37cdc3555" name="af0b2045148a710fd25980ba37cdc3555"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af0b2045148a710fd25980ba37cdc3555">&#9670;&#160;</a></span>brix_staged_open_resume()</h2>
+<a id="a69b06261e355a570b3a9e9f4e251f90f" name="a69b06261e355a570b3a9e9f4e251f90f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a69b06261e355a570b3a9e9f4e251f90f">&#9670;&#160;</a></span>brix_staged_open_resume()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -643,32 +323,8 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>final_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>principal</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>stage_dir</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__staged__open__req__t.html">brix_staged_open_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -690,159 +346,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00142">142</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00143">143</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="staged__file_8h_source.html#l00030">brix_staged_file_t::active</a>, <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="tmp__path_8c_source.html#l00088">brix_make_resume_path()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="staged__file_8h_source.html#l00032">brix_staged_file_t::final_mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>.</p>
+<p class="reference">References <a class="el" href="staged__file_8h_source.html#l00030">brix_staged_file_t::active</a>, <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="tmp__path_8c_source.html#l00088">brix_make_resume_path()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="staged__file_8h_source.html#l00032">brix_staged_file_t::final_mode</a>, <a class="el" href="staged__file_8h_source.html#l00066">brix_staged_open_req_t::final_path</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="staged__file_8h_source.html#l00067">brix_staged_open_req_t::mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="staged__file_8h_source.html#l00070">brix_staged_open_req_t::principal</a>, <a class="el" href="staged__file_8h_source.html#l00065">brix_staged_open_req_t::root_canon</a>, <a class="el" href="staged__file_8h_source.html#l00071">brix_staged_open_req_t::stage_dir</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>.</p>
-
-</div>
-</div>
-<a id="ac4e9f4ca1e0b43b10bb47753a74a30e1" name="ac4e9f4ca1e0b43b10bb47753a74a30e1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac4e9f4ca1e0b43b10bb47753a74a30e1">&#9670;&#160;</a></span>commit_be_logical()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static const char * commit_be_logical </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>abs</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00235">235</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00260">commit_staged_to_backend()</a>.</p>
-
-</div>
-</div>
-<a id="a56fc6387ad2a9a86f1e44a1238e2f3fa" name="a56fc6387ad2a9a86f1e44a1238e2f3fa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a56fc6387ad2a9a86f1e44a1238e2f3fa">&#9670;&#160;</a></span>commit_staged_to_backend()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t commit_staged_to_backend </td>
-          <td>(</td>
-          <td class="paramtype">ngx_fd_t&#160;</td>
-          <td class="paramname"><em>fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>stage_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>final_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>dst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00260">260</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00457">brix_sd_posix_wrap()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8c_source.html#l00235">commit_be_logical()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00368">brix_commit_staged()</a>.</p>
-
-</div>
-</div>
-<a id="aad49fd39ba8b06884432d51b4070344b" name="aad49fd39ba8b06884432d51b4070344b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aad49fd39ba8b06884432d51b4070344b">&#9670;&#160;</a></span>stage_move_objects()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t stage_move_objects </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>dst</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00223">223</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">References <a class="el" href="xfer__mover__pump_8c_source.html#l00028">brix_xfer_pump_objects()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00368">brix_commit_staged()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__setup_8c_source.html#l00094">webdav_put_ranged_resume()</a>.</p>
 
 </div>
 </div>
@@ -898,64 +406,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00650">650</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00230">230</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="staged__file_8h_source.html#l00030">brix_staged_file_t::active</a>, <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00325">brix_rename_beneath_excl()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="staged__file_8h_source.html#l00032">brix_staged_file_t::final_mode</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>.</p>
+<p class="reference">References <a class="el" href="staged__file_8h_source.html#l00030">brix_staged_file_t::active</a>, <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00327">brix_rename_beneath_excl()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="staged__file_8h_source.html#l00032">brix_staged_file_t::final_mode</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00739">brix_staged_commit()</a>, and <a class="el" href="staged__file_8c_source.html#l00746">brix_staged_commit_excl()</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="af1bc1d6dc43e73cb9e703f7e80067efe" name="af1bc1d6dc43e73cb9e703f7e80067efe"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af1bc1d6dc43e73cb9e703f7e80067efe">&#9670;&#160;</a></span>s_stage_dir_count</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_uint_t s_stage_dir_count</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00473">473</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00496">brix_stage_dir_count()</a>, <a class="el" href="staged__file_8c_source.html#l00476">brix_stage_dir_register()</a>, and <a class="el" href="staged__file_8c_source.html#l00623">brix_stage_reap_all()</a>.</p>
-
-</div>
-</div>
-<a id="a0e002e9c9383b6b581e6102a72b1f3ff" name="a0e002e9c9383b6b581e6102a72b1f3ff"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0e002e9c9383b6b581e6102a72b1f3ff">&#9670;&#160;</a></span>s_stage_dirs</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">char s_stage_dirs[32][<a class="el" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>]</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="staged__file_8c_source.html#l00472">472</a> of file <a class="el" href="staged__file_8c_source.html">staged_file.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00476">brix_stage_dir_register()</a>, and <a class="el" href="staged__file_8c_source.html#l00623">brix_stage_reap_all()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00319">brix_staged_commit()</a>, and <a class="el" href="staged__file_8c_source.html#l00326">brix_staged_commit_excl()</a>.</p>
 
 </div>
 </div>

@@ -11,8 +11,10 @@ var cks__verify_8c =
     [ "ckv_add_cache_record", "cks__verify_8c.html#aa2a28903302c7f43ac18b82b726754f0", null ],
     [ "ckv_bin_to_hex", "cks__verify_8c.html#a050f08187033898e2e2188d1d388e5b1", null ],
     [ "ckv_collect_cache", "cks__verify_8c.html#a5f14c03a2de06fdcc5d41067109c72b8", null ],
+    [ "ckv_collect_records", "cks__verify_8c.html#af9bba48de0cb9c42be8ab22f582a28b3", null ],
     [ "ckv_collect_sidecar", "cks__verify_8c.html#a937f0e171cc9b79dce284172d5c05bec", null ],
     [ "ckv_collect_xattr", "cks__verify_8c.html#afab2da2da0f5e622bc303366f72110ec", null ],
     [ "ckv_decode_xattr_value", "cks__verify_8c.html#a8662a1be8797ecc442af1652eda904fc", null ],
-    [ "ckv_read_sidecar_blob", "cks__verify_8c.html#a9cdf5472c3cc96cdc789055d3642b7ee", null ]
+    [ "ckv_read_sidecar_blob", "cks__verify_8c.html#a9cdf5472c3cc96cdc789055d3642b7ee", null ],
+    [ "ckv_verify_one", "cks__verify_8c.html#ad41d3260774339b8b4b19ad15ee03a7a", null ]
 ];

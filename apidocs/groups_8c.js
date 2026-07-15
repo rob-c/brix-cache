@@ -1,6 +1,7 @@
 var groups_8c =
 [
     [ "acc_grp_cache_t", "structacc__grp__cache__t.html", "structacc__grp__cache__t" ],
+    [ "ACC_DJB2_SEED", "groups_8c.html#a49b5b7f0f19f2cccade9a48328a90573", null ],
     [ "ACC_GRP_CACHE_SLOTS", "groups_8c.html#a526e7dacbe1fd9a6d35f13f2b0a4041e", null ],
     [ "ACC_GRP_USER_MAX", "groups_8c.html#a37c2f003c09966ec50d56aa70612fed6", null ],
     [ "ACC_NSS_COOLDOWN_SECS", "groups_8c.html#abca57fd035b14c9b81c2fa6ebf992177", null ],
@@ -9,8 +10,11 @@ var groups_8c =
     [ "ACC_NSS_TRIP_COUNT", "groups_8c.html#aff839fc8de1b20151b2642e6cb054473", null ],
     [ "BRIX_ACC_MAX_RETRAN", "groups_8c.html#a12bf3aceae188b59edeacd195e70859c", null ],
     [ "acc_cache_free", "groups_8c.html#a995de475cb71ce99d63c5d6cd5c84f98", null ],
+    [ "acc_cache_refresh", "groups_8c.html#a8851172df7f6577661a588bfbbeed299", null ],
+    [ "acc_cache_to_array", "groups_8c.html#a8b2b5452a99e40494bd97ad35b376181", null ],
     [ "acc_gid_retran", "groups_8c.html#ad3ca23cdf99fbcb36665d8afd7988ae3", null ],
     [ "acc_monotonic_ms", "groups_8c.html#a4a8791bca260059feaafdfa2d93a4470", null ],
+    [ "acc_nss_note_latency", "groups_8c.html#a6803b490a01848c95d69b0353d286aa8", null ],
     [ "acc_resolve_unix", "groups_8c.html#ade43e2e798ad3129a35d0abf25b1ed5c", null ],
     [ "acc_user_hash", "groups_8c.html#a8a1a4772f1b403133a64d23ff0ed57a2", null ],
     [ "brix_acc_groups_init", "groups_8c.html#a9e1d7dbabde253791b43e72987131d49", null ],
@@ -23,7 +27,7 @@ var groups_8c =
     [ "acc_gidlifetime", "groups_8c.html#a6529a975dd44cfd98d830de7af08feba", null ],
     [ "acc_grp_cache", "groups_8c.html#abf707bd4d72d6e92d54964d5d92f0d55", null ],
     [ "acc_nisdomain", "groups_8c.html#a9cc2717174f3a2e8055528fcbdede21c", null ],
-    [ "acc_nss_breaker", "groups_8c.html#adaf3aba7fb022a2657deaabe090dc1b9", null ],
+    [ "acc_nss_breaker", "groups_8c.html#ab9b0d45583472975f9e527ac83e5e72f", null ],
     [ "acc_primary_only", "groups_8c.html#a48ccbcfd8a4ac6bcaf5f36336bbb5677", null ],
     [ "acc_retrancnt", "groups_8c.html#a679621545fa60b0025ae7841b2784d37", null ],
     [ "acc_retrangid", "groups_8c.html#a9dc7deecd4519dfc1e7c7f82425c0beb", null ],

@@ -1,9 +1,6 @@
 var proto__exclusive_8c =
 [
-    [ "BRIX_PROTO_CVMFS", "proto__exclusive_8c.html#ac7975f9b7c3a958c835c520270561e96", null ],
     [ "BRIX_PROTO_NONE", "proto__exclusive_8c.html#a4de35a125e0ee7b2cd79b05253459750", null ],
-    [ "BRIX_PROTO_S3", "proto__exclusive_8c.html#a138cbce8830bf2e35d151dbd66043d5a", null ],
-    [ "BRIX_PROTO_WEBDAV", "proto__exclusive_8c.html#ab609d36a2917ecfd636ec708eddbfa40", null ],
     [ "brix_http_proto_exclusive_check", "proto__exclusive_8c.html#a477bd3902224b11dde60b703ed05752f", null ],
     [ "brix_proto_add_level", "proto__exclusive_8c.html#a1998cf83e6dcbaeda2225772957f82ff", null ],
     [ "brix_proto_mask", "proto__exclusive_8c.html#ac48b0d868783b3eafbdc79e75585bc23", null ],

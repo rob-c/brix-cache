@@ -91,7 +91,7 @@ $(document).ready(function(){initNavTree('dead__props_8c.html',''); initResizabl
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">dead_props.c File Reference</div></div>
 </div><!--header-->
@@ -100,11 +100,13 @@ $(document).ready(function(){initNavTree('dead__props_8c.html',''); initResizabl
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2fs_2vfs_2vfs_8h_source.html">fs/vfs/vfs.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__xml_8h_source.html">core/http/http_xml.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="hex_8h_source.html">core/compat/hex.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="namespace__ops_8h_source.html">core/compat/namespace_ops.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;sys/xattr.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="alloc__guard_8h_source.html">core/compat/alloc_guard.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="dead__props__internal_8h_source.html">dead_props_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for dead_props.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -115,43 +117,27 @@ $(document).ready(function(){initNavTree('dead__props_8c.html',''); initResizabl
 </div>
 <p><a href="dead__props_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:a55a8e5eff7a0d587756f49933483f876" id="r_a55a8e5eff7a0d587756f49933483f876"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a55a8e5eff7a0d587756f49933483f876">ENOATTR</a>&#160;&#160;&#160;ENODATA</td></tr>
-<tr class="separator:a55a8e5eff7a0d587756f49933483f876"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a81f01484aed2fb3c176f1b9556b2b834" id="r_a81f01484aed2fb3c176f1b9556b2b834"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a81f01484aed2fb3c176f1b9556b2b834">WEBDAV_DEAD_PROP_PREFIX</a>&#160;&#160;&#160;&quot;user.nginx_xrootd.webdav.&quot;</td></tr>
-<tr class="separator:a81f01484aed2fb3c176f1b9556b2b834"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8067f4187b44d2001eea699d5290fba2" id="r_a8067f4187b44d2001eea699d5290fba2"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a8067f4187b44d2001eea699d5290fba2">WEBDAV_DEAD_PROP_PREFIX_LEN</a>&#160;&#160;&#160;(sizeof(<a class="el" href="dead__props_8c.html#a81f01484aed2fb3c176f1b9556b2b834">WEBDAV_DEAD_PROP_PREFIX</a>) - 1)</td></tr>
-<tr class="separator:a8067f4187b44d2001eea699d5290fba2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad0683aac86d32f43ea4626ba036c72b0" id="r_ad0683aac86d32f43ea4626ba036c72b0"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#ad0683aac86d32f43ea4626ba036c72b0">WEBDAV_DEAD_PROP_NAME_MAX</a>&#160;&#160;&#160;255</td></tr>
-<tr class="separator:ad0683aac86d32f43ea4626ba036c72b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abad94d52e7e3787e7305cc37ecf0e57d" id="r_abad94d52e7e3787e7305cc37ecf0e57d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#abad94d52e7e3787e7305cc37ecf0e57d">WEBDAV_DEAD_PROP_VALUE_MAX</a>&#160;&#160;&#160;16384</td></tr>
-<tr class="separator:abad94d52e7e3787e7305cc37ecf0e57d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aee8e4526e5d8c98d99e3faf519804d41" id="r_aee8e4526e5d8c98d99e3faf519804d41"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#aee8e4526e5d8c98d99e3faf519804d41">WEBDAV_DEAD_PROP_LIST_MAX</a>&#160;&#160;&#160;65536</td></tr>
-<tr class="separator:aee8e4526e5d8c98d99e3faf519804d41"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structwebdav__dead__prop__target__t.html">webdav_dead_prop_target_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a5eb7b5d08b351e8dee03cea697311491" id="r_a5eb7b5d08b351e8dee03cea697311491"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a5eb7b5d08b351e8dee03cea697311491">webdav_dead_prop_vfs_ctx_init</a> (ngx_http_request_t *r, const char *path, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx)</td></tr>
 <tr class="separator:a5eb7b5d08b351e8dee03cea697311491"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a38d4b3250c9a1bffad6f472d1bed9252" id="r_a38d4b3250c9a1bffad6f472d1bed9252"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a38d4b3250c9a1bffad6f472d1bed9252">webdav_dead_prop_hexval</a> (char <a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
-<tr class="separator:a38d4b3250c9a1bffad6f472d1bed9252"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a928d976a3637155cd2d1a21bf73fbf65" id="r_a928d976a3637155cd2d1a21bf73fbf65"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a928d976a3637155cd2d1a21bf73fbf65">webdav_dead_prop_xml_name_ok</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
-<tr class="separator:a928d976a3637155cd2d1a21bf73fbf65"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a47fd21b04347ace64bf34a6c8b0567ac" id="r_a47fd21b04347ace64bf34a6c8b0567ac"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a47fd21b04347ace64bf34a6c8b0567ac">webdav_dead_prop_attr_name</a> (const char *ns, const char *local, char *out, size_t outsz)</td></tr>
-<tr class="separator:a47fd21b04347ace64bf34a6c8b0567ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a182159a6c7a59e316edb1676d6eeb576" id="r_a182159a6c7a59e316edb1676d6eeb576"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a182159a6c7a59e316edb1676d6eeb576">webdav_dead_prop_decode_hex</a> (ngx_pool_t *pool, const char *<a class="el" href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a>, size_t len)</td></tr>
-<tr class="separator:a182159a6c7a59e316edb1676d6eeb576"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abcf3ca03b8bff8c390e1746d57e9207f" id="r_abcf3ca03b8bff8c390e1746d57e9207f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#abcf3ca03b8bff8c390e1746d57e9207f">webdav_dead_prop_decode_attr</a> (ngx_pool_t *pool, const char *attr, char **ns_out, char **local_out)</td></tr>
-<tr class="separator:abcf3ca03b8bff8c390e1746d57e9207f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a895b9bc1e7cfe0c4e65a6da358e699d3" id="r_a895b9bc1e7cfe0c4e65a6da358e699d3"><td class="memItemLeft" align="right" valign="top">ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a895b9bc1e7cfe0c4e65a6da358e699d3">webdav_dead_prop_is_protected_dav</a> (const char *local)</td></tr>
 <tr class="separator:a895b9bc1e7cfe0c4e65a6da358e699d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6427d9e2f71af5f907c13783571e07dd" id="r_a6427d9e2f71af5f907c13783571e07dd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a6427d9e2f71af5f907c13783571e07dd">webdav_dead_prop_append_empty</a> (ngx_http_request_t *r, const char *ns, const char *local, ngx_chain_t **head, ngx_chain_t **tail)</td></tr>
 <tr class="separator:a6427d9e2f71af5f907c13783571e07dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac6cee2153d07793225164d3340ca0144" id="r_ac6cee2153d07793225164d3340ca0144"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#ac6cee2153d07793225164d3340ca0144">webdav_dead_prop_set_target</a> (const <a class="el" href="structwebdav__dead__prop__target__t.html">webdav_dead_prop_target_t</a> *t, const char *xml, size_t xml_len)</td></tr>
+<tr class="separator:ac6cee2153d07793225164d3340ca0144"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2025fc80208b96cc61fcd047ca394b27" id="r_a2025fc80208b96cc61fcd047ca394b27"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a2025fc80208b96cc61fcd047ca394b27">webdav_dead_prop_set</a> (ngx_http_request_t *r, const char *path, const char *ns, const char *local, const char *xml, size_t xml_len)</td></tr>
 <tr class="separator:a2025fc80208b96cc61fcd047ca394b27"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a207c7ac0f855bb2bde682e4167faccfb" id="r_a207c7ac0f855bb2bde682e4167faccfb"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a207c7ac0f855bb2bde682e4167faccfb">webdav_dead_prop_remove</a> (ngx_http_request_t *r, const char *path, const char *ns, const char *local)</td></tr>
 <tr class="separator:a207c7ac0f855bb2bde682e4167faccfb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a69d24f04b73599e543331509280cf6a1" id="r_a69d24f04b73599e543331509280cf6a1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a69d24f04b73599e543331509280cf6a1">webdav_dead_prop_read_value</a> (const <a class="el" href="structwebdav__dead__prop__target__t.html">webdav_dead_prop_target_t</a> *t, char **out_value, ssize_t *out_len)</td></tr>
+<tr class="separator:a69d24f04b73599e543331509280cf6a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adeed28f21f454b20bc0c8a63c7d58647" id="r_adeed28f21f454b20bc0c8a63c7d58647"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#adeed28f21f454b20bc0c8a63c7d58647">webdav_dead_prop_append_value</a> (ngx_http_request_t *r, const char *path, const char *ns, const char *local, ngx_chain_t **head, ngx_chain_t **tail, ngx_flag_t *found)</td></tr>
 <tr class="separator:adeed28f21f454b20bc0c8a63c7d58647"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae547331d6f6926f5b37d3869bdf29098" id="r_ae547331d6f6926f5b37d3869bdf29098"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#ae547331d6f6926f5b37d3869bdf29098">webdav_dead_props_append_all</a> (ngx_http_request_t *r, const char *path, ngx_chain_t **head, ngx_chain_t **tail, ngx_flag_t names_only)</td></tr>
@@ -159,103 +145,6 @@ Functions</h2></td></tr>
 <tr class="memitem:a2d54bc1312e4949d061d5c45fd3b5bad" id="r_a2d54bc1312e4949d061d5c45fd3b5bad"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dead__props_8c.html#a2d54bc1312e4949d061d5c45fd3b5bad">webdav_dead_props_copy</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *src, const char *dst)</td></tr>
 <tr class="separator:a2d54bc1312e4949d061d5c45fd3b5bad"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a55a8e5eff7a0d587756f49933483f876" name="a55a8e5eff7a0d587756f49933483f876"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a55a8e5eff7a0d587756f49933483f876">&#9670;&#160;</a></span>ENOATTR</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define ENOATTR&#160;&#160;&#160;ENODATA</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00056">56</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-</div>
-</div>
-<a id="aee8e4526e5d8c98d99e3faf519804d41" name="aee8e4526e5d8c98d99e3faf519804d41"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aee8e4526e5d8c98d99e3faf519804d41">&#9670;&#160;</a></span>WEBDAV_DEAD_PROP_LIST_MAX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define WEBDAV_DEAD_PROP_LIST_MAX&#160;&#160;&#160;65536</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00073">73</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-</div>
-</div>
-<a id="ad0683aac86d32f43ea4626ba036c72b0" name="ad0683aac86d32f43ea4626ba036c72b0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad0683aac86d32f43ea4626ba036c72b0">&#9670;&#160;</a></span>WEBDAV_DEAD_PROP_NAME_MAX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define WEBDAV_DEAD_PROP_NAME_MAX&#160;&#160;&#160;255</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00071">71</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-</div>
-</div>
-<a id="a81f01484aed2fb3c176f1b9556b2b834" name="a81f01484aed2fb3c176f1b9556b2b834"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a81f01484aed2fb3c176f1b9556b2b834">&#9670;&#160;</a></span>WEBDAV_DEAD_PROP_PREFIX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define WEBDAV_DEAD_PROP_PREFIX&#160;&#160;&#160;&quot;user.nginx_xrootd.webdav.&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00069">69</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-</div>
-</div>
-<a id="a8067f4187b44d2001eea699d5290fba2" name="a8067f4187b44d2001eea699d5290fba2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8067f4187b44d2001eea699d5290fba2">&#9670;&#160;</a></span>WEBDAV_DEAD_PROP_PREFIX_LEN</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define WEBDAV_DEAD_PROP_PREFIX_LEN&#160;&#160;&#160;(sizeof(<a class="el" href="dead__props_8c.html#a81f01484aed2fb3c176f1b9556b2b834">WEBDAV_DEAD_PROP_PREFIX</a>) - 1)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00070">70</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-</div>
-</div>
-<a id="abad94d52e7e3787e7305cc37ecf0e57d" name="abad94d52e7e3787e7305cc37ecf0e57d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abad94d52e7e3787e7305cc37ecf0e57d">&#9670;&#160;</a></span>WEBDAV_DEAD_PROP_VALUE_MAX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define WEBDAV_DEAD_PROP_VALUE_MAX&#160;&#160;&#160;16384</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00072">72</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a6427d9e2f71af5f907c13783571e07dd" name="a6427d9e2f71af5f907c13783571e07dd"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a6427d9e2f71af5f907c13783571e07dd">&#9670;&#160;</a></span>webdav_dead_prop_append_empty()</h2>
@@ -301,11 +190,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00275">275</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00081">81</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="dead__props_8c_source.html#l00099">webdav_dead_prop_xml_name_ok()</a>, and <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>.</p>
+<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="dead__props__keys_8c_source.html#l00063">webdav_dead_prop_xml_name_ok()</a>, and <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00436">webdav_dead_props_append_all()</a>, and <a class="el" href="methods__basic_8c_source.html#l00244">webdav_proppatch_append_propstat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00317">webdav_dead_props_append_all()</a>, and <a class="el" href="methods__proppatch_8c_source.html#l00112">webdav_proppatch_append_propstat()</a>.</p>
 
 </div>
 </div>
@@ -365,199 +254,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00380">380</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00282">282</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="dead__props_8c_source.html#l00056">ENOATTR</a>, <a class="el" href="dead__props_8c_source.html#l00134">webdav_dead_prop_attr_name()</a>, <a class="el" href="dead__props_8c_source.html#l00071">WEBDAV_DEAD_PROP_NAME_MAX</a>, <a class="el" href="dead__props_8c_source.html#l00072">WEBDAV_DEAD_PROP_VALUE_MAX</a>, and <a class="el" href="dead__props_8c_source.html#l00036">webdav_dead_prop_vfs_ctx_init()</a>.</p>
+<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, and <a class="el" href="dead__props_8c_source.html#l00237">webdav_dead_prop_read_value()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="propfind__props_8c_source.html#l00157">propfind_entry()</a>, and <a class="el" href="dead__props_8c_source.html#l00436">webdav_dead_props_append_all()</a>.</p>
-
-</div>
-</div>
-<a id="a47fd21b04347ace64bf34a6c8b0567ac" name="a47fd21b04347ace64bf34a6c8b0567ac"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a47fd21b04347ace64bf34a6c8b0567ac">&#9670;&#160;</a></span>webdav_dead_prop_attr_name()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t webdav_dead_prop_attr_name </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>ns</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>local</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>outsz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00134">134</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="dead__props_8c_source.html#l00069">WEBDAV_DEAD_PROP_PREFIX</a>, and <a class="el" href="dead__props_8c_source.html#l00070">WEBDAV_DEAD_PROP_PREFIX_LEN</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00380">webdav_dead_prop_append_value()</a>, <a class="el" href="dead__props_8c_source.html#l00344">webdav_dead_prop_remove()</a>, and <a class="el" href="dead__props_8c_source.html#l00314">webdav_dead_prop_set()</a>.</p>
-
-</div>
-</div>
-<a id="abcf3ca03b8bff8c390e1746d57e9207f" name="abcf3ca03b8bff8c390e1746d57e9207f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abcf3ca03b8bff8c390e1746d57e9207f">&#9670;&#160;</a></span>webdav_dead_prop_decode_attr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t webdav_dead_prop_decode_attr </td>
-          <td>(</td>
-          <td class="paramtype">ngx_pool_t *&#160;</td>
-          <td class="paramname"><em>pool</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>attr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char **&#160;</td>
-          <td class="paramname"><em>ns_out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char **&#160;</td>
-          <td class="paramname"><em>local_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00222">222</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-<p class="reference">References <a class="el" href="dead__props_8c_source.html#l00192">webdav_dead_prop_decode_hex()</a>, <a class="el" href="dead__props_8c_source.html#l00069">WEBDAV_DEAD_PROP_PREFIX</a>, <a class="el" href="dead__props_8c_source.html#l00070">WEBDAV_DEAD_PROP_PREFIX_LEN</a>, and <a class="el" href="dead__props_8c_source.html#l00099">webdav_dead_prop_xml_name_ok()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00436">webdav_dead_props_append_all()</a>.</p>
-
-</div>
-</div>
-<a id="a182159a6c7a59e316edb1676d6eeb576" name="a182159a6c7a59e316edb1676d6eeb576"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a182159a6c7a59e316edb1676d6eeb576">&#9670;&#160;</a></span>webdav_dead_prop_decode_hex()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static char * webdav_dead_prop_decode_hex </td>
-          <td>(</td>
-          <td class="paramtype">ngx_pool_t *&#160;</td>
-          <td class="paramname"><em>pool</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>hex</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00192">192</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, and <a class="el" href="dead__props_8c_source.html#l00077">webdav_dead_prop_hexval()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00222">webdav_dead_prop_decode_attr()</a>.</p>
-
-</div>
-</div>
-<a id="a38d4b3250c9a1bffad6f472d1bed9252" name="a38d4b3250c9a1bffad6f472d1bed9252"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a38d4b3250c9a1bffad6f472d1bed9252">&#9670;&#160;</a></span>webdav_dead_prop_hexval()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int webdav_dead_prop_hexval </td>
-          <td>(</td>
-          <td class="paramtype">char&#160;</td>
-          <td class="paramname"><em>c</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00077">77</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00192">webdav_dead_prop_decode_hex()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="propfind__props_8c_source.html#l00532">propfind_dead_props_resolve_and_emit()</a>, and <a class="el" href="dead__props_8c_source.html#l00317">webdav_dead_props_append_all()</a>.</p>
 
 </div>
 </div>
@@ -577,9 +278,57 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00261">261</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00067">67</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00276">webdav_proppatch_do()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="methods__proppatch_8c_source.html#l00152">webdav_proppatch_prop_status()</a>.</p>
+
+</div>
+</div>
+<a id="a69d24f04b73599e543331509280cf6a1" name="a69d24f04b73599e543331509280cf6a1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a69d24f04b73599e543331509280cf6a1">&#9670;&#160;</a></span>webdav_dead_prop_read_value()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_dead_prop_read_value </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structwebdav__dead__prop__target__t.html">webdav_dead_prop_target_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>out_value</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ssize_t *&#160;</td>
+          <td class="paramname"><em>out_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00237">237</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+
+<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="dead__props__internal_8h_source.html#l00017">ENOATTR</a>, <a class="el" href="dead__props_8c_source.html#l00129">webdav_dead_prop_target_t::local</a>, <a class="el" href="dead__props_8c_source.html#l00128">webdav_dead_prop_target_t::ns</a>, <a class="el" href="dead__props_8c_source.html#l00127">webdav_dead_prop_target_t::path</a>, <a class="el" href="dead__props_8c_source.html#l00126">webdav_dead_prop_target_t::r</a>, <a class="el" href="dead__props__keys_8c_source.html#l00092">webdav_dead_prop_attr_name()</a>, <a class="el" href="dead__props__internal_8h_source.html#l00032">WEBDAV_DEAD_PROP_NAME_MAX</a>, <a class="el" href="dead__props__internal_8h_source.html#l00033">WEBDAV_DEAD_PROP_VALUE_MAX</a>, and <a class="el" href="dead__props_8c_source.html#l00039">webdav_dead_prop_vfs_ctx_init()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00282">webdav_dead_prop_append_value()</a>.</p>
 
 </div>
 </div>
@@ -621,11 +370,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00344">344</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00187">187</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00159">brix_vfs_removexattr()</a>, <a class="el" href="dead__props_8c_source.html#l00056">ENOATTR</a>, <a class="el" href="dead__props_8c_source.html#l00134">webdav_dead_prop_attr_name()</a>, <a class="el" href="dead__props_8c_source.html#l00071">WEBDAV_DEAD_PROP_NAME_MAX</a>, and <a class="el" href="dead__props_8c_source.html#l00036">webdav_dead_prop_vfs_ctx_init()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>, <a class="el" href="dead__props__internal_8h_source.html#l00017">ENOATTR</a>, <a class="el" href="dead__props__keys_8c_source.html#l00092">webdav_dead_prop_attr_name()</a>, <a class="el" href="dead__props__internal_8h_source.html#l00032">WEBDAV_DEAD_PROP_NAME_MAX</a>, and <a class="el" href="dead__props_8c_source.html#l00039">webdav_dead_prop_vfs_ctx_init()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00276">webdav_proppatch_do()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="methods__proppatch_8c_source.html#l00152">webdav_proppatch_prop_status()</a>.</p>
 
 </div>
 </div>
@@ -679,11 +428,59 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00314">314</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00173">173</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00113">brix_vfs_setxattr()</a>, <a class="el" href="dead__props_8c_source.html#l00134">webdav_dead_prop_attr_name()</a>, <a class="el" href="dead__props_8c_source.html#l00071">WEBDAV_DEAD_PROP_NAME_MAX</a>, <a class="el" href="dead__props_8c_source.html#l00072">WEBDAV_DEAD_PROP_VALUE_MAX</a>, and <a class="el" href="dead__props_8c_source.html#l00036">webdav_dead_prop_vfs_ctx_init()</a>.</p>
+<p class="reference">References <a class="el" href="dead__props_8c_source.html#l00141">webdav_dead_prop_set_target()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00276">webdav_proppatch_do()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="methods__proppatch_8c_source.html#l00152">webdav_proppatch_prop_status()</a>.</p>
+
+</div>
+</div>
+<a id="ac6cee2153d07793225164d3340ca0144" name="ac6cee2153d07793225164d3340ca0144"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac6cee2153d07793225164d3340ca0144">&#9670;&#160;</a></span>webdav_dead_prop_set_target()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_dead_prop_set_target </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structwebdav__dead__prop__target__t.html">webdav_dead_prop_target_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>xml</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>xml_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00141">141</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>, <a class="el" href="dead__props_8c_source.html#l00129">webdav_dead_prop_target_t::local</a>, <a class="el" href="dead__props_8c_source.html#l00128">webdav_dead_prop_target_t::ns</a>, <a class="el" href="dead__props_8c_source.html#l00127">webdav_dead_prop_target_t::path</a>, <a class="el" href="dead__props_8c_source.html#l00126">webdav_dead_prop_target_t::r</a>, <a class="el" href="dead__props__keys_8c_source.html#l00092">webdav_dead_prop_attr_name()</a>, <a class="el" href="dead__props__internal_8h_source.html#l00032">WEBDAV_DEAD_PROP_NAME_MAX</a>, <a class="el" href="dead__props__internal_8h_source.html#l00033">WEBDAV_DEAD_PROP_VALUE_MAX</a>, and <a class="el" href="dead__props_8c_source.html#l00039">webdav_dead_prop_vfs_ctx_init()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00173">webdav_dead_prop_set()</a>.</p>
 
 </div>
 </div>
@@ -727,43 +524,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00036">36</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00039">39</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="webdav_8h_source.html#l00140">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00020">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00380">webdav_dead_prop_append_value()</a>, <a class="el" href="dead__props_8c_source.html#l00344">webdav_dead_prop_remove()</a>, <a class="el" href="dead__props_8c_source.html#l00314">webdav_dead_prop_set()</a>, and <a class="el" href="dead__props_8c_source.html#l00436">webdav_dead_props_append_all()</a>.</p>
-
-</div>
-</div>
-<a id="a928d976a3637155cd2d1a21bf73fbf65" name="a928d976a3637155cd2d1a21bf73fbf65"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a928d976a3637155cd2d1a21bf73fbf65">&#9670;&#160;</a></span>webdav_dead_prop_xml_name_ok()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_flag_t webdav_dead_prop_xml_name_ok </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00099">99</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00275">webdav_dead_prop_append_empty()</a>, and <a class="el" href="dead__props_8c_source.html#l00222">webdav_dead_prop_decode_attr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="dead__props_8c_source.html#l00237">webdav_dead_prop_read_value()</a>, <a class="el" href="dead__props_8c_source.html#l00187">webdav_dead_prop_remove()</a>, <a class="el" href="dead__props_8c_source.html#l00141">webdav_dead_prop_set_target()</a>, and <a class="el" href="dead__props_8c_source.html#l00317">webdav_dead_props_append_all()</a>.</p>
 
 </div>
 </div>
@@ -811,11 +576,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00436">436</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00317">317</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
 
-<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, <a class="el" href="vfs__xattr_8c_source.html#l00081">brix_vfs_listxattr()</a>, <a class="el" href="dead__props_8c_source.html#l00275">webdav_dead_prop_append_empty()</a>, <a class="el" href="dead__props_8c_source.html#l00380">webdav_dead_prop_append_value()</a>, <a class="el" href="dead__props_8c_source.html#l00222">webdav_dead_prop_decode_attr()</a>, <a class="el" href="dead__props_8c_source.html#l00073">WEBDAV_DEAD_PROP_LIST_MAX</a>, and <a class="el" href="dead__props_8c_source.html#l00036">webdav_dead_prop_vfs_ctx_init()</a>.</p>
+<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>, <a class="el" href="dead__props_8c_source.html#l00081">webdav_dead_prop_append_empty()</a>, <a class="el" href="dead__props_8c_source.html#l00282">webdav_dead_prop_append_value()</a>, <a class="el" href="dead__props__keys_8c_source.html#l00180">webdav_dead_prop_decode_attr()</a>, <a class="el" href="dead__props__internal_8h_source.html#l00034">WEBDAV_DEAD_PROP_LIST_MAX</a>, and <a class="el" href="dead__props_8c_source.html#l00039">webdav_dead_prop_vfs_ctx_init()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="propfind__props_8c_source.html#l00157">propfind_entry()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="propfind__props_8c_source.html#l00532">propfind_dead_props_resolve_and_emit()</a>, and <a class="el" href="propfind__props_8c_source.html#l00642">propfind_entry()</a>.</p>
 
 </div>
 </div>
@@ -851,11 +616,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00498">498</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="dead__props_8c_source.html#l00379">379</a> of file <a class="el" href="dead__props_8c_source.html">dead_props.c</a>.</p>
 
-<p class="reference">References <a class="el" href="namespace__ops_8c_source.html#l00102">brix_xattr_copy_by_prefix()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="dead__props_8c_source.html#l00069">WEBDAV_DEAD_PROP_PREFIX</a>, <a class="el" href="dead__props_8c_source.html#l00070">WEBDAV_DEAD_PROP_PREFIX_LEN</a>, and <a class="el" href="dead__props_8c_source.html#l00072">WEBDAV_DEAD_PROP_VALUE_MAX</a>.</p>
+<p class="reference">References <a class="el" href="namespace__ops__copy_8c_source.html#l00057">brix_xattr_copy_by_prefix()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="dead__props__internal_8h_source.html#l00030">WEBDAV_DEAD_PROP_PREFIX</a>, <a class="el" href="dead__props__internal_8h_source.html#l00031">WEBDAV_DEAD_PROP_PREFIX_LEN</a>, and <a class="el" href="dead__props__internal_8h_source.html#l00033">WEBDAV_DEAD_PROP_VALUE_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00082">webdav_copy_collection_execute()</a>, <a class="el" href="copy__engine_8c_source.html#l00029">webdav_copy_meta_cb()</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00302">webdav_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00158">webdav_copy_collection_stage()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00632">webdav_copy_do_file()</a>, and <a class="el" href="copy__engine_8c_source.html#l00029">webdav_copy_meta_cb()</a>.</p>
 
 </div>
 </div>

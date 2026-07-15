@@ -91,13 +91,16 @@ $(document).ready(function(){initNavTree('cli__opts_8c.html',''); initResizable(
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a>  </div>
+<a href="#nested-classes">Data Structures</a> &#124;
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">cli_opts.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="brix_8h_source.html">brix.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="brix__ops_8h_source.html">brix_ops.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="version_8h_source.html">core/version.h</a>&quot;</code><br />
+<code>#include &lt;stddef.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
@@ -110,16 +113,32 @@ $(document).ready(function(){initNavTree('cli__opts_8c.html',''); initResizable(
 </div>
 <p><a href="cli__opts_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structopts__toggle__t.html">opts_toggle_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:af0dfd9e7d4dba1789427df38a34c21c9" id="r_af0dfd9e7d4dba1789427df38a34c21c9"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__opts_8c.html#af0dfd9e7d4dba1789427df38a34c21c9">opts_basename</a> (const char *path)</td></tr>
 <tr class="separator:af0dfd9e7d4dba1789427df38a34c21c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a73ea1ceee36cbc4290ba9e8bea0348bb" id="r_a73ea1ceee36cbc4290ba9e8bea0348bb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__opts_8c.html#a73ea1ceee36cbc4290ba9e8bea0348bb">brix_opts_init</a> (<a class="el" href="structbrix__opts.html">brix_opts</a> *o)</td></tr>
 <tr class="separator:a73ea1ceee36cbc4290ba9e8bea0348bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88fa222cdc1f075e762fc66c771dd03e" id="r_a88fa222cdc1f075e762fc66c771dd03e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__opts_8c.html#a88fa222cdc1f075e762fc66c771dd03e">opts_parse_universal</a> (const char *a, char **argv)</td></tr>
+<tr class="separator:a88fa222cdc1f075e762fc66c771dd03e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aec0884d919d246b85f0f00f8cd0b28aa" id="r_aec0884d919d246b85f0f00f8cd0b28aa"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__opts_8c.html#aec0884d919d246b85f0f00f8cd0b28aa">opts_parse_toggle</a> (<a class="el" href="structbrix__opts.html">brix_opts</a> *o, const char *a)</td></tr>
+<tr class="separator:aec0884d919d246b85f0f00f8cd0b28aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afa0212555a41b7bbcf663e9a2976c769" id="r_afa0212555a41b7bbcf663e9a2976c769"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__opts_8c.html#afa0212555a41b7bbcf663e9a2976c769">opts_parse_valued</a> (<a class="el" href="structbrix__opts.html">brix_opts</a> *o, int argc, char **argv, int *i)</td></tr>
+<tr class="separator:afa0212555a41b7bbcf663e9a2976c769"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a67c96adfd0486e131b6902ec6ee27d2c" id="r_a67c96adfd0486e131b6902ec6ee27d2c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__opts_8c.html#a67c96adfd0486e131b6902ec6ee27d2c">brix_opts_parse_arg</a> (<a class="el" href="structbrix__opts.html">brix_opts</a> *o, int argc, char **argv, int *i)</td></tr>
 <tr class="separator:a67c96adfd0486e131b6902ec6ee27d2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa94bfa5d7d5faf0c5aed0c09fcfe1bf1" id="r_aa94bfa5d7d5faf0c5aed0c09fcfe1bf1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__opts_8c.html#aa94bfa5d7d5faf0c5aed0c09fcfe1bf1">brix_cli_parse_io_uring</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:aa94bfa5d7d5faf0c5aed0c09fcfe1bf1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a733dd6208871412089744957e13d0ee8" id="r_a733dd6208871412089744957e13d0ee8"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structopts__toggle__t.html">opts_toggle_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__opts_8c.html#a733dd6208871412089744957e13d0ee8">opts_toggles</a> []</td></tr>
+<tr class="separator:a733dd6208871412089744957e13d0ee8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="aa94bfa5d7d5faf0c5aed0c09fcfe1bf1" name="aa94bfa5d7d5faf0c5aed0c09fcfe1bf1"></a>
@@ -138,11 +157,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00129">129</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00217">217</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="brix__ops_8h_source.html#l00515">XRDC_IO_URING_AUTO</a>, <a class="el" href="brix__ops_8h_source.html#l00517">XRDC_IO_URING_OFF</a>, and <a class="el" href="brix__ops_8h_source.html#l00516">XRDC_IO_URING_ON</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__data_8c_source.html#l01001">do_download()</a>, <a class="el" href="xrdfs__data_8c_source.html#l00879">do_upload()</a>, and <a class="el" href="xrdcp_8c_source.html#l00349">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__data_8c_source.html#l01104">xfer_common_arg()</a>, and <a class="el" href="xrdcp_8c_source.html#l00776">xrdcp_parse_transport_option()</a>.</p>
 
 </div>
 </div>
@@ -162,11 +181,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00045">45</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00046">46</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brix__net_8h_source.html#l00046">brix_opts::max_stall_ms</a>, <a class="el" href="brix__net_8h_source.html#l00050">brix_opts::no_retry</a>, and <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00177">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00272">main()</a>.</p>
 
 </div>
 </div>
@@ -208,11 +227,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00065">65</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00179">179</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00038">brix_opts::auth_force</a>, <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="brix__net_8h_source.html#l00041">brix_opts::capture</a>, <a class="el" href="brix__net_8h_source.html#l00046">brix_opts::max_stall_ms</a>, <a class="el" href="brix__net_8h_source.html#l00050">brix_opts::no_retry</a>, <a class="el" href="brix__net_8h_source.html#l00031">brix_opts::notlsok</a>, <a class="el" href="cli__opts_8c_source.html#l00038">opts_basename()</a>, <a class="el" href="brix__net_8h_source.html#l00042">brix_opts::redir_trace</a>, <a class="el" href="brix__net_8h_source.html#l00040">brix_opts::timing</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="brix__net_8h_source.html#l00030">brix_opts::want_tls</a>, and <a class="el" href="brix__net_8h_source.html#l00039">brix_opts::wire_trace</a>.</p>
+<p class="reference">References <a class="el" href="cli__opts_8c_source.html#l00124">opts_parse_toggle()</a>, <a class="el" href="cli__opts_8c_source.html#l00077">opts_parse_universal()</a>, and <a class="el" href="cli__opts_8c_source.html#l00149">opts_parse_valued()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdgsitest_8c_source.html#l00042">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00771">dx_parse_argv()</a>, <a class="el" href="xrdgsitest_8c_source.html#l00042">main()</a>, and <a class="el" href="xrdcp_8c_source.html#l00877">xrdcp_parse_option()</a>.</p>
 
 </div>
 </div>
@@ -240,11 +259,186 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00038">38</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00039">39</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cli__opts_8c_source.html#l00065">brix_opts_parse_arg()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cli__opts_8c_source.html#l00077">opts_parse_universal()</a>.</p>
+
+</div>
+</div>
+<a id="aec0884d919d246b85f0f00f8cd0b28aa" name="aec0884d919d246b85f0f00f8cd0b28aa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aec0884d919d246b85f0f00f8cd0b28aa">&#9670;&#160;</a></span>opts_parse_toggle()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int opts_parse_toggle </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__opts.html">brix_opts</a> *&#160;</td>
+          <td class="paramname"><em>o</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>a</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00124">124</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cli__opts_8c_source.html#l00099">opts_toggle_t::field_off</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="cli__opts_8c_source.html#l00103">opts_toggles</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cli__opts_8c_source.html#l00179">brix_opts_parse_arg()</a>.</p>
+
+</div>
+</div>
+<a id="a88fa222cdc1f075e762fc66c771dd03e" name="a88fa222cdc1f075e762fc66c771dd03e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88fa222cdc1f075e762fc66c771dd03e">&#9670;&#160;</a></span>opts_parse_universal()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int opts_parse_universal </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>a</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00077">77</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
+
+<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, and <a class="el" href="cli__opts_8c_source.html#l00039">opts_basename()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cli__opts_8c_source.html#l00179">brix_opts_parse_arg()</a>.</p>
+
+</div>
+</div>
+<a id="afa0212555a41b7bbcf663e9a2976c769" name="afa0212555a41b7bbcf663e9a2976c769"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afa0212555a41b7bbcf663e9a2976c769">&#9670;&#160;</a></span>opts_parse_valued()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int opts_parse_valued </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__opts.html">brix_opts</a> *&#160;</td>
+          <td class="paramname"><em>o</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>i</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00149">149</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00038">brix_opts::auth_force</a>, <a class="el" href="brix__net_8h_source.html#l00041">brix_opts::capture</a>, <a class="el" href="brix__net_8h_source.html#l00046">brix_opts::max_stall_ms</a>, <a class="el" href="brix__net_8h_source.html#l00050">brix_opts::no_retry</a>, and <a class="el" href="brix__net_8h_source.html#l00039">brix_opts::wire_trace</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cli__opts_8c_source.html#l00179">brix_opts_parse_arg()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a733dd6208871412089744957e13d0ee8" name="a733dd6208871412089744957e13d0ee8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a733dd6208871412089744957e13d0ee8">&#9670;&#160;</a></span>opts_toggles</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structopts__toggle__t.html">opts_toggle_t</a> opts_toggles[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { <span class="stringliteral">&quot;--tls&quot;</span>,            offsetof(<a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>, want_tls),    1 },</div>
+<div class="line">    { <span class="stringliteral">&quot;--notlsok&quot;</span>,        offsetof(<a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>, notlsok),     1 },</div>
+<div class="line">    { <span class="stringliteral">&quot;--noverifyhost&quot;</span>,   offsetof(<a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>, verify_host), 0 },</div>
+<div class="line">    { <span class="stringliteral">&quot;--timing&quot;</span>,         offsetof(<a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>, timing),      1 },</div>
+<div class="line">    { <span class="stringliteral">&quot;--redirect-trace&quot;</span>, offsetof(<a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>, redir_trace), 1 },</div>
+<div class="line">    { <span class="stringliteral">&quot;--wire-trace&quot;</span>,     offsetof(<a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>, wire_trace),  1 },</div>
+<div class="line">    { <span class="stringliteral">&quot;--no-retry&quot;</span>,       offsetof(<a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>, no_retry),    1 },</div>
+<div class="line">}</div>
+<div class="ttc" id="astructbrix__opts_html"><div class="ttname"><a href="structbrix__opts.html">brix_opts</a></div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00029">brix_net.h:29</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="cli__opts_8c_source.html#l00103">103</a> of file <a class="el" href="cli__opts_8c_source.html">cli_opts.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cli__opts_8c_source.html#l00124">opts_parse_toggle()</a>.</p>
 
 </div>
 </div>

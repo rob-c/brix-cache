@@ -91,7 +91,6 @@ $(document).ready(function(){initNavTree('sd__posix_8c.html',''); initResizable(
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">sd_posix.c File Reference</div></div>
@@ -110,6 +109,7 @@ $(document).ready(function(){initNavTree('sd__posix_8c.html',''); initResizable(
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;sys/syscall.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
+<code>#include &quot;<a class="el" href="sd__posix__internal_8h_source.html">sd_posix_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for sd_posix.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -120,87 +120,24 @@ $(document).ready(function(){initNavTree('sd__posix_8c.html',''); initResizable(
 </div>
 <p><a href="sd__posix_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__posix__state__t.html">sd_posix_state_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__posix__dir__t.html">sd_posix_dir_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__posix__staged__t.html">sd_posix_staged_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a8fbea0a1cf3b50a5b3f77b487e598ddb" id="r_a8fbea0a1cf3b50a5b3f77b487e598ddb"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a8fbea0a1cf3b50a5b3f77b487e598ddb">sd_posix_flags</a> (int sd_flags)</td></tr>
 <tr class="separator:a8fbea0a1cf3b50a5b3f77b487e598ddb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a529a5189f1b8ce2a5d1c828313a89a61" id="r_a529a5189f1b8ce2a5d1c828313a89a61"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a529a5189f1b8ce2a5d1c828313a89a61">brix_sd_posix_open_unconfined</a> (const char *path, int sd_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a529a5189f1b8ce2a5d1c828313a89a61" id="r_a529a5189f1b8ce2a5d1c828313a89a61"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a529a5189f1b8ce2a5d1c828313a89a61">brix_sd_posix_open_unconfined</a> (const char *path, int sd_flags, mode_t mode)</td></tr>
 <tr class="separator:a529a5189f1b8ce2a5d1c828313a89a61"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9c15e9f860e234ca2c10e9bf5ed8aec8" id="r_a9c15e9f860e234ca2c10e9bf5ed8aec8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a9c15e9f860e234ca2c10e9bf5ed8aec8">sd_posix_fill_stat</a> (const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
-<tr class="separator:a9c15e9f860e234ca2c10e9bf5ed8aec8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5d7ed26219b52d2433d3054e24f19061" id="r_a5d7ed26219b52d2433d3054e24f19061"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a5d7ed26219b52d2433d3054e24f19061">sd_posix_fill_stat</a> (const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
+<tr class="separator:a5d7ed26219b52d2433d3054e24f19061"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad124957943ea8d9ca2d190a4fc640403" id="r_ad124957943ea8d9ca2d190a4fc640403"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#ad124957943ea8d9ca2d190a4fc640403">sd_posix_init</a> (brix_sd_instance_t *inst, void *driver_conf)</td></tr>
 <tr class="separator:ad124957943ea8d9ca2d190a4fc640403"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abf975e6f8352fb20e69789f7a8d190e4" id="r_abf975e6f8352fb20e69789f7a8d190e4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#abf975e6f8352fb20e69789f7a8d190e4">sd_posix_cleanup</a> (brix_sd_instance_t *inst)</td></tr>
 <tr class="separator:abf975e6f8352fb20e69789f7a8d190e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ada4f4b6c600ca1d727e710e903af9c86" id="r_ada4f4b6c600ca1d727e710e903af9c86"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#ada4f4b6c600ca1d727e710e903af9c86">brix_sd_posix_borrow_instance</a> (ngx_pool_t *pool, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, int rootfd, const char *root_canon)</td></tr>
 <tr class="separator:ada4f4b6c600ca1d727e710e903af9c86"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abf14d62d72524d397d549665225d8b3b" id="r_abf14d62d72524d397d549665225d8b3b"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#abf14d62d72524d397d549665225d8b3b">sd_posix_open</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td></tr>
+<tr class="memitem:abf14d62d72524d397d549665225d8b3b" id="r_abf14d62d72524d397d549665225d8b3b"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#abf14d62d72524d397d549665225d8b3b">sd_posix_open</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</td></tr>
 <tr class="separator:abf14d62d72524d397d549665225d8b3b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abf6e4dd88fa574c1b797f51c947c3866" id="r_abf6e4dd88fa574c1b797f51c947c3866"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#abf6e4dd88fa574c1b797f51c947c3866">sd_posix_close</a> (brix_sd_obj_t *obj)</td></tr>
 <tr class="separator:abf6e4dd88fa574c1b797f51c947c3866"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab8a13e403f3be3e88b52d33ec18fe138" id="r_ab8a13e403f3be3e88b52d33ec18fe138"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#ab8a13e403f3be3e88b52d33ec18fe138">sd_posix_pread</a> (brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</td></tr>
-<tr class="separator:ab8a13e403f3be3e88b52d33ec18fe138"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acdbfcc556921b73817c8ec2b84da78a0" id="r_acdbfcc556921b73817c8ec2b84da78a0"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#acdbfcc556921b73817c8ec2b84da78a0">sd_posix_pwrite</a> (brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)</td></tr>
-<tr class="separator:acdbfcc556921b73817c8ec2b84da78a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3065126281e07468bd2d144fbf84ad3f" id="r_a3065126281e07468bd2d144fbf84ad3f"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a3065126281e07468bd2d144fbf84ad3f">sd_posix_preadv</a> (brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt, off_t off)</td></tr>
-<tr class="separator:a3065126281e07468bd2d144fbf84ad3f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a38e815912a8c2a0bac4b4ea944fc43e3" id="r_a38e815912a8c2a0bac4b4ea944fc43e3"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a38e815912a8c2a0bac4b4ea944fc43e3">sd_posix_preadv2</a> (brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt, off_t off, int flags)</td></tr>
-<tr class="separator:a38e815912a8c2a0bac4b4ea944fc43e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a099f2264fe32b5ef1e51fbd0559b6376" id="r_a099f2264fe32b5ef1e51fbd0559b6376"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a099f2264fe32b5ef1e51fbd0559b6376">sd_posix_copy_range</a> (brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *dst, off_t dst_off, size_t len)</td></tr>
-<tr class="separator:a099f2264fe32b5ef1e51fbd0559b6376"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8a0094300a84c1d47851277d58618f41" id="r_a8a0094300a84c1d47851277d58618f41"><td class="memItemLeft" align="right" valign="top">static ngx_fd_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a8a0094300a84c1d47851277d58618f41">sd_posix_read_sendfile_fd</a> (brix_sd_obj_t *obj, off_t off, size_t len, unsigned want_zerocopy)</td></tr>
-<tr class="separator:a8a0094300a84c1d47851277d58618f41"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aad9646d23063d63240043f7746810385" id="r_aad9646d23063d63240043f7746810385"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#aad9646d23063d63240043f7746810385">sd_posix_ftruncate</a> (brix_sd_obj_t *obj, off_t len)</td></tr>
-<tr class="separator:aad9646d23063d63240043f7746810385"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af784be5077c0da6fce6eede3cb08ddc4" id="r_af784be5077c0da6fce6eede3cb08ddc4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#af784be5077c0da6fce6eede3cb08ddc4">sd_posix_fsync</a> (brix_sd_obj_t *obj)</td></tr>
-<tr class="separator:af784be5077c0da6fce6eede3cb08ddc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae1e7324b2b9d2b10f8fa3a58d0c8844f" id="r_ae1e7324b2b9d2b10f8fa3a58d0c8844f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#ae1e7324b2b9d2b10f8fa3a58d0c8844f">sd_posix_fstat</a> (brix_sd_obj_t *obj, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
-<tr class="separator:ae1e7324b2b9d2b10f8fa3a58d0c8844f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a140fed50572401d8619babbebb3392a5" id="r_a140fed50572401d8619babbebb3392a5"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a140fed50572401d8619babbebb3392a5">sd_posix_stat</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
-<tr class="separator:a140fed50572401d8619babbebb3392a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8b86d307ab1d65df75bba2ac4093cd47" id="r_a8b86d307ab1d65df75bba2ac4093cd47"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a8b86d307ab1d65df75bba2ac4093cd47">sd_posix_ns_result</a> (<a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a> res)</td></tr>
-<tr class="separator:a8b86d307ab1d65df75bba2ac4093cd47"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9e241fca001d25aeeec2ec57bbbb3bba" id="r_a9e241fca001d25aeeec2ec57bbbb3bba"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a9e241fca001d25aeeec2ec57bbbb3bba">sd_posix_unlink</a> (brix_sd_instance_t *inst, const char *path, int is_dir)</td></tr>
-<tr class="separator:a9e241fca001d25aeeec2ec57bbbb3bba"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a44b66a83b8f4162f261c1957b61b3777" id="r_a44b66a83b8f4162f261c1957b61b3777"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a44b66a83b8f4162f261c1957b61b3777">sd_posix_mkdir</a> (brix_sd_instance_t *inst, const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
-<tr class="separator:a44b66a83b8f4162f261c1957b61b3777"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a664ed0be7851e4d442097b6920f290a6" id="r_a664ed0be7851e4d442097b6920f290a6"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a664ed0be7851e4d442097b6920f290a6">sd_posix_rename</a> (brix_sd_instance_t *inst, const char *src, const char *dst, int noreplace)</td></tr>
-<tr class="separator:a664ed0be7851e4d442097b6920f290a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a88511d0a09bae0bf6e0d031e532b3186" id="r_a88511d0a09bae0bf6e0d031e532b3186"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a88511d0a09bae0bf6e0d031e532b3186">sd_posix_server_copy</a> (brix_sd_instance_t *inst, const char *src, const char *dst, off_t *bytes_out)</td></tr>
-<tr class="separator:a88511d0a09bae0bf6e0d031e532b3186"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af7aece77bc6ef48f523838744bfe6eef" id="r_af7aece77bc6ef48f523838744bfe6eef"><td class="memItemLeft" align="right" valign="top">static brix_sd_dir_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#af7aece77bc6ef48f523838744bfe6eef">sd_posix_opendir</a> (brix_sd_instance_t *inst, const char *path, int *err_out)</td></tr>
-<tr class="separator:af7aece77bc6ef48f523838744bfe6eef"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af7f72e374f1c55a24dd62a7ecd79ccae" id="r_af7f72e374f1c55a24dd62a7ecd79ccae"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#af7f72e374f1c55a24dd62a7ecd79ccae">sd_posix_readdir</a> (brix_sd_dir_t *d, <a class="el" href="structbrix__sd__dirent__t.html">brix_sd_dirent_t</a> *out)</td></tr>
-<tr class="separator:af7f72e374f1c55a24dd62a7ecd79ccae"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7757a8d2cac15f8f28b642d02a84b193" id="r_a7757a8d2cac15f8f28b642d02a84b193"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a7757a8d2cac15f8f28b642d02a84b193">sd_posix_closedir</a> (brix_sd_dir_t *d)</td></tr>
-<tr class="separator:a7757a8d2cac15f8f28b642d02a84b193"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9eca736e71a20522ac21ab2bac1a8c68" id="r_a9eca736e71a20522ac21ab2bac1a8c68"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a9eca736e71a20522ac21ab2bac1a8c68">sd_posix_getxattr</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *buf, size_t cap)</td></tr>
-<tr class="separator:a9eca736e71a20522ac21ab2bac1a8c68"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a85f77381f56ae1c39104608bea02faae" id="r_a85f77381f56ae1c39104608bea02faae"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a85f77381f56ae1c39104608bea02faae">sd_posix_listxattr</a> (brix_sd_instance_t *inst, const char *path, void *buf, size_t cap)</td></tr>
-<tr class="separator:a85f77381f56ae1c39104608bea02faae"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af76dd6e7ee983e82a3750081ffbba70c" id="r_af76dd6e7ee983e82a3750081ffbba70c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#af76dd6e7ee983e82a3750081ffbba70c">sd_posix_setxattr</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const void *val, size_t len, int flags)</td></tr>
-<tr class="separator:af76dd6e7ee983e82a3750081ffbba70c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa8a52101ca618ecbad0ab58583173ad7" id="r_aa8a52101ca618ecbad0ab58583173ad7"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#aa8a52101ca618ecbad0ab58583173ad7">sd_posix_removexattr</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
-<tr class="separator:aa8a52101ca618ecbad0ab58583173ad7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1f1954a2c29b140a86344f768aaafb60" id="r_a1f1954a2c29b140a86344f768aaafb60"><td class="memItemLeft" align="right" valign="top">static brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a1f1954a2c29b140a86344f768aaafb60">sd_posix_staged_open</a> (brix_sd_instance_t *inst, const char *final_path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int *err_out)</td></tr>
-<tr class="separator:a1f1954a2c29b140a86344f768aaafb60"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac4c56add032c2d7f2e054ea7b8c2b15b" id="r_ac4c56add032c2d7f2e054ea7b8c2b15b"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#ac4c56add032c2d7f2e054ea7b8c2b15b">sd_posix_staged_write</a> (brix_sd_staged_t *st, const void *buf, size_t len, off_t off)</td></tr>
-<tr class="separator:ac4c56add032c2d7f2e054ea7b8c2b15b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab40f6aa93ea3a05468a3d63f958a908b" id="r_ab40f6aa93ea3a05468a3d63f958a908b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#ab40f6aa93ea3a05468a3d63f958a908b">sd_posix_staged_commit</a> (brix_sd_staged_t *st, int noreplace)</td></tr>
-<tr class="separator:ab40f6aa93ea3a05468a3d63f958a908b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a96ff039aa82e6ddb35c417cfbac59554" id="r_a96ff039aa82e6ddb35c417cfbac59554"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a96ff039aa82e6ddb35c417cfbac59554">sd_posix_staged_abort</a> (brix_sd_staged_t *st)</td></tr>
-<tr class="separator:a96ff039aa82e6ddb35c417cfbac59554"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a28baa5b85edf8d7ad73afffc81813954" id="r_a28baa5b85edf8d7ad73afffc81813954"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__posix_8c.html#a28baa5b85edf8d7ad73afffc81813954">sd_posix_staged_path</a> (const brix_sd_staged_t *st)</td></tr>
-<tr class="separator:a28baa5b85edf8d7ad73afffc81813954"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -246,11 +183,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00158">158</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00159">159</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00049">sd_posix_state_t::borrowed</a>, <a class="el" href="sd__posix_8c_source.html#l00731">brix_sd_posix_driver</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00047">sd_posix_state_t::rootfd</a>.</p>
+<p class="reference">References <a class="el" href="sd__posix__internal_8h_source.html#l00035">sd_posix_state_t::borrowed</a>, <a class="el" href="sd__posix_8c_source.html#l00251">brix_sd_posix_driver</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="sd__posix__internal_8h_source.html#l00034">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix__internal_8h_source.html#l00033">sd_posix_state_t::rootfd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="cache__storage_8c_source.html#l00276">cache_build_instance()</a>, <a class="el" href="cache__storage_8c_source.html#l00297">cache_build_wt_stage()</a>, and <a class="el" href="cache__storage_8c_source.html#l00159">cs_root_lazy_posix()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00296">brix_vfs_open_confined_fd()</a>, <a class="el" href="cache__storage_8c_source.html#l00276">cache_build_instance()</a>, <a class="el" href="cache__storage_8c_source.html#l00297">cache_build_wt_stage()</a>, and <a class="el" href="cache__storage_8c_source.html#l00159">cs_root_lazy_posix()</a>.</p>
 
 </div>
 </div>
@@ -286,9 +223,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00085">85</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00084">84</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="sd__posix_8c_source.html#l00058">sd_posix_flags()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="sd__posix_8c_source.html#l00057">sd_posix_flags()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__block_8c_source.html#l00100">brix_sd_block_open_unconfined()</a>, and <a class="el" href="vfs__posix_8c_source.html#l00403">posix_be_open()</a>.</p>
 
@@ -318,9 +255,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00142">142</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00143">143</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00049">sd_posix_state_t::borrowed</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="sd__posix_8c_source.html#l00047">sd_posix_state_t::rootfd</a>.</p>
+<p class="reference">References <a class="el" href="sd__posix__internal_8h_source.html#l00035">sd_posix_state_t::borrowed</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="sd__posix__internal_8h_source.html#l00033">sd_posix_state_t::rootfd</a>.</p>
 
 </div>
 </div>
@@ -348,109 +285,20 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00229">229</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00230">230</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
 
 </div>
 </div>
-<a id="a7757a8d2cac15f8f28b642d02a84b193" name="a7757a8d2cac15f8f28b642d02a84b193"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7757a8d2cac15f8f28b642d02a84b193">&#9670;&#160;</a></span>sd_posix_closedir()</h2>
+<a id="a5d7ed26219b52d2433d3054e24f19061" name="a5d7ed26219b52d2433d3054e24f19061"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5d7ed26219b52d2433d3054e24f19061">&#9670;&#160;</a></span>sd_posix_fill_stat()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t sd_posix_closedir </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_dir_t *&#160;</td>
-          <td class="paramname"><em>d</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00519">519</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00455">sd_posix_dir_t::dp</a>.</p>
-
-</div>
-</div>
-<a id="a099f2264fe32b5ef1e51fbd0559b6376" name="a099f2264fe32b5ef1e51fbd0559b6376"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a099f2264fe32b5ef1e51fbd0559b6376">&#9670;&#160;</a></span>sd_posix_copy_range()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_posix_copy_range </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>src_off</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>dst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>dst_off</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00288">288</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-</div>
-</div>
-<a id="a9c15e9f860e234ca2c10e9bf5ed8aec8" name="a9c15e9f860e234ca2c10e9bf5ed8aec8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9c15e9f860e234ca2c10e9bf5ed8aec8">&#9670;&#160;</a></span>sd_posix_fill_stat()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void sd_posix_fill_stat </td>
+          <td class="memname">void sd_posix_fill_stat </td>
           <td>(</td>
           <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
           <td class="paramname"><em>st</em>, </td>
@@ -467,18 +315,13 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00093">93</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00094">94</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00160">brix_sd_stat_t::ctime</a>, <a class="el" href="sd_8h_source.html#l00162">brix_sd_stat_t::ino</a>, <a class="el" href="sd_8h_source.html#l00163">brix_sd_stat_t::is_dir</a>, <a class="el" href="sd_8h_source.html#l00164">brix_sd_stat_t::is_reg</a>, <a class="el" href="sd_8h_source.html#l00161">brix_sd_stat_t::mode</a>, <a class="el" href="sd_8h_source.html#l00159">brix_sd_stat_t::mtime</a>, and <a class="el" href="sd_8h_source.html#l00158">brix_sd_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00253">brix_sd_stat_t::ctime</a>, <a class="el" href="sd_8h_source.html#l00255">brix_sd_stat_t::ino</a>, <a class="el" href="sd_8h_source.html#l00256">brix_sd_stat_t::is_dir</a>, <a class="el" href="sd_8h_source.html#l00257">brix_sd_stat_t::is_reg</a>, <a class="el" href="sd_8h_source.html#l00254">brix_sd_stat_t::mode</a>, <a class="el" href="sd_8h_source.html#l00252">brix_sd_stat_t::mtime</a>, and <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__posix_8c_source.html#l00335">sd_posix_fstat()</a>, and <a class="el" href="sd__posix_8c_source.html#l00351">sd_posix_stat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__posix__io_8c_source.html#l00135">sd_posix_fstat()</a>, and <a class="el" href="sd__posix__ns_8c_source.html#l00051">sd_posix_stat()</a>.</p>
 
 </div>
 </div>
@@ -506,175 +349,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00058">58</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00057">57</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00114">BRIX_SD_O_APPEND</a>, <a class="el" href="sd_8h_source.html#l00111">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00115">BRIX_SD_O_DIR</a>, <a class="el" href="sd_8h_source.html#l00112">BRIX_SD_O_EXCL</a>, <a class="el" href="sd_8h_source.html#l00116">BRIX_SD_O_NOFOLLOW</a>, <a class="el" href="sd_8h_source.html#l00109">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00113">BRIX_SD_O_TRUNC</a>, and <a class="el" href="sd_8h_source.html#l00110">BRIX_SD_O_WRITE</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_APPEND</a>, <a class="el" href="sd_8h_source.html#l00127">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_DIR</a>, <a class="el" href="sd_8h_source.html#l00128">BRIX_SD_O_EXCL</a>, <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_NOFOLLOW</a>, <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00129">BRIX_SD_O_TRUNC</a>, and <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__posix_8c_source.html#l00085">brix_sd_posix_open_unconfined()</a>, and <a class="el" href="sd__posix_8c_source.html#l00191">sd_posix_open()</a>.</p>
-
-</div>
-</div>
-<a id="ae1e7324b2b9d2b10f8fa3a58d0c8844f" name="ae1e7324b2b9d2b10f8fa3a58d0c8844f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae1e7324b2b9d2b10f8fa3a58d0c8844f">&#9670;&#160;</a></span>sd_posix_fstat()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_fstat </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00335">335</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="sd__posix_8c_source.html#l00093">sd_posix_fill_stat()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-</div>
-</div>
-<a id="af784be5077c0da6fce6eede3cb08ddc4" name="af784be5077c0da6fce6eede3cb08ddc4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af784be5077c0da6fce6eede3cb08ddc4">&#9670;&#160;</a></span>sd_posix_fsync()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_fsync </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00329">329</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-</div>
-</div>
-<a id="aad9646d23063d63240043f7746810385" name="aad9646d23063d63240043f7746810385"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aad9646d23063d63240043f7746810385">&#9670;&#160;</a></span>sd_posix_ftruncate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_ftruncate </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00323">323</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-</div>
-</div>
-<a id="a9eca736e71a20522ac21ab2bac1a8c68" name="a9eca736e71a20522ac21ab2bac1a8c68"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9eca736e71a20522ac21ab2bac1a8c68">&#9670;&#160;</a></span>sd_posix_getxattr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_posix_getxattr </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>cap</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00538">538</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00593">brix_getxattr_confined_canon()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__posix_8c_source.html#l00084">brix_sd_posix_open_unconfined()</a>, and <a class="el" href="sd__posix_8c_source.html#l00192">sd_posix_open()</a>.</p>
 
 </div>
 </div>
@@ -712,139 +391,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00110">110</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00111">111</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00047">sd_posix_state_t::rootfd</a>.</p>
-
-</div>
-</div>
-<a id="a85f77381f56ae1c39104608bea02faae" name="a85f77381f56ae1c39104608bea02faae"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a85f77381f56ae1c39104608bea02faae">&#9670;&#160;</a></span>sd_posix_listxattr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_posix_listxattr </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>cap</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00555">555</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00625">brix_listxattr_confined_canon()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>.</p>
-
-</div>
-</div>
-<a id="a44b66a83b8f4162f261c1957b61b3777" name="a44b66a83b8f4162f261c1957b61b3777"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a44b66a83b8f4162f261c1957b61b3777">&#9670;&#160;</a></span>sd_posix_mkdir()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_mkdir </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00400">400</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="namespace__ops_8c_source.html#l00239">brix_ns_mkdir()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00367">sd_posix_ns_result()</a>.</p>
-
-</div>
-</div>
-<a id="a8b86d307ab1d65df75bba2ac4093cd47" name="a8b86d307ab1d65df75bba2ac4093cd47"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8b86d307ab1d65df75bba2ac4093cd47">&#9670;&#160;</a></span>sd_posix_ns_result()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_ns_result </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a>&#160;</td>
-          <td class="paramname"><em>res</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00367">367</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="vfs__internal_8h_source.html#l00265">brix_vfs_ns_status_errno()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, and <a class="el" href="namespace__ops_8h_source.html#l00020">brix_ns_result_t::sys_errno</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__posix_8c_source.html#l00400">sd_posix_mkdir()</a>, <a class="el" href="sd__posix_8c_source.html#l00419">sd_posix_rename()</a>, <a class="el" href="sd__posix_8c_source.html#l00430">sd_posix_server_copy()</a>, and <a class="el" href="sd__posix_8c_source.html#l00378">sd_posix_unlink()</a>.</p>
+<p class="reference">References <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="sd__posix__internal_8h_source.html#l00034">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix__internal_8h_source.html#l00033">sd_posix_state_t::rootfd</a>.</p>
 
 </div>
 </div>
@@ -900,865 +449,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00191">191</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00192">192</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="sd__posix_8c_source.html#l00047">sd_posix_state_t::rootfd</a>, and <a class="el" href="sd__posix_8c_source.html#l00058">sd_posix_flags()</a>.</p>
-
-</div>
-</div>
-<a id="af7aece77bc6ef48f523838744bfe6eef" name="af7aece77bc6ef48f523838744bfe6eef"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af7aece77bc6ef48f523838744bfe6eef">&#9670;&#160;</a></span>sd_posix_opendir()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static brix_sd_dir_t * sd_posix_opendir </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>err_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00459">459</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="sd__posix_8c_source.html#l00455">sd_posix_dir_t::dp</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="sd__posix_8c_source.html#l00047">sd_posix_state_t::rootfd</a>.</p>
-
-</div>
-</div>
-<a id="ab8a13e403f3be3e88b52d33ec18fe138" name="ab8a13e403f3be3e88b52d33ec18fe138"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab8a13e403f3be3e88b52d33ec18fe138">&#9670;&#160;</a></span>sd_posix_pread()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_posix_pread </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00250">250</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>.</p>
-
-</div>
-</div>
-<a id="a3065126281e07468bd2d144fbf84ad3f" name="a3065126281e07468bd2d144fbf84ad3f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3065126281e07468bd2d144fbf84ad3f">&#9670;&#160;</a></span>sd_posix_preadv()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_posix_preadv </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const struct iovec *&#160;</td>
-          <td class="paramname"><em>iov</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>iovcnt</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00268">268</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-</div>
-</div>
-<a id="a38e815912a8c2a0bac4b4ea944fc43e3" name="a38e815912a8c2a0bac4b4ea944fc43e3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a38e815912a8c2a0bac4b4ea944fc43e3">&#9670;&#160;</a></span>sd_posix_preadv2()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_posix_preadv2 </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const struct iovec *&#160;</td>
-          <td class="paramname"><em>iov</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>iovcnt</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>flags</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00278">278</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-</div>
-</div>
-<a id="acdbfcc556921b73817c8ec2b84da78a0" name="acdbfcc556921b73817c8ec2b84da78a0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acdbfcc556921b73817c8ec2b84da78a0">&#9670;&#160;</a></span>sd_posix_pwrite()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_posix_pwrite </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00259">259</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-</div>
-</div>
-<a id="a8a0094300a84c1d47851277d58618f41" name="a8a0094300a84c1d47851277d58618f41"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8a0094300a84c1d47851277d58618f41">&#9670;&#160;</a></span>sd_posix_read_sendfile_fd()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_fd_t sd_posix_read_sendfile_fd </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_obj_t *&#160;</td>
-          <td class="paramname"><em>obj</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned&#160;</td>
-          <td class="paramname"><em>want_zerocopy</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00309">309</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-</div>
-</div>
-<a id="af7f72e374f1c55a24dd62a7ecd79ccae" name="af7f72e374f1c55a24dd62a7ecd79ccae"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af7f72e374f1c55a24dd62a7ecd79ccae">&#9670;&#160;</a></span>sd_posix_readdir()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_readdir </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_dir_t *&#160;</td>
-          <td class="paramname"><em>d</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__sd__dirent__t.html">brix_sd_dirent_t</a> *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00495">495</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00455">sd_posix_dir_t::dp</a>, and <a class="el" href="sd_8h_source.html#l00170">brix_sd_dirent_t::name</a>.</p>
-
-</div>
-</div>
-<a id="aa8a52101ca618ecbad0ab58583173ad7" name="aa8a52101ca618ecbad0ab58583173ad7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa8a52101ca618ecbad0ab58583173ad7">&#9670;&#160;</a></span>sd_posix_removexattr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_removexattr </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00590">590</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00609">brix_removexattr_confined_canon()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>.</p>
-
-</div>
-</div>
-<a id="a664ed0be7851e4d442097b6920f290a6" name="a664ed0be7851e4d442097b6920f290a6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a664ed0be7851e4d442097b6920f290a6">&#9670;&#160;</a></span>sd_posix_rename()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_rename </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>noreplace</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00419">419</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="namespace__ops_8c_source.html#l00282">brix_ns_rename()</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00367">sd_posix_ns_result()</a>.</p>
-
-</div>
-</div>
-<a id="a88511d0a09bae0bf6e0d031e532b3186" name="a88511d0a09bae0bf6e0d031e532b3186"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a88511d0a09bae0bf6e0d031e532b3186">&#9670;&#160;</a></span>sd_posix_server_copy()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_server_copy </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t *&#160;</td>
-          <td class="paramname"><em>bytes_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00430">430</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="namespace__ops_8c_source.html#l00341">brix_ns_local_copy()</a>, <a class="el" href="namespace__ops_8h_source.html#l00042">brix_ns_copy_opts_t::overwrite</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, <a class="el" href="sd__posix_8c_source.html#l00047">sd_posix_state_t::rootfd</a>, <a class="el" href="sd__posix_8c_source.html#l00367">sd_posix_ns_result()</a>, <a class="el" href="sd__posix_8c_source.html#l00351">sd_posix_stat()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-</div>
-</div>
-<a id="af76dd6e7ee983e82a3750081ffbba70c" name="af76dd6e7ee983e82a3750081ffbba70c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af76dd6e7ee983e82a3750081ffbba70c">&#9670;&#160;</a></span>sd_posix_setxattr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_setxattr </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>val</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>flags</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00572">572</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00576">brix_setxattr_confined_canon()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>.</p>
-
-</div>
-</div>
-<a id="a96ff039aa82e6ddb35c417cfbac59554" name="a96ff039aa82e6ddb35c417cfbac59554"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a96ff039aa82e6ddb35c417cfbac59554">&#9670;&#160;</a></span>sd_posix_staged_abort()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void sd_posix_staged_abort </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_staged_t *&#160;</td>
-          <td class="paramname"><em>st</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00701">701</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00770">brix_staged_abort()</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00611">sd_posix_staged_t::staged</a>.</p>
-
-</div>
-</div>
-<a id="ab40f6aa93ea3a05468a3d63f958a908b" name="ab40f6aa93ea3a05468a3d63f958a908b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab40f6aa93ea3a05468a3d63f958a908b">&#9670;&#160;</a></span>sd_posix_staged_commit()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_staged_commit </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_staged_t *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>noreplace</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00683">683</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00739">brix_staged_commit()</a>, <a class="el" href="staged__file_8c_source.html#l00746">brix_staged_commit_excl()</a>, <a class="el" href="sd__posix_8c_source.html#l00612">sd_posix_staged_t::final_path</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00611">sd_posix_staged_t::staged</a>.</p>
-
-</div>
-</div>
-<a id="a1f1954a2c29b140a86344f768aaafb60" name="a1f1954a2c29b140a86344f768aaafb60"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1f1954a2c29b140a86344f768aaafb60">&#9670;&#160;</a></span>sd_posix_staged_open()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static brix_sd_staged_t * sd_posix_staged_open </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>final_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>err_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00616">616</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00059">brix_staged_open()</a>, <a class="el" href="sd__posix_8c_source.html#l00612">sd_posix_staged_t::final_path</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00611">sd_posix_staged_t::staged</a>.</p>
-
-</div>
-</div>
-<a id="a28baa5b85edf8d7ad73afffc81813954" name="a28baa5b85edf8d7ad73afffc81813954"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a28baa5b85edf8d7ad73afffc81813954">&#9670;&#160;</a></span>sd_posix_staged_path()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static const char * sd_posix_staged_path </td>
-          <td>(</td>
-          <td class="paramtype">const brix_sd_staged_t *&#160;</td>
-          <td class="paramname"><em>st</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00715">715</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00611">sd_posix_staged_t::staged</a>, and <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>.</p>
-
-</div>
-</div>
-<a id="ac4c56add032c2d7f2e054ea7b8c2b15b" name="ac4c56add032c2d7f2e054ea7b8c2b15b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac4c56add032c2d7f2e054ea7b8c2b15b">&#9670;&#160;</a></span>sd_posix_staged_write()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t sd_posix_staged_write </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_staged_t *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>off</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00671">671</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, and <a class="el" href="sd__posix_8c_source.html#l00611">sd_posix_staged_t::staged</a>.</p>
-
-</div>
-</div>
-<a id="a140fed50572401d8619babbebb3392a5" name="a140fed50572401d8619babbebb3392a5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a140fed50572401d8619babbebb3392a5">&#9670;&#160;</a></span>sd_posix_stat()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_stat </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00351">351</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="sd__posix_8c_source.html#l00047">sd_posix_state_t::rootfd</a>, <a class="el" href="sd__posix_8c_source.html#l00093">sd_posix_fill_stat()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__posix_8c_source.html#l00430">sd_posix_server_copy()</a>.</p>
-
-</div>
-</div>
-<a id="a9e241fca001d25aeeec2ec57bbbb3bba" name="a9e241fca001d25aeeec2ec57bbbb3bba"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9e241fca001d25aeeec2ec57bbbb3bba">&#9670;&#160;</a></span>sd_posix_unlink()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t sd_posix_unlink </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>is_dir</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00378">378</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
-
-<p class="reference">References <a class="el" href="namespace__ops_8c_source.html#l00157">brix_ns_delete()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="namespace__ops_8h_source.html#l00033">brix_ns_delete_opts_t::require_directory</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00367">sd_posix_ns_result()</a>.</p>
+<p class="reference">References <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="sd__posix__internal_8h_source.html#l00033">sd_posix_state_t::rootfd</a>, and <a class="el" href="sd__posix_8c_source.html#l00057">sd_posix_flags()</a>.</p>
 
 </div>
 </div>
@@ -1775,9 +468,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00731">731</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00251">251</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="sd__posix_8c_source.html#l00158">brix_sd_posix_borrow_instance()</a>, <a class="el" href="sd_8h_source.html#l00457">brix_sd_posix_wrap()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="sd__block_8c_source.html#l00062">sd_block_fsync()</a>, <a class="el" href="sd__block_8c_source.html#l00036">sd_block_pread()</a>, <a class="el" href="sd__block_8c_source.html#l00048">sd_block_preadv()</a>, <a class="el" href="sd__block_8c_source.html#l00055">sd_block_preadv2()</a>, <a class="el" href="sd__block_8c_source.html#l00042">sd_block_pwrite()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00280">webdav_tpc_run_curl_pull_multi()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="sd__posix_8c_source.html#l00159">brix_sd_posix_borrow_instance()</a>, <a class="el" href="sd_8h_source.html#l00957">brix_sd_posix_wrap()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="sd__block_8c_source.html#l00062">sd_block_fsync()</a>, <a class="el" href="sd__block_8c_source.html#l00036">sd_block_pread()</a>, <a class="el" href="sd__block_8c_source.html#l00048">sd_block_preadv()</a>, <a class="el" href="sd__block_8c_source.html#l00055">sd_block_preadv2()</a>, <a class="el" href="sd__block_8c_source.html#l00042">sd_block_pwrite()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00459">tpc_ms_prepare_output()</a>.</p>
 
 </div>
 </div>

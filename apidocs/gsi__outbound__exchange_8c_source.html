@@ -166,165 +166,245 @@ $(document).ready(function(){initNavTree('gsi__outbound__exchange_8c_source.html
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>}</div>
 </div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">/* WHAT: GSI round-2 driver for outbound TPC — verify server cert (optional), build</span></div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment"> * the kXGC_cert via the shared gsi_core kernel, send it + check kXR_ok. Returns 0</span></div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment"> * or -1 with t-&gt;xrd_error set. Caller: gsi_outbound_certreq.c. */</span></div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00071" data-start="{" data-end="}">
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno"><a class="line" href="tpc__internal_8h.html#a93113eef20139a07ec07cffcc4e3ef0f">   71</a></span><a class="code hl_function" href="gsi__outbound__exchange_8c.html#a93113eef20139a07ec07cffcc4e3ef0f">tpc_outbound_gsi_exchange</a>(<a class="code hl_struct" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, <span class="keywordtype">int</span> fd,</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    u_char *body, uint32_t dlen,</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    X509 *x, <a class="code hl_function" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain, EVP_PKEY *pkey,</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    u_char *certreq, BIO *cbio, BIO *kbio)</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>{</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf = t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a2f26c3c34a8f1983e9c6ca193967e008">conf</a>;</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    <span class="keywordtype">int</span>        rc = -1;</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    uint16_t   status;</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    BIO       *chain_bio = NULL;</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    BUF_MEM   *bptr = NULL;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    u_char    *payload = NULL;</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    uint32_t   plen = 0;</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    <span class="keywordtype">char</span>       err[160];</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="keywordtype">int</span>        ci;</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span> </div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="comment">     * Optional: verify the server leaf cert using our CA store before we derive a</span></div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="comment">     * shared secret with it. X509_V_FLAG_ALLOW_PROXY_CERTS is set because GSI</span></div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="comment">     * delegated proxies are legitimate here. Skipped entirely when no store is</span></div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="comment">     * configured or the server omitted its kXRS_x509 bucket — only a</span></div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="comment">     * present-but-invalid cert aborts the handshake.</span></div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    <span class="keywordflow">if</span> (conf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a34965fcb59a9c08e9d7512a76cc00e44">gsi_store</a> != NULL) {</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        <span class="keyword">const</span> u_char *srv_pem;</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        <span class="keywordtype">size_t</span>        srv_pem_len;</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span> </div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="buffer_8c.html#aa86ad190140203a64c2ef98cdbb9b00b">gsi_find_bucket</a>(body, dlen, (uint32_t) <a class="code hl_define" href="gsi_8h.html#a93290034001280800fe12a354a0cead7">kXRS_x509</a>,</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>                            &amp;srv_pem, &amp;srv_pem_len)</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>            == 0 &amp;&amp; srv_pem_len &gt; 0)</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        {</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>            BIO              *mbio;</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>            X509             *srv;</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>            X509_STORE_CTX   *sctx;</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>            mbio = BIO_new_mem_buf(srv_pem, (<span class="keywordtype">int</span>) srv_pem_len);</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>            srv = PEM_read_bio_X509(mbio, NULL, NULL, NULL);</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>            BIO_free(mbio);</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment"> * tpc_gsi_verify_server_cert — optional CA-store check of the server leaf cert.</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment"> * WHAT: When conf-&gt;gsi_store is configured AND the server included its kXRS_x509</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> *   bucket, PEM-parse the leaf and run X509_verify_cert against our store. Returns</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> *   0 when verification succeeds, is skipped (no store / no bucket / unparseable</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> *   leaf), or the store-ctx cannot be initialised (matching the original fall-</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment"> *   through); returns -1 only on a present-and-invalid cert.</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="comment"> * WHY: We must not derive a shared secret with an unverified server when a store</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="comment"> *   is present. GSI delegated proxies are legitimate here, so</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="comment"> *   X509_V_FLAG_ALLOW_PROXY_CERTS is set — identical to the pre-refactor path.</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="comment"> * HOW: BIO_new_mem_buf → PEM_read_bio_X509 → X509_STORE_CTX_{new,init,set_flags}</span></div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="comment"> *   → X509_verify_cert; every OpenSSL handle freed on every exit (no leak).</span></div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00082" data-start="{" data-end="}">
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno"><a class="line" href="gsi__outbound__exchange_8c.html#a4cee3e7e3ccd8e68235d6671515e97a3">   82</a></span><a class="code hl_function" href="gsi__outbound__exchange_8c.html#a4cee3e7e3ccd8e68235d6671515e97a3">tpc_gsi_verify_server_cert</a>(<a class="code hl_struct" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, <span class="keyword">const</span> u_char *body, uint32_t dlen)</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>{</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf = t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a2f26c3c34a8f1983e9c6ca193967e008">conf</a>;</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    <span class="keyword">const</span> u_char   *srv_pem;</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    <span class="keywordtype">size_t</span>          srv_pem_len;</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    BIO            *mbio;</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    X509           *srv;</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    X509_STORE_CTX *sctx;</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <span class="keywordtype">int</span>             rc = 0;</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span> </div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>    <span class="keywordflow">if</span> (conf-&gt;gsi_store == NULL) {</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    }</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="buffer_8c.html#aa86ad190140203a64c2ef98cdbb9b00b">gsi_find_bucket</a>(body, dlen, (uint32_t) <a class="code hl_define" href="gsi_8h.html#a93290034001280800fe12a354a0cead7">kXRS_x509</a>,</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>                        &amp;srv_pem, &amp;srv_pem_len) != 0</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        || srv_pem_len == 0)</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    {</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    }</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    mbio = BIO_new_mem_buf(srv_pem, (<span class="keywordtype">int</span>) srv_pem_len);</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    srv = PEM_read_bio_X509(mbio, NULL, NULL, NULL);</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    BIO_free(mbio);</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    <span class="keywordflow">if</span> (srv == NULL) {</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    }</div>
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span> </div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>            <span class="keywordflow">if</span> (srv != NULL) {</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>                sctx = X509_STORE_CTX_new();</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>                <span class="keywordflow">if</span> (sctx</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>                    &amp;&amp; X509_STORE_CTX_init(sctx, conf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a34965fcb59a9c08e9d7512a76cc00e44">gsi_store</a>, srv, NULL)</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>                       == 1)</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>                {</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>                    X509_STORE_CTX_set_flags(sctx, X509_V_FLAG_ALLOW_PROXY_CERTS);</div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>                    <span class="keywordflow">if</span> (X509_verify_cert(sctx) != 1) {</div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>                        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>),</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>                                 <span class="stringliteral">&quot;TPC GSI server certificate verification failed&quot;</span>);</div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>                        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#ab8c1193e47850ff100a67db2eaad0f46">kXR_NotAuthorized</a>;</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>                        X509_STORE_CTX_free(sctx);</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>                        X509_free(srv);</div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>                        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio,</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>                                                        payload);</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>                    }</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>                }</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>                <span class="keywordflow">if</span> (sctx) {</div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>                    X509_STORE_CTX_free(sctx);</div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>                }</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>                X509_free(srv);</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>            }</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        }</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    }</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span> </div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="comment">/* Serialise our proxy cert chain to one contiguous PEM blob (leaf first) for</span></div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment">     * the shared builder&#39;s kXRS_x509 bucket. */</span></div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    chain_bio = BIO_new(BIO_s_mem());</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    <span class="keywordflow">if</span> (chain_bio == NULL) {</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>), <span class="stringliteral">&quot;TPC GSI out of memory&quot;</span>);</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#a50631794a0a8a25bb067d8bcb3af95ab">kXR_NoMemory</a>;</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    }</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>    <span class="keywordflow">for</span> (ci = 0; ci &lt; sk_X509_num(chain); ci++) {</div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        PEM_write_bio_X509(chain_bio, sk_X509_value(chain, ci));</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    }</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    BIO_get_mem_ptr(chain_bio, &amp;bptr);</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span> </div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="comment">     * Build the round-2 kXGC_cert via the SHARED XrdSecgsi kernel — the exact</span></div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment">     * implementation the native client uses (proven wire-compatible vs real EOS +</span></div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment">     * stock XrdSecgsi). It detects the DH variant, agrees the AES session key,</span></div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment">     * signs the server rtag with our proxy key (proof-of-possession), and</span></div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment">     * assembles the encrypted proxy chain + our DH public. chain PEM + pkey are</span></div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment">     * borrowed (we still own/free them via the certreq.c finalizer).</span></div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>    err[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="gsi__core_8c.html#ac0973a5ee34e914e0c100d296ccb0c8a">brix_gsi_build_cert_response</a>(body, dlen,</div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>                                       (<span class="keyword">const</span> uint8_t *) bptr-&gt;data,</div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>                                       bptr-&gt;length, pkey,</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>                                       &amp;payload, &amp;plen, err, <span class="keyword">sizeof</span>(err)) != 0)</div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    {</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>),</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>                 <span class="stringliteral">&quot;TPC GSI round-2 build failed: %s&quot;</span>, err[0] ? err : <span class="stringliteral">&quot;unknown&quot;</span>);</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#ab8c1193e47850ff100a67db2eaad0f46">kXR_NotAuthorized</a>;</div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    }</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span> </div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="comment">/* The round-1 server body is consumed; free it (and the chain BIO) before we</span></div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="comment">     * block on the round-2 round trip. NULL them so cleanup won&#39;t double-free. */</span></div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    free(body);</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    body = NULL;</div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    BIO_free(chain_bio);</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    chain_bio = NULL;</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span> </div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    <span class="comment">/* round 2: send our kXGC_cert (seq=4 — protocol=1, login=2, certreq=3). */</span></div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="tpc__internal_8h.html#a1d48370056a48ee01a77a113f555e23d">tpc_send_kxr_auth</a>(t, fd, 4, payload, plen) != 0) {</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>), <span class="stringliteral">&quot;TPC GSI round-2 send failed&quot;</span>);</div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>;</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    }</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    free(payload);</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    payload = NULL;</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span> </div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <span class="comment">/* Await the server&#39;s verdict. kXR_ok == authenticated. */</span></div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="tpc__internal_8h.html#ac47be8549f7d2579a4a57f12effd289f">tpc_recv_response</a>(t, fd, &amp;status, &amp;body, &amp;dlen) != 0) {</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>),</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>                 <span class="stringliteral">&quot;TPC GSI final auth recv failed&quot;</span>);</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>;</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    }</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    <span class="keywordflow">if</span> (status != <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a>) {</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *emsg = (body != NULL &amp;&amp; dlen &gt; 4)</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>                           ? (<span class="keyword">const</span> <span class="keywordtype">char</span> *) (body + 4) : <span class="stringliteral">&quot;&quot;</span>;</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>),</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>                 <span class="stringliteral">&quot;TPC GSI authentication failed (status=%u): %.*s&quot;</span>,</div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>                 (<span class="keywordtype">unsigned</span>) status,</div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>                 (<span class="keywordtype">int</span>) (dlen &gt; 4 ? dlen - 4 : 0), emsg);</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#ac57121591e93112d33d914666e324fbb">kXR_AuthFailed</a>;</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    }</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span> </div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    rc = 0;</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>}</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    sctx = X509_STORE_CTX_new();</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <span class="keywordflow">if</span> (sctx != NULL</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>        &amp;&amp; X509_STORE_CTX_init(sctx, conf-&gt;gsi_store, srv, NULL) == 1)</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    {</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>        X509_STORE_CTX_set_flags(sctx, X509_V_FLAG_ALLOW_PROXY_CERTS);</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>        <span class="keywordflow">if</span> (X509_verify_cert(sctx) != 1) {</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>            snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>),</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>                     <span class="stringliteral">&quot;TPC GSI server certificate verification failed&quot;</span>);</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>            t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#ab8c1193e47850ff100a67db2eaad0f46">kXR_NotAuthorized</a>;</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>            rc = -1;</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>        }</div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    }</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    <span class="keywordflow">if</span> (sctx != NULL) {</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>        X509_STORE_CTX_free(sctx);</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    }</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    X509_free(srv);</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    <span class="keywordflow">return</span> rc;</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>}</div>
+</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span> </div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="comment"> * tpc_gsi_round2_t — the round-2 build context: the borrowed inputs (server</span></div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span><span class="comment"> * round-1 reply `body`/`dlen`, our proxy `chain` + `pkey`) alongside the two heap</span></div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="comment"> * resources the build produces for the caller to send and later free (the built</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="comment"> * kXGC_cert `payload`/`plen` and the proxy-chain PEM `chain_bio`). Collapsing them</span></div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="comment"> * into one struct keeps the helper within the ≤5-parameter budget, no globals.</span></div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment"> */</span></div>
+<div class="foldopen" id="foldopen00135" data-start="{" data-end="};">
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno"><a class="line" href="structtpc__gsi__round2__t.html">  135</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno"><a class="line" href="structtpc__gsi__round2__t.html#ae940c0add703ed543fea001c6810de8b">  136</a></span>    u_char         *<a class="code hl_variable" href="structtpc__gsi__round2__t.html#ae940c0add703ed543fea001c6810de8b">body</a>;       <span class="comment">/* in:  server round-1 reply (borrowed) */</span></div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno"><a class="line" href="structtpc__gsi__round2__t.html#a5fc607004280b997b05c40c91c0b2f21">  137</a></span>    uint32_t        <a class="code hl_variable" href="structtpc__gsi__round2__t.html#a5fc607004280b997b05c40c91c0b2f21">dlen</a>;       <span class="comment">/* in:  length of body */</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    <a class="code hl_function" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain;      <span class="comment">/* in:  our proxy cert chain (borrowed) */</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    EVP_PKEY       *pkey;       <span class="comment">/* in:  our proxy private key (borrowed) */</span></div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    BIO            *chain_bio;  <span class="comment">/* out: proxy-chain PEM BIO (caller frees) */</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    u_char         *payload;    <span class="comment">/* out: built kXGC_cert (caller frees) */</span></div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>    uint32_t        plen;       <span class="comment">/* out: length of payload */</span></div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>} <a class="code hl_struct" href="structtpc__gsi__round2__t.html">tpc_gsi_round2_t</a>;</div>
+</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span> </div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="comment"> * tpc_gsi_build_round2 — serialise our proxy chain to PEM and build the round-2</span></div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="comment"> * kXGC_cert payload via the SHARED XrdSecgsi kernel.</span></div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment"> * WHAT: PEM-encode the proxy cert chain r-&gt;chain (leaf first) into one contiguous</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment"> *   blob and pass it plus the server&#39;s round-1 r-&gt;body to</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment"> *   brix_gsi_build_cert_response, yielding the malloc&#39;d r-&gt;payload / r-&gt;plen.</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> *   Returns 0 on success, -1 on OOM or a builder failure (with t-&gt;err_msg /</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment"> *   t-&gt;xrd_error set exactly as before).</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment"> * WHY: The DH-variant detection, AES session-key agreement, proof-of-possession</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment"> *   and encrypted-chain assembly are identical to the native client&#39;s; routing</span></div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment"> *   through the one kernel keeps wire compatibility. chain + pkey are borrowed.</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="comment"> * HOW: BIO_s_mem → PEM_write_bio_X509(chain[i]) → BIO_get_mem_ptr →</span></div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="comment"> *   brix_gsi_build_cert_response. On any failure the chain BIO is freed here and</span></div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="comment"> *   r-&gt;chain_bio left NULL; on success r-&gt;chain_bio is returned to the caller to</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment"> *   free in its normal cleanup ordering (preserving the original free/NULL order).</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00163" data-start="{" data-end="}">
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno"><a class="line" href="gsi__outbound__exchange_8c.html#a0236db25ffecdd89e2dfa620e18cbfeb">  163</a></span><a class="code hl_function" href="gsi__outbound__exchange_8c.html#a0236db25ffecdd89e2dfa620e18cbfeb">tpc_gsi_build_round2</a>(<a class="code hl_struct" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, <a class="code hl_struct" href="structtpc__gsi__round2__t.html">tpc_gsi_round2_t</a> *r)</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>{</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    BIO     *cb;</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    BUF_MEM *bptr = NULL;</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="keywordtype">char</span>     err[160];</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    <span class="keywordtype">int</span>      ci;</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span> </div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    cb = BIO_new(BIO_s_mem());</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <span class="keywordflow">if</span> (cb == NULL) {</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>), <span class="stringliteral">&quot;TPC GSI out of memory&quot;</span>);</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#a50631794a0a8a25bb067d8bcb3af95ab">kXR_NoMemory</a>;</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    }</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    <span class="keywordflow">for</span> (ci = 0; ci &lt; sk_X509_num(r-&gt;chain); ci++) {</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        PEM_write_bio_X509(cb, sk_X509_value(r-&gt;chain, ci));</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    }</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    BIO_get_mem_ptr(cb, &amp;bptr);</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span> </div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    err[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="gsi__core_8h.html#ac0973a5ee34e914e0c100d296ccb0c8a">brix_gsi_build_cert_response</a>(r-&gt;<a class="code hl_variable" href="structtpc__gsi__round2__t.html#ae940c0add703ed543fea001c6810de8b">body</a>, r-&gt;<a class="code hl_variable" href="structtpc__gsi__round2__t.html#a5fc607004280b997b05c40c91c0b2f21">dlen</a>,</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>                                       (<span class="keyword">const</span> uint8_t *) bptr-&gt;data,</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>                                       bptr-&gt;length, r-&gt;pkey,</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>                                       &amp;r-&gt;payload, &amp;r-&gt;plen,</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>                                       err, <span class="keyword">sizeof</span>(err)) != 0)</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    {</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>),</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>                 <span class="stringliteral">&quot;TPC GSI round-2 build failed: %s&quot;</span>, err[0] ? err : <span class="stringliteral">&quot;unknown&quot;</span>);</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#ab8c1193e47850ff100a67db2eaad0f46">kXR_NotAuthorized</a>;</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>        BIO_free(cb);</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    }</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span> </div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    r-&gt;chain_bio = cb;</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>}</div>
+</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span> </div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="comment">/* WHAT: GSI round-2 driver for outbound TPC — verify server cert (optional), build</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="comment"> * the kXGC_cert via the shared gsi_core kernel, send it + check kXR_ok. Returns 0</span></div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="comment"> * or -1 with t-&gt;xrd_error set. Caller: gsi_outbound_certreq.c. */</span></div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00203" data-start="{" data-end="}">
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno"><a class="line" href="tpc__internal_8h.html#a93113eef20139a07ec07cffcc4e3ef0f">  203</a></span><a class="code hl_function" href="gsi__outbound__exchange_8c.html#a93113eef20139a07ec07cffcc4e3ef0f">tpc_outbound_gsi_exchange</a>(<a class="code hl_struct" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, <span class="keywordtype">int</span> fd,</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    u_char *body, uint32_t dlen,</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    X509 *x, <a class="code hl_function" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain, EVP_PKEY *pkey,</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    u_char *certreq, BIO *cbio, BIO *kbio)</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>{</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <span class="keywordtype">int</span>              rc = -1;</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    uint16_t         status;</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    BIO             *chain_bio = NULL;</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    u_char          *payload = NULL;</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    uint32_t         plen = 0;</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    <a class="code hl_struct" href="structtpc__gsi__round2__t.html">tpc_gsi_round2_t</a> r2 = { body, dlen, chain, pkey, NULL, NULL, 0 };</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span> </div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="comment">     * Optional: verify the server leaf cert using our CA store before we derive a</span></div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span><span class="comment">     * shared secret with it. Skipped entirely when no store is configured or the</span></div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span><span class="comment">     * server omitted its kXRS_x509 bucket — only a present-but-invalid cert aborts.</span></div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="gsi__outbound__exchange_8c.html#a4cee3e7e3ccd8e68235d6671515e97a3">tpc_gsi_verify_server_cert</a>(t, body, dlen) != 0) {</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>    }</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span> </div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="comment">     * Serialise our proxy chain to PEM and build the round-2 kXGC_cert via the</span></div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="comment">     * SHARED XrdSecgsi kernel — the exact implementation the native client uses</span></div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span><span class="comment">     * (proven wire-compatible vs real EOS + stock XrdSecgsi). chain PEM + pkey are</span></div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span><span class="comment">     * borrowed (we still own/free them via the certreq.c finalizer).</span></div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="gsi__outbound__exchange_8c.html#a0236db25ffecdd89e2dfa620e18cbfeb">tpc_gsi_build_round2</a>(t, &amp;r2) != 0) {</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, r2.chain_bio, r2.payload);</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    }</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    chain_bio = r2.chain_bio;</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    payload = r2.payload;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    plen = r2.plen;</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span> </div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    <span class="comment">/* The round-1 server body is consumed; free it (and the chain BIO) before we</span></div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span><span class="comment">     * block on the round-2 round trip. NULL them so cleanup won&#39;t double-free. */</span></div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    free(body);</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    body = NULL;</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    BIO_free(chain_bio);</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    chain_bio = NULL;</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span> </div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    <span class="comment">/* round 2: send our kXGC_cert (seq=4 — protocol=1, login=2, certreq=3). */</span></div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="tpc__internal_8h.html#a1d48370056a48ee01a77a113f555e23d">tpc_send_kxr_auth</a>(t, fd, 4, payload, plen) != 0) {</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>), <span class="stringliteral">&quot;TPC GSI round-2 send failed&quot;</span>);</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>;</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    }</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    free(payload);</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    payload = NULL;</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    <span class="comment">/* Await the server&#39;s verdict. kXR_ok == authenticated. */</span></div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="tpc__internal_8h.html#ac47be8549f7d2579a4a57f12effd289f">tpc_recv_response</a>(t, fd, &amp;status, &amp;body, &amp;dlen) != 0) {</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>),</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>                 <span class="stringliteral">&quot;TPC GSI final auth recv failed&quot;</span>);</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>;</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    }</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    <span class="keywordflow">if</span> (status != <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a>) {</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *emsg = (body != NULL &amp;&amp; dlen &gt; 4)</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>                           ? (<span class="keyword">const</span> <span class="keywordtype">char</span> *) (body + 4) : <span class="stringliteral">&quot;&quot;</span>;</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>        snprintf(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>, <span class="keyword">sizeof</span>(t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a>),</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>                 <span class="stringliteral">&quot;TPC GSI authentication failed (status=%u): %.*s&quot;</span>,</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>                 (<span class="keywordtype">unsigned</span>) status,</div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>                 (<span class="keywordtype">int</span>) (dlen &gt; 4 ? dlen - 4 : 0), emsg);</div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>        t-&gt;<a class="code hl_variable" href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">xrd_error</a> = <a class="code hl_define" href="opcodes_8h.html#ac57121591e93112d33d914666e324fbb">kXR_AuthFailed</a>;</div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    }</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span> </div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    rc = 0;</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a>(rc, body, chain_bio, payload);</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>}</div>
 </div>
 <div class="ttc" id="abuffer_8c_html_aa86ad190140203a64c2ef98cdbb9b00b"><div class="ttname"><a href="buffer_8c.html#aa86ad190140203a64c2ef98cdbb9b00b">gsi_find_bucket</a></div><div class="ttdeci">int gsi_find_bucket(const u_char *payload, size_t plen, uint32_t target_type, const u_char **data_out, size_t *len_out)</div><div class="ttdef"><b>Definition</b> <a href="buffer_8c_source.html#l00029">buffer.c:29</a></div></div>
 <div class="ttc" id="agsi_8h_html"><div class="ttname"><a href="gsi_8h.html">gsi.h</a></div></div>
 <div class="ttc" id="agsi_8h_html_a93290034001280800fe12a354a0cead7"><div class="ttname"><a href="gsi_8h.html#a93290034001280800fe12a354a0cead7">kXRS_x509</a></div><div class="ttdeci">#define kXRS_x509</div><div class="ttdef"><b>Definition</b> <a href="gsi_8h_source.html#l00049">gsi.h:49</a></div></div>
-<div class="ttc" id="agsi__core_8c_html_ac0973a5ee34e914e0c100d296ccb0c8a"><div class="ttname"><a href="gsi__core_8c.html#ac0973a5ee34e914e0c100d296ccb0c8a">brix_gsi_build_cert_response</a></div><div class="ttdeci">int brix_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen, const uint8_t *proxy_pem, size_t proxy_pem_len, EVP_PKEY *proxy_key, uint8_t **payload, uint32_t *plen, char *err, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="gsi__core_8c_source.html#l00447">gsi_core.c:447</a></div></div>
 <div class="ttc" id="agsi__core_8h_html"><div class="ttname"><a href="gsi__core_8h.html">gsi_core.h</a></div></div>
-<div class="ttc" id="agsi__outbound__exchange_8c_html_a93113eef20139a07ec07cffcc4e3ef0f"><div class="ttname"><a href="gsi__outbound__exchange_8c.html#a93113eef20139a07ec07cffcc4e3ef0f">tpc_outbound_gsi_exchange</a></div><div class="ttdeci">int tpc_outbound_gsi_exchange(brix_tpc_pull_t *t, int fd, u_char *body, uint32_t dlen, X509 *x, STACK_OF(X509) *chain, EVP_PKEY *pkey, u_char *certreq, BIO *cbio, BIO *kbio)</div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__exchange_8c_source.html#l00071">gsi_outbound_exchange.c:71</a></div></div>
+<div class="ttc" id="agsi__core_8h_html_ac0973a5ee34e914e0c100d296ccb0c8a"><div class="ttname"><a href="gsi__core_8h.html#ac0973a5ee34e914e0c100d296ccb0c8a">brix_gsi_build_cert_response</a></div><div class="ttdeci">int brix_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen, const uint8_t *proxy_pem, size_t proxy_pem_len, EVP_PKEY *proxy_key, uint8_t **payload, uint32_t *plen, char *err, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="gsi__core__cresp_8c_source.html#l00493">gsi_core_cresp.c:493</a></div></div>
+<div class="ttc" id="agsi__outbound__exchange_8c_html_a0236db25ffecdd89e2dfa620e18cbfeb"><div class="ttname"><a href="gsi__outbound__exchange_8c.html#a0236db25ffecdd89e2dfa620e18cbfeb">tpc_gsi_build_round2</a></div><div class="ttdeci">static int tpc_gsi_build_round2(brix_tpc_pull_t *t, tpc_gsi_round2_t *r)</div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__exchange_8c_source.html#l00163">gsi_outbound_exchange.c:163</a></div></div>
+<div class="ttc" id="agsi__outbound__exchange_8c_html_a4cee3e7e3ccd8e68235d6671515e97a3"><div class="ttname"><a href="gsi__outbound__exchange_8c.html#a4cee3e7e3ccd8e68235d6671515e97a3">tpc_gsi_verify_server_cert</a></div><div class="ttdeci">static int tpc_gsi_verify_server_cert(brix_tpc_pull_t *t, const u_char *body, uint32_t dlen)</div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__exchange_8c_source.html#l00082">gsi_outbound_exchange.c:82</a></div></div>
+<div class="ttc" id="agsi__outbound__exchange_8c_html_a93113eef20139a07ec07cffcc4e3ef0f"><div class="ttname"><a href="gsi__outbound__exchange_8c.html#a93113eef20139a07ec07cffcc4e3ef0f">tpc_outbound_gsi_exchange</a></div><div class="ttdeci">int tpc_outbound_gsi_exchange(brix_tpc_pull_t *t, int fd, u_char *body, uint32_t dlen, X509 *x, STACK_OF(X509) *chain, EVP_PKEY *pkey, u_char *certreq, BIO *cbio, BIO *kbio)</div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__exchange_8c_source.html#l00203">gsi_outbound_exchange.c:203</a></div></div>
 <div class="ttc" id="agsi__outbound__exchange_8c_html_a988793dae8c314bf276cb2c2a3054486"><div class="ttname"><a href="gsi__outbound__exchange_8c.html#a988793dae8c314bf276cb2c2a3054486">tpc_gsi_exchange_cleanup</a></div><div class="ttdeci">static int tpc_gsi_exchange_cleanup(int rc, u_char *body, BIO *chain_bio, u_char *payload)</div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__exchange_8c_source.html#l00059">gsi_outbound_exchange.c:59</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a047327de036a7d4cd811fc8af53d268a"><div class="ttname"><a href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a></div><div class="ttdeci">#define kXR_ServerError</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00158">opcodes.h:158</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a278699929ef8ff8f31d283b26f1cde76"><div class="ttname"><a href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a></div><div class="ttdeci">#define kXR_ok</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00107">opcodes.h:107</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a50631794a0a8a25bb067d8bcb3af95ab"><div class="ttname"><a href="opcodes_8h.html#a50631794a0a8a25bb067d8bcb3af95ab">kXR_NoMemory</a></div><div class="ttdeci">#define kXR_NoMemory</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00154">opcodes.h:154</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ab8c1193e47850ff100a67db2eaad0f46"><div class="ttname"><a href="opcodes_8h.html#ab8c1193e47850ff100a67db2eaad0f46">kXR_NotAuthorized</a></div><div class="ttdeci">#define kXR_NotAuthorized</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00156">opcodes.h:156</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ac57121591e93112d33d914666e324fbb"><div class="ttname"><a href="opcodes_8h.html#ac57121591e93112d33d914666e324fbb">kXR_AuthFailed</a></div><div class="ttdeci">#define kXR_AuthFailed</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00172">opcodes.h:172</a></div></div>
-<div class="ttc" id="apki__check_8h_html_ab2b30ef18f08bfac0dea477c9ce1ea7e"><div class="ttname"><a href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a></div><div class="ttdeci">STACK_OF(X509) *brix_pki_load_certs_from_path(const char *path</div><div class="ttdef"><b>Definition</b> <a href="parse__x509_8c_source.html#l00166">parse_x509.c:166</a></div></div>
+<div class="ttc" id="apki__check_8h_html_ab2b30ef18f08bfac0dea477c9ce1ea7e"><div class="ttname"><a href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a></div><div class="ttdeci">STACK_OF(X509) *brix_pki_load_certs_from_path(const char *path</div></div>
 <div class="ttc" id="aroot_2session_2session_8h_html"><div class="ttname"><a href="root_2session_2session_8h.html">session.h</a></div></div>
 <div class="ttc" id="astructbrix__tpc__pull__t_html"><div class="ttname"><a href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a></div><div class="ttdef"><b>Definition</b> <a href="tpc__internal_8h_source.html#l00096">tpc_internal.h:96</a></div></div>
 <div class="ttc" id="astructbrix__tpc__pull__t_html_a2f26c3c34a8f1983e9c6ca193967e008"><div class="ttname"><a href="structbrix__tpc__pull__t.html#a2f26c3c34a8f1983e9c6ca193967e008">brix_tpc_pull_t::conf</a></div><div class="ttdeci">ngx_stream_brix_srv_conf_t * conf</div><div class="ttdef"><b>Definition</b> <a href="tpc__internal_8h_source.html#l00099">tpc_internal.h:99</a></div></div>
-<div class="ttc" id="astructbrix__tpc__pull__t_html_a3f5b2c2066d949a4079ee8b39a69937e"><div class="ttname"><a href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">brix_tpc_pull_t::err_msg</a></div><div class="ttdeci">char err_msg[512]</div><div class="ttdef"><b>Definition</b> <a href="tpc__internal_8h_source.html#l00122">tpc_internal.h:122</a></div></div>
-<div class="ttc" id="astructbrix__tpc__pull__t_html_ae1232e70e07d575a86ead894eec93671"><div class="ttname"><a href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">brix_tpc_pull_t::xrd_error</a></div><div class="ttdeci">int xrd_error</div><div class="ttdef"><b>Definition</b> <a href="tpc__internal_8h_source.html#l00117">tpc_internal.h:117</a></div></div>
+<div class="ttc" id="astructbrix__tpc__pull__t_html_a3f5b2c2066d949a4079ee8b39a69937e"><div class="ttname"><a href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">brix_tpc_pull_t::err_msg</a></div><div class="ttdeci">char err_msg[512]</div><div class="ttdef"><b>Definition</b> <a href="tpc__internal_8h_source.html#l00128">tpc_internal.h:128</a></div></div>
+<div class="ttc" id="astructbrix__tpc__pull__t_html_ae1232e70e07d575a86ead894eec93671"><div class="ttname"><a href="structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671">brix_tpc_pull_t::xrd_error</a></div><div class="ttdeci">int xrd_error</div><div class="ttdef"><b>Definition</b> <a href="tpc__internal_8h_source.html#l00123">tpc_internal.h:123</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00112">config.h:112</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_a34965fcb59a9c08e9d7512a76cc00e44"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#a34965fcb59a9c08e9d7512a76cc00e44">ngx_stream_brix_srv_conf_t::gsi_store</a></div><div class="ttdeci">X509_STORE * gsi_store</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00161">config.h:161</a></div></div>
+<div class="ttc" id="astructtpc__gsi__round2__t_html"><div class="ttname"><a href="structtpc__gsi__round2__t.html">tpc_gsi_round2_t</a></div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__exchange_8c_source.html#l00135">gsi_outbound_exchange.c:135</a></div></div>
+<div class="ttc" id="astructtpc__gsi__round2__t_html_a5fc607004280b997b05c40c91c0b2f21"><div class="ttname"><a href="structtpc__gsi__round2__t.html#a5fc607004280b997b05c40c91c0b2f21">tpc_gsi_round2_t::dlen</a></div><div class="ttdeci">uint32_t dlen</div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__exchange_8c_source.html#l00137">gsi_outbound_exchange.c:137</a></div></div>
+<div class="ttc" id="astructtpc__gsi__round2__t_html_ae940c0add703ed543fea001c6810de8b"><div class="ttname"><a href="structtpc__gsi__round2__t.html#ae940c0add703ed543fea001c6810de8b">tpc_gsi_round2_t::body</a></div><div class="ttdeci">u_char * body</div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__exchange_8c_source.html#l00136">gsi_outbound_exchange.c:136</a></div></div>
 <div class="ttc" id="atpc__internal_8h_html"><div class="ttname"><a href="tpc__internal_8h.html">tpc_internal.h</a></div></div>
 <div class="ttc" id="atpc__internal_8h_html_a1d48370056a48ee01a77a113f555e23d"><div class="ttname"><a href="tpc__internal_8h.html#a1d48370056a48ee01a77a113f555e23d">tpc_send_kxr_auth</a></div><div class="ttdeci">int tpc_send_kxr_auth(brix_tpc_pull_t *t, int fd, u_char seq, const u_char *cred, uint32_t len)</div><div class="ttdef"><b>Definition</b> <a href="gsi__outbound__common_8c_source.html#l00052">gsi_outbound_common.c:52</a></div></div>
 <div class="ttc" id="atpc__internal_8h_html_ac47be8549f7d2579a4a57f12effd289f"><div class="ttname"><a href="tpc__internal_8h.html#ac47be8549f7d2579a4a57f12effd289f">tpc_recv_response</a></div><div class="ttdeci">int tpc_recv_response(brix_tpc_pull_t *t, int fd, uint16_t *status, u_char **body, uint32_t *dlen)</div><div class="ttdef"><b>Definition</b> <a href="tpc_2outbound_2io_8c_source.html#l00119">io.c:119</a></div></div>

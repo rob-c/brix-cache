@@ -2,6 +2,7 @@ var mirror_8h =
 [
     [ "brix_mirror_target_t", "structbrix__mirror__target__t.html", "structbrix__mirror__target__t" ],
     [ "brix_mirror_conf_t", "structbrix__mirror__conf__t.html", "structbrix__mirror__conf__t" ],
+    [ "BRIX_MIRROR_DEFAULT_TIMEOUT_MS", "mirror_8h.html#ad9d59560db617164b959fb929ced7f1c", null ],
     [ "BRIX_MIRROR_M_COPY", "mirror_8h.html#a9896f47c6e1e163615eefe6f274c8221", null ],
     [ "BRIX_MIRROR_M_DEFAULT", "mirror_8h.html#a88f87b2bfd7494ad2ce8b53e9bfe4662", null ],
     [ "BRIX_MIRROR_M_DELETE", "mirror_8h.html#a1b29bf50534b68d78647731e02701864", null ],

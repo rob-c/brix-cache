@@ -1,5 +1,6 @@
 var copy__pump_8c =
 [
+    [ "pump_emit_progress", "copy__pump_8c.html#ae65be6e09e457fe4c42dd18da59cd8ee", null ],
     [ "pump_remote_reopen", "copy__pump_8c.html#a2cf7190b1f040b16eebc048dfd959bcd", null ],
     [ "pump_sink_local", "copy__pump_8c.html#a23e808e97fbacb7109c525e3e3e46ad8", null ],
     [ "pump_sink_local_vfs", "copy__pump_8c.html#a8d2889307f9c72b9450b75b6b98b7239", null ],

@@ -1,5 +1,13 @@
 var xrootdfs_8c =
 [
+    [ "aio_opt_cache_value", "xrootdfs_8c.html#aef7614e8cb7939dd04e0e24181c60836", null ],
+    [ "aio_opt_conn_value", "xrootdfs_8c.html#a6f4ff52b3ef0d88a564a31f721cf2bd1", null ],
+    [ "aio_opt_novalue", "xrootdfs_8c.html#adc573ea6e891885281db6c9adbfbc2bd", null ],
+    [ "aio_parse_args", "xrootdfs_8c.html#a4865e7c0813c8e2a1f9cb084f2a2dcc9", null ],
+    [ "aio_probe_ext", "xrootdfs_8c.html#a5562b69c6c3bb7d292ca10f25e623cce", null ],
+    [ "aio_root_mount", "xrootdfs_8c.html#abb3cbb3b5803f9f2209e23bd4f048523", null ],
+    [ "aio_set_base", "xrootdfs_8c.html#ac1bf473b1dcfbcf2cf18c7161de63ec1", null ],
+    [ "aio_web_mount", "xrootdfs_8c.html#a8c2503e34cd06a523a5692713dc53fcc", null ],
     [ "srv_path", "xrootdfs_8c.html#a22ee76959605f73d8a7a33d788590a9b", null ],
     [ "usage", "xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a", null ],
     [ "usage_fp", "xrootdfs_8c.html#a28999b7bf77e817ab21c70002c3ad233", null ],

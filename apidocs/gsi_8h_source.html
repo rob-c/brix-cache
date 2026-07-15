@@ -151,11 +151,21 @@ $(document).ready(function(){initNavTree('gsi_8h_source.html',''); initResizable
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno"><a class="line" href="gsi_8h.html#a45886d94a717dd8760b3802725ffe695">   51</a></span><span class="preprocessor">#define kXRS_x509_req    3024       </span><span class="comment">/* X.509 certificate request (proxy delegation) */</span><span class="preprocessor"></span></div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno"><a class="line" href="gsi_8h.html#a762cb31766cd53d7bdbd77d07de8c46e">   52</a></span><span class="preprocessor">#define kXRS_cipher_alg  3025       </span><span class="comment">/* supported cipher algorithms       */</span><span class="preprocessor"></span></div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno"><a class="line" href="gsi_8h.html#a04b56d01a159aea79c3cbdf5403ec5e7">   53</a></span><span class="preprocessor">#define kXRS_md_alg      3026       </span><span class="comment">/* supported digest algorithms       */</span><span class="preprocessor"></span></div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span> </div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment">/* GSI protocol version sent in kXRS_version bucket. 20100 = 2.01.00 */</span></div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno"><a class="line" href="gsi_8h.html#a4e9192ebeb8ff8d004778f0f8b7c63ce">   56</a></span><span class="preprocessor">#define kXGSI_VERSION    20100</span></div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span> </div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_PROTOCOL_GSI_H */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment"> * brix extension (phase-70 §5.1): an OPTIONAL client-pushed FULL proxy</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment"> * (cert chain + private key, PEM) placed in the decrypted kXGC_cert inner</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment"> * buffer when the client opts in (XRD_DELEGATEFULLPROXY). Enables backend</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment"> * x509 PASSTHROUGH: the node presents the user&#39;s own short-lived proxy</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="comment"> * upstream. Never required; only captured when present, under TLS, and only</span></div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="comment"> * after the leaf DN is proven to equal the GSI-authenticated DN. The id sits</span></div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment"> * clear of the stock kXRS_* range to avoid collision with any future addition.</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno"><a class="line" href="gsi_8h.html#af5287a55cebec045fc58f51ef6b033fe">   63</a></span><span class="preprocessor">#define kXRS_x509_fullproxy 3040    </span><span class="comment">/* brix: client-supplied full proxy PEM */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span> </div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="comment">/* GSI protocol version sent in kXRS_version bucket. 20100 = 2.01.00 */</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno"><a class="line" href="gsi_8h.html#a4e9192ebeb8ff8d004778f0f8b7c63ce">   66</a></span><span class="preprocessor">#define kXGSI_VERSION    20100</span></div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_PROTOCOL_GSI_H */</span><span class="preprocessor"></span></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

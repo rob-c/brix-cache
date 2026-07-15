@@ -114,6 +114,12 @@ Functions</h2></td></tr>
 <tr class="separator:a0d72bd516f091a000acf946244c70ed3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a05f17dd7366b0c638ae64c0a589fdf74" id="r_a05f17dd7366b0c638ae64c0a589fdf74"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="iobuf_8c.html#a05f17dd7366b0c638ae64c0a589fdf74">brix_iobuf_flush</a> (<a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *b, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a05f17dd7366b0c638ae64c0a589fdf74"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a204795b0b667845a0088d73a03e06527" id="r_a204795b0b667845a0088d73a03e06527"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="iobuf_8c.html#a204795b0b667845a0088d73a03e06527">iobuf_range_cached</a> (const <a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *b, off_t off, size_t n)</td></tr>
+<tr class="separator:a204795b0b667845a0088d73a03e06527"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4576b060cc58f57ab2dff87b8c4ffe18" id="r_a4576b060cc58f57ab2dff87b8c4ffe18"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="iobuf_8c.html#a4576b060cc58f57ab2dff87b8c4ffe18">iobuf_refill</a> (<a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *b, off_t off, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a4576b060cc58f57ab2dff87b8c4ffe18"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ada95de9015bf7e0d37b2c80176d6db83" id="r_ada95de9015bf7e0d37b2c80176d6db83"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="iobuf_8c.html#ada95de9015bf7e0d37b2c80176d6db83">iobuf_serve</a> (const <a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *b, off_t off, char *out, size_t n)</td></tr>
+<tr class="separator:ada95de9015bf7e0d37b2c80176d6db83"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a91e60fe1e7aad6323bad2b8750ea8122" id="r_a91e60fe1e7aad6323bad2b8750ea8122"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="iobuf_8c.html#a91e60fe1e7aad6323bad2b8750ea8122">brix_iobuf_read</a> (<a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *b, off_t off, char *out, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a91e60fe1e7aad6323bad2b8750ea8122"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac37f4565b08b889ccaf99a964ab0e297" id="r_ac37f4565b08b889ccaf99a964ab0e297"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="iobuf_8c.html#ac37f4565b08b889ccaf99a964ab0e297">brix_iobuf_write</a> (<a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *b, off_t off, const char *in, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
@@ -138,7 +144,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00127">127</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00194">194</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
 
 <p class="reference">References <a class="el" href="iobuf_8h_source.html#l00042">brix_iobuf::rbuf</a>, and <a class="el" href="iobuf_8h_source.html#l00047">brix_iobuf::wbuf</a>.</p>
 
@@ -176,7 +182,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="iobuf_8h_source.html#l00035">brix_iobuf::be</a>, <a class="el" href="iobuf_8h_source.html#l00037">brix_iobuf::pwrite</a>, <a class="el" href="iobuf_8h_source.html#l00047">brix_iobuf::wbuf</a>, <a class="el" href="iobuf_8h_source.html#l00049">brix_iobuf::wbuf_len</a>, and <a class="el" href="iobuf_8h_source.html#l00048">brix_iobuf::wbuf_off</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrootdfs__io_8c_source.html#l00039">afh_flush_wbuf()</a>, <a class="el" href="iobuf_8c_source.html#l00041">brix_iobuf_read()</a>, <a class="el" href="iobuf_8c_source.html#l00090">brix_iobuf_write()</a>, and <a class="el" href="xrootdfs__legacy_8c_source.html#l00109">xfs_flush_wbuf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrootdfs__io_8c_source.html#l00039">afh_flush_wbuf()</a>, <a class="el" href="iobuf_8c_source.html#l00123">brix_iobuf_read()</a>, <a class="el" href="iobuf_8c_source.html#l00157">brix_iobuf_write()</a>, and <a class="el" href="xrootdfs__legacy_8c_source.html#l00109">xfs_flush_wbuf()</a>.</p>
 
 </div>
 </div>
@@ -288,9 +294,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00041">41</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00123">123</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
 
-<p class="reference">References <a class="el" href="iobuf_8h_source.html#l00035">brix_iobuf::be</a>, <a class="el" href="iobuf_8c_source.html#l00028">brix_iobuf_flush()</a>, <a class="el" href="iobuf_8h_source.html#l00036">brix_iobuf::pread</a>, <a class="el" href="iobuf_8h_source.html#l00045">brix_iobuf::ra_next</a>, <a class="el" href="iobuf_8h_source.html#l00039">brix_iobuf::ra_size</a>, <a class="el" href="iobuf_8h_source.html#l00042">brix_iobuf::rbuf</a>, <a class="el" href="iobuf_8h_source.html#l00044">brix_iobuf::rbuf_len</a>, <a class="el" href="iobuf_8h_source.html#l00043">brix_iobuf::rbuf_off</a>, <a class="el" href="iobuf_8h_source.html#l00049">brix_iobuf::wbuf_len</a>, and <a class="el" href="iobuf_8h_source.html#l00038">brix_iobuf::writable</a>.</p>
+<p class="reference">References <a class="el" href="iobuf_8h_source.html#l00035">brix_iobuf::be</a>, <a class="el" href="iobuf_8c_source.html#l00028">brix_iobuf_flush()</a>, <a class="el" href="iobuf_8c_source.html#l00056">iobuf_range_cached()</a>, <a class="el" href="iobuf_8c_source.html#l00079">iobuf_refill()</a>, <a class="el" href="iobuf_8c_source.html#l00108">iobuf_serve()</a>, <a class="el" href="iobuf_8h_source.html#l00036">brix_iobuf::pread</a>, <a class="el" href="iobuf_8h_source.html#l00045">brix_iobuf::ra_next</a>, <a class="el" href="iobuf_8h_source.html#l00039">brix_iobuf::ra_size</a>, <a class="el" href="iobuf_8h_source.html#l00042">brix_iobuf::rbuf</a>, <a class="el" href="iobuf_8h_source.html#l00049">brix_iobuf::wbuf_len</a>, and <a class="el" href="iobuf_8h_source.html#l00038">brix_iobuf::writable</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrootdfs__io_8c_source.html#l00132">xfs_read()</a>, and <a class="el" href="xrootdfs__legacy_8c_source.html#l00297">xfs_read()</a>.</p>
 
@@ -340,11 +346,167 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00090">90</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00157">157</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
 
 <p class="reference">References <a class="el" href="iobuf_8h_source.html#l00035">brix_iobuf::be</a>, <a class="el" href="iobuf_8c_source.html#l00028">brix_iobuf_flush()</a>, <a class="el" href="iobuf_8h_source.html#l00037">brix_iobuf::pwrite</a>, <a class="el" href="iobuf_8h_source.html#l00040">brix_iobuf::wb_size</a>, <a class="el" href="iobuf_8h_source.html#l00047">brix_iobuf::wbuf</a>, <a class="el" href="iobuf_8h_source.html#l00049">brix_iobuf::wbuf_len</a>, and <a class="el" href="iobuf_8h_source.html#l00048">brix_iobuf::wbuf_off</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrootdfs__io_8c_source.html#l00152">xfs_write()</a>, and <a class="el" href="xrootdfs__legacy_8c_source.html#l00317">xfs_write()</a>.</p>
+
+</div>
+</div>
+<a id="a204795b0b667845a0088d73a03e06527" name="a204795b0b667845a0088d73a03e06527"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a204795b0b667845a0088d73a03e06527">&#9670;&#160;</a></span>iobuf_range_cached()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int iobuf_range_cached </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *&#160;</td>
+          <td class="paramname"><em>b</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00056">56</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
+
+<p class="reference">References <a class="el" href="iobuf_8h_source.html#l00044">brix_iobuf::rbuf_len</a>, and <a class="el" href="iobuf_8h_source.html#l00043">brix_iobuf::rbuf_off</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="iobuf_8c_source.html#l00123">brix_iobuf_read()</a>.</p>
+
+</div>
+</div>
+<a id="a4576b060cc58f57ab2dff87b8c4ffe18" name="a4576b060cc58f57ab2dff87b8c4ffe18"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4576b060cc58f57ab2dff87b8c4ffe18">&#9670;&#160;</a></span>iobuf_refill()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int iobuf_refill </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *&#160;</td>
+          <td class="paramname"><em>b</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00079">79</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
+
+<p class="reference">References <a class="el" href="iobuf_8h_source.html#l00035">brix_iobuf::be</a>, <a class="el" href="iobuf_8h_source.html#l00036">brix_iobuf::pread</a>, <a class="el" href="iobuf_8h_source.html#l00045">brix_iobuf::ra_next</a>, <a class="el" href="iobuf_8h_source.html#l00039">brix_iobuf::ra_size</a>, <a class="el" href="iobuf_8h_source.html#l00042">brix_iobuf::rbuf</a>, <a class="el" href="iobuf_8h_source.html#l00044">brix_iobuf::rbuf_len</a>, and <a class="el" href="iobuf_8h_source.html#l00043">brix_iobuf::rbuf_off</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="iobuf_8c_source.html#l00123">brix_iobuf_read()</a>.</p>
+
+</div>
+</div>
+<a id="ada95de9015bf7e0d37b2c80176d6db83" name="ada95de9015bf7e0d37b2c80176d6db83"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ada95de9015bf7e0d37b2c80176d6db83">&#9670;&#160;</a></span>iobuf_serve()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t iobuf_serve </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__iobuf.html">brix_iobuf</a> *&#160;</td>
+          <td class="paramname"><em>b</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="iobuf_8c_source.html#l00108">108</a> of file <a class="el" href="iobuf_8c_source.html">iobuf.c</a>.</p>
+
+<p class="reference">References <a class="el" href="iobuf_8h_source.html#l00042">brix_iobuf::rbuf</a>, <a class="el" href="iobuf_8h_source.html#l00044">brix_iobuf::rbuf_len</a>, and <a class="el" href="iobuf_8h_source.html#l00043">brix_iobuf::rbuf_off</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="iobuf_8c_source.html#l00123">brix_iobuf_read()</a>.</p>
 
 </div>
 </div>

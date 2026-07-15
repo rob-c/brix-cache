@@ -1,7 +1,7 @@
 <map id="src/auth/token/subject_map.h" name="src/auth/token/subject_map.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="104,5,269,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="101,5,267,45"/>
 <area shape="rect" id="Node000002" href="$subject__map_8c.html" title=" " alt="" coords="5,93,171,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="156,56,112,95,108,91,153,52"/>
-<area shape="rect" id="Node000003" href="$validate_8c.html" title=" " alt="" coords="195,101,378,126"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="221,52,275,98,271,102,217,56"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="154,57,111,95,107,91,151,53"/>
+<area shape="rect" id="Node000003" href="$validate__registry_8c.html" title=" " alt="" coords="195,93,365,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="217,53,261,91,257,95,214,57"/>
 </map>

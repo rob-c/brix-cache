@@ -1,5 +1,7 @@
 var zip_8c =
 [
+    [ "zip_cd_t", "structzip__cd__t.html", "structzip__cd__t" ],
+    [ "zip_extract_t", "structzip__extract__t.html", "structzip__extract__t" ],
     [ "apply_zip64_extra", "zip_8c.html#a1065a78749da2c18877b92d948458e97", null ],
     [ "brix_zip_dir_free", "zip_8c.html#ace62570a8963b5e8519e8a34a6ee28b7", null ],
     [ "brix_zip_find", "zip_8c.html#a6b72c9dee654c907b59a10b5696e54e5", null ],
@@ -16,5 +18,12 @@ var zip_8c =
     [ "put64", "zip_8c.html#a02e5ff7d887cbcd63941056d237807b6", null ],
     [ "read_exact", "zip_8c.html#a50013f2e8528589fc50a50ac99784538", null ],
     [ "sink_output", "zip_8c.html#a5269070b9672f1d3430e039dc2a0b737", null ],
-    [ "zip_map_kernel_rc", "zip_8c.html#af69640acacb2bfbcd20e87062650926c", null ]
+    [ "zip_extract_inflate_chunk", "zip_8c.html#a2b873a9dba39f03d1eb8443f6c7fe1a1", null ],
+    [ "zip_extract_setup", "zip_8c.html#a795e0ebea528f2059db385a283a1f9b1", null ],
+    [ "zip_extract_stream", "zip_8c.html#a2c8ed3bbd79814cc3b7f5d3aa613b234", null ],
+    [ "zip_extract_teardown", "zip_8c.html#a996326fb3ee4647066eca81d42ed3aa5", null ],
+    [ "zip_extract_verify", "zip_8c.html#afc19957657a841bd54c9ebeddbde1b01", null ],
+    [ "zip_map_kernel_rc", "zip_8c.html#af69640acacb2bfbcd20e87062650926c", null ],
+    [ "zip_parse_cd_entry", "zip_8c.html#a90251a4e363ded41043c2dc492b22d88", null ],
+    [ "zip_read_central_dir", "zip_8c.html#aba95fefcd19d202260362d1dda19b807", null ]
 ];

@@ -96,6 +96,7 @@ $(document).ready(function(){initNavTree('find__rule_8c.html',''); initResizable
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="ngx__brix__module_8h_source.html">core/ngx_brix_module.h</a>&quot;</code><br />
+<code>#include &lt;stddef.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for find_rule.c:</div>
@@ -111,6 +112,8 @@ $(document).ready(function(){initNavTree('find__rule_8c.html',''); initResizable
 Functions</h2></td></tr>
 <tr class="memitem:a8abe472b60e13ced0e9d6d02dbba7840" id="r_a8abe472b60e13ced0e9d6d02dbba7840"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="find__rule_8c.html#a8abe472b60e13ced0e9d6d02dbba7840">brix_path_prefix_match</a> (const char *prefix, size_t prefix_len, const char *path)</td></tr>
 <tr class="separator:a8abe472b60e13ced0e9d6d02dbba7840"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a671fd23cbfe1f5c29cb90abfad03d907" id="r_a671fd23cbfe1f5c29cb90abfad03d907"><td class="memItemLeft" align="right" valign="top">static const void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="find__rule_8c.html#a671fd23cbfe1f5c29cb90abfad03d907">brix_find_longest_rule</a> (const char *resolved_path, const ngx_array_t *rules, size_t elt_size, size_t resolved_off)</td></tr>
+<tr class="separator:a671fd23cbfe1f5c29cb90abfad03d907"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aac6cedb188985304ad5d0753bce7d981" id="r_aac6cedb188985304ad5d0753bce7d981"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__vo__rule__t.html">brix_vo_rule_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="find__rule_8c.html#aac6cedb188985304ad5d0753bce7d981">brix_find_vo_rule</a> (const char *resolved_path, ngx_array_t *rules)</td></tr>
 <tr class="separator:aac6cedb188985304ad5d0753bce7d981"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac52e10f2134ad00f440a7e0aecae8f5f" id="r_ac52e10f2134ad00f440a7e0aecae8f5f"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__group__rule__t.html">brix_group_rule_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="find__rule_8c.html#ac52e10f2134ad00f440a7e0aecae8f5f">brix_find_group_rule</a> (const char *resolved_path, ngx_array_t *rules)</td></tr>
@@ -145,11 +148,65 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00088">88</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00118">118</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
 
-<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00022">brix_path_prefix_match()</a>.</p>
+<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00068">brix_find_longest_rule()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00049">brix_apply_parent_group_policy_impl()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00222">brix_apply_parent_group_policy_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a671fd23cbfe1f5c29cb90abfad03d907" name="a671fd23cbfe1f5c29cb90abfad03d907"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a671fd23cbfe1f5c29cb90abfad03d907">&#9670;&#160;</a></span>brix_find_longest_rule()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const void * brix_find_longest_rule </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>resolved_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const ngx_array_t *&#160;</td>
+          <td class="paramname"><em>rules</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>elt_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resolved_off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00068">68</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
+
+<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00024">brix_path_prefix_match()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="find__rule_8c_source.html#l00118">brix_find_group_rule()</a>, and <a class="el" href="find__rule_8c_source.html#l00105">brix_find_vo_rule()</a>.</p>
 
 </div>
 </div>
@@ -179,11 +236,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00123">123</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00130">130</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
 
-<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00022">brix_path_prefix_match()</a>, and <a class="el" href="types_2config_8h_source.html#l00083">brix_manager_map_t::prefix</a>.</p>
+<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00024">brix_path_prefix_match()</a>, and <a class="el" href="types_2config_8h_source.html#l00083">brix_manager_map_t::prefix</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00071">brix_handle_dirlist()</a>, <a class="el" href="locate_8c_source.html#l00044">brix_handle_locate()</a>, <a class="el" href="open__request_8c_source.html#l00269">brix_handle_open()</a>, and <a class="el" href="stat_8c_source.html#l00106">brix_handle_stat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00162">brix_dirlist_check_redirect()</a>, <a class="el" href="open__manager_8c_source.html#l00051">brix_open_manager_redirect()</a>, <a class="el" href="locate_8c_source.html#l00243">locate_try_manager_map()</a>, and <a class="el" href="stat_8c_source.html#l00163">stat_manager_route()</a>.</p>
 
 </div>
 </div>
@@ -213,9 +270,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00053">53</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00105">105</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
 
-<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00022">brix_path_prefix_match()</a>.</p>
+<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00068">brix_find_longest_rule()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="auth_2authz_2acl_8c_source.html#l00060">brix_check_vo_acl()</a>.</p>
 
@@ -261,9 +318,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00022">22</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="find__rule_8c_source.html#l00024">24</a> of file <a class="el" href="find__rule_8c_source.html">find_rule.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="find__rule_8c_source.html#l00088">brix_find_group_rule()</a>, <a class="el" href="find__rule_8c_source.html#l00123">brix_find_manager_map()</a>, and <a class="el" href="find__rule_8c_source.html#l00053">brix_find_vo_rule()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="find__rule_8c_source.html#l00068">brix_find_longest_rule()</a>, and <a class="el" href="find__rule_8c_source.html#l00130">brix_find_manager_map()</a>.</p>
 
 </div>
 </div>

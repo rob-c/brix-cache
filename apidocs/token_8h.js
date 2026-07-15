@@ -3,6 +3,7 @@ var token_8h =
     [ "brix_jwks_key_t", "structbrix__jwks__key__t.html", "structbrix__jwks__key__t" ],
     [ "brix_token_scope_t", "structbrix__token__scope__t.html", "structbrix__token__scope__t" ],
     [ "brix_token_claims_t", "structbrix__token__claims__t.html", "structbrix__token__claims__t" ],
+    [ "brix_token_validate_args_t", "structbrix__token__validate__args__t.html", "structbrix__token__validate__args__t" ],
     [ "BRIX_MAX_JWKS_KEYS", "token_8h.html#a425724de6ef59c41befeefeab51cb993", null ],
     [ "BRIX_MAX_TOKEN_SCOPES", "token_8h.html#a5beb5a232702a6e0123af3ba02169b8f", null ],
     [ "BRIX_SCOPE_PATH_MAX", "token_8h.html#a7445bf2313defc0f83d78bd8d969206a", null ],
@@ -20,5 +21,5 @@ var token_8h =
     [ "brix_token_parse_scopes", "token_8h.html#a38d11c761d9960c51d1ec3676e4f5db6", null ],
     [ "brix_token_peek_iss", "token_8h.html#af159a6b17916694aba8d1d4bcccf0799", null ],
     [ "brix_token_scope_path_matches", "token_8h.html#ad965cdac4bc734e2b41d3cfd33b538eb", null ],
-    [ "brix_token_validate", "token_8h.html#a0ef070c215d5c2b25595d843173f75f1", null ]
+    [ "brix_token_validate", "token_8h.html#aa4ce634e3faf3a376258e9c080df1fbc", null ]
 ];

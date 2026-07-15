@@ -159,11 +159,11 @@ Functions</h2></td></tr>
 <tr class="separator:a7a93fd122c45931a3048e588f1bdc94c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adbb17f911898d7c4f556556c2bf84c04" id="r_adbb17f911898d7c4f556556c2bf84c04"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__acc__tables__t.html">brix_acc_tables_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#adbb17f911898d7c4f556556c2bf84c04">brix_acc_build</a> (const char *authdb_path, ngx_int_t gidlifetime, ngx_int_t pgo, const char *nisdomain, const char *gidretran, char spacechar, ngx_int_t encoding, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:adbb17f911898d7c4f556556c2bf84c04"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ada7c64a185ab3899f1db3e3a84a599b7" id="r_ada7c64a185ab3899f1db3e3a84a599b7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#ada7c64a185ab3899f1db3e3a84a599b7">brix_acc_audit</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_uint_t level, int granted, const char *op, const char *id, const char *host, const char *path)</td></tr>
+<tr class="memitem:ada7c64a185ab3899f1db3e3a84a599b7" id="r_ada7c64a185ab3899f1db3e3a84a599b7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#ada7c64a185ab3899f1db3e3a84a599b7">brix_acc_audit</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_uint_t level, int granted, const char *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *id, const char *host, const char *path)</td></tr>
 <tr class="separator:ada7c64a185ab3899f1db3e3a84a599b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a346556483ba1cb748e34f894f4c1687a" id="r_a346556483ba1cb748e34f894f4c1687a"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#a346556483ba1cb748e34f894f4c1687a">brix_acc_resolve_peer</a> (struct sockaddr *sa, socklen_t salen, char *buf, size_t buflen)</td></tr>
 <tr class="separator:a346556483ba1cb748e34f894f4c1687a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7f50dec2357a746c8617cb5d6612ee67" id="r_a7f50dec2357a746c8617cb5d6612ee67"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#a7f50dec2357a746c8617cb5d6612ee67">brix_acc_http_authorize</a> (ngx_pool_t *pool, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structbrix__acc__http__t.html">brix_acc_http_t</a> *acc, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const char *host, const char *vorg, const char *role, const char *grp, <a class="el" href="privs_8h.html#a5333392f3f0dc129711c4bae2671fb36">brix_acc_op_t</a> op, const char *path)</td></tr>
+<tr class="memitem:a7f50dec2357a746c8617cb5d6612ee67" id="r_a7f50dec2357a746c8617cb5d6612ee67"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#a7f50dec2357a746c8617cb5d6612ee67">brix_acc_http_authorize</a> (ngx_pool_t *pool, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structbrix__acc__http__t.html">brix_acc_http_t</a> *acc, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const char *host, const char *vorg, const char *role, const char *grp, <a class="el" href="privs_8h.html#a5333392f3f0dc129711c4bae2671fb36">brix_acc_op_t</a> <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *path)</td></tr>
 <tr class="separator:a7f50dec2357a746c8617cb5d6612ee67"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa2434f2aecc4349e06076f03cbd4b83d" id="r_aa2434f2aecc4349e06076f03cbd4b83d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#aa2434f2aecc4349e06076f03cbd4b83d">brix_acc_http_init_conf</a> (<a class="el" href="structbrix__acc__http__t.html">brix_acc_http_t</a> *acc)</td></tr>
 <tr class="separator:aa2434f2aecc4349e06076f03cbd4b83d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -181,7 +181,7 @@ Functions</h2></td></tr>
 <tr class="separator:ae11e26f4ba235d5a398662e4ef35583a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4e13f677b4cabb43cad05a97e5cf42b1" id="r_a4e13f677b4cabb43cad05a97e5cf42b1"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__acc__entity__t.html">brix_acc_entity_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#a4e13f677b4cabb43cad05a97e5cf42b1">brix_acc_entity_build</a> (ngx_pool_t *pool, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const char *host, int isuser, const char *vorg_csv, const char *role_csv, const char *grp_csv)</td></tr>
 <tr class="separator:a4e13f677b4cabb43cad05a97e5cf42b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7981cbba8dc5a98df493c371413b2351" id="r_a7981cbba8dc5a98df493c371413b2351"><td class="memItemLeft" align="right" valign="top"><a class="el" href="privs_8h.html#a479648a33816c577116fae3acc9f5fc0">brix_acc_privs_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#a7981cbba8dc5a98df493c371413b2351">brix_acc_access</a> (<a class="el" href="structbrix__acc__tables__t.html">brix_acc_tables_t</a> *tabs, const <a class="el" href="structbrix__acc__entity__t.html">brix_acc_entity_t</a> *ent, const char *path, <a class="el" href="privs_8h.html#a5333392f3f0dc129711c4bae2671fb36">brix_acc_op_t</a> op)</td></tr>
+<tr class="memitem:a7981cbba8dc5a98df493c371413b2351" id="r_a7981cbba8dc5a98df493c371413b2351"><td class="memItemLeft" align="right" valign="top"><a class="el" href="privs_8h.html#a479648a33816c577116fae3acc9f5fc0">brix_acc_privs_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="acc_8h.html#a7981cbba8dc5a98df493c371413b2351">brix_acc_access</a> (<a class="el" href="structbrix__acc__tables__t.html">brix_acc_tables_t</a> *tabs, const <a class="el" href="structbrix__acc__entity__t.html">brix_acc_entity_t</a> *ent, const char *path, <a class="el" href="privs_8h.html#a5333392f3f0dc129711c4bae2671fb36">brix_acc_op_t</a> <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>)</td></tr>
 <tr class="separator:a7981cbba8dc5a98df493c371413b2351"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
@@ -263,11 +263,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00087">87</a> of file <a class="el" href="auth_2authz_2acc_2access_8c_source.html">access.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00345">345</a> of file <a class="el" href="auth_2authz_2acc_2access_8c_source.html">access.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00076">acc_access2()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00041">acc_applies()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00026">acc_netgrp_member</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00025">acc_unixgrp_resolver</a>, <a class="el" href="capability_8c_source.html#l00061">brix_acc_cap_privs()</a>, <a class="el" href="tables_8c_source.html#l00037">brix_acc_domain_find()</a>, <a class="el" href="tables_8c_source.html#l00023">brix_acc_named_find()</a>, <a class="el" href="privs_8h_source.html#l00040">BRIX_ACC_PRIV_NONE</a>, <a class="el" href="acc_8h_source.html#l00063">brix_acc_named_t::caps</a>, <a class="el" href="acc_8h_source.html#l00082">brix_acc_idrule_t::caps</a>, <a class="el" href="acc_8h_source.html#l00099">brix_acc_tables_t::d_list</a>, <a class="el" href="acc_8h_source.html#l00092">brix_acc_tables_t::g_list</a>, <a class="el" href="acc_8h_source.html#l00121">brix_acc_attr_t::grup</a>, <a class="el" href="acc_8h_source.html#l00093">brix_acc_tables_t::h_list</a>, <a class="el" href="acc_8h_source.html#l00131">brix_acc_entity_t::host</a>, <a class="el" href="acc_8h_source.html#l00132">brix_acc_entity_t::isuser</a>, <a class="el" href="acc_8h_source.html#l00094">brix_acc_tables_t::n_list</a>, <a class="el" href="acc_8h_source.html#l00061">brix_acc_named_t::name</a>, <a class="el" href="acc_8h_source.html#l00130">brix_acc_entity_t::name</a>, <a class="el" href="acc_8h_source.html#l00060">brix_acc_named_t::next</a>, <a class="el" href="acc_8h_source.html#l00073">brix_acc_idrule_t::next</a>, <a class="el" href="acc_8h_source.html#l00095">brix_acc_tables_t::o_list</a>, <a class="el" href="acc_8h_source.html#l00134">brix_acc_entity_t::pool</a>, <a class="el" href="acc_8h_source.html#l00096">brix_acc_tables_t::r_list</a>, <a class="el" href="acc_8h_source.html#l00120">brix_acc_attr_t::role</a>, <a class="el" href="acc_8h_source.html#l00103">brix_acc_tables_t::sx_list</a>, <a class="el" href="acc_8h_source.html#l00104">brix_acc_tables_t::sy_list</a>, <a class="el" href="acc_8h_source.html#l00133">brix_acc_entity_t::tuples</a>, <a class="el" href="acc_8h_source.html#l00098">brix_acc_tables_t::u_list</a>, <a class="el" href="acc_8h_source.html#l00119">brix_acc_attr_t::vorg</a>, <a class="el" href="acc_8h_source.html#l00101">brix_acc_tables_t::x_list</a>, and <a class="el" href="acc_8h_source.html#l00100">brix_acc_tables_t::z_list</a>.</p>
+<p class="reference">References <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00162">acc_access2()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00224">acc_grant_host()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00300">acc_grant_tuples()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00261">acc_grant_user()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00199">acc_match_exclusive()</a>, <a class="el" href="privs_8h_source.html#l00040">BRIX_ACC_PRIV_NONE</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00185">acc_eval_t::caps</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00181">acc_eval_t::ent</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00183">acc_eval_t::path</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00184">acc_eval_t::plen</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00180">acc_eval_t::tabs</a>, <a class="el" href="acc_8h_source.html#l00133">brix_acc_entity_t::tuples</a>, and <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00182">acc_eval_t::tuples</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00026">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00140">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
 
 </div>
 </div>
@@ -329,9 +329,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="audit_8c_source.html#l00044">44</a> of file <a class="el" href="audit_8c_source.html">audit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="audit_8c_source.html#l00024">acc_audit_sanitize()</a>, <a class="el" href="audit_8c_source.html#l00018">BRIX_ACC_AUDIT_DENY</a>, <a class="el" href="audit_8c_source.html#l00019">BRIX_ACC_AUDIT_GRANT</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="audit_8c_source.html#l00024">acc_audit_sanitize()</a>, <a class="el" href="audit_8c_source.html#l00018">BRIX_ACC_AUDIT_DENY</a>, <a class="el" href="audit_8c_source.html#l00019">BRIX_ACC_AUDIT_GRANT</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00026">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00140">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
 
 </div>
 </div>
@@ -373,9 +373,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="authfile_8c_source.html#l00540">540</a> of file <a class="el" href="authfile_8c_source.html">authfile.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="authfile_8c_source.html#l00242">242</a> of file <a class="el" href="authfile_8c_source.html">authfile.c</a>.</p>
 
-<p class="reference">References <a class="el" href="authfile_8c_source.html#l00501">acc_dispatch_record()</a>, <a class="el" href="authfile_8c_source.html#l00466">acc_finalize_rules()</a>, <a class="el" href="authfile_8c_source.html#l00036">ACC_TOK_EOF</a>, <a class="el" href="authfile_8c_source.html#l00057">acc_tok_next()</a>, <a class="el" href="authfile_8c_source.html#l00036">ACC_TOK_WORD</a>, <a class="el" href="authfile_8c_source.html#l00027">BRIX_ACC_AUTHDB_MAX</a>, <a class="el" href="log__diag_8h_source.html#l00064">BRIX_DIAG_EMERG</a>, <a class="el" href="authfile_8c_source.html#l00032">acc_tok_t::end</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="acc_8h_source.html#l00106">brix_acc_tables_t::mtime</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="authfile_8c_source.html#l00031">acc_tok_t::p</a>, <a class="el" href="acc_8h_source.html#l00109">brix_acc_tables_t::parse_spacechar</a>, <a class="el" href="acc_8h_source.html#l00110">brix_acc_tables_t::parse_uridecode</a>, <a class="el" href="acc_8h_source.html#l00091">brix_acc_tables_t::pool</a>, and <a class="el" href="authfile_8c_source.html#l00033">acc_tok_t::pool</a>.</p>
+<p class="reference">References <a class="el" href="authfile_8c_source.html#l00036">acc_finalize_rules()</a>, <a class="el" href="authfile_8c_source.html#l00131">acc_load_authfile()</a>, <a class="el" href="authfile_8c_source.html#l00114">ACC_LOAD_EMPTY</a>, <a class="el" href="authfile_8c_source.html#l00114">ACC_LOAD_ERROR</a>, <a class="el" href="authfile_8c_source.html#l00201">acc_tokenize_and_dispatch()</a>, <a class="el" href="authfile_8c_source.html#l00118">acc_loaded_t::buf</a>, <a class="el" href="authfile__internal_8h_source.html#l00070">acc_parse_ctx_t::excl_seq</a>, <a class="el" href="authfile_8c_source.html#l00119">acc_loaded_t::fsize</a>, <a class="el" href="authfile__internal_8h_source.html#l00069">acc_parse_ctx_t::id_tail</a>, <a class="el" href="authfile__internal_8h_source.html#l00071">acc_parse_ctx_t::log</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="acc_8h_source.html#l00106">brix_acc_tables_t::mtime</a>, <a class="el" href="authfile_8c_source.html#l00120">acc_loaded_t::mtime</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="acc_8h_source.html#l00109">brix_acc_tables_t::parse_spacechar</a>, <a class="el" href="acc_8h_source.html#l00110">brix_acc_tables_t::parse_uridecode</a>, <a class="el" href="acc_8h_source.html#l00091">brix_acc_tables_t::pool</a>, and <a class="el" href="authfile__internal_8h_source.html#l00068">acc_parse_ctx_t::tabs</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00040">brix_acc_build()</a>.</p>
 
@@ -445,7 +445,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00040">40</a> of file <a class="el" href="auth_2authz_2acc_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="authfile_8c_source.html#l00540">brix_acc_authfile_parse()</a>, <a class="el" href="groups_8c_source.html#l00309">brix_acc_groups_init()</a>, <a class="el" href="groups_8c_source.html#l00042">brix_acc_groups_set_gidlifetime()</a>, <a class="el" href="groups_8c_source.html#l00048">brix_acc_groups_set_gidretran()</a>, <a class="el" href="groups_8c_source.html#l00086">brix_acc_groups_set_nisdomain()</a>, <a class="el" href="groups_8c_source.html#l00043">brix_acc_groups_set_primary_only()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="authfile_8c_source.html#l00242">brix_acc_authfile_parse()</a>, <a class="el" href="groups_8c_source.html#l00392">brix_acc_groups_init()</a>, <a class="el" href="groups_8c_source.html#l00042">brix_acc_groups_set_gidlifetime()</a>, <a class="el" href="groups_8c_source.html#l00048">brix_acc_groups_set_gidretran()</a>, <a class="el" href="groups_8c_source.html#l00086">brix_acc_groups_set_nisdomain()</a>, <a class="el" href="groups_8c_source.html#l00043">brix_acc_groups_set_primary_only()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00099">brix_acc_http_build()</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00239">brix_acc_init_server()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00057">brix_acc_refresh_handler()</a>.</p>
 
@@ -499,7 +499,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="capability_8c_source.html#l00061">brix_acc_cap_privs()</a>, <a class="el" href="capability_8c_source.html#l00031">brix_acc_cap_subcomp()</a>, <a class="el" href="acc_8h_source.html#l00051">brix_acc_cap_t::caps</a>, <a class="el" href="acc_8h_source.html#l00045">brix_acc_cap_t::next</a>, <a class="el" href="privs_8h_source.html#l00066">brix_acc_priv_caps_t::nprivs</a>, <a class="el" href="acc_8h_source.html#l00047">brix_acc_cap_t::path</a>, <a class="el" href="acc_8h_source.html#l00048">brix_acc_cap_t::plen</a>, <a class="el" href="privs_8h_source.html#l00065">brix_acc_priv_caps_t::pprivs</a>, and <a class="el" href="acc_8h_source.html#l00046">brix_acc_cap_t::tmpl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00087">brix_acc_access()</a>, and <a class="el" href="capability_8c_source.html#l00061">brix_acc_cap_privs()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00224">acc_grant_host()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00300">acc_grant_tuples()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00261">acc_grant_user()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00199">acc_match_exclusive()</a>, and <a class="el" href="capability_8c_source.html#l00061">brix_acc_cap_privs()</a>.</p>
 
 </div>
 </div>
@@ -533,7 +533,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="acc_8h_source.html#l00063">brix_acc_named_t::caps</a>, <a class="el" href="acc_8h_source.html#l00061">brix_acc_named_t::name</a>, <a class="el" href="acc_8h_source.html#l00060">brix_acc_named_t::next</a>, and <a class="el" href="acc_8h_source.html#l00062">brix_acc_named_t::nlen</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00087">brix_acc_access()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00224">acc_grant_host()</a>.</p>
 
 </div>
 </div>
@@ -593,11 +593,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00094">94</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="entity_8c_source.html#l00237">237</a> of file <a class="el" href="entity_8c_source.html">entity.c</a>.</p>
 
-<p class="reference">References <a class="el" href="entity_8c_source.html#l00079">acc_pick()</a>, <a class="el" href="entity_8c_source.html#l00030">acc_split_csv()</a>, <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, <a class="el" href="acc_8h_source.html#l00121">brix_acc_attr_t::grup</a>, <a class="el" href="acc_8h_source.html#l00131">brix_acc_entity_t::host</a>, <a class="el" href="acc_8h_source.html#l00132">brix_acc_entity_t::isuser</a>, <a class="el" href="acc_8h_source.html#l00130">brix_acc_entity_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="acc_8h_source.html#l00134">brix_acc_entity_t::pool</a>, <a class="el" href="acc_8h_source.html#l00120">brix_acc_attr_t::role</a>, <a class="el" href="acc_8h_source.html#l00133">brix_acc_entity_t::tuples</a>, and <a class="el" href="acc_8h_source.html#l00119">brix_acc_attr_t::vorg</a>.</p>
+<p class="reference">References <a class="el" href="entity_8c_source.html#l00214">acc_entity_fill_tuples()</a>, <a class="el" href="entity_8c_source.html#l00166">acc_entity_init_scalars()</a>, <a class="el" href="entity_8c_source.html#l00188">acc_entity_tuple_count()</a>, <a class="el" href="entity_8c_source.html#l00106">acc_split_csv()</a>, <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00026">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00140">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
 
 </div>
 </div>
@@ -617,9 +617,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00309">309</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00392">392</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">References <a class="el" href="groups_8c_source.html#l00299">brix_acc_in_netgroup()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00029">brix_acc_set_group_resolvers()</a>, and <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">References <a class="el" href="groups_8c_source.html#l00382">brix_acc_in_netgroup()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00029">brix_acc_set_group_resolvers()</a>, and <a class="el" href="groups_8c_source.html#l00354">brix_acc_unix_groups()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00040">brix_acc_build()</a>.</p>
 
@@ -797,9 +797,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">195</a> of file <a class="el" href="auth_2authz_2acc_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="acc_8h_source.html#l00200">brix_acc_http_t::audit</a>, <a class="el" href="acc_8h_source.html#l00201">brix_acc_http_t::authdb</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00087">brix_acc_access()</a>, <a class="el" href="audit_8c_source.html#l00044">brix_acc_audit()</a>, <a class="el" href="entity_8c_source.html#l00094">brix_acc_entity_build()</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00150">brix_acc_http_arm_timer()</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00099">brix_acc_http_build()</a>, <a class="el" href="privs_8c_source.html#l00068">brix_acc_op_name()</a>, <a class="el" href="privs_8h_source.html#l00040">BRIX_ACC_PRIV_NONE</a>, <a class="el" href="privs_8h_source.html#l00028">BRIX_AUTHDB_FORMAT_XRDACC</a>, <a class="el" href="acc_8h_source.html#l00199">brix_acc_http_t::format</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="acc_8h_source.html#l00210">brix_acc_http_t::tables</a>.</p>
+<p class="reference">References <a class="el" href="acc_8h_source.html#l00200">brix_acc_http_t::audit</a>, <a class="el" href="acc_8h_source.html#l00201">brix_acc_http_t::authdb</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00345">brix_acc_access()</a>, <a class="el" href="audit_8c_source.html#l00044">brix_acc_audit()</a>, <a class="el" href="entity_8c_source.html#l00237">brix_acc_entity_build()</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00150">brix_acc_http_arm_timer()</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00099">brix_acc_http_build()</a>, <a class="el" href="privs_8c_source.html#l00068">brix_acc_op_name()</a>, <a class="el" href="privs_8h_source.html#l00040">BRIX_ACC_PRIV_NONE</a>, <a class="el" href="privs_8h_source.html#l00028">BRIX_AUTHDB_FORMAT_XRDACC</a>, <a class="el" href="acc_8h_source.html#l00199">brix_acc_http_t::format</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="acc_8h_source.html#l00210">brix_acc_http_t::tables</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00064">s3_acc_check()</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00061">webdav_acc_check()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00074">s3_acc_check()</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00063">webdav_acc_check()</a>.</p>
 
 </div>
 </div>
@@ -823,7 +823,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="acc_8h_source.html#l00200">brix_acc_http_t::audit</a>, <a class="el" href="acc_8h_source.html#l00208">brix_acc_http_t::encoding</a>, <a class="el" href="acc_8h_source.html#l00199">brix_acc_http_t::format</a>, <a class="el" href="acc_8h_source.html#l00203">brix_acc_http_t::gidlifetime</a>, <a class="el" href="acc_8h_source.html#l00204">brix_acc_http_t::pgo</a>, <a class="el" href="acc_8h_source.html#l00202">brix_acc_http_t::refresh</a>, and <a class="el" href="acc_8h_source.html#l00206">brix_acc_http_t::resolve_hosts</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00115">ngx_http_brix_webdav_create_loc_conf()</a>, and <a class="el" href="protocols_2s3_2module_8c_source.html#l00058">ngx_http_s3_create_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00117">ngx_http_brix_webdav_create_loc_conf()</a>, and <a class="el" href="protocols_2s3_2module_8c_source.html#l00059">ngx_http_s3_create_loc_conf()</a>.</p>
 
 </div>
 </div>
@@ -857,7 +857,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="acc_8h_source.html#l00200">brix_acc_http_t::audit</a>, <a class="el" href="acc_8h_source.html#l00201">brix_acc_http_t::authdb</a>, <a class="el" href="privs_8h_source.html#l00031">BRIX_AUTHDB_AUDIT_NONE</a>, <a class="el" href="privs_8h_source.html#l00027">BRIX_AUTHDB_FORMAT_NATIVE</a>, <a class="el" href="acc_8h_source.html#l00208">brix_acc_http_t::encoding</a>, <a class="el" href="acc_8h_source.html#l00199">brix_acc_http_t::format</a>, <a class="el" href="acc_8h_source.html#l00203">brix_acc_http_t::gidlifetime</a>, <a class="el" href="acc_8h_source.html#l00209">brix_acc_http_t::gidretran</a>, <a class="el" href="acc_8h_source.html#l00205">brix_acc_http_t::nisdomain</a>, <a class="el" href="acc_8h_source.html#l00204">brix_acc_http_t::pgo</a>, <a class="el" href="acc_8h_source.html#l00202">brix_acc_http_t::refresh</a>, <a class="el" href="acc_8h_source.html#l00206">brix_acc_http_t::resolve_hosts</a>, and <a class="el" href="acc_8h_source.html#l00207">brix_acc_http_t::spacechar</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>, and <a class="el" href="protocols_2s3_2module_8c_source.html#l00083">ngx_http_s3_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="module__merge_8c_source.html#l00085">s3_merge_scalars()</a>, and <a class="el" href="config__merge_8c_source.html#l00049">webdav_merge_base_conf()</a>.</p>
 
 </div>
 </div>
@@ -891,7 +891,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="acc_8h_source.html#l00063">brix_acc_named_t::caps</a>, <a class="el" href="acc_8h_source.html#l00061">brix_acc_named_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="acc_8h_source.html#l00060">brix_acc_named_t::next</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="authfile_8c_source.html#l00215">acc_build_caps()</a>, <a class="el" href="authfile_8c_source.html#l00402">acc_record_named()</a>, and <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00087">brix_acc_access()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="authfile__record_8c_source.html#l00137">acc_build_caps()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00224">acc_grant_host()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00300">acc_grant_tuples()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00261">acc_grant_user()</a>, and <a class="el" href="authfile__record_8c_source.html#l00387">acc_named_is_dup()</a>.</p>
 
 </div>
 </div>
@@ -935,9 +935,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="resolve_8c_source.html#l00058">58</a> of file <a class="el" href="resolve_8c_source.html">resolve.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resolve_8c.html#a8511b95ad829cfd65862c3f8c4af6b3a">acc_dns_breaker</a>, <a class="el" href="resolve_8c_source.html#l00040">ACC_DNS_COOLDOWN_SECS</a>, <a class="el" href="resolve_8c_source.html#l00048">acc_dns_monotonic_ms()</a>, <a class="el" href="resolve_8c_source.html#l00038">ACC_DNS_SLOW_MS</a>, <a class="el" href="resolve_8c_source.html#l00039">ACC_DNS_TRIP_COUNT</a>, and <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>.</p>
+<p class="reference">References <a class="el" href="resolve_8c.html#a76fe77d23485a55ccb342c4fc9e03e19">acc_dns_breaker</a>, <a class="el" href="resolve_8c_source.html#l00040">ACC_DNS_COOLDOWN_SECS</a>, <a class="el" href="resolve_8c_source.html#l00048">acc_dns_monotonic_ms()</a>, <a class="el" href="resolve_8c_source.html#l00038">ACC_DNS_SLOW_MS</a>, <a class="el" href="resolve_8c_source.html#l00039">ACC_DNS_TRIP_COUNT</a>, and <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00026">brix_acc_gate_engine()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00084">brix_handle_host_auth()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00064">s3_acc_check()</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00061">webdav_acc_check()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00103">brix_acc_gate_host()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00084">brix_handle_host_auth()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00074">s3_acc_check()</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00063">webdav_acc_check()</a>.</p>
 
 </div>
 </div>
@@ -971,7 +971,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00026">acc_netgrp_member</a>, and <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00025">acc_unixgrp_resolver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00309">brix_acc_groups_init()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00392">brix_acc_groups_init()</a>.</p>
 
 </div>
 </div>

@@ -18,6 +18,12 @@ var observability_2metrics_2unified_8h =
     [ "BRIX_METRIC_TPC_PULL", "observability_2metrics_2unified_8h.html#a7cb856eb93d2092730a2c65e29638de0", null ],
     [ "BRIX_METRIC_TPC_PUSH", "observability_2metrics_2unified_8h.html#aba720cff240a1e42fa965843e9c60d0c", null ],
     [ "X", "observability_2metrics_2unified_8h.html#a8573c19949b5211091fbffe7ae70bb32", null ],
+    [ "brix_cred_outcome_t", "observability_2metrics_2unified_8h.html#afdeab43ce73650496dddbb1487cfc213", [
+      [ "BRIX_CRED_OUTCOME_USER", "observability_2metrics_2unified_8h.html#afdeab43ce73650496dddbb1487cfc213ab9878e9e21d19125f15962391d6856ae", null ],
+      [ "BRIX_CRED_OUTCOME_FALLBACK", "observability_2metrics_2unified_8h.html#afdeab43ce73650496dddbb1487cfc213afa0244dd3bd78b276d75c0f63c8537ec", null ],
+      [ "BRIX_CRED_OUTCOME_DENY", "observability_2metrics_2unified_8h.html#afdeab43ce73650496dddbb1487cfc213a1bf8d63f48df90c1b81d158463797d52", null ],
+      [ "BRIX_CRED_OUTCOME_COUNT", "observability_2metrics_2unified_8h.html#afdeab43ce73650496dddbb1487cfc213ad1d270da5ace5c86c0e567d96a224c8e", null ]
+    ] ],
     [ "brix_err_class_t", "observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17", [
       [ "BRIX_ERR_NONE", "observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17a1b1921378bdeb7605c06cc1e086ae30a", null ],
       [ "BRIX_ERR_NOT_FOUND", "observability_2metrics_2unified_8h.html#a3de0c34cb4021bb061d85a8415ae8e17af727678fd416bb1a965dec2fade8a587", null ],
@@ -53,6 +59,7 @@ var observability_2metrics_2unified_8h =
     [ "brix_metric_cache_result", "observability_2metrics_2unified_8h.html#acb4e1ba1b10060c44da46f5b09b96c84", null ],
     [ "brix_metric_cache_usage_ratio", "observability_2metrics_2unified_8h.html#a7ba5f7bf58d3e54a658dab9039df61aa", null ],
     [ "brix_metric_cache_watermark_purge", "observability_2metrics_2unified_8h.html#a2c958a1e045e0466d83a2b9eebcbf7d0", null ],
+    [ "brix_metric_cred_result", "observability_2metrics_2unified_8h.html#a946222babc1c08b9d6fbbd552b4467b3", null ],
     [ "brix_metric_err_from_errno", "observability_2metrics_2unified_8h.html#af92c5f1cf2d3db02930facbfa93d624b", null ],
     [ "brix_metric_err_from_http_status", "observability_2metrics_2unified_8h.html#a2a8751ffa2aba79928e7d633d9e793e5", null ],
     [ "brix_metric_err_name", "observability_2metrics_2unified_8h.html#ae53bfad6eceef6709221dedf49c9e4ab", null ],

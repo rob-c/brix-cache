@@ -1,0 +1,11 @@
+<map id="src/fs/xfer/stage_engine_internal.h" name="src/fs/xfer/stage_engine_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="320,5,499,45"/>
+<area shape="rect" id="Node000002" href="$stage__engine_8c.html" title=" " alt="" coords="5,101,195,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="329,52,142,103,140,98,328,46"/>
+<area shape="rect" id="Node000003" href="$stage__engine__journal_8c.html" title=" " alt="" coords="219,93,397,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="378,56,332,95,329,91,375,52"/>
+<area shape="rect" id="Node000004" href="$stage__engine__reconcile_8c.html" title=" " alt="" coords="421,93,600,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="444,52,490,91,487,95,441,56"/>
+<area shape="rect" id="Node000005" href="$stage__engine__scheduler_8c.html" title=" " alt="" coords="624,93,803,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="490,47,647,91,646,96,489,52"/>
+</map>

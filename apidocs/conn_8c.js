@@ -15,6 +15,11 @@ var conn_8c =
     [ "brix_resolve_ca_dir", "conn_8c.html#a51eabb0f8cf101c26d6ee17e3f77511a", null ],
     [ "do_handshake", "conn_8c.html#a76d4db1c9e8835558089b6f55e3e3847", null ],
     [ "do_login", "conn_8c.html#a5ed14c99b18422c998e542c2acc42bf4", null ],
+    [ "explain_caps", "conn_8c.html#a7e0df5a9c492aac91d765e437a782dff", null ],
+    [ "explain_env_credentials", "conn_8c.html#a5042b44ac6030680c37a32c0620681b2", null ],
+    [ "explain_roles", "conn_8c.html#a5e27123f256882b7364b47823c8d8b51", null ],
+    [ "explain_session_id", "conn_8c.html#a17f09dbdeb29d3a9876366f49f73d467", null ],
+    [ "explain_tls", "conn_8c.html#a1464ad61d0cd563c81085b8b2eb4e12d", null ],
     [ "fill_username", "conn_8c.html#a3a2156a1991084064de7f473935ddd5e", null ],
     [ "recv_raw", "conn_8c.html#ad686a8e332fa104e0d9ba79ba43a043d", null ],
     [ "sessid_is_zero", "conn_8c.html#a829d4c5dabff5f1e3a92ec5da65813e8", null ]

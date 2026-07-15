@@ -98,12 +98,13 @@ $(document).ready(function(){initNavTree('writev_8c.html',''); initResizable(); 
 <div class="textblock"><code>#include &quot;<a class="el" href="ngx__brix__module_8h_source.html">core/ngx_brix_module.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="writethrough__metrics_8h_source.html">fs/cache/writethrough_metrics.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="wrts__journal_8h_source.html">wrts_journal.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="writev__internal_8h_source.html">writev_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for writev.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="writev_8c__incl.svg" width="100%" height="591"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="writev_8c__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="writev_8c_source.html">Go to the source code of this file.</a></p>
@@ -112,7 +113,19 @@ $(document).ready(function(){initNavTree('writev_8c.html',''); initResizable(); 
 Functions</h2></td></tr>
 <tr class="memitem:af2c0966734477223d28c98dbd9c3f3ce" id="r_af2c0966734477223d28c98dbd9c3f3ce"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#af2c0966734477223d28c98dbd9c3f3ce">brix_writev_body_extra</a> (const u_char *desc, uint32_t dlen, uint32_t *extra)</td></tr>
 <tr class="separator:af2c0966734477223d28c98dbd9c3f3ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a679aedad929bdcaa8416922fa94b85bb" id="r_a679aedad929bdcaa8416922fa94b85bb"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#a679aedad929bdcaa8416922fa94b85bb">brix_handle_writev</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:a3abf744889b535c47cac431706ab39ba" id="r_a3abf744889b535c47cac431706ab39ba"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#a3abf744889b535c47cac431706ab39ba">writev_validate_framing</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structwrite__list.html">write_list</a> *wl, size_t *n_segs_out, uint64_t *total_wlen_out)</td></tr>
+<tr class="separator:a3abf744889b535c47cac431706ab39ba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afc190116e39e57dfd3bac965da3e8032" id="r_afc190116e39e57dfd3bac965da3e8032"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#afc190116e39e57dfd3bac965da3e8032">writev_validate_handles</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structwrite__list.html">write_list</a> *wl, size_t n_segs)</td></tr>
+<tr class="separator:afc190116e39e57dfd3bac965da3e8032"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a82311450126d4828c9165adef0f04a02" id="r_a82311450126d4828c9165adef0f04a02"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#a82311450126d4828c9165adef0f04a02">writev_write_segment</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structwrite__list.html">write_list</a> *seg, const u_char **data_ptr, size_t *bytes_written_total)</td></tr>
+<tr class="separator:a82311450126d4828c9165adef0f04a02"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ade9a0ff1eb273a0c56d3c0cdb539f9e3" id="r_ade9a0ff1eb273a0c56d3c0cdb539f9e3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#ade9a0ff1eb273a0c56d3c0cdb539f9e3">writev_execute_sync</a> (const <a class="el" href="structwritev__run__t.html">writev_run_t</a> *run, size_t *bytes_written_total)</td></tr>
+<tr class="separator:ade9a0ff1eb273a0c56d3c0cdb539f9e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b998dd51c7842685b3810eb36f77a9b" id="r_a2b998dd51c7842685b3810eb36f77a9b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#a2b998dd51c7842685b3810eb36f77a9b">writev_sync_handles</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const <a class="el" href="structwrite__list.html">write_list</a> *wl, size_t n_segs)</td></tr>
+<tr class="separator:a2b998dd51c7842685b3810eb36f77a9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad510df03c3e61dfa8b5e583ddb0d6891" id="r_ad510df03c3e61dfa8b5e583ddb0d6891"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#ad510df03c3e61dfa8b5e583ddb0d6891">writev_reply</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, size_t n_segs, size_t bytes_written_total)</td></tr>
+<tr class="separator:ad510df03c3e61dfa8b5e583ddb0d6891"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a679aedad929bdcaa8416922fa94b85bb" id="r_a679aedad929bdcaa8416922fa94b85bb"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="writev_8c.html#a679aedad929bdcaa8416922fa94b85bb">brix_handle_writev</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:a679aedad929bdcaa8416922fa94b85bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -142,11 +155,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00068">68</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00356">356</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00306">ngx_stream_brix_srv_conf_t::access_log_fd</a>, <a class="el" href="resume_8c_source.html#l00069">brix_aio_post_task()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00348">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="tunables_8h_source.html#l00177">BRIX_MAX_WRITE_PAYLOAD</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00052">BRIX_OP_WRITEV</a>, <a class="el" href="tunables_8h_source.html#l00285">BRIX_RETURN_ERR</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="vfs__io__core_8c_source.html#l00727">brix_vfs_io_execute()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00147">brix_vfs_job_set_obj()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00188">brix_vfs_job_sync_init()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00165">brix_vfs_job_write_init()</a>, <a class="el" href="flags_8h_source.html#l00161">BRIX_WRITEV_MAXSEGS</a>, <a class="el" href="flags_8h_source.html#l00160">BRIX_WRITEV_SEGSIZE</a>, <a class="el" href="core_2aio_2write_8c_source.html#l00302">brix_writev_write_aio_done()</a>, <a class="el" href="core_2aio_2write_8c_source.html#l00262">brix_writev_write_aio_thread()</a>, <a class="el" href="wrts__journal_8c_source.html#l00063">brix_wrts_is_replay()</a>, <a class="el" href="wrts__journal_8c_source.html#l00039">brix_wrts_record()</a>, <a class="el" href="writethrough__metrics_8h_source.html#l00039">brix_wt_mark_dirty()</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00197">brix_writev_aio_t::bytes_total</a>, <a class="el" href="ctx__structs_8h_source.html#l00065">brix_ctx_totals_t::bytes_written</a>, <a class="el" href="core_2types_2file_8h_source.html#l00060">brix_file_t::bytes_written</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00190">brix_writev_aio_t::c</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00191">brix_writev_aio_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::cur_body_extra</a>, <a class="el" href="ctx__structs_8h_source.html#l00178">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00175">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="vfs__io__core_8h_source.html#l00062">brix_vfs_writev_seg_t::data</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00196">brix_writev_aio_t::do_sync</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="vfs__io__core_8h_source.html#l00059">brix_vfs_writev_seg_t::fd</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00351">write_list::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="vfs__io__core_8h_source.html#l00060">brix_vfs_writev_seg_t::handle_idx</a>, <a class="el" href="ctx__structs_8h_source.html#l00173">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="vfs__io__core_8h_source.html#l00099">brix_vfs_job_t::io_errno</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00198">brix_writev_aio_t::io_error</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00150">kXR_FileNotOpen</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="flags_8h_source.html#l00159">kXR_wv_doSync</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00192">brix_writev_aio_t::n_segs</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="vfs__io__core_8h_source.html#l00096">brix_vfs_job_t::nio</a>, <a class="el" href="vfs__io__core_8h_source.html#l00064">brix_vfs_writev_seg_t::obj</a>, <a class="el" href="vfs__io__core_8h_source.html#l00061">brix_vfs_writev_seg_t::offset</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00353">write_list::offset</a>, <a class="el" href="wire__codec_8h_source.html#l00236">xrdw_writev_req_t::options</a>, <a class="el" href="core_2types_2file_8h_source.html#l00058">brix_file_t::path</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::payload</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00194">brix_writev_aio_t::payload_buf</a>, <a class="el" href="ctx__structs_8h_source.html#l00183">brix_ctx_recv_t::payload_buf</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::payload_buf_size</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="core_2types_2file_8h_source.html#l00257">brix_file_t::sd_obj</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00193">brix_writev_aio_t::segs</a>, <a class="el" href="src_2core_2aio_2aio_8h_source.html#l00195">brix_writev_aio_t::streamid</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>, <a class="el" href="vfs__io__core_8h_source.html#l00063">brix_vfs_writev_seg_t::wlen</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00352">write_list::wlen</a>, <a class="el" href="core_2types_2file_8h_source.html#l00063">brix_file_t::writable</a>, <a class="el" href="core_2types_2file_8h_source.html#l00210">brix_file_t::wrts_enabled</a>, <a class="el" href="core_2types_2file_8h_source.html#l00180">brix_file_t::wt_enabled</a>, and <a class="el" href="wire__codec__file_8c_source.html#l00233">xrdw_writev_req_unpack()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="dispatch__write_8c_source.html#l00090">brix_dispatch_write_opcode()</a>.</p>
+<p class="reference">References <a class="el" href="flags_8h_source.html#l00160">BRIX_WRITEV_SEGSIZE</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="writev__internal_8h_source.html#l00041">writev_run_t::c</a>, <a class="el" href="writev__internal_8h_source.html#l00040">writev_run_t::ctx</a>, <a class="el" href="writev__internal_8h_source.html#l00044">writev_run_t::data_ptr</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="flags_8h_source.html#l00159">kXR_wv_doSync</a>, <a class="el" href="writev__internal_8h_source.html#l00043">writev_run_t::n_segs</a>, <a class="el" href="wire__codec_8h_source.html#l00236">xrdw_writev_req_t::options</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="writev__internal_8h_source.html#l00042">writev_run_t::wl</a>, <a class="el" href="writev_8c_source.html#l00270">writev_execute_sync()</a>, <a class="el" href="writev_8c_source.html#l00316">writev_reply()</a>, <a class="el" href="writev_8c_source.html#l00292">writev_sync_handles()</a>, <a class="el" href="writev__aio_8c_source.html#l00041">writev_try_aio()</a>, <a class="el" href="writev_8c_source.html#l00068">writev_validate_framing()</a>, <a class="el" href="writev_8c_source.html#l00147">writev_validate_handles()</a>, and <a class="el" href="wire__codec__file_8c_source.html#l00233">xrdw_writev_req_unpack()</a>.</p>
 
 </div>
 </div>
@@ -182,11 +193,329 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00021">21</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00022">22</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tunables_8h_source.html#l00177">BRIX_MAX_WRITE_PAYLOAD</a>, <a class="el" href="flags_8h_source.html#l00161">BRIX_WRITEV_MAXSEGS</a>, <a class="el" href="flags_8h_source.html#l00160">BRIX_WRITEV_SEGSIZE</a>, and <a class="el" href="wire__write__extended__requests_8h_source.html#l00352">write_list::wlen</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="chkpoint__xeq_8c_source.html#l00417">brix_ckpxeq_body_extra()</a>, and <a class="el" href="protocols_2root_2connection_2recv_8c_source.html#l00253">ngx_stream_brix_recv()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="chkpoint__xeq_8c_source.html#l00024">brix_ckpxeq_body_extra()</a>, and <a class="el" href="recv__process_8c_source.html#l00172">brix_recv_extend_body()</a>.</p>
+
+</div>
+</div>
+<a id="ade9a0ff1eb273a0c56d3c0cdb539f9e3" name="ade9a0ff1eb273a0c56d3c0cdb539f9e3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ade9a0ff1eb273a0c56d3c0cdb539f9e3">&#9670;&#160;</a></span>writev_execute_sync()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t writev_execute_sync </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structwritev__run__t.html">writev_run_t</a> *&#160;</td>
+          <td class="paramname"><em>run</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>bytes_written_total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00270">270</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
+
+<p class="reference">References <a class="el" href="writev__internal_8h_source.html#l00041">writev_run_t::c</a>, <a class="el" href="writev__internal_8h_source.html#l00040">writev_run_t::ctx</a>, <a class="el" href="writev__internal_8h_source.html#l00044">writev_run_t::data_ptr</a>, <a class="el" href="writev__internal_8h_source.html#l00043">writev_run_t::n_segs</a>, <a class="el" href="writev__internal_8h_source.html#l00042">writev_run_t::wl</a>, and <a class="el" href="writev_8c_source.html#l00185">writev_write_segment()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="writev_8c_source.html#l00356">brix_handle_writev()</a>.</p>
+
+</div>
+</div>
+<a id="ad510df03c3e61dfa8b5e583ddb0d6891" name="ad510df03c3e61dfa8b5e583ddb0d6891"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad510df03c3e61dfa8b5e583ddb0d6891">&#9670;&#160;</a></span>writev_reply()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t writev_reply </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n_segs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>bytes_written_total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00316">316</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
+
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00052">BRIX_OP_WRITEV</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="writev_8c_source.html#l00356">brix_handle_writev()</a>.</p>
+
+</div>
+</div>
+<a id="a2b998dd51c7842685b3810eb36f77a9b" name="a2b998dd51c7842685b3810eb36f77a9b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b998dd51c7842685b3810eb36f77a9b">&#9670;&#160;</a></span>writev_sync_handles()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void writev_sync_handles </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structwrite__list.html">write_list</a> *&#160;</td>
+          <td class="paramname"><em>wl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n_segs</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00292">292</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__io__core_8c_source.html#l00726">brix_vfs_io_execute()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00147">brix_vfs_job_set_obj()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00188">brix_vfs_job_sync_init()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00351">write_list::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00265">brix_file_t::sd_obj</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="writev_8c_source.html#l00356">brix_handle_writev()</a>.</p>
+
+</div>
+</div>
+<a id="a3abf744889b535c47cac431706ab39ba" name="a3abf744889b535c47cac431706ab39ba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3abf744889b535c47cac431706ab39ba">&#9670;&#160;</a></span>writev_validate_framing()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t writev_validate_framing </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structwrite__list.html">write_list</a> *&#160;</td>
+          <td class="paramname"><em>wl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>n_segs_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>total_wlen_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00068">68</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00177">BRIX_MAX_WRITE_PAYLOAD</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00052">BRIX_OP_WRITEV</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="flags_8h_source.html#l00161">BRIX_WRITEV_MAXSEGS</a>, <a class="el" href="flags_8h_source.html#l00160">BRIX_WRITEV_SEGSIZE</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00185">brix_ctx_recv_t::cur_body_extra</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="wire__write__extended__requests_8h_source.html#l00352">write_list::wlen</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="writev_8c_source.html#l00356">brix_handle_writev()</a>.</p>
+
+</div>
+</div>
+<a id="afc190116e39e57dfd3bac965da3e8032" name="afc190116e39e57dfd3bac965da3e8032"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc190116e39e57dfd3bac965da3e8032">&#9670;&#160;</a></span>writev_validate_handles()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t writev_validate_handles </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structwrite__list.html">write_list</a> *&#160;</td>
+          <td class="paramname"><em>wl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n_segs</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00147">147</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00052">BRIX_OP_WRITEV</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00351">write_list::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="opcodes_8h_source.html#l00150">kXR_FileNotOpen</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00071">brix_file_t::writable</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="writev_8c_source.html#l00356">brix_handle_writev()</a>.</p>
+
+</div>
+</div>
+<a id="a82311450126d4828c9165adef0f04a02" name="a82311450126d4828c9165adef0f04a02"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a82311450126d4828c9165adef0f04a02">&#9670;&#160;</a></span>writev_write_segment()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t writev_write_segment </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structwrite__list.html">write_list</a> *&#160;</td>
+          <td class="paramname"><em>seg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char **&#160;</td>
+          <td class="paramname"><em>data_ptr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>bytes_written_total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="writev_8c_source.html#l00185">185</a> of file <a class="el" href="writev_8c_source.html">writev.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00052">BRIX_OP_WRITEV</a>, <a class="el" href="tunables_8h_source.html#l00285">BRIX_RETURN_ERR</a>, <a class="el" href="vfs__io__core_8c_source.html#l00726">brix_vfs_io_execute()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00147">brix_vfs_job_set_obj()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00165">brix_vfs_job_write_init()</a>, <a class="el" href="wrts__journal_8c_source.html#l00063">brix_wrts_is_replay()</a>, <a class="el" href="wrts__journal_8c_source.html#l00039">brix_wrts_record()</a>, <a class="el" href="writethrough__metrics_8h_source.html#l00039">brix_wt_mark_dirty()</a>, <a class="el" href="ctx__structs_8h_source.html#l00065">brix_ctx_totals_t::bytes_written</a>, <a class="el" href="core_2types_2file_8h_source.html#l00068">brix_file_t::bytes_written</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00351">write_list::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="vfs__io__core_8h_source.html#l00099">brix_vfs_job_t::io_errno</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="vfs__io__core_8h_source.html#l00096">brix_vfs_job_t::nio</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00353">write_list::offset</a>, <a class="el" href="core_2types_2file_8h_source.html#l00066">brix_file_t::path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00265">brix_file_t::sd_obj</a>, <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00352">write_list::wlen</a>, <a class="el" href="core_2types_2file_8h_source.html#l00218">brix_file_t::wrts_enabled</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00188">brix_file_t::wt_enabled</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="writev_8c_source.html#l00270">writev_execute_sync()</a>.</p>
 
 </div>
 </div>

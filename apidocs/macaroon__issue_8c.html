@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('macaroon__issue_8c.html',''); initResi
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">macaroon_issue.c File Reference</div></div>
@@ -112,6 +113,11 @@ $(document).ready(function(){initNavTree('macaroon__issue_8c.html',''); initResi
 </div>
 <p><a href="macaroon__issue_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structissue__buf__t.html">issue_buf_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:ae2f12bae77dfe21435c03412a389c63f" id="r_ae2f12bae77dfe21435c03412a389c63f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#ae2f12bae77dfe21435c03412a389c63f">ISSUE_BIN_MAX</a>&#160;&#160;&#160;4096</td></tr>
@@ -119,8 +125,24 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a5f2cebe1b6903fc9bb4766136f87351a" id="r_a5f2cebe1b6903fc9bb4766136f87351a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a5f2cebe1b6903fc9bb4766136f87351a">write_packet</a> (u_char **buf, size_t *rem, const char *label, size_t label_len, const u_char *value, size_t val_len, int add_newline)</td></tr>
-<tr class="separator:a5f2cebe1b6903fc9bb4766136f87351a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a26c7226a86d945d7f76d2f0ec6478c22" id="r_a26c7226a86d945d7f76d2f0ec6478c22"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a26c7226a86d945d7f76d2f0ec6478c22">write_packet</a> (<a class="el" href="structissue__buf__t.html">issue_buf_t</a> *buf, const char *label, size_t label_len, const u_char *value, size_t val_len)</td></tr>
+<tr class="separator:a26c7226a86d945d7f76d2f0ec6478c22"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2d47c22c7cd9f6b0cb1f33b9df71dfa5" id="r_a2d47c22c7cd9f6b0cb1f33b9df71dfa5"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a2d47c22c7cd9f6b0cb1f33b9df71dfa5">chain_hmac</a> (u_char sig[32], const u_char *msg, size_t msg_len)</td></tr>
+<tr class="separator:a2d47c22c7cd9f6b0cb1f33b9df71dfa5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a23b204b7986491a0efd5f51de65d9152" id="r_a23b204b7986491a0efd5f51de65d9152"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a23b204b7986491a0efd5f51de65d9152">emit_cid_caveat</a> (<a class="el" href="structissue__buf__t.html">issue_buf_t</a> *buf, u_char sig[32], const char *cav, size_t cav_len, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:a23b204b7986491a0efd5f51de65d9152"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6eddb325e198a6d660d43d13a70746a4" id="r_a6eddb325e198a6d660d43d13a70746a4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a6eddb325e198a6d660d43d13a70746a4">emit_location</a> (<a class="el" href="structissue__buf__t.html">issue_buf_t</a> *buf, const char *location, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:a6eddb325e198a6d660d43d13a70746a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b1e9f1630b85109bf5d2a2789939d6d" id="r_a6b1e9f1630b85109bf5d2a2789939d6d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a6b1e9f1630b85109bf5d2a2789939d6d">emit_identifier</a> (<a class="el" href="structissue__buf__t.html">issue_buf_t</a> *buf, u_char sig[32], const u_char *root_key, size_t root_key_len, const char *identifier, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:a6b1e9f1630b85109bf5d2a2789939d6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a08a9fa1b84190e338d0fa39bcbc079ee" id="r_a08a9fa1b84190e338d0fa39bcbc079ee"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a08a9fa1b84190e338d0fa39bcbc079ee">emit_activity_caveat</a> (<a class="el" href="structissue__buf__t.html">issue_buf_t</a> *buf, u_char sig[32], const char *activities, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:a08a9fa1b84190e338d0fa39bcbc079ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4631d0bcae1c29e5c21b2e792c8aa433" id="r_a4631d0bcae1c29e5c21b2e792c8aa433"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a4631d0bcae1c29e5c21b2e792c8aa433">emit_path_caveat</a> (<a class="el" href="structissue__buf__t.html">issue_buf_t</a> *buf, u_char sig[32], const char *path, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:a4631d0bcae1c29e5c21b2e792c8aa433"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad10c6db410bde86a9997166e488df949" id="r_ad10c6db410bde86a9997166e488df949"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#ad10c6db410bde86a9997166e488df949">emit_expiry_caveat</a> (<a class="el" href="structissue__buf__t.html">issue_buf_t</a> *buf, u_char sig[32], time_t expiry, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:ad10c6db410bde86a9997166e488df949"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a26c26ed7ed1c85da67e8162462a91de4" id="r_a26c26ed7ed1c85da67e8162462a91de4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#a26c26ed7ed1c85da67e8162462a91de4">emit_signature</a> (<a class="el" href="structissue__buf__t.html">issue_buf_t</a> *buf, const u_char sig[32], ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:a26c26ed7ed1c85da67e8162462a91de4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aea8260eaca9a9e42ca8c3ec12c9d051f" id="r_aea8260eaca9a9e42ca8c3ec12c9d051f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__issue_8c.html#aea8260eaca9a9e42ca8c3ec12c9d051f">brix_macaroon_issue</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const u_char *root_key, size_t root_key_len, const char *location, const char *identifier, const char *activities, const char *path, time_t expiry, char *out_b64, size_t out_b64sz)</td></tr>
 <tr class="separator:aea8260eaca9a9e42ca8c3ec12c9d051f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -216,16 +238,448 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00070">70</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00299">299</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
 
-<p class="reference">References <a class="el" href="b64url_8c_source.html#l00084">b64url_encode()</a>, <a class="el" href="macaroon__issue_8h_source.html#l00014">BRIX_MACAROON_ISSUE_OUT_MAX</a>, <a class="el" href="macaroon__issue_8c_source.html#l00029">ISSUE_BIN_MAX</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00040">write_packet()</a>.</p>
+<p class="reference">References <a class="el" href="b64url_8c_source.html#l00086">b64url_encode()</a>, <a class="el" href="macaroon__issue_8h_source.html#l00014">BRIX_MACAROON_ISSUE_OUT_MAX</a>, <a class="el" href="macaroon__issue_8c_source.html#l00189">emit_activity_caveat()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00244">emit_expiry_caveat()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00161">emit_identifier()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00137">emit_location()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00217">emit_path_caveat()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00278">emit_signature()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00029">ISSUE_BIN_MAX</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="macaroon__issue_8c_source.html#l00043">issue_buf_t::p</a>, <a class="el" href="macaroon__issue_8c_source.html#l00044">issue_buf_t::rem</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00042">issue_buf_t::start</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__endpoint__request_8c_source.html#l00203">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00278">webdav_handle_macaroon_token()</a>.</p>
 
 </div>
 </div>
-<a id="a5f2cebe1b6903fc9bb4766136f87351a" name="a5f2cebe1b6903fc9bb4766136f87351a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5f2cebe1b6903fc9bb4766136f87351a">&#9670;&#160;</a></span>write_packet()</h2>
+<a id="a2d47c22c7cd9f6b0cb1f33b9df71dfa5" name="a2d47c22c7cd9f6b0cb1f33b9df71dfa5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2d47c22c7cd9f6b0cb1f33b9df71dfa5">&#9670;&#160;</a></span>chain_hmac()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void chain_hmac </td>
+          <td>(</td>
+          <td class="paramtype">u_char&#160;</td>
+          <td class="paramname"><em>sig</em>[32], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>msg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>msg_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00097">97</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00116">emit_cid_caveat()</a>.</p>
+
+</div>
+</div>
+<a id="a08a9fa1b84190e338d0fa39bcbc079ee" name="a08a9fa1b84190e338d0fa39bcbc079ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a08a9fa1b84190e338d0fa39bcbc079ee">&#9670;&#160;</a></span>emit_activity_caveat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t emit_activity_caveat </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structissue__buf__t.html">issue_buf_t</a> *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char&#160;</td>
+          <td class="paramname"><em>sig</em>[32], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>activities</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00189">189</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+
+<p class="reference">References <a class="el" href="macaroon__issue_8c_source.html#l00116">emit_cid_caveat()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00299">brix_macaroon_issue()</a>.</p>
+
+</div>
+</div>
+<a id="a23b204b7986491a0efd5f51de65d9152" name="a23b204b7986491a0efd5f51de65d9152"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a23b204b7986491a0efd5f51de65d9152">&#9670;&#160;</a></span>emit_cid_caveat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t emit_cid_caveat </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structissue__buf__t.html">issue_buf_t</a> *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char&#160;</td>
+          <td class="paramname"><em>sig</em>[32], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>cav</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cav_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00116">116</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+
+<p class="reference">References <a class="el" href="macaroon__issue_8c_source.html#l00097">chain_hmac()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00060">write_packet()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00189">emit_activity_caveat()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00244">emit_expiry_caveat()</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00217">emit_path_caveat()</a>.</p>
+
+</div>
+</div>
+<a id="ad10c6db410bde86a9997166e488df949" name="ad10c6db410bde86a9997166e488df949"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad10c6db410bde86a9997166e488df949">&#9670;&#160;</a></span>emit_expiry_caveat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t emit_expiry_caveat </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structissue__buf__t.html">issue_buf_t</a> *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char&#160;</td>
+          <td class="paramname"><em>sig</em>[32], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>expiry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00244">244</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+
+<p class="reference">References <a class="el" href="macaroon__issue_8c_source.html#l00116">emit_cid_caveat()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00299">brix_macaroon_issue()</a>.</p>
+
+</div>
+</div>
+<a id="a6b1e9f1630b85109bf5d2a2789939d6d" name="a6b1e9f1630b85109bf5d2a2789939d6d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b1e9f1630b85109bf5d2a2789939d6d">&#9670;&#160;</a></span>emit_identifier()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t emit_identifier </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structissue__buf__t.html">issue_buf_t</a> *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char&#160;</td>
+          <td class="paramname"><em>sig</em>[32], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>root_key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>root_key_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>identifier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00161">161</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00060">write_packet()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00299">brix_macaroon_issue()</a>.</p>
+
+</div>
+</div>
+<a id="a6eddb325e198a6d660d43d13a70746a4" name="a6eddb325e198a6d660d43d13a70746a4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6eddb325e198a6d660d43d13a70746a4">&#9670;&#160;</a></span>emit_location()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t emit_location </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structissue__buf__t.html">issue_buf_t</a> *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>location</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00137">137</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00060">write_packet()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00299">brix_macaroon_issue()</a>.</p>
+
+</div>
+</div>
+<a id="a4631d0bcae1c29e5c21b2e792c8aa433" name="a4631d0bcae1c29e5c21b2e792c8aa433"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4631d0bcae1c29e5c21b2e792c8aa433">&#9670;&#160;</a></span>emit_path_caveat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t emit_path_caveat </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structissue__buf__t.html">issue_buf_t</a> *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char&#160;</td>
+          <td class="paramname"><em>sig</em>[32], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00217">217</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+
+<p class="reference">References <a class="el" href="macaroon__issue_8c_source.html#l00116">emit_cid_caveat()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00299">brix_macaroon_issue()</a>.</p>
+
+</div>
+</div>
+<a id="a26c26ed7ed1c85da67e8162462a91de4" name="a26c26ed7ed1c85da67e8162462a91de4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a26c26ed7ed1c85da67e8162462a91de4">&#9670;&#160;</a></span>emit_signature()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t emit_signature </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structissue__buf__t.html">issue_buf_t</a> *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char&#160;</td>
+          <td class="paramname"><em>sig</em>[32], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00278">278</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="macaroon__issue_8c_source.html#l00043">issue_buf_t::p</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00044">issue_buf_t::rem</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00299">brix_macaroon_issue()</a>.</p>
+
+</div>
+</div>
+<a id="a26c7226a86d945d7f76d2f0ec6478c22" name="a26c7226a86d945d7f76d2f0ec6478c22"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a26c7226a86d945d7f76d2f0ec6478c22">&#9670;&#160;</a></span>write_packet()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -236,14 +690,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">static int write_packet </td>
           <td>(</td>
-          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramtype"><a class="el" href="structissue__buf__t.html">issue_buf_t</a> *&#160;</td>
           <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>rem</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -267,13 +715,7 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>val_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>add_newline</em>&#160;</td>
+          <td class="paramname"><em>val_len</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -288,11 +730,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00040">40</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__issue_8c_source.html#l00060">60</a> of file <a class="el" href="macaroon__issue_8c_source.html">macaroon_issue.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="macaroon__issue_8c_source.html#l00043">issue_buf_t::p</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00044">issue_buf_t::rem</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00070">brix_macaroon_issue()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__issue_8c_source.html#l00116">emit_cid_caveat()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00161">emit_identifier()</a>, and <a class="el" href="macaroon__issue_8c_source.html#l00137">emit_location()</a>.</p>
 
 </div>
 </div>

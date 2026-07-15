@@ -14,9 +14,6 @@ var api__snapshot_8c =
     [ "dashboard_build_v1_snapshot", "api__snapshot_8c.html#a35e873766c3eadddbd5f6c05805c5364", null ],
     [ "dashboard_collect_protocols", "api__snapshot_8c.html#ab04d1a2d9d6ae69b6468d8a78cd21cc9", null ],
     [ "dashboard_collect_totals", "api__snapshot_8c.html#a5346b8644d8fe739441fe62f9daf1112", null ],
-    [ "dashboard_fill_cache", "api__snapshot_8c.html#a6bb42c4682be9e6ad5ddbc44433d71fa", null ],
-    [ "dashboard_fill_cluster", "api__snapshot_8c.html#a7f0067d68822a5ff9b8118216a6247a3", null ],
     [ "dashboard_fill_history", "api__snapshot_8c.html#ab6e62a3bb52100447481734dc9472c9b", null ],
-    [ "dashboard_fill_storage", "api__snapshot_8c.html#aa984ba509c11a2f60bae5d70c2731509", null ],
     [ "dashboard_new_v1_root", "api__snapshot_8c.html#a2b420c29a522c98e604f04b915c918a2", null ]
 ];

@@ -1,6 +1,8 @@
 var structngx__http__brix__webdav__req__ctx__t =
 [
     [ "auth_source", "structngx__http__brix__webdav__req__ctx__t.html#a73b041ed4e7a160713ae533a5607cde6", null ],
+    [ "bearer_token", "structngx__http__brix__webdav__req__ctx__t.html#a0add5fca9345c2da8d3a70b7fea9b3b1", null ],
+    [ "deleg_proxy_pem", "structngx__http__brix__webdav__req__ctx__t.html#a11ff4909fd163e3eca2ed97e601156a0", null ],
     [ "dn", "structngx__http__brix__webdav__req__ctx__t.html#a102518b83b59f2a2f159970b6e020a4a", null ],
     [ "identity", "structngx__http__brix__webdav__req__ctx__t.html#a5234f208453ec6c81b4598d9ad548d69", null ],
     [ "introspect_active", "structngx__http__brix__webdav__req__ctx__t.html#ade8f55ccb62bf1ef3197cba20676364f", null ],

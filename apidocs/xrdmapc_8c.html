@@ -119,6 +119,14 @@ Functions</h2></td></tr>
 <tr class="separator:a74029f5ddf259bc6930ec5801a25357c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a28024e53bde52dffcfb331fa9a178540" id="r_a28024e53bde52dffcfb331fa9a178540"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdmapc_8c.html#a28024e53bde52dffcfb331fa9a178540">holder_url</a> (const <a class="el" href="structbrix__opts.html">brix_opts</a> *o, const char *host, int port, char *out, size_t outsz)</td></tr>
 <tr class="separator:a28024e53bde52dffcfb331fa9a178540"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4a216955790ea86cee2ea018a5fbdd7a" id="r_a4a216955790ea86cee2ea018a5fbdd7a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdmapc_8c.html#a4a216955790ea86cee2ea018a5fbdd7a">print_space</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path)</td></tr>
+<tr class="separator:a4a216955790ea86cee2ea018a5fbdd7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad3b8eeb8bbdaf5f2b0c31037695dc839" id="r_ad3b8eeb8bbdaf5f2b0c31037695dc839"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdmapc_8c.html#ad3b8eeb8bbdaf5f2b0c31037695dc839">probe_holder</a> (const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, const char *path, const char *host, int port, char rw)</td></tr>
+<tr class="separator:ad3b8eeb8bbdaf5f2b0c31037695dc839"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad334ad692abbfd2a119de1a0ee77ff70" id="r_ad334ad692abbfd2a119de1a0ee77ff70"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdmapc_8c.html#ad334ad692abbfd2a119de1a0ee77ff70">map_holder</a> (const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, const char *path, const char *tok, int verify)</td></tr>
+<tr class="separator:ad334ad692abbfd2a119de1a0ee77ff70"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab2c133ca8a85a56c67f89e14efcbe73c" id="r_ab2c133ca8a85a56c67f89e14efcbe73c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdmapc_8c.html#ab2c133ca8a85a56c67f89e14efcbe73c">map_holders</a> (const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, const char *loc, const char *path, int verify)</td></tr>
+<tr class="separator:ab2c133ca8a85a56c67f89e14efcbe73c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4c99e9f42328ca0e7137fef4745f4591" id="r_a4c99e9f42328ca0e7137fef4745f4591"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdmapc_8c.html#a4c99e9f42328ca0e7137fef4745f4591">do_map</a> (const char *url, const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, int verify)</td></tr>
 <tr class="separator:a4c99e9f42328ca0e7137fef4745f4591"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a28999b7bf77e817ab21c70002c3ad233" id="r_a28999b7bf77e817ab21c70002c3ad233"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdmapc_8c.html#a28999b7bf77e817ab21c70002c3ad233">usage_fp</a> (FILE *out)</td></tr>
@@ -174,11 +182,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00058">58</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00219">219</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="resilient_8c_source.html#l00070">brix_connect_resilient()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00050">brix_kxr_name()</a>, <a class="el" href="ops__fs_8c_source.html#l00206">brix_locate()</a>, <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrdmapc_8c_source.html#l00030">g_ghosts</a>, <a class="el" href="xrdmapc_8c_source.html#l00050">holder_url()</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="opcodes_8h_source.html#l00198">kXR_Qspace</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdmapc_8c_source.html#l00034">parse_holder()</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="resilient_8c_source.html#l00070">brix_connect_resilient()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="ops__fs_8c_source.html#l00206">brix_locate()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdmapc_8c_source.html#l00030">g_ghosts</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="xrdmapc_8c_source.html#l00185">map_holders()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="xrdmapc_8c_source.html#l00071">print_space()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00177">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00272">main()</a>.</p>
 
 </div>
 </div>
@@ -238,7 +246,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brix__net_8h_source.html#l00030">brix_opts::want_tls</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00058">do_map()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00101">probe_holder()</a>.</p>
 
 </div>
 </div>
@@ -268,9 +276,117 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00177">177</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00272">272</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="cli__opts_8c_source.html#l00045">brix_opts_init()</a>, <a class="el" href="cli__opts_8c_source.html#l00065">brix_opts_parse_arg()</a>, <a class="el" href="xrdmapc_8c_source.html#l00058">do_map()</a>, <a class="el" href="xrdmapc_8c_source.html#l00171">usage()</a>, and <a class="el" href="xrdmapc_8c_source.html#l00159">usage_fp()</a>.</p>
+<p class="reference">References <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="cli__opts_8c_source.html#l00046">brix_opts_init()</a>, <a class="el" href="cli__opts_8c_source.html#l00179">brix_opts_parse_arg()</a>, <a class="el" href="xrdmapc_8c_source.html#l00219">do_map()</a>, <a class="el" href="xrdmapc_8c_source.html#l00266">usage()</a>, and <a class="el" href="xrdmapc_8c_source.html#l00254">usage_fp()</a>.</p>
+
+</div>
+</div>
+<a id="ad334ad692abbfd2a119de1a0ee77ff70" name="ad334ad692abbfd2a119de1a0ee77ff70"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad334ad692abbfd2a119de1a0ee77ff70">&#9670;&#160;</a></span>map_holder()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int map_holder </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__opts.html">brix_opts</a> *&#160;</td>
+          <td class="paramname"><em>co</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>tok</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>verify</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00151">151</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdmapc_8c_source.html#l00034">parse_holder()</a>, and <a class="el" href="xrdmapc_8c_source.html#l00101">probe_holder()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00185">map_holders()</a>.</p>
+
+</div>
+</div>
+<a id="ab2c133ca8a85a56c67f89e14efcbe73c" name="ab2c133ca8a85a56c67f89e14efcbe73c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab2c133ca8a85a56c67f89e14efcbe73c">&#9670;&#160;</a></span>map_holders()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void map_holders </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__opts.html">brix_opts</a> *&#160;</td>
+          <td class="paramname"><em>co</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>loc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>verify</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00185">185</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdmapc_8c_source.html#l00030">g_ghosts</a>, and <a class="el" href="xrdmapc_8c_source.html#l00151">map_holder()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00219">do_map()</a>.</p>
 
 </div>
 </div>
@@ -328,9 +444,111 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00034">34</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="host__split_8c_source.html#l00013">brix_split_host_port()</a>.</p>
+<p class="reference">References <a class="el" href="host__split_8c_source.html#l00151">brix_split_host_port()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00058">do_map()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00151">map_holder()</a>.</p>
+
+</div>
+</div>
+<a id="a4a216955790ea86cee2ea018a5fbdd7a" name="a4a216955790ea86cee2ea018a5fbdd7a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4a216955790ea86cee2ea018a5fbdd7a">&#9670;&#160;</a></span>print_space()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void print_space </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00071">71</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="opcodes_8h_source.html#l00198">kXR_Qspace</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00219">do_map()</a>.</p>
+
+</div>
+</div>
+<a id="ad3b8eeb8bbdaf5f2b0c31037695dc839" name="ad3b8eeb8bbdaf5f2b0c31037695dc839"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad3b8eeb8bbdaf5f2b0c31037695dc839">&#9670;&#160;</a></span>probe_holder()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void probe_holder </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__opts.html">brix_opts</a> *&#160;</td>
+          <td class="paramname"><em>co</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>host</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>port</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>rw</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00101">101</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00050">brix_kxr_name()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdmapc_8c_source.html#l00030">g_ghosts</a>, <a class="el" href="xrdmapc_8c_source.html#l00050">holder_url()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00151">map_holder()</a>.</p>
 
 </div>
 </div>
@@ -358,11 +576,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00171">171</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00266">266</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdmapc_8c_source.html#l00159">usage_fp()</a>.</p>
+<p class="reference">References <a class="el" href="xrdmapc_8c_source.html#l00254">usage_fp()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00177">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00272">main()</a>.</p>
 
 </div>
 </div>
@@ -390,11 +608,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00159">159</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00254">254</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
 
 <p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00177">main()</a>, and <a class="el" href="xrdmapc_8c_source.html#l00171">usage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00272">main()</a>, and <a class="el" href="xrdmapc_8c_source.html#l00266">usage()</a>.</p>
 
 </div>
 </div>
@@ -421,7 +639,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdmapc_8c_source.html#l00030">30</a> of file <a class="el" href="xrdmapc_8c_source.html">xrdmapc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00058">do_map()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdmapc_8c_source.html#l00219">do_map()</a>, <a class="el" href="xrdmapc_8c_source.html#l00185">map_holders()</a>, and <a class="el" href="xrdmapc_8c_source.html#l00101">probe_holder()</a>.</p>
 
 </div>
 </div>

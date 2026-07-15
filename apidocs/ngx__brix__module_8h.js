@@ -40,7 +40,7 @@ var ngx__brix__module_8h =
     [ "brix_handle_unix_auth", "ngx__brix__module_8h.html#abee79be17182f2c4faa2e70cba35fa81", null ],
     [ "brix_prepare_invoke_command", "ngx__brix__module_8h.html#a1a521f07f701db78cefc7017d7f8e499", null ],
     [ "brix_process_handshake", "ngx__brix__module_8h.html#a9a8c0c5b87c2e0baf794f23cc877e44d", null ],
-    [ "brix_rebuild_gsi_store", "ngx__brix__module_8h.html#aebdcb8db8b2c4a25c88aff289852f1d6", null ],
+    [ "brix_rebuild_gsi_store", "ngx__brix__module_8h.html#ac997fed27462de32786b441dc39d9e25", null ],
     [ "brix_rl_charge_ctx", "ngx__brix__module_8h.html#a41b5f623273f2291d0b13591f8f605a8", null ],
     [ "brix_sss_build_proxy_credential", "ngx__brix__module_8h.html#a95d232637426a5ff41b1ee2d785cde66", null ],
     [ "brix_voms_available", "ngx__brix__module_8h.html#a00773d4a6cc3e2f0b96a11f7d8195c42", null ],

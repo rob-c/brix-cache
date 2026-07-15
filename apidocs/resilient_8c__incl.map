@@ -20,7 +20,7 @@
 <area shape="rect" id="Node000006" href="$time_8h.html" title=" " alt="" coords="667,247,731,273"/>
 <area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="874,102,820,121,791,135,764,154,747,173,732,194,710,236,705,233,727,192,742,169,761,150,788,131,817,116,872,97"/>
 <area shape="poly" id="edge8_Node000002_Node000007" title=" " alt="" coords="932,90,1016,93,1124,101,1178,108,1227,119,1267,132,1294,150,1309,169,1319,191,1329,238,1330,284,1325,322,1320,321,1324,284,1324,239,1314,193,1304,172,1290,154,1264,137,1226,124,1177,114,1124,106,1016,98,932,95"/>
-<area shape="rect" id="Node000008" href="$protocol_8h.html" title=" " alt="" coords="447,152,617,192"/>
+<area shape="rect" id="Node000008" href="$root_2protocol_2protocol_8h.html" title=" " alt="" coords="447,152,617,192"/>
 <area shape="poly" id="edge9_Node000002_Node000008" title=" " alt="" coords="874,102,630,153,629,147,872,96"/>
 <area shape="rect" id="Node000016" href="$wire__codec_8h.html" title=" " alt="" coords="830,240,999,280"/>
 <area shape="poly" id="edge25_Node000002_Node000016" title=" " alt="" coords="892,106,874,127,860,153,856,172,860,191,870,211,884,228,880,231,866,214,855,193,850,172,855,151,870,124,888,103"/>

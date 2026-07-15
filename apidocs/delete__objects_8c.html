@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('delete__objects_8c.html',''); initResi
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">delete_objects.c File Reference</div></div>
@@ -118,6 +119,13 @@ $(document).ready(function(){initNavTree('delete__objects_8c.html',''); initResi
 </div>
 <p><a href="delete__objects_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__del__err__t.html">s3_del_err_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__del__ctx__t.html">s3_del_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a2cbbc2261d0e5e2a934f7a3daeb0f028" id="r_a2cbbc2261d0e5e2a934f7a3daeb0f028"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a2cbbc2261d0e5e2a934f7a3daeb0f028">S3_DEL_MAX_KEYS</a>&#160;&#160;&#160;1000</td></tr>
@@ -129,16 +137,16 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:aa509210a5fcb65ad90298854aaec9636" id="r_aa509210a5fcb65ad90298854aaec9636"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#aa509210a5fcb65ad90298854aaec9636">s3_delete_one</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const char *fs_path, const char **code, const char **msg)</td></tr>
-<tr class="separator:aa509210a5fcb65ad90298854aaec9636"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad43f64bac512124ff8a11b0bb3261fd6" id="r_ad43f64bac512124ff8a11b0bb3261fd6"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#ad43f64bac512124ff8a11b0bb3261fd6">s3_delete_one</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const char *fs_path, <a class="el" href="structs3__del__err__t.html">s3_del_err_t</a> *err)</td></tr>
+<tr class="separator:ad43f64bac512124ff8a11b0bb3261fd6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5d71994e433f55d977fc3b6302c3cbc4" id="r_a5d71994e433f55d977fc3b6302c3cbc4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a5d71994e433f55d977fc3b6302c3cbc4">s3_delete_xml_append_raw</a> (ngx_buf_t *xml_buf, size_t *xml_len, const char *text)</td></tr>
 <tr class="separator:a5d71994e433f55d977fc3b6302c3cbc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaea88258131343fe674968797fb9a62d" id="r_aaea88258131343fe674968797fb9a62d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#aaea88258131343fe674968797fb9a62d">s3_delete_xml_append_elem</a> (ngx_buf_t *xml_buf, size_t *xml_len, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const u_char *value, size_t value_len)</td></tr>
 <tr class="separator:aaea88258131343fe674968797fb9a62d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a161251d273e521aa7a2d6dc87ed9ff71" id="r_a161251d273e521aa7a2d6dc87ed9ff71"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a161251d273e521aa7a2d6dc87ed9ff71">s3_delete_xml_append_deleted</a> (ngx_buf_t *xml_buf, size_t *xml_len, const u_char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len)</td></tr>
+<tr class="memitem:a161251d273e521aa7a2d6dc87ed9ff71" id="r_a161251d273e521aa7a2d6dc87ed9ff71"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a161251d273e521aa7a2d6dc87ed9ff71">s3_delete_xml_append_deleted</a> (ngx_buf_t *xml_buf, size_t *xml_len, const u_char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len)</td></tr>
 <tr class="separator:a161251d273e521aa7a2d6dc87ed9ff71"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a140e24c57c7134e037cabefd4143acd2" id="r_a140e24c57c7134e037cabefd4143acd2"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a140e24c57c7134e037cabefd4143acd2">s3_delete_xml_append_error</a> (ngx_buf_t *xml_buf, size_t *xml_len, const u_char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const char *code, const char *message)</td></tr>
-<tr class="separator:a140e24c57c7134e037cabefd4143acd2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae5276f7d6eb7a2802caeacf2c9b8031a" id="r_ae5276f7d6eb7a2802caeacf2c9b8031a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#ae5276f7d6eb7a2802caeacf2c9b8031a">s3_delete_xml_append_error</a> (ngx_buf_t *xml_buf, size_t *xml_len, const u_char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const <a class="el" href="structs3__del__err__t.html">s3_del_err_t</a> *err)</td></tr>
+<tr class="separator:ae5276f7d6eb7a2802caeacf2c9b8031a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6121a721012d510e528954342ac92ac1" id="r_a6121a721012d510e528954342ac92ac1"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a6121a721012d510e528954342ac92ac1">s3_delete_xml_name_is</a> (xmlNodePtr node, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
 <tr class="separator:a6121a721012d510e528954342ac92ac1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afdf9b9f1bd35de3a3dca4c9b9923ba78" id="r_afdf9b9f1bd35de3a3dca4c9b9923ba78"><td class="memItemLeft" align="right" valign="top">static xmlNodePtr&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#afdf9b9f1bd35de3a3dca4c9b9923ba78">s3_delete_xml_find_child</a> (xmlNodePtr node, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
@@ -147,8 +155,18 @@ Functions</h2></td></tr>
 <tr class="separator:af024fedf49830b1a59fe357c999ca6d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1d3ba99e6bf4da0a34c3a8ef0a1af25f" id="r_a1d3ba99e6bf4da0a34c3a8ef0a1af25f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a1d3ba99e6bf4da0a34c3a8ef0a1af25f">s3_delete_objects_body_handler_inner</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a1d3ba99e6bf4da0a34c3a8ef0a1af25f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab66b717bff14344df1ed572e5ccd8823" id="r_ab66b717bff14344df1ed572e5ccd8823"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#ab66b717bff14344df1ed572e5ccd8823">s3_delete_parse_body</a> (ngx_http_request_t *r, ngx_uint_t method_slot, xmlDocPtr *doc_out)</td></tr>
+<tr class="separator:ab66b717bff14344df1ed572e5ccd8823"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5db095edd7a6a7c6f49d36234153e292" id="r_a5db095edd7a6a7c6f49d36234153e292"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a5db095edd7a6a7c6f49d36234153e292">s3_delete_result_init</a> (ngx_http_request_t *r, ngx_buf_t *xml_buf, size_t *xml_len)</td></tr>
+<tr class="separator:a5db095edd7a6a7c6f49d36234153e292"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a40ea0627a6b8b15509f1103e6ff3c3ed" id="r_a40ea0627a6b8b15509f1103e6ff3c3ed"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a40ea0627a6b8b15509f1103e6ff3c3ed">s3_delete_dispose_key</a> (<a class="el" href="structs3__del__ctx__t.html">s3_del_ctx_t</a> *dc, const xmlChar *key_text, size_t key_len)</td></tr>
+<tr class="separator:a40ea0627a6b8b15509f1103e6ff3c3ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a471e0428d1e4fc3cb27a29568777390d" id="r_a471e0428d1e4fc3cb27a29568777390d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#a471e0428d1e4fc3cb27a29568777390d">s3_delete_process_object</a> (<a class="el" href="structs3__del__ctx__t.html">s3_del_ctx_t</a> *dc, xmlNodePtr obj, int *malformed_500)</td></tr>
+<tr class="separator:a471e0428d1e4fc3cb27a29568777390d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad53521063cda9620e71266d044baec10" id="r_ad53521063cda9620e71266d044baec10"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#ad53521063cda9620e71266d044baec10">s3_delete_objects_body_handler</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:ad53521063cda9620e71266d044baec10"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad079f265686f75d8e99bb0563cfc65db" id="r_ad079f265686f75d8e99bb0563cfc65db"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="delete__objects_8c.html#ad079f265686f75d8e99bb0563cfc65db">s3_delete_run_batch</a> (<a class="el" href="structs3__del__ctx__t.html">s3_del_ctx_t</a> *dc, ngx_uint_t method_slot, xmlNodePtr root)</td></tr>
+<tr class="separator:ad079f265686f75d8e99bb0563cfc65db"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a8c9889673413b9519a80a6c1edda273a" name="a8c9889673413b9519a80a6c1edda273a"></a>
@@ -200,6 +218,54 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a40ea0627a6b8b15509f1103e6ff3c3ed" name="a40ea0627a6b8b15509f1103e6ff3c3ed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a40ea0627a6b8b15509f1103e6ff3c3ed">&#9670;&#160;</a></span>s3_delete_dispose_key()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_delete_dispose_key </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structs3__del__ctx__t.html">s3_del_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>dc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const xmlChar *&#160;</td>
+          <td class="paramname"><em>key_text</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>key_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00425">425</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+
+<p class="reference">References <a class="el" href="delete__objects_8c_source.html#l00290">s3_del_ctx_t::cf</a>, <a class="el" href="delete__objects_8c_source.html#l00049">s3_del_err_t::code</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="delete__objects_8c_source.html#l00050">s3_del_err_t::message</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="delete__objects_8c_source.html#l00289">s3_del_ctx_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="delete__objects_8c_source.html#l00063">s3_delete_one()</a>, <a class="el" href="delete__objects_8c_source.html#l00137">s3_delete_xml_append_deleted()</a>, <a class="el" href="delete__objects_8c_source.html#l00160">s3_delete_xml_append_error()</a>, <a class="el" href="s3_8h_source.html#l00152">S3_MAX_KEY</a>, <a class="el" href="s3_2util_8c_source.html#l00121">s3_resolve_key()</a>, <a class="el" href="delete__objects_8c_source.html#l00291">s3_del_ctx_t::xml_buf</a>, and <a class="el" href="delete__objects_8c_source.html#l00292">s3_del_ctx_t::xml_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00466">s3_delete_process_object()</a>.</p>
+
+</div>
+</div>
 <a id="ad53521063cda9620e71266d044baec10" name="ad53521063cda9620e71266d044baec10"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad53521063cda9620e71266d044baec10">&#9670;&#160;</a></span>s3_delete_objects_body_handler()</h2>
 
@@ -216,11 +282,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00267">267</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00507">507</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00547">brix_imp_request_begin()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00560">brix_imp_request_end()</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, and <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>.</p>
+<p class="reference">References <a class="el" href="lifecycle__worker_8c_source.html#l00114">brix_imp_request_begin()</a>, <a class="el" href="lifecycle__worker_8c_source.html#l00127">brix_imp_request_end()</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, and <a class="el" href="delete__objects_8c_source.html#l00590">s3_delete_objects_body_handler_inner()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00211">s3_dispatch_empty_post()</a>.</p>
 
 </div>
 </div>
@@ -248,11 +314,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00278">278</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00590">590</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="delete__objects_8c_source.html#l00035">S3_DEL_MAX_BODY</a>, <a class="el" href="delete__objects_8c_source.html#l00034">S3_DEL_MAX_KEYS</a>, <a class="el" href="delete__objects_8c_source.html#l00036">S3_DEL_XML_MAX</a>, <a class="el" href="delete__objects_8c_source.html#l00197">s3_delete_objects_finish()</a>, <a class="el" href="delete__objects_8c_source.html#l00053">s3_delete_one()</a>, <a class="el" href="delete__objects_8c_source.html#l00127">s3_delete_xml_append_deleted()</a>, <a class="el" href="delete__objects_8c_source.html#l00139">s3_delete_xml_append_error()</a>, <a class="el" href="delete__objects_8c_source.html#l00165">s3_delete_xml_find_child()</a>, <a class="el" href="delete__objects_8c_source.html#l00157">s3_delete_xml_name_is()</a>, <a class="el" href="s3_8h_source.html#l00143">S3_MAX_KEY</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00246">s3_metrics_method_slot()</a>, <a class="el" href="s3_2util_8c_source.html#l00077">s3_resolve_key()</a>, and <a class="el" href="s3_2util_8c_source.html#l00122">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="delete__objects_8c_source.html#l00290">s3_del_ctx_t::cf</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="delete__objects_8c_source.html#l00289">s3_del_ctx_t::r</a>, <a class="el" href="delete__objects_8c_source.html#l00218">s3_delete_objects_finish()</a>, <a class="el" href="delete__objects_8c_source.html#l00309">s3_delete_parse_body()</a>, <a class="el" href="delete__objects_8c_source.html#l00389">s3_delete_result_init()</a>, <a class="el" href="delete__objects_8c_source.html#l00532">s3_delete_run_batch()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00246">s3_metrics_method_slot()</a>, <a class="el" href="delete__objects_8c_source.html#l00291">s3_del_ctx_t::xml_buf</a>, and <a class="el" href="delete__objects_8c_source.html#l00292">s3_del_ctx_t::xml_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00267">s3_delete_objects_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00507">s3_delete_objects_body_handler()</a>.</p>
 
 </div>
 </div>
@@ -302,16 +368,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00197">197</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00218">218</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="delete__objects_8c_source.html#l00087">s3_delete_xml_append_raw()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>.</p>
+<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="delete__objects_8c_source.html#l00097">s3_delete_xml_append_raw()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00590">s3_delete_objects_body_handler_inner()</a>.</p>
 
 </div>
 </div>
-<a id="aa509210a5fcb65ad90298854aaec9636" name="aa509210a5fcb65ad90298854aaec9636"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa509210a5fcb65ad90298854aaec9636">&#9670;&#160;</a></span>s3_delete_one()</h2>
+<a id="ad43f64bac512124ff8a11b0bb3261fd6" name="ad43f64bac512124ff8a11b0bb3261fd6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad43f64bac512124ff8a11b0bb3261fd6">&#9670;&#160;</a></span>s3_delete_one()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -340,14 +406,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char **&#160;</td>
-          <td class="paramname"><em>code</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char **&#160;</td>
-          <td class="paramname"><em>msg</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="structs3__del__err__t.html">s3_del_err_t</a> *&#160;</td>
+          <td class="paramname"><em>err</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -362,11 +422,203 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00053">53</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00063">63</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00151">brix_vfs_unlink()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00273">brix_vfs_unlink()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="delete__objects_8c_source.html#l00049">s3_del_err_t::code</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="delete__objects_8c_source.html#l00050">s3_del_err_t::message</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00425">s3_delete_dispose_key()</a>.</p>
+
+</div>
+</div>
+<a id="ab66b717bff14344df1ed572e5ccd8823" name="ab66b717bff14344df1ed572e5ccd8823"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab66b717bff14344df1ed572e5ccd8823">&#9670;&#160;</a></span>s3_delete_parse_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_delete_parse_body </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>method_slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">xmlDocPtr *&#160;</td>
+          <td class="paramname"><em>doc_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00309">309</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00365">brix_http_body_read_all()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="delete__objects_8c_source.html#l00035">S3_DEL_MAX_BODY</a>, <a class="el" href="delete__objects_8c_source.html#l00178">s3_delete_xml_name_is()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00590">s3_delete_objects_body_handler_inner()</a>.</p>
+
+</div>
+</div>
+<a id="a471e0428d1e4fc3cb27a29568777390d" name="a471e0428d1e4fc3cb27a29568777390d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a471e0428d1e4fc3cb27a29568777390d">&#9670;&#160;</a></span>s3_delete_process_object()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_delete_process_object </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structs3__del__ctx__t.html">s3_del_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>dc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">xmlNodePtr&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>malformed_500</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00466">466</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+
+<p class="reference">References <a class="el" href="delete__objects_8c_source.html#l00425">s3_delete_dispose_key()</a>, <a class="el" href="delete__objects_8c_source.html#l00160">s3_delete_xml_append_error()</a>, <a class="el" href="delete__objects_8c_source.html#l00186">s3_delete_xml_find_child()</a>, <a class="el" href="s3_8h_source.html#l00152">S3_MAX_KEY</a>, <a class="el" href="delete__objects_8c_source.html#l00291">s3_del_ctx_t::xml_buf</a>, and <a class="el" href="delete__objects_8c_source.html#l00292">s3_del_ctx_t::xml_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00532">s3_delete_run_batch()</a>.</p>
+
+</div>
+</div>
+<a id="a5db095edd7a6a7c6f49d36234153e292" name="a5db095edd7a6a7c6f49d36234153e292"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5db095edd7a6a7c6f49d36234153e292">&#9670;&#160;</a></span>s3_delete_result_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_delete_result_init </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_buf_t *&#160;</td>
+          <td class="paramname"><em>xml_buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>xml_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00389">389</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+
+<p class="reference">References <a class="el" href="delete__objects_8c_source.html#l00036">S3_DEL_XML_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00590">s3_delete_objects_body_handler_inner()</a>.</p>
+
+</div>
+</div>
+<a id="ad079f265686f75d8e99bb0563cfc65db" name="ad079f265686f75d8e99bb0563cfc65db"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad079f265686f75d8e99bb0563cfc65db">&#9670;&#160;</a></span>s3_delete_run_batch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_delete_run_batch </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structs3__del__ctx__t.html">s3_del_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>dc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>method_slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">xmlNodePtr&#160;</td>
+          <td class="paramname"><em>root</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00532">532</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+
+<p class="reference">References <a class="el" href="delete__objects_8c_source.html#l00289">s3_del_ctx_t::r</a>, <a class="el" href="delete__objects_8c_source.html#l00034">S3_DEL_MAX_KEYS</a>, <a class="el" href="delete__objects_8c_source.html#l00466">s3_delete_process_object()</a>, <a class="el" href="delete__objects_8c_source.html#l00178">s3_delete_xml_name_is()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00590">s3_delete_objects_body_handler_inner()</a>.</p>
 
 </div>
 </div>
@@ -416,11 +668,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00127">127</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00137">137</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="delete__objects_8c_source.html#l00104">s3_delete_xml_append_elem()</a>, and <a class="el" href="delete__objects_8c_source.html#l00087">s3_delete_xml_append_raw()</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="delete__objects_8c_source.html#l00114">s3_delete_xml_append_elem()</a>, and <a class="el" href="delete__objects_8c_source.html#l00097">s3_delete_xml_append_raw()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00425">s3_delete_dispose_key()</a>.</p>
 
 </div>
 </div>
@@ -476,16 +728,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00104">104</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00114">114</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2xml_8h_source.html#l00027">BRIX_XML_ESCAPE_APOS_ENTITY</a>, <a class="el" href="core_2compat_2xml_8h_source.html#l00028">BRIX_XML_ESCAPE_CONTROL_PERCENT</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00236">brix_xml_write_text_element()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2xml_8h_source.html#l00027">BRIX_XML_ESCAPE_APOS_ENTITY</a>, <a class="el" href="core_2compat_2xml_8h_source.html#l00028">BRIX_XML_ESCAPE_CONTROL_PERCENT</a>, <a class="el" href="core_2compat_2xml_8c_source.html#l00250">brix_xml_write_text_element()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00127">s3_delete_xml_append_deleted()</a>, and <a class="el" href="delete__objects_8c_source.html#l00139">s3_delete_xml_append_error()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00137">s3_delete_xml_append_deleted()</a>, and <a class="el" href="delete__objects_8c_source.html#l00160">s3_delete_xml_append_error()</a>.</p>
 
 </div>
 </div>
-<a id="a140e24c57c7134e037cabefd4143acd2" name="a140e24c57c7134e037cabefd4143acd2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a140e24c57c7134e037cabefd4143acd2">&#9670;&#160;</a></span>s3_delete_xml_append_error()</h2>
+<a id="ae5276f7d6eb7a2802caeacf2c9b8031a" name="ae5276f7d6eb7a2802caeacf2c9b8031a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae5276f7d6eb7a2802caeacf2c9b8031a">&#9670;&#160;</a></span>s3_delete_xml_append_error()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -520,14 +772,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>code</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>message</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structs3__del__err__t.html">s3_del_err_t</a> *&#160;</td>
+          <td class="paramname"><em>err</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -542,11 +788,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00139">139</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00160">160</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="delete__objects_8c_source.html#l00104">s3_delete_xml_append_elem()</a>, and <a class="el" href="delete__objects_8c_source.html#l00087">s3_delete_xml_append_raw()</a>.</p>
+<p class="reference">References <a class="el" href="delete__objects_8c_source.html#l00049">s3_del_err_t::code</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="delete__objects_8c_source.html#l00050">s3_del_err_t::message</a>, <a class="el" href="delete__objects_8c_source.html#l00114">s3_delete_xml_append_elem()</a>, and <a class="el" href="delete__objects_8c_source.html#l00097">s3_delete_xml_append_raw()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00425">s3_delete_dispose_key()</a>, and <a class="el" href="delete__objects_8c_source.html#l00466">s3_delete_process_object()</a>.</p>
 
 </div>
 </div>
@@ -590,11 +836,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00087">87</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00097">97</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00197">s3_delete_objects_finish()</a>, <a class="el" href="delete__objects_8c_source.html#l00127">s3_delete_xml_append_deleted()</a>, and <a class="el" href="delete__objects_8c_source.html#l00139">s3_delete_xml_append_error()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00218">s3_delete_objects_finish()</a>, <a class="el" href="delete__objects_8c_source.html#l00137">s3_delete_xml_append_deleted()</a>, and <a class="el" href="delete__objects_8c_source.html#l00160">s3_delete_xml_append_error()</a>.</p>
 
 </div>
 </div>
@@ -632,11 +878,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00165">165</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00186">186</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="delete__objects_8c_source.html#l00157">s3_delete_xml_name_is()</a>.</p>
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="delete__objects_8c_source.html#l00178">s3_delete_xml_name_is()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00466">s3_delete_process_object()</a>.</p>
 
 </div>
 </div>
@@ -674,11 +920,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00157">157</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="delete__objects_8c_source.html#l00178">178</a> of file <a class="el" href="delete__objects_8c_source.html">delete_objects.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>, and <a class="el" href="delete__objects_8c_source.html#l00165">s3_delete_xml_find_child()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00309">s3_delete_parse_body()</a>, <a class="el" href="delete__objects_8c_source.html#l00532">s3_delete_run_batch()</a>, and <a class="el" href="delete__objects_8c_source.html#l00186">s3_delete_xml_find_child()</a>.</p>
 
 </div>
 </div>

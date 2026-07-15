@@ -6,6 +6,8 @@ var sd__frm_8c =
     [ "brix_sd_frm_create", "sd__frm_8c.html#adafe63c3d1349196121052d9f6022073", null ],
     [ "brix_sd_frm_destroy", "sd__frm_8c.html#a45780457a1f97200b26050d3e7cf82ac", null ],
     [ "frm_ensure_online", "sd__frm_8c.html#a8ed6407759fbbccb4ed93d6bf152e74c", null ],
+    [ "frm_select_exec_adapter", "sd__frm_8c.html#abd6b76c5b70445159ef222eab8b625e6", null ],
+    [ "frm_select_stub_adapter", "sd__frm_8c.html#a82f7a39f82cfa989ff33253b76fcaa75", null ],
     [ "sd_frm_close", "sd__frm_8c.html#aac4e7def162f99ffcbc8ebd5780cd0b3", null ],
     [ "sd_frm_fstat", "sd__frm_8c.html#ae04445608226b8b6173c54587a6b88ca", null ],
     [ "sd_frm_open", "sd__frm_8c.html#a72ba91d159939d9581cde0863fc1e024", null ],

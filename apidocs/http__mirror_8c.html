@@ -91,12 +91,12 @@ $(document).ready(function(){initNavTree('http__mirror_8c.html',''); initResizab
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">http_mirror.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="http__mirror_8h_source.html">http_mirror.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="http__mirror__internal_8h_source.html">http_mirror_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__body_8h_source.html">core/http/http_body.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__headers_8h_source.html">core/http/http_headers.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
@@ -109,124 +109,28 @@ $(document).ready(function(){initNavTree('http__mirror_8c.html',''); initResizab
 </div>
 <p><a href="http__mirror_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:a4559ce652e16523bb283b9f8cecb67fe" id="r_a4559ce652e16523bb283b9f8cecb67fe"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a4559ce652e16523bb283b9f8cecb67fe">MIR_HTTP_INC</a>(field)</td></tr>
-<tr class="separator:a4559ce652e16523bb283b9f8cecb67fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ad2f4f195d422e471bffc14237a2a09e8" id="r_ad2f4f195d422e471bffc14237a2a09e8"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#ad2f4f195d422e471bffc14237a2a09e8">brix_http_mirror_method_bit</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:ad2f4f195d422e471bffc14237a2a09e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa10723903492a10af727a1837343f149" id="r_aa10723903492a10af727a1837343f149"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#aa10723903492a10af727a1837343f149">brix_http_mirror_method_has_body</a> (ngx_uint_t method)</td></tr>
-<tr class="separator:aa10723903492a10af727a1837343f149"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9ae155ad7d3e7793ec1e2b0e31c9126d" id="r_a9ae155ad7d3e7793ec1e2b0e31c9126d"><td class="memItemLeft" align="right" valign="top">static ngx_str_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a9ae155ad7d3e7793ec1e2b0e31c9126d">brix_http_mirror_rewrite_dest</a> (ngx_pool_t *pool, ngx_str_t *dest, ngx_str_t *url_base)</td></tr>
-<tr class="separator:a9ae155ad7d3e7793ec1e2b0e31c9126d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a44e32b3f849214a4055bc3832281c7ee" id="r_a44e32b3f849214a4055bc3832281c7ee"><td class="memItemLeft" align="right" valign="top">static ngx_chain_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a44e32b3f849214a4055bc3832281c7ee">brix_http_mirror_clone_body</a> (ngx_http_request_t *r, ngx_http_request_t *parent, off_t *len_out)</td></tr>
-<tr class="separator:a44e32b3f849214a4055bc3832281c7ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a17f15ba29776b22391b7612c859d36dd" id="r_a17f15ba29776b22391b7612c859d36dd"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a17f15ba29776b22391b7612c859d36dd">mirror_create_request</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a17f15ba29776b22391b7612c859d36dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a43f71d45cb57e3d5938fd8c4215e8bd9" id="r_a43f71d45cb57e3d5938fd8c4215e8bd9"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a43f71d45cb57e3d5938fd8c4215e8bd9">mirror_reinit_request</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a43f71d45cb57e3d5938fd8c4215e8bd9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a99d6f694a03f46382c13d09466a6ee2f" id="r_a99d6f694a03f46382c13d09466a6ee2f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a99d6f694a03f46382c13d09466a6ee2f">mirror_process_header</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a99d6f694a03f46382c13d09466a6ee2f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7815e6b98937c55e39e1e3095ad2c439" id="r_a7815e6b98937c55e39e1e3095ad2c439"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a7815e6b98937c55e39e1e3095ad2c439">mirror_process_status_line</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a7815e6b98937c55e39e1e3095ad2c439"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aff6404c0e6049a1f3846b8e33171bf1e" id="r_aff6404c0e6049a1f3846b8e33171bf1e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#aff6404c0e6049a1f3846b8e33171bf1e">mirror_abort_request</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:aff6404c0e6049a1f3846b8e33171bf1e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aaca9c08b7dfe8ccb11fc4bcd81203b7b" id="r_aaca9c08b7dfe8ccb11fc4bcd81203b7b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#aaca9c08b7dfe8ccb11fc4bcd81203b7b">mirror_finalize_request</a> (ngx_http_request_t *r, ngx_int_t rc)</td></tr>
-<tr class="separator:aaca9c08b7dfe8ccb11fc4bcd81203b7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae129d6df3460b0950edc477859a607a4" id="r_ae129d6df3460b0950edc477859a607a4"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#ae129d6df3460b0950edc477859a607a4">brix_http_mirror_method_has_body</a> (ngx_uint_t method)</td></tr>
+<tr class="separator:ae129d6df3460b0950edc477859a607a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad6eea68d9373086cace2dd7d1ccdece1" id="r_ad6eea68d9373086cace2dd7d1ccdece1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#ad6eea68d9373086cace2dd7d1ccdece1">brix_http_mirror_proxy</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx)</td></tr>
 <tr class="separator:ad6eea68d9373086cace2dd7d1ccdece1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaa161b0490cdeb0740d8ed3f66593378" id="r_aaa161b0490cdeb0740d8ed3f66593378"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#aaa161b0490cdeb0740d8ed3f66593378">mirror_fire_subrequests</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf)</td></tr>
 <tr class="separator:aaa161b0490cdeb0740d8ed3f66593378"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aed1505bc76ebc52d1de59559a0961dcd" id="r_aed1505bc76ebc52d1de59559a0961dcd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#aed1505bc76ebc52d1de59559a0961dcd">mirror_put_body_handler</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:aed1505bc76ebc52d1de59559a0961dcd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aab8e00cdf81f73b9a877ab8796478042" id="r_aab8e00cdf81f73b9a877ab8796478042"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#aab8e00cdf81f73b9a877ab8796478042">mirror_request_is_replay</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:aab8e00cdf81f73b9a877ab8796478042"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2c2ab387c8774726126e04f3dd770e8b" id="r_a2c2ab387c8774726126e04f3dd770e8b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a2c2ab387c8774726126e04f3dd770e8b">mirror_precontent_eligible</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a2c2ab387c8774726126e04f3dd770e8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d60b009597c929dd48df709c0afb485" id="r_a2d60b009597c929dd48df709c0afb485"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a2d60b009597c929dd48df709c0afb485">brix_http_mirror_precontent_handler</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a2d60b009597c929dd48df709c0afb485"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a54c39ddb7258a89f30c465c43a967605" id="r_a54c39ddb7258a89f30c465c43a967605"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a54c39ddb7258a89f30c465c43a967605">brix_http_mirror_log_handler</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a54c39ddb7258a89f30c465c43a967605"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab6346fe0c829d9d7daf43b6ed8c4353a" id="r_ab6346fe0c829d9d7daf43b6ed8c4353a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#ab6346fe0c829d9d7daf43b6ed8c4353a">brix_http_mirror_setup</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *prev)</td></tr>
-<tr class="separator:ab6346fe0c829d9d7daf43b6ed8c4353a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2adc7873453df5c8e14ffaba4de2f31f" id="r_a2adc7873453df5c8e14ffaba4de2f31f"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#a2adc7873453df5c8e14ffaba4de2f31f">brix_http_mirror_set_url</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
-<tr class="separator:a2adc7873453df5c8e14ffaba4de2f31f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa063e31550c25b4df3e633954c2c2c5b" id="r_aa063e31550c25b4df3e633954c2c2c5b"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__mirror_8c.html#aa063e31550c25b4df3e633954c2c2c5b">brix_http_mirror_set_methods</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
-<tr class="separator:aa063e31550c25b4df3e633954c2c2c5b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a4559ce652e16523bb283b9f8cecb67fe" name="a4559ce652e16523bb283b9f8cecb67fe"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4559ce652e16523bb283b9f8cecb67fe">&#9670;&#160;</a></span>MIR_HTTP_INC</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define MIR_HTTP_INC</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">field</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    <span class="keywordflow">do</span> {                                                                     \</div>
-<div class="line">        <a class="code hl_struct" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *_m = <a class="code hl_function" href="metrics__macros_8h.html#ae713ef37e9f6754bea510d352cfa5def">brix_metrics_shared</a>();                  \</div>
-<div class="line">        if (_m != NULL) { (void) ngx_atomic_fetch_add(&amp;_m-&gt;field, 1); }      \</div>
-<div class="line">    } <span class="keywordflow">while</span> (0)</div>
-<div class="ttc" id="ametrics__macros_8h_html_ae713ef37e9f6754bea510d352cfa5def"><div class="ttname"><a href="metrics__macros_8h.html#ae713ef37e9f6754bea510d352cfa5def">brix_metrics_shared</a></div><div class="ttdeci">static ngx_brix_metrics_t * brix_metrics_shared(void)</div><div class="ttdef"><b>Definition</b> <a href="metrics__macros_8h_source.html#l00028">metrics_macros.h:28</a></div></div>
-<div class="ttc" id="astructngx__brix__metrics__t_html"><div class="ttname"><a href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a></div><div class="ttdef"><b>Definition</b> <a href="observability_2metrics_2metrics_8h_source.html#l00365">metrics.h:365</a></div></div>
-</div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00025">25</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a44e32b3f849214a4055bc3832281c7ee" name="a44e32b3f849214a4055bc3832281c7ee"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a44e32b3f849214a4055bc3832281c7ee">&#9670;&#160;</a></span>brix_http_mirror_clone_body()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_chain_t * brix_http_mirror_clone_body </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>parent</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t *&#160;</td>
-          <td class="paramname"><em>len_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00103">103</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00136">mirror_create_request()</a>.</p>
-
-</div>
-</div>
 <a id="a54c39ddb7258a89f30c465c43a967605" name="a54c39ddb7258a89f30c465c43a967605"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a54c39ddb7258a89f30c465c43a967605">&#9670;&#160;</a></span>brix_http_mirror_log_handler()</h2>
 
@@ -243,11 +147,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00617">617</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00309">309</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00353">ngx_http_brix_webdav_req_ctx_t::mirror_fired</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, and <a class="el" href="webdav_8h_source.html#l00356">ngx_http_brix_webdav_req_ctx_t::primary_status</a>.</p>
+<p class="reference">References <a class="el" href="webdav_8h_source.html#l00180">ngx_http_brix_webdav_req_ctx_t::mirror_fired</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, and <a class="el" href="webdav_8h_source.html#l00183">ngx_http_brix_webdav_req_ctx_t::primary_status</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00019">ngx_http_brix_webdav_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00069">webdav_postconf_install_handlers()</a>.</p>
 
 </div>
 </div>
@@ -275,41 +179,33 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00034">34</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00036">36</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">References <a class="el" href="mirror_8h_source.html#l00044">BRIX_MIRROR_M_COPY</a>, <a class="el" href="mirror_8h_source.html#l00041">BRIX_MIRROR_M_DELETE</a>, <a class="el" href="mirror_8h_source.html#l00033">BRIX_MIRROR_M_GET</a>, <a class="el" href="mirror_8h_source.html#l00034">BRIX_MIRROR_M_HEAD</a>, <a class="el" href="mirror_8h_source.html#l00042">BRIX_MIRROR_M_MKCOL</a>, <a class="el" href="mirror_8h_source.html#l00043">BRIX_MIRROR_M_MOVE</a>, <a class="el" href="mirror_8h_source.html#l00036">BRIX_MIRROR_M_OPTIONS</a>, <a class="el" href="mirror_8h_source.html#l00035">BRIX_MIRROR_M_PROPFIND</a>, and <a class="el" href="mirror_8h_source.html#l00040">BRIX_MIRROR_M_PUT</a>.</p>
+<p class="reference">References <a class="el" href="mirror_8h_source.html#l00049">BRIX_MIRROR_M_COPY</a>, <a class="el" href="mirror_8h_source.html#l00046">BRIX_MIRROR_M_DELETE</a>, <a class="el" href="mirror_8h_source.html#l00038">BRIX_MIRROR_M_GET</a>, <a class="el" href="mirror_8h_source.html#l00039">BRIX_MIRROR_M_HEAD</a>, <a class="el" href="mirror_8h_source.html#l00047">BRIX_MIRROR_M_MKCOL</a>, <a class="el" href="mirror_8h_source.html#l00048">BRIX_MIRROR_M_MOVE</a>, <a class="el" href="mirror_8h_source.html#l00041">BRIX_MIRROR_M_OPTIONS</a>, <a class="el" href="mirror_8h_source.html#l00040">BRIX_MIRROR_M_PROPFIND</a>, and <a class="el" href="mirror_8h_source.html#l00045">BRIX_MIRROR_M_PUT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00522">brix_http_mirror_precontent_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00221">mirror_precontent_eligible()</a>.</p>
 
 </div>
 </div>
-<a id="aa10723903492a10af727a1837343f149" name="aa10723903492a10af727a1837343f149"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa10723903492a10af727a1837343f149">&#9670;&#160;</a></span>brix_http_mirror_method_has_body()</h2>
+<a id="ae129d6df3460b0950edc477859a607a4" name="ae129d6df3460b0950edc477859a607a4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae129d6df3460b0950edc477859a607a4">&#9670;&#160;</a></span>brix_http_mirror_method_has_body()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t brix_http_mirror_method_has_body </td>
+          <td class="memname">ngx_int_t brix_http_mirror_method_has_body </td>
           <td>(</td>
           <td class="paramtype">ngx_uint_t&#160;</td>
           <td class="paramname"><em>method</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00053">53</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00057">57</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00522">brix_http_mirror_precontent_handler()</a>, and <a class="el" href="http__mirror_8c_source.html#l00136">mirror_create_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00257">brix_http_mirror_precontent_handler()</a>, and <a class="el" href="http__mirror__request_8c_source.html#l00136">mirror_build_subrequest()</a>.</p>
 
 </div>
 </div>
@@ -329,11 +225,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00522">522</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00257">257</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__mirror_8c_source.html#l00034">brix_http_mirror_method_bit()</a>, <a class="el" href="http__mirror_8c_source.html#l00053">brix_http_mirror_method_has_body()</a>, <a class="el" href="http__mirror_8c_source.html#l00408">brix_http_mirror_proxy()</a>, <a class="el" href="mirror_8h_source.html#l00045">BRIX_MIRROR_M_WRITE_ALL</a>, <a class="el" href="mirror_8h_source.html#l00147">brix_mirror_should_sample()</a>, <a class="el" href="mirror_8h_source.html#l00122">brix_mirror_conf_t::enabled</a>, <a class="el" href="webdav_8h_source.html#l00354">ngx_http_brix_webdav_req_ctx_t::is_mirror</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="mirror_8h_source.html#l00125">brix_mirror_conf_t::method_mask</a>, <a class="el" href="http__mirror_8c_source.html#l00025">MIR_HTTP_INC</a>, <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="http__mirror_8c_source.html#l00468">mirror_fire_subrequests()</a>, <a class="el" href="webdav_8h_source.html#l00353">ngx_http_brix_webdav_req_ctx_t::mirror_fired</a>, <a class="el" href="http__mirror_8c_source.html#l00501">mirror_put_body_handler()</a>, <a class="el" href="mirror_8h_source.html#l00134">brix_mirror_conf_t::mirror_writes</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="mirror_8h_source.html#l00124">brix_mirror_conf_t::sample_pct</a>, and <a class="el" href="mirror_8h_source.html#l00123">brix_mirror_conf_t::targets</a>.</p>
+<p class="reference">References <a class="el" href="http__mirror_8c_source.html#l00057">brix_http_mirror_method_has_body()</a>, <a class="el" href="http__mirror_8c_source.html#l00065">brix_http_mirror_proxy()</a>, <a class="el" href="webdav_8h_source.html#l00181">ngx_http_brix_webdav_req_ctx_t::is_mirror</a>, <a class="el" href="http__mirror_8c_source.html#l00125">mirror_fire_subrequests()</a>, <a class="el" href="webdav_8h_source.html#l00180">ngx_http_brix_webdav_req_ctx_t::mirror_fired</a>, <a class="el" href="http__mirror_8c_source.html#l00221">mirror_precontent_eligible()</a>, <a class="el" href="http__mirror_8c_source.html#l00158">mirror_put_body_handler()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00019">ngx_http_brix_webdav_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00069">webdav_postconf_install_handlers()</a>.</p>
 
 </div>
 </div>
@@ -371,279 +267,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00408">408</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">References <a class="el" href="mirror_8h_source.html#l00112">brix_mirror_target_t::host</a>, <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="http__mirror_8c_source.html#l00362">mirror_abort_request()</a>, <a class="el" href="http__mirror_8c_source.html#l00136">mirror_create_request()</a>, <a class="el" href="http__mirror_8c_source.html#l00368">mirror_finalize_request()</a>, <a class="el" href="http__mirror_8c_source.html#l00317">mirror_process_status_line()</a>, <a class="el" href="http__mirror_8c_source.html#l00304">mirror_reinit_request()</a>, <a class="el" href="webdav_8h_source.html#l00355">ngx_http_brix_webdav_req_ctx_t::mirror_target_idx</a>, <a class="el" href="webdav_8h_source.html#l00295">ngx_http_brix_webdav_loc_conf_t::mirror_upstream_conf</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="mirror_8h_source.html#l00113">brix_mirror_target_t::port</a>, <a class="el" href="mirror_8h_source.html#l00116">brix_mirror_target_t::sockaddr</a>, <a class="el" href="mirror_8h_source.html#l00117">brix_mirror_target_t::socklen</a>, <a class="el" href="mirror_8h_source.html#l00114">brix_mirror_target_t::ssl</a>, and <a class="el" href="mirror_8h_source.html#l00123">brix_mirror_conf_t::targets</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00522">brix_http_mirror_precontent_handler()</a>.</p>
-
-</div>
-</div>
-<a id="a9ae155ad7d3e7793ec1e2b0e31c9126d" name="a9ae155ad7d3e7793ec1e2b0e31c9126d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9ae155ad7d3e7793ec1e2b0e31c9126d">&#9670;&#160;</a></span>brix_http_mirror_rewrite_dest()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_str_t brix_http_mirror_rewrite_dest </td>
-          <td>(</td>
-          <td class="paramtype">ngx_pool_t *&#160;</td>
-          <td class="paramname"><em>pool</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_str_t *&#160;</td>
-          <td class="paramname"><em>dest</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_str_t *&#160;</td>
-          <td class="paramname"><em>url_base</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
 <p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00065">65</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+<p class="reference">References <a class="el" href="mirror_8h_source.html#l00117">brix_mirror_target_t::host</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00192">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="http__mirror__request_8c_source.html#l00425">mirror_abort_request()</a>, <a class="el" href="http__mirror__request_8c_source.html#l00338">mirror_create_request()</a>, <a class="el" href="http__mirror__request_8c_source.html#l00431">mirror_finalize_request()</a>, <a class="el" href="http__mirror__request_8c_source.html#l00380">mirror_process_status_line()</a>, <a class="el" href="http__mirror__request_8c_source.html#l00367">mirror_reinit_request()</a>, <a class="el" href="webdav_8h_source.html#l00182">ngx_http_brix_webdav_req_ctx_t::mirror_target_idx</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00193">ngx_http_brix_webdav_loc_conf_t::mirror_upstream_conf</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="mirror_8h_source.html#l00118">brix_mirror_target_t::port</a>, <a class="el" href="mirror_8h_source.html#l00121">brix_mirror_target_t::sockaddr</a>, <a class="el" href="mirror_8h_source.html#l00122">brix_mirror_target_t::socklen</a>, <a class="el" href="mirror_8h_source.html#l00119">brix_mirror_target_t::ssl</a>, and <a class="el" href="mirror_8h_source.html#l00128">brix_mirror_conf_t::targets</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00136">mirror_create_request()</a>.</p>
-
-</div>
-</div>
-<a id="aa063e31550c25b4df3e633954c2c2c5b" name="aa063e31550c25b4df3e633954c2c2c5b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa063e31550c25b4df3e633954c2c2c5b">&#9670;&#160;</a></span>brix_http_mirror_set_methods()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">char * brix_http_mirror_set_methods </td>
-          <td>(</td>
-          <td class="paramtype">ngx_conf_t *&#160;</td>
-          <td class="paramname"><em>cf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_command_t *&#160;</td>
-          <td class="paramname"><em>cmd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>conf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00783">783</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">References <a class="el" href="mirror_8h_source.html#l00044">BRIX_MIRROR_M_COPY</a>, <a class="el" href="mirror_8h_source.html#l00041">BRIX_MIRROR_M_DELETE</a>, <a class="el" href="mirror_8h_source.html#l00033">BRIX_MIRROR_M_GET</a>, <a class="el" href="mirror_8h_source.html#l00034">BRIX_MIRROR_M_HEAD</a>, <a class="el" href="mirror_8h_source.html#l00042">BRIX_MIRROR_M_MKCOL</a>, <a class="el" href="mirror_8h_source.html#l00043">BRIX_MIRROR_M_MOVE</a>, <a class="el" href="mirror_8h_source.html#l00036">BRIX_MIRROR_M_OPTIONS</a>, <a class="el" href="mirror_8h_source.html#l00035">BRIX_MIRROR_M_PROPFIND</a>, <a class="el" href="mirror_8h_source.html#l00040">BRIX_MIRROR_M_PUT</a>, <a class="el" href="mirror_8h_source.html#l00125">brix_mirror_conf_t::method_mask</a>, and <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>.</p>
-
-</div>
-</div>
-<a id="a2adc7873453df5c8e14ffaba4de2f31f" name="a2adc7873453df5c8e14ffaba4de2f31f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2adc7873453df5c8e14ffaba4de2f31f">&#9670;&#160;</a></span>brix_http_mirror_set_url()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">char * brix_http_mirror_set_url </td>
-          <td>(</td>
-          <td class="paramtype">ngx_conf_t *&#160;</td>
-          <td class="paramname"><em>cf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_command_t *&#160;</td>
-          <td class="paramname"><em>cmd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>conf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00696">696</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">References <a class="el" href="mirror_8h_source.html#l00030">BRIX_MIRROR_MAX_TARGETS</a>, <a class="el" href="mirror_8h_source.html#l00112">brix_mirror_target_t::host</a>, <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="mirror_8h_source.html#l00113">brix_mirror_target_t::port</a>, <a class="el" href="mirror_8h_source.html#l00116">brix_mirror_target_t::sockaddr</a>, <a class="el" href="mirror_8h_source.html#l00117">brix_mirror_target_t::socklen</a>, <a class="el" href="mirror_8h_source.html#l00114">brix_mirror_target_t::ssl</a>, <a class="el" href="mirror_8h_source.html#l00123">brix_mirror_conf_t::targets</a>, <a class="el" href="mirror_8h_source.html#l00111">brix_mirror_target_t::url</a>, and <a class="el" href="mirror_8h_source.html#l00115">brix_mirror_target_t::url_base</a>.</p>
-
-</div>
-</div>
-<a id="ab6346fe0c829d9d7daf43b6ed8c4353a" name="ab6346fe0c829d9d7daf43b6ed8c4353a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab6346fe0c829d9d7daf43b6ed8c4353a">&#9670;&#160;</a></span>brix_http_mirror_setup()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_http_mirror_setup </td>
-          <td>(</td>
-          <td class="paramtype">ngx_conf_t *&#160;</td>
-          <td class="paramname"><em>cf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>prev</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00634">634</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="webdav_8h_source.html#l00295">ngx_http_brix_webdav_loc_conf_t::mirror_upstream_conf</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="mirror_8h_source.html#l00132">brix_mirror_conf_t::timeout_ms</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>.</p>
-
-</div>
-</div>
-<a id="aff6404c0e6049a1f3846b8e33171bf1e" name="aff6404c0e6049a1f3846b8e33171bf1e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aff6404c0e6049a1f3846b8e33171bf1e">&#9670;&#160;</a></span>mirror_abort_request()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void mirror_abort_request </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00362">362</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00408">brix_http_mirror_proxy()</a>.</p>
-
-</div>
-</div>
-<a id="a17f15ba29776b22391b7612c859d36dd" name="a17f15ba29776b22391b7612c859d36dd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a17f15ba29776b22391b7612c859d36dd">&#9670;&#160;</a></span>mirror_create_request()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t mirror_create_request </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00136">136</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>, <a class="el" href="http__mirror_8c_source.html#l00103">brix_http_mirror_clone_body()</a>, <a class="el" href="http__mirror_8c_source.html#l00053">brix_http_mirror_method_has_body()</a>, <a class="el" href="http__mirror_8c_source.html#l00065">brix_http_mirror_rewrite_dest()</a>, <a class="el" href="mirror_8h_source.html#l00112">brix_mirror_target_t::host</a>, <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="webdav_8h_source.html#l00355">ngx_http_brix_webdav_req_ctx_t::mirror_target_idx</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="mirror_8h_source.html#l00130">brix_mirror_conf_t::strip_auth</a>, <a class="el" href="mirror_8h_source.html#l00123">brix_mirror_conf_t::targets</a>, <a class="el" href="mirror_8h_source.html#l00133">brix_mirror_conf_t::token</a>, and <a class="el" href="mirror_8h_source.html#l00115">brix_mirror_target_t::url_base</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00408">brix_http_mirror_proxy()</a>.</p>
-
-</div>
-</div>
-<a id="aaca9c08b7dfe8ccb11fc4bcd81203b7b" name="aaca9c08b7dfe8ccb11fc4bcd81203b7b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aaca9c08b7dfe8ccb11fc4bcd81203b7b">&#9670;&#160;</a></span>mirror_finalize_request()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void mirror_finalize_request </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_int_t&#160;</td>
-          <td class="paramname"><em>rc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00368">368</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">References <a class="el" href="mirror_8h_source.html#l00156">brix_mirror_status_class()</a>, <a class="el" href="mirror_8h_source.html#l00131">brix_mirror_conf_t::log_diverge</a>, <a class="el" href="http__mirror_8c_source.html#l00025">MIR_HTTP_INC</a>, <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, and <a class="el" href="webdav_8h_source.html#l00356">ngx_http_brix_webdav_req_ctx_t::primary_status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00408">brix_http_mirror_proxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00257">brix_http_mirror_precontent_handler()</a>.</p>
 
 </div>
 </div>
@@ -681,16 +309,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00468">468</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00125">125</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00354">ngx_http_brix_webdav_req_ctx_t::is_mirror</a>, <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="webdav_8h_source.html#l00355">ngx_http_brix_webdav_req_ctx_t::mirror_target_idx</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="mirror_8h_source.html#l00123">brix_mirror_conf_t::targets</a>.</p>
+<p class="reference">References <a class="el" href="webdav_8h_source.html#l00181">ngx_http_brix_webdav_req_ctx_t::is_mirror</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00192">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="webdav_8h_source.html#l00182">ngx_http_brix_webdav_req_ctx_t::mirror_target_idx</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="mirror_8h_source.html#l00128">brix_mirror_conf_t::targets</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00522">brix_http_mirror_precontent_handler()</a>, and <a class="el" href="http__mirror_8c_source.html#l00501">mirror_put_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00257">brix_http_mirror_precontent_handler()</a>, and <a class="el" href="http__mirror_8c_source.html#l00158">mirror_put_body_handler()</a>.</p>
 
 </div>
 </div>
-<a id="a99d6f694a03f46382c13d09466a6ee2f" name="a99d6f694a03f46382c13d09466a6ee2f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a99d6f694a03f46382c13d09466a6ee2f">&#9670;&#160;</a></span>mirror_process_header()</h2>
+<a id="a2c2ab387c8774726126e04f3dd770e8b" name="a2c2ab387c8774726126e04f3dd770e8b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2c2ab387c8774726126e04f3dd770e8b">&#9670;&#160;</a></span>mirror_precontent_eligible()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -699,11 +327,27 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t mirror_process_header </td>
+          <td class="memname">static int mirror_precontent_eligible </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -713,41 +357,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00341">341</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00221">221</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00317">mirror_process_status_line()</a>.</p>
+<p class="reference">References <a class="el" href="http__mirror_8c_source.html#l00036">brix_http_mirror_method_bit()</a>, <a class="el" href="mirror_8h_source.html#l00050">BRIX_MIRROR_M_WRITE_ALL</a>, <a class="el" href="mirror_8h_source.html#l00152">brix_mirror_should_sample()</a>, <a class="el" href="mirror_8h_source.html#l00127">brix_mirror_conf_t::enabled</a>, <a class="el" href="mirror_8h_source.html#l00130">brix_mirror_conf_t::method_mask</a>, <a class="el" href="http__mirror__internal_8h_source.html#l00030">MIR_HTTP_INC</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00192">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="webdav_8h_source.html#l00180">ngx_http_brix_webdav_req_ctx_t::mirror_fired</a>, <a class="el" href="http__mirror_8c_source.html#l00187">mirror_request_is_replay()</a>, <a class="el" href="mirror_8h_source.html#l00139">brix_mirror_conf_t::mirror_writes</a>, <a class="el" href="mirror_8h_source.html#l00129">brix_mirror_conf_t::sample_pct</a>, and <a class="el" href="mirror_8h_source.html#l00128">brix_mirror_conf_t::targets</a>.</p>
 
-</div>
-</div>
-<a id="a7815e6b98937c55e39e1e3095ad2c439" name="a7815e6b98937c55e39e1e3095ad2c439"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7815e6b98937c55e39e1e3095ad2c439">&#9670;&#160;</a></span>mirror_process_status_line()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t mirror_process_status_line </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00317">317</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__mirror_8c_source.html#l00341">mirror_process_header()</a>, <a class="el" href="webdav_8h_source.html#l00357">ngx_http_brix_webdav_req_ctx_t::mirror_status</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00408">brix_http_mirror_proxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00257">brix_http_mirror_precontent_handler()</a>.</p>
 
 </div>
 </div>
@@ -775,16 +389,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00501">501</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00158">158</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__mirror_8c_source.html#l00468">mirror_fire_subrequests()</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>.</p>
+<p class="reference">References <a class="el" href="http__mirror_8c_source.html#l00125">mirror_fire_subrequests()</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00522">brix_http_mirror_precontent_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00257">brix_http_mirror_precontent_handler()</a>.</p>
 
 </div>
 </div>
-<a id="a43f71d45cb57e3d5938fd8c4215e8bd9" name="a43f71d45cb57e3d5938fd8c4215e8bd9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a43f71d45cb57e3d5938fd8c4215e8bd9">&#9670;&#160;</a></span>mirror_reinit_request()</h2>
+<a id="aab8e00cdf81f73b9a877ab8796478042" name="aab8e00cdf81f73b9a877ab8796478042"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aab8e00cdf81f73b9a877ab8796478042">&#9670;&#160;</a></span>mirror_request_is_replay()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -793,7 +407,7 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t mirror_reinit_request </td>
+          <td class="memname">static int mirror_request_is_replay </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em></td><td>)</td>
@@ -807,11 +421,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00304">304</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__mirror_8c_source.html#l00187">187</a> of file <a class="el" href="http__mirror_8c_source.html">http_mirror.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00357">ngx_http_brix_webdav_req_ctx_t::mirror_status</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00408">brix_http_mirror_proxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00221">mirror_precontent_eligible()</a>.</p>
 
 </div>
 </div>

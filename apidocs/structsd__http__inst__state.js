@@ -1,6 +1,7 @@
 var structsd__http__inst__state =
 [
     [ "auth_hdr", "structsd__http__inst__state.html#ae484fa4e5dad15176bfaa1aa3b94c566", null ],
+    [ "ca_path", "structsd__http__inst__state.html#a8855f9ff688dab633a8647901ef15f89", null ],
     [ "cur_ep", "structsd__http__inst__state.html#ae6a55d27d795293647f379e2255d1f5c", null ],
     [ "eps", "structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c", null ],
     [ "failover_note", "structsd__http__inst__state.html#af4e6780085c8c0f7d0ab043c4bf81748", null ],

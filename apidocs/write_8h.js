@@ -12,7 +12,11 @@ var write_8h =
     [ "brix_handle_write", "write_8h.html#aff0246701761eed3d200e806338a9edd", null ],
     [ "brix_handle_writev", "write_8h.html#a679aedad929bdcaa8416922fa94b85bb", null ],
     [ "brix_pgwrite_decode_payload", "write_8h.html#a712fecd9d7cf9071974eb960dec813d0", null ],
+    [ "brix_staged_append", "write_8h.html#ade3764f001222fb39e996f92158b5ff9", null ],
+    [ "brix_staged_commit_handle", "write_8h.html#adaf8e111264ebbb9a3883e05eb3ca859", null ],
     [ "brix_try_post_write_aio", "write_8h.html#a93b8f8f1853e821c4370e7a45f4dcf85", null ],
     [ "brix_write_compressed", "write_8h.html#ade516958f1f1b866881f59b998e9f85c", null ],
+    [ "brix_write_staged", "write_8h.html#a4dc281f5e0a3b9cdda8cf7b2bd85a38b", null ],
+    [ "brix_write_staged_buf", "write_8h.html#a3d81d6a38774a49c7dc8a474bb778cc0", null ],
     [ "brix_writev_body_extra", "write_8h.html#af2c0966734477223d28c98dbd9c3f3ce", null ]
 ];

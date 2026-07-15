@@ -2,6 +2,7 @@ var structbrix__sd__http__cfg__t =
 [
     [ "base_path", "structbrix__sd__http__cfg__t.html#aa90e98ab8a79d7d0219795b63c337122", null ],
     [ "bearer_token", "structbrix__sd__http__cfg__t.html#a6c493f1fb92e7642cc819a9ef960644e", null ],
+    [ "ca_path", "structbrix__sd__http__cfg__t.html#a67198572487e8cfa3377cc2ac50b8056", null ],
     [ "extra", "structbrix__sd__http__cfg__t.html#ae1dbac8d89205aa0e0db423120a5fbb2", null ],
     [ "failover_note", "structbrix__sd__http__cfg__t.html#a454dc671cf1e284201c91667ea9df089", null ],
     [ "health_note", "structbrix__sd__http__cfg__t.html#ad1622db7b4ba3536d12e664a6fed5c7f", null ],

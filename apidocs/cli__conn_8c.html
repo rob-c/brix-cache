@@ -110,11 +110,11 @@ $(document).ready(function(){initNavTree('cli__conn_8c.html',''); initResizable(
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:afa49706495dda2ca9a8802515ad53205" id="r_afa49706495dda2ca9a8802515ad53205"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__conn_8c.html#afa49706495dda2ca9a8802515ad53205">brix_cli_connect</a> (const char *endpoint, const <a class="el" href="structbrix__opts.html">brix_opts</a> *o, <a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *prog, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:afa49706495dda2ca9a8802515ad53205" id="r_afa49706495dda2ca9a8802515ad53205"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__conn_8c.html#afa49706495dda2ca9a8802515ad53205">brix_cli_connect</a> (const char *endpoint, const <a class="el" href="structbrix__opts.html">brix_opts</a> *o, <a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *prog, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:afa49706495dda2ca9a8802515ad53205"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a391702ffcb0a96d25ef4f65d2b321c70" id="r_a391702ffcb0a96d25ef4f65d2b321c70"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__conn_8c.html#a391702ffcb0a96d25ef4f65d2b321c70">report_err_endpoint</a> (const <a class="el" href="structbrix__url.html">brix_url</a> *url, char *buf, size_t bufsz)</td></tr>
 <tr class="separator:a391702ffcb0a96d25ef4f65d2b321c70"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a37c047f5e2dcd402dc736b1f74cfba1f" id="r_a37c047f5e2dcd402dc736b1f74cfba1f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__conn_8c.html#a37c047f5e2dcd402dc736b1f74cfba1f">brix_report_err</a> (FILE *out, const char *tool, const char *op, const char *path, const <a class="el" href="structbrix__status.html">brix_status</a> *st, int want_write, const <a class="el" href="structbrix__url.html">brix_url</a> *url)</td></tr>
+<tr class="memitem:a37c047f5e2dcd402dc736b1f74cfba1f" id="r_a37c047f5e2dcd402dc736b1f74cfba1f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__conn_8c.html#a37c047f5e2dcd402dc736b1f74cfba1f">brix_report_err</a> (FILE *out, const char *tool, const char *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *path, const <a class="el" href="structbrix__status.html">brix_status</a> *st, int want_write, const <a class="el" href="structbrix__url.html">brix_url</a> *url)</td></tr>
 <tr class="separator:a37c047f5e2dcd402dc736b1f74cfba1f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -164,9 +164,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cli__conn_8c_source.html#l00025">25</a> of file <a class="el" href="cli__conn_8c_source.html">cli_conn.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resilient_8c_source.html#l00070">brix_connect_resilient()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>.</p>
+<p class="reference">References <a class="el" href="resilient_8c_source.html#l00070">brix_connect_resilient()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdqstats_8c_source.html#l00018">brix_qstats_main()</a>, and <a class="el" href="xrdprep_8c_source.html#l00021">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdqstats_8c_source.html#l00018">brix_qstats_main()</a>, and <a class="el" href="xrdprep_8c_source.html#l00199">xrdprep_run()</a>.</p>
 
 </div>
 </div>
@@ -228,7 +228,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cli__conn_8c_source.html#l00067">67</a> of file <a class="el" href="cli__conn_8c_source.html">cli_conn.c</a>.</p>
 
-<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00350">brix_cred_hint_for_status_url()</a>, <a class="el" href="cli__hint_8c_source.html#l00178">brix_hint_url_double_slash()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="cli__conn_8c_source.html#l00053">report_err_endpoint()</a>.</p>
+<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00473">brix_cred_hint_for_status_url()</a>, <a class="el" href="cli__hint_8c_source.html#l00178">brix_hint_url_double_slash()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="cli__conn_8c_source.html#l00053">report_err_endpoint()</a>.</p>
 
 </div>
 </div>

@@ -142,8 +142,8 @@ $(document).ready(function(){initNavTree('tpc__headers_8c_source.html',''); init
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>            <span class="keywordtype">size_t</span>     total_len;</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>            u_char    *p;</div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>            <span class="keywordflow">if</span> (hdr[i].<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>.len &lt;= prefix_len</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>                || ngx_strncasecmp(hdr[i].<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>.data,</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>            <span class="keywordflow">if</span> (hdr[i].<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>.len &lt;= prefix_len</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>                || ngx_strncasecmp(hdr[i].<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>.data,</div>
 <div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>                                   (u_char *) <span class="stringliteral">&quot;TransferHeader&quot;</span>,</div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>                                   prefix_len) != 0)</div>
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>            {</div>
@@ -160,7 +160,7 @@ $(document).ready(function(){initNavTree('tpc__headers_8c_source.html',''); init
 <div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>            name_len = hdr[i].key.len - prefix_len;</div>
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>            value_len = hdr[i].value.len;</div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>            <span class="keywordflow">if</span> (<a class="code hl_define" href="webdav__tpc_8h.html#a459902765ece8212d388d3fba606bc84">webdav_tpc_str_has_ctl</a>(hdr[i].<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>.data + prefix_len,</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>            <span class="keywordflow">if</span> (<a class="code hl_define" href="webdav__tpc_8h.html#a459902765ece8212d388d3fba606bc84">webdav_tpc_str_has_ctl</a>(hdr[i].<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>.data + prefix_len,</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>                                       name_len)</div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>                || <a class="code hl_define" href="webdav__tpc_8h.html#a459902765ece8212d388d3fba606bc84">webdav_tpc_str_has_ctl</a>(hdr[i].value.data, value_len))</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            {</div>
@@ -179,7 +179,7 @@ $(document).ready(function(){initNavTree('tpc__headers_8c_source.html',''); init
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>            }</div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>            p = dst-&gt;data;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>            p = ngx_cpymem(p, hdr[i].<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>.data + prefix_len, name_len);</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>            p = ngx_cpymem(p, hdr[i].<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>.data + prefix_len, name_len);</div>
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>            p = ngx_cpymem(p, <span class="stringliteral">&quot;: &quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;: &quot;</span>) - 1);</div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>            p = ngx_cpymem(p, hdr[i].value.data, value_len);</div>
 <div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>            *p = <span class="charliteral">&#39;\0&#39;</span>;</div>
@@ -198,12 +198,12 @@ $(document).ready(function(){initNavTree('tpc__headers_8c_source.html',''); init
 <div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>}</div>
 </div>
-<div class="ttc" id="aauth__sigv4__verify_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify_8c_source.html#l00241">auth_sigv4_verify.c:241</a></div></div>
+<div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="atpc__headers_8c_html_a8f0ef42f257d0e4e80bc3b977cf10b77"><div class="ttname"><a href="tpc__headers_8c.html#a8f0ef42f257d0e4e80bc3b977cf10b77">webdav_tpc_collect_transfer_headers</a></div><div class="ttdeci">ngx_int_t webdav_tpc_collect_transfer_headers(ngx_http_request_t *r, ngx_array_t **out)</div><div class="ttdef"><b>Definition</b> <a href="tpc__headers_8c_source.html#l00020">tpc_headers.c:20</a></div></div>
 <div class="ttc" id="awebdav_8h_html"><div class="ttname"><a href="webdav_8h.html">webdav.h</a></div></div>
 <div class="ttc" id="awebdav_8h_html_adababd5d199d627e5ad58645a8f0cf4e"><div class="ttname"><a href="webdav_8h.html#adababd5d199d627e5ad58645a8f0cf4e">WEBDAV_TPC_MAX_HEADERS</a></div><div class="ttdeci">#define WEBDAV_TPC_MAX_HEADERS</div><div class="ttdef"><b>Definition</b> <a href="webdav_8h_source.html#l00083">webdav.h:83</a></div></div>
-<div class="ttc" id="awebdav__tpc_8h_html_a459902765ece8212d388d3fba606bc84"><div class="ttname"><a href="webdav__tpc_8h.html#a459902765ece8212d388d3fba606bc84">webdav_tpc_str_has_ctl</a></div><div class="ttdeci">#define webdav_tpc_str_has_ctl(data, len)</div><div class="ttdef"><b>Definition</b> <a href="webdav__tpc_8h_source.html#l00048">webdav_tpc.h:48</a></div></div>
+<div class="ttc" id="awebdav__tpc_8h_html_a459902765ece8212d388d3fba606bc84"><div class="ttname"><a href="webdav__tpc_8h.html#a459902765ece8212d388d3fba606bc84">webdav_tpc_str_has_ctl</a></div><div class="ttdeci">#define webdav_tpc_str_has_ctl(data, len)</div><div class="ttdef"><b>Definition</b> <a href="webdav__tpc_8h_source.html#l00072">webdav_tpc.h:72</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

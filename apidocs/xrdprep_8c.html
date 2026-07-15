@@ -91,8 +91,10 @@ $(document).ready(function(){initNavTree('xrdprep_8c.html',''); initResizable();
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
-<a href="#func-members">Functions</a>  </div>
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">xrdprep.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -112,6 +114,13 @@ $(document).ready(function(){initNavTree('xrdprep_8c.html',''); initResizable();
 </div>
 <p><a href="xrdprep_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structxrdprep__args.html">xrdprep_args</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structxrdprep__flag__t.html">xrdprep_flag_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a4f495670c47f4661eea036fdb8c8954f" id="r_a4f495670c47f4661eea036fdb8c8954f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdprep_8c.html#a4f495670c47f4661eea036fdb8c8954f">XRDPREP_MAX_PATHS</a>&#160;&#160;&#160;64</td></tr>
@@ -119,8 +128,23 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a9032023555ef1151c9e2a05c50720b0f" id="r_a9032023555ef1151c9e2a05c50720b0f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdprep_8c.html#a9032023555ef1151c9e2a05c50720b0f">xrdprep_print_help</a> (const char *argv0)</td></tr>
+<tr class="separator:a9032023555ef1151c9e2a05c50720b0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad635dd1b8647810fabda2c42feb71b93" id="r_ad635dd1b8647810fabda2c42feb71b93"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdprep_8c.html#ad635dd1b8647810fabda2c42feb71b93">xrdprep_handle_meta_flags</a> (int argc, char **argv)</td></tr>
+<tr class="separator:ad635dd1b8647810fabda2c42feb71b93"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae749dc694c97d1cac93d5112945ed269" id="r_ae749dc694c97d1cac93d5112945ed269"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdprep_8c.html#ae749dc694c97d1cac93d5112945ed269">xrdprep_match_flag</a> (const char *a, int *options, int *optionX)</td></tr>
+<tr class="separator:ae749dc694c97d1cac93d5112945ed269"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a71425bd140e94b82c6fd648692421ec1" id="r_a71425bd140e94b82c6fd648692421ec1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdprep_8c.html#a71425bd140e94b82c6fd648692421ec1">xrdprep_parse_args</a> (int argc, char **argv, <a class="el" href="structxrdprep__args.html">xrdprep_args</a> *out)</td></tr>
+<tr class="separator:a71425bd140e94b82c6fd648692421ec1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5b8420763883cbbcc69b60dbe2062e4d" id="r_a5b8420763883cbbcc69b60dbe2062e4d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdprep_8c.html#a5b8420763883cbbcc69b60dbe2062e4d">xrdprep_run</a> (char **argv, const <a class="el" href="structxrdprep__args.html">xrdprep_args</a> *args)</td></tr>
+<tr class="separator:a5b8420763883cbbcc69b60dbe2062e4d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c04138a5bfe5d72780bb7e82a18e627" id="r_a3c04138a5bfe5d72780bb7e82a18e627"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdprep_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a3c04138a5bfe5d72780bb7e82a18e627"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a4d3afa0f3bb9836ed8826c7ce6537189" id="r_a4d3afa0f3bb9836ed8826c7ce6537189"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structxrdprep__flag__t.html">xrdprep_flag_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdprep_8c.html#a4d3afa0f3bb9836ed8826c7ce6537189">xrdprep_flags</a> []</td></tr>
+<tr class="separator:a4d3afa0f3bb9836ed8826c7ce6537189"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a4f495670c47f4661eea036fdb8c8954f" name="a4f495670c47f4661eea036fdb8c8954f"></a>
@@ -166,9 +190,260 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdprep_8c_source.html#l00021">21</a> of file <a class="el" href="xrdprep_8c_source.html">xrdprep.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdprep_8c_source.html#l00235">235</a> of file <a class="el" href="xrdprep_8c_source.html">xrdprep.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cli__conn_8c_source.html#l00025">brix_cli_connect()</a>, <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="flags_8h_source.html#l00140">kXR_cancel</a>, <a class="el" href="flags_8h_source.html#l00150">kXR_evict</a>, <a class="el" href="flags_8h_source.html#l00146">kXR_fresh</a>, <a class="el" href="flags_8h_source.html#l00143">kXR_stage</a>, <a class="el" href="flags_8h_source.html#l00144">kXR_wmode</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="xrdprep_8c_source.html#l00018">XRDPREP_MAX_PATHS</a>.</p>
+<p class="reference">References <a class="el" href="xrdprep_8c_source.html#l00032">xrdprep_args::endpoint</a>, <a class="el" href="xrdprep_8c_source.html#l00031">xrdprep_args::np</a>, <a class="el" href="xrdprep_8c_source.html#l00103">xrdprep_handle_meta_flags()</a>, <a class="el" href="xrdprep_8c_source.html#l00167">xrdprep_parse_args()</a>, and <a class="el" href="xrdprep_8c_source.html#l00199">xrdprep_run()</a>.</p>
+
+</div>
+</div>
+<a id="ad635dd1b8647810fabda2c42feb71b93" name="ad635dd1b8647810fabda2c42feb71b93"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad635dd1b8647810fabda2c42feb71b93">&#9670;&#160;</a></span>xrdprep_handle_meta_flags()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xrdprep_handle_meta_flags </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdprep_8c_source.html#l00103">103</a> of file <a class="el" href="xrdprep_8c_source.html">xrdprep.c</a>.</p>
+
+<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, and <a class="el" href="xrdprep_8c_source.html#l00074">xrdprep_print_help()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdprep_8c_source.html#l00235">main()</a>.</p>
+
+</div>
+</div>
+<a id="ae749dc694c97d1cac93d5112945ed269" name="ae749dc694c97d1cac93d5112945ed269"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae749dc694c97d1cac93d5112945ed269">&#9670;&#160;</a></span>xrdprep_match_flag()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xrdprep_match_flag </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>a</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>options</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>optionX</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdprep_8c_source.html#l00134">134</a> of file <a class="el" href="xrdprep_8c_source.html">xrdprep.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdprep_8c_source.html#l00046">xrdprep_flag_t::bit</a>, <a class="el" href="xrdprep_8c_source.html#l00045">xrdprep_flag_t::is_optionX</a>, <a class="el" href="xrdprep_8c_source.html#l00044">xrdprep_flag_t::long_opt</a>, <a class="el" href="xrdprep_8c_source.html#l00043">xrdprep_flag_t::short_opt</a>, and <a class="el" href="xrdprep_8c_source.html#l00055">xrdprep_flags</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdprep_8c_source.html#l00167">xrdprep_parse_args()</a>.</p>
+
+</div>
+</div>
+<a id="a71425bd140e94b82c6fd648692421ec1" name="a71425bd140e94b82c6fd648692421ec1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a71425bd140e94b82c6fd648692421ec1">&#9670;&#160;</a></span>xrdprep_parse_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void xrdprep_parse_args </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structxrdprep__args.html">xrdprep_args</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdprep_8c_source.html#l00167">167</a> of file <a class="el" href="xrdprep_8c_source.html">xrdprep.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdprep_8c_source.html#l00032">xrdprep_args::endpoint</a>, <a class="el" href="xrdprep_8c_source.html#l00031">xrdprep_args::np</a>, <a class="el" href="xrdprep_8c_source.html#l00028">xrdprep_args::options</a>, <a class="el" href="xrdprep_8c_source.html#l00029">xrdprep_args::optionX</a>, <a class="el" href="xrdprep_8c_source.html#l00033">xrdprep_args::paths</a>, <a class="el" href="xrdprep_8c_source.html#l00030">xrdprep_args::prty</a>, <a class="el" href="xrdprep_8c_source.html#l00134">xrdprep_match_flag()</a>, and <a class="el" href="xrdprep_8c_source.html#l00018">XRDPREP_MAX_PATHS</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdprep_8c_source.html#l00235">main()</a>.</p>
+
+</div>
+</div>
+<a id="a9032023555ef1151c9e2a05c50720b0f" name="a9032023555ef1151c9e2a05c50720b0f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9032023555ef1151c9e2a05c50720b0f">&#9670;&#160;</a></span>xrdprep_print_help()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void xrdprep_print_help </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>argv0</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdprep_8c_source.html#l00074">74</a> of file <a class="el" href="xrdprep_8c_source.html">xrdprep.c</a>.</p>
+
+<p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdprep_8c_source.html#l00103">xrdprep_handle_meta_flags()</a>.</p>
+
+</div>
+</div>
+<a id="a5b8420763883cbbcc69b60dbe2062e4d" name="a5b8420763883cbbcc69b60dbe2062e4d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5b8420763883cbbcc69b60dbe2062e4d">&#9670;&#160;</a></span>xrdprep_run()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xrdprep_run </td>
+          <td>(</td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structxrdprep__args.html">xrdprep_args</a> *&#160;</td>
+          <td class="paramname"><em>args</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdprep_8c_source.html#l00199">199</a> of file <a class="el" href="xrdprep_8c_source.html">xrdprep.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cli__conn_8c_source.html#l00025">brix_cli_connect()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdprep_8c_source.html#l00032">xrdprep_args::endpoint</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdprep_8c_source.html#l00031">xrdprep_args::np</a>, <a class="el" href="xrdprep_8c_source.html#l00028">xrdprep_args::options</a>, <a class="el" href="xrdprep_8c_source.html#l00029">xrdprep_args::optionX</a>, <a class="el" href="xrdprep_8c_source.html#l00033">xrdprep_args::paths</a>, and <a class="el" href="xrdprep_8c_source.html#l00030">xrdprep_args::prty</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdprep_8c_source.html#l00235">main()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a4d3afa0f3bb9836ed8826c7ce6537189" name="a4d3afa0f3bb9836ed8826c7ce6537189"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4d3afa0f3bb9836ed8826c7ce6537189">&#9670;&#160;</a></span>xrdprep_flags</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structxrdprep__flag__t.html">xrdprep_flag_t</a> xrdprep_flags[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { <span class="stringliteral">&quot;-s&quot;</span>, <span class="stringliteral">&quot;--stage&quot;</span>,  0, <a class="code hl_define" href="flags_8h.html#a73d78c03826a8484313b57292376f0a4">kXR_stage</a>  },</div>
+<div class="line">    { <span class="stringliteral">&quot;-c&quot;</span>, <span class="stringliteral">&quot;--cancel&quot;</span>, 0, <a class="code hl_define" href="flags_8h.html#af7f28de53acf0fae1b45350e64ee0017">kXR_cancel</a> },</div>
+<div class="line">    { <span class="stringliteral">&quot;-w&quot;</span>, <span class="stringliteral">&quot;--wmode&quot;</span>,  0, <a class="code hl_define" href="flags_8h.html#a9a2568b8d3502c5434bd75f0ca12195d">kXR_wmode</a>  },</div>
+<div class="line">    { <span class="stringliteral">&quot;-f&quot;</span>, <span class="stringliteral">&quot;--fresh&quot;</span>,  0, <a class="code hl_define" href="flags_8h.html#a38573d272471f437eb67a3bbf5da0dcd">kXR_fresh</a>  },</div>
+<div class="line">    { <span class="stringliteral">&quot;-e&quot;</span>, <span class="stringliteral">&quot;--evict&quot;</span>,  1, <a class="code hl_define" href="flags_8h.html#a0a931ccb7ffc4433a8a6b122bde50a00">kXR_evict</a>  },</div>
+<div class="line">}</div>
+<div class="ttc" id="aflags_8h_html_a0a931ccb7ffc4433a8a6b122bde50a00"><div class="ttname"><a href="flags_8h.html#a0a931ccb7ffc4433a8a6b122bde50a00">kXR_evict</a></div><div class="ttdeci">#define kXR_evict</div><div class="ttdef"><b>Definition</b> <a href="flags_8h_source.html#l00150">flags.h:150</a></div></div>
+<div class="ttc" id="aflags_8h_html_a38573d272471f437eb67a3bbf5da0dcd"><div class="ttname"><a href="flags_8h.html#a38573d272471f437eb67a3bbf5da0dcd">kXR_fresh</a></div><div class="ttdeci">#define kXR_fresh</div><div class="ttdef"><b>Definition</b> <a href="flags_8h_source.html#l00146">flags.h:146</a></div></div>
+<div class="ttc" id="aflags_8h_html_a73d78c03826a8484313b57292376f0a4"><div class="ttname"><a href="flags_8h.html#a73d78c03826a8484313b57292376f0a4">kXR_stage</a></div><div class="ttdeci">#define kXR_stage</div><div class="ttdef"><b>Definition</b> <a href="flags_8h_source.html#l00143">flags.h:143</a></div></div>
+<div class="ttc" id="aflags_8h_html_a9a2568b8d3502c5434bd75f0ca12195d"><div class="ttname"><a href="flags_8h.html#a9a2568b8d3502c5434bd75f0ca12195d">kXR_wmode</a></div><div class="ttdeci">#define kXR_wmode</div><div class="ttdef"><b>Definition</b> <a href="flags_8h_source.html#l00144">flags.h:144</a></div></div>
+<div class="ttc" id="aflags_8h_html_af7f28de53acf0fae1b45350e64ee0017"><div class="ttname"><a href="flags_8h.html#af7f28de53acf0fae1b45350e64ee0017">kXR_cancel</a></div><div class="ttdeci">#define kXR_cancel</div><div class="ttdef"><b>Definition</b> <a href="flags_8h_source.html#l00140">flags.h:140</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="xrdprep_8c_source.html#l00055">55</a> of file <a class="el" href="xrdprep_8c_source.html">xrdprep.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdprep_8c_source.html#l00134">xrdprep_match_flag()</a>.</p>
 
 </div>
 </div>

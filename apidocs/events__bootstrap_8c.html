@@ -91,7 +91,6 @@ $(document).ready(function(){initNavTree('events__bootstrap_8c.html',''); initRe
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">events_bootstrap.c File Reference</div></div>
 </div><!--header-->
@@ -100,6 +99,7 @@ $(document).ready(function(){initNavTree('events__bootstrap_8c.html',''); initRe
 <code>#include &quot;<a class="el" href="handler_8h_source.html">protocols/root/connection/handler.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="auth_2token_2file_8h_source.html">auth/token/file.h</a>&quot;</code><br />
 <code>#include &lt;sys/socket.h&gt;</code><br />
+<code>#include &quot;<a class="el" href="events__bootstrap__internal_8h_source.html">events_bootstrap_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for events_bootstrap.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -110,41 +110,17 @@ $(document).ready(function(){initNavTree('events__bootstrap_8c.html',''); initRe
 </div>
 <p><a href="events__bootstrap_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:af3e18fda62147cc6754dd2c849d643f4" id="r_af3e18fda62147cc6754dd2c849d643f4"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__bootstrap_8c.html#af3e18fda62147cc6754dd2c849d643f4">PROXY_UPSTREAM_BEARER_MAX</a>&#160;&#160;&#160;65536</td></tr>
-<tr class="separator:af3e18fda62147cc6754dd2c849d643f4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a321d6982cba2c810b83039c2fb1db87c" id="r_a321d6982cba2c810b83039c2fb1db87c"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__bootstrap_8c.html#a321d6982cba2c810b83039c2fb1db87c">proxy_build_auth_ztn</a> (u_char *buf, const char *token, size_t token_len)</td></tr>
-<tr class="separator:a321d6982cba2c810b83039c2fb1db87c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a27902a86e4d7d2539ac0b0f9a5f3955d" id="r_a27902a86e4d7d2539ac0b0f9a5f3955d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__bootstrap_8c.html#a27902a86e4d7d2539ac0b0f9a5f3955d">proxy_resolve_upstream_auth</a> (brix_proxy_ctx_t *proxy, ngx_uint_t *eff_auth, const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> **eff_key)</td></tr>
-<tr class="separator:a27902a86e4d7d2539ac0b0f9a5f3955d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a029250fb826e1d1d23017a5a9e940741" id="r_a029250fb826e1d1d23017a5a9e940741"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__bootstrap_8c.html#a029250fb826e1d1d23017a5a9e940741">proxy_send_sss_auth</a> (brix_proxy_ctx_t *proxy, const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)</td></tr>
-<tr class="separator:a029250fb826e1d1d23017a5a9e940741"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab63ade1c1981b3f3af9c16e93d29b6c4" id="r_ab63ade1c1981b3f3af9c16e93d29b6c4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__bootstrap_8c.html#ab63ade1c1981b3f3af9c16e93d29b6c4">brix_proxy_bs_login</a> (brix_proxy_ctx_t *proxy)</td></tr>
 <tr class="separator:ab63ade1c1981b3f3af9c16e93d29b6c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a08e856b713eb1510eda3cb6935af4a46" id="r_a08e856b713eb1510eda3cb6935af4a46"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__bootstrap_8c.html#a08e856b713eb1510eda3cb6935af4a46">proxy_bs_check_protocol_reply</a> (brix_proxy_ctx_t *proxy)</td></tr>
+<tr class="separator:a08e856b713eb1510eda3cb6935af4a46"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa869d4afb517e378e670299122a3aca7" id="r_aa869d4afb517e378e670299122a3aca7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__bootstrap_8c.html#aa869d4afb517e378e670299122a3aca7">proxy_bs_adopt_conn</a> (brix_proxy_ctx_t *proxy)</td></tr>
+<tr class="separator:aa869d4afb517e378e670299122a3aca7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa96b64d8bf8394bf547e7f308ce582b5" id="r_aa96b64d8bf8394bf547e7f308ce582b5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="events__bootstrap_8c.html#aa96b64d8bf8394bf547e7f308ce582b5">brix_proxy_handle_bootstrap</a> (brix_proxy_ctx_t *proxy)</td></tr>
 <tr class="separator:aa96b64d8bf8394bf547e7f308ce582b5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="af3e18fda62147cc6754dd2c849d643f4" name="af3e18fda62147cc6754dd2c849d643f4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af3e18fda62147cc6754dd2c849d643f4">&#9670;&#160;</a></span>PROXY_UPSTREAM_BEARER_MAX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define PROXY_UPSTREAM_BEARER_MAX&#160;&#160;&#160;65536</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00015">15</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ab63ade1c1981b3f3af9c16e93d29b6c4" name="ab63ade1c1981b3f3af9c16e93d29b6c4"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab63ade1c1981b3f3af9c16e93d29b6c4">&#9670;&#160;</a></span>brix_proxy_bs_login()</h2>
@@ -170,11 +146,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00207">207</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00052">52</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="conf__structs_8h_source.html#l00136">BRIX_PROXY_AUTH_SSS</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00020">brix_proxy_flush()</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="file_8c_source.html#l00034">brix_token_read_file()</a>, <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="events__bootstrap_8c_source.html#l00031">proxy_build_auth_ztn()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00056">proxy_resolve_upstream_auth()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00104">proxy_send_sss_auth()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00015">PROXY_UPSTREAM_BEARER_MAX</a>, <a class="el" href="types_2config_8h_source.html#l00330">ngx_stream_brix_srv_conf_t::upstream_token_file</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00084">XRD_PX_BS_AUTH</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00085">XRD_PX_BS_DONE</a>.</p>
+<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="events__bootstrap__auth_8c_source.html#l00126">proxy_bs_auth_error()</a>, <a class="el" href="events__bootstrap__auth_8c_source.html#l00336">proxy_bs_do_auth()</a>, <a class="el" href="events__bootstrap__auth_8c_source.html#l00440">proxy_bs_login_sec_hint()</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00085">XRD_PX_BS_DONE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="events__bootstrap_8c_source.html#l00476">brix_proxy_handle_bootstrap()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="events__bootstrap_8c_source.html#l00162">brix_proxy_handle_bootstrap()</a>.</p>
 
 </div>
 </div>
@@ -194,16 +170,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00476">476</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00162">162</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00207">brix_proxy_bs_login()</a>, <a class="el" href="forward__relay__dispatch_8c_source.html#l00061">brix_proxy_dispatch_pending()</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00088">brix_proxy_up_mark_ok()</a>, <a class="el" href="event__sched_8c_source.html#l00006">brix_schedule_read_resume()</a>, <a class="el" href="flags_8h_source.html#l00097">kXR_gotoTLS</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00084">XRD_PX_BS_AUTH</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00085">XRD_PX_BS_DONE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00081">XRD_PX_BS_HANDSHAKE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00083">XRD_PX_BS_LOGIN</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00082">XRD_PX_BS_PROTOCOL</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00076">XRD_PX_IDLE</a>, and <a class="el" href="state_8h_source.html#l00026">XRD_ST_REQ_HEADER</a>.</p>
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00052">brix_proxy_bs_login()</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="events__bootstrap_8c_source.html#l00125">proxy_bs_adopt_conn()</a>, <a class="el" href="events__bootstrap__auth_8c_source.html#l00126">proxy_bs_auth_error()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00086">proxy_bs_check_protocol_reply()</a>, <a class="el" href="events__bootstrap__auth_8c_source.html#l00143">proxy_bs_reset_resp()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00084">XRD_PX_BS_AUTH</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00085">XRD_PX_BS_DONE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00081">XRD_PX_BS_HANDSHAKE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00083">XRD_PX_BS_LOGIN</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00082">XRD_PX_BS_PROTOCOL</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00018">brix_proxy_read_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="events__read_8c_source.html#l00321">proxy_read_dispatch()</a>.</p>
 
 </div>
 </div>
-<a id="a321d6982cba2c810b83039c2fb1db87c" name="a321d6982cba2c810b83039c2fb1db87c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a321d6982cba2c810b83039c2fb1db87c">&#9670;&#160;</a></span>proxy_build_auth_ztn()</h2>
+<a id="aa869d4afb517e378e670299122a3aca7" name="aa869d4afb517e378e670299122a3aca7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa869d4afb517e378e670299122a3aca7">&#9670;&#160;</a></span>proxy_bs_adopt_conn()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -212,75 +188,11 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static size_t proxy_build_auth_ztn </td>
-          <td>(</td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>token</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>token_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00031">31</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
-
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00045">kXR_auth</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="events__bootstrap_8c_source.html#l00207">brix_proxy_bs_login()</a>.</p>
-
-</div>
-</div>
-<a id="a27902a86e4d7d2539ac0b0f9a5f3955d" name="a27902a86e4d7d2539ac0b0f9a5f3955d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a27902a86e4d7d2539ac0b0f9a5f3955d">&#9670;&#160;</a></span>proxy_resolve_upstream_auth()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void proxy_resolve_upstream_auth </td>
+          <td class="memname">static void proxy_bs_adopt_conn </td>
           <td>(</td>
           <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
-          <td class="paramname"><em>proxy</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
+          <td class="paramname"><em>proxy</em></td><td>)</td>
           <td></td>
-          <td class="paramtype">ngx_uint_t *&#160;</td>
-          <td class="paramname"><em>eff_auth</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> **&#160;</td>
-          <td class="paramname"><em>eff_key</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -290,16 +202,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00056">56</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00125">125</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00149">brix_proxy_conf_t::auth</a>, <a class="el" href="types_2config_8h_source.html#l00091">brix_proxy_upstream_t::auth</a>, <a class="el" href="conf__structs_8h_source.html#l00134">BRIX_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="conf__structs_8h_source.html#l00136">BRIX_PROXY_AUTH_SSS</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="types_2config_8h_source.html#l00092">brix_proxy_upstream_t::sss_keyname</a>, <a class="el" href="types_2config_8h_source.html#l00279">ngx_stream_brix_srv_conf_t::sss_keys</a>, and <a class="el" href="conf__structs_8h_source.html#l00158">brix_proxy_conf_t::upstreams</a>.</p>
+<p class="reference">References <a class="el" href="forward__relay__dispatch_8c_source.html#l00150">brix_proxy_dispatch_pending()</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00088">brix_proxy_up_mark_ok()</a>, <a class="el" href="event__sched_8c_source.html#l00006">brix_schedule_read_resume()</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00076">XRD_PX_IDLE</a>, and <a class="el" href="state_8h_source.html#l00026">XRD_ST_REQ_HEADER</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="events__bootstrap_8c_source.html#l00207">brix_proxy_bs_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="events__bootstrap_8c_source.html#l00162">brix_proxy_handle_bootstrap()</a>.</p>
 
 </div>
 </div>
-<a id="a029250fb826e1d1d23017a5a9e940741" name="a029250fb826e1d1d23017a5a9e940741"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a029250fb826e1d1d23017a5a9e940741">&#9670;&#160;</a></span>proxy_send_sss_auth()</h2>
+<a id="a08e856b713eb1510eda3cb6935af4a46" name="a08e856b713eb1510eda3cb6935af4a46"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a08e856b713eb1510eda3cb6935af4a46">&#9670;&#160;</a></span>proxy_bs_check_protocol_reply()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -308,21 +220,11 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t proxy_send_sss_auth </td>
+          <td class="memname">static ngx_int_t proxy_bs_check_protocol_reply </td>
           <td>(</td>
           <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
-          <td class="paramname"><em>proxy</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
+          <td class="paramname"><em>proxy</em></td><td>)</td>
           <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> *&#160;</td>
-          <td class="paramname"><em>key</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -332,11 +234,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00104">104</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="events__bootstrap_8c_source.html#l00086">86</a> of file <a class="el" href="events__bootstrap_8c_source.html">events_bootstrap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00020">brix_proxy_flush()</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="auth__proxy__credential_8c_source.html#l00029">brix_sss_build_proxy_credential()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="opcodes_8h_source.html#l00045">kXR_auth</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00084">XRD_PX_BS_AUTH</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="flags_8h_source.html#l00097">kXR_gotoTLS</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="events__bootstrap_8c_source.html#l00207">brix_proxy_bs_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="events__bootstrap_8c_source.html#l00162">brix_proxy_handle_bootstrap()</a>.</p>
 
 </div>
 </div>

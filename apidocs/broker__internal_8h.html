@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('broker__internal_8h.html',''); initRes
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
@@ -128,11 +129,16 @@ $(document).ready(function(){initNavTree('broker__internal_8h.html',''); initRes
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="broker__internal_8h__dep__incl.svg" width="539" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="broker__internal_8h__dep__incl.svg" width="100%" height="470"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="broker__internal_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structimp__op__ctx__t.html">imp_op_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:aa87c3a3b7b68f6d92fa507a8af85f791" id="r_aa87c3a3b7b68f6d92fa507a8af85f791"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#aa87c3a3b7b68f6d92fa507a8af85f791">IMP_BROKER_MAXCONN</a>&#160;&#160;&#160;1024</td></tr>
@@ -156,7 +162,7 @@ Functions</h2></td></tr>
 <tr class="separator:adbf2b063863981759153ae0681d96f64"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac46ac024a8771963aa70e2aeb9c2f01b" id="r_ac46ac024a8771963aa70e2aeb9c2f01b"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#ac46ac024a8771963aa70e2aeb9c2f01b">imp_rel</a> (const char *path)</td></tr>
 <tr class="separator:ac46ac024a8771963aa70e2aeb9c2f01b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a58a12a99b8aa4f0fb02651bad95cbdc4" id="r_a58a12a99b8aa4f0fb02651bad95cbdc4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#a58a12a99b8aa4f0fb02651bad95cbdc4">imp_openat2</a> (int rootfd, const char *rel, uint32_t flags, uint32_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a58a12a99b8aa4f0fb02651bad95cbdc4" id="r_a58a12a99b8aa4f0fb02651bad95cbdc4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#a58a12a99b8aa4f0fb02651bad95cbdc4">imp_openat2</a> (int rootfd, const char *rel, uint32_t flags, uint32_t mode)</td></tr>
 <tr class="separator:a58a12a99b8aa4f0fb02651bad95cbdc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a19916dd97c2f214b50067a977914c91c" id="r_a19916dd97c2f214b50067a977914c91c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#a19916dd97c2f214b50067a977914c91c">imp_open_parent</a> (int rootfd, const char *rel, char *scratch, const char **base)</td></tr>
 <tr class="separator:a19916dd97c2f214b50067a977914c91c"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -170,8 +176,8 @@ Functions</h2></td></tr>
 <tr class="separator:a0239105693ecc1244dcf8d6d83063c50"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a70d802a966a95429b816e1b298bdcbec" id="r_a70d802a966a95429b816e1b298bdcbec"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#a70d802a966a95429b816e1b298bdcbec">imp_do_rename</a> (int sfd, const char *sbase, int dfd, const char *dbase, int noreplace)</td></tr>
 <tr class="separator:a70d802a966a95429b816e1b298bdcbec"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7de3a7a15c3366b12e9c9b8e0f6c5c85" id="r_a7de3a7a15c3366b12e9c9b8e0f6c5c85"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#a7de3a7a15c3366b12e9c9b8e0f6c5c85">imp_do_op</a> (int rootfd, const <a class="el" href="structimp__req__t.html">imp_req_t</a> *req, <a class="el" href="structimp__rep__t.html">imp_rep_t</a> *rep, int *out_fd, char *data_out, size_t data_max, const char *data_in, size_t data_in_len)</td></tr>
-<tr class="separator:a7de3a7a15c3366b12e9c9b8e0f6c5c85"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0acf5b6e940dc1048bd841e809a83089" id="r_a0acf5b6e940dc1048bd841e809a83089"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#a0acf5b6e940dc1048bd841e809a83089">imp_do_op</a> (<a class="el" href="structimp__op__ctx__t.html">imp_op_ctx_t</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:a0acf5b6e940dc1048bd841e809a83089"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2af6616fd3553bd91b5af5d119e1626f" id="r_a2af6616fd3553bd91b5af5d119e1626f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#a2af6616fd3553bd91b5af5d119e1626f">imp_read_full</a> (int fd, void *buf, size_t n)</td></tr>
 <tr class="separator:a2af6616fd3553bd91b5af5d119e1626f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a05b1248c32c06b7add910bf2c91fe35a" id="r_a05b1248c32c06b7add910bf2c91fe35a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="broker__internal_8h.html#a05b1248c32c06b7add910bf2c91fe35a">imp_send_reply</a> (int conn_fd, const <a class="el" href="structimp__rep__t.html">imp_rep_t</a> *rep, int fd, const void *data, size_t data_len)</td></tr>
@@ -258,11 +264,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00203">203</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00269">269</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">References <a class="el" href="broker_8c_source.html#l00007">brix_imp_broker_allow_uid</a>, <a class="el" href="idmap_8c_source.html#l00307">brix_imp_creds_privileged()</a>, <a class="el" href="impersonate_8h_source.html#l00131">BRIX_IMP_HARD_MIN_ID</a>, <a class="el" href="impersonate_8h_source.html#l00060">brix_idmap_creds_t::gid</a>, <a class="el" href="impersonate_8h_source.html#l00062">brix_idmap_creds_t::groups</a>, <a class="el" href="broker__internal_8h_source.html#l00028">IMP_REFUSE_PRIV</a>, <a class="el" href="broker_8c_source.html#l00016">imp_self_uid</a>, <a class="el" href="impersonate_8h_source.html#l00061">brix_idmap_creds_t::ngroups</a>, and <a class="el" href="impersonate_8h_source.html#l00059">brix_idmap_creds_t::uid</a>.</p>
+<p class="reference">References <a class="el" href="broker_8c_source.html#l00007">brix_imp_broker_allow_uid</a>, <a class="el" href="idmap__denylist_8c_source.html#l00161">brix_imp_creds_privileged()</a>, <a class="el" href="impersonate_8h_source.html#l00131">BRIX_IMP_HARD_MIN_ID</a>, <a class="el" href="impersonate_8h_source.html#l00060">brix_idmap_creds_t::gid</a>, <a class="el" href="impersonate_8h_source.html#l00062">brix_idmap_creds_t::groups</a>, <a class="el" href="broker__internal_8h_source.html#l00028">IMP_REFUSE_PRIV</a>, <a class="el" href="broker_8c_source.html#l00016">imp_self_uid</a>, <a class="el" href="impersonate_8h_source.html#l00061">brix_idmap_creds_t::ngroups</a>, and <a class="el" href="impersonate_8h_source.html#l00059">brix_idmap_creds_t::uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00106">imp_serve_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00211">imp_dispatch_op()</a>.</p>
 
 </div>
 </div>
@@ -296,12 +302,12 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00137">brix_imp_broker_drop_caps()</a>, and <a class="el" href="broker__creds_8c_source.html#l00059">imp_drop_to_service_user()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00203">brix_imp_broker_drop_caps()</a>, and <a class="el" href="broker__creds_8c_source.html#l00098">imp_apply_service_drop()</a>.</p>
 
 </div>
 </div>
-<a id="a7de3a7a15c3366b12e9c9b8e0f6c5c85" name="a7de3a7a15c3366b12e9c9b8e0f6c5c85"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7de3a7a15c3366b12e9c9b8e0f6c5c85">&#9670;&#160;</a></span>imp_do_op()</h2>
+<a id="a0acf5b6e940dc1048bd841e809a83089" name="a0acf5b6e940dc1048bd841e809a83089"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0acf5b6e940dc1048bd841e809a83089">&#9670;&#160;</a></span>imp_do_op()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -309,64 +315,18 @@ Variables</h2></td></tr>
         <tr>
           <td class="memname">int imp_do_op </td>
           <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>rootfd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
+          <td class="paramtype"><a class="el" href="structimp__op__ctx__t.html">imp_op_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>c</em></td><td>)</td>
           <td></td>
-          <td class="paramtype">const <a class="el" href="structimp__req__t.html">imp_req_t</a> *&#160;</td>
-          <td class="paramname"><em>req</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structimp__rep__t.html">imp_rep_t</a> *&#160;</td>
-          <td class="paramname"><em>rep</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>out_fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>data_out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>data_max</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>data_in</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>data_in_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00192">192</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00429">429</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
 
-<p class="reference">References <a class="el" href="impersonate__proto_8h_source.html#l00110">imp_req_t::atime_nsec</a>, <a class="el" href="impersonate__proto_8h_source.html#l00109">imp_req_t::atime_sec</a>, <a class="el" href="impersonate__proto_8h_source.html#l00115">imp_req_t::attr_flags</a>, <a class="el" href="impersonate_8h_source.html#l00131">BRIX_IMP_HARD_MIN_ID</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00132">imp_rep_t::data_len</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00070">IMP_ATTR_OWNER</a>, <a class="el" href="impersonate__proto_8h_source.html#l00069">IMP_ATTR_TIMES</a>, <a class="el" href="broker__ops_8c_source.html#l00167">imp_do_rename()</a>, <a class="el" href="broker__ops_8c_source.html#l00073">imp_fill_stat()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00054">IMP_OP_CHMOD</a>, <a class="el" href="impersonate__proto_8h_source.html#l00055">IMP_OP_CHOWN</a>, <a class="el" href="impersonate__proto_8h_source.html#l00060">IMP_OP_GETXATTR</a>, <a class="el" href="impersonate__proto_8h_source.html#l00053">IMP_OP_LINK</a>, <a class="el" href="impersonate__proto_8h_source.html#l00063">IMP_OP_LISTXATTR</a>, <a class="el" href="impersonate__proto_8h_source.html#l00048">IMP_OP_LSTAT</a>, <a class="el" href="impersonate__proto_8h_source.html#l00049">IMP_OP_MKDIR</a>, <a class="el" href="impersonate__proto_8h_source.html#l00046">IMP_OP_OPEN</a>, <a class="el" href="impersonate__proto_8h_source.html#l00059">IMP_OP_READLINK</a>, <a class="el" href="impersonate__proto_8h_source.html#l00062">IMP_OP_REMOVEXATTR</a>, <a class="el" href="impersonate__proto_8h_source.html#l00052">IMP_OP_RENAME</a>, <a class="el" href="impersonate__proto_8h_source.html#l00064">IMP_OP_RENAME_NOREPLACE</a>, <a class="el" href="impersonate__proto_8h_source.html#l00051">IMP_OP_RMDIR</a>, <a class="el" href="impersonate__proto_8h_source.html#l00057">IMP_OP_SETATTR</a>, <a class="el" href="impersonate__proto_8h_source.html#l00061">IMP_OP_SETXATTR</a>, <a class="el" href="impersonate__proto_8h_source.html#l00047">IMP_OP_STAT</a>, <a class="el" href="impersonate__proto_8h_source.html#l00058">IMP_OP_SYMLINK</a>, <a class="el" href="impersonate__proto_8h_source.html#l00056">IMP_OP_TRUNCATE</a>, <a class="el" href="impersonate__proto_8h_source.html#l00050">IMP_OP_UNLINK</a>, <a class="el" href="broker__ops_8c_source.html#l00041">imp_open_parent()</a>, <a class="el" href="broker__ops_8c_source.html#l00010">imp_openat2()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00032">IMP_PATH_MAX</a>, <a class="el" href="broker__creds_8c_source.html#l00263">imp_rel()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00083">IMP_REP_HAS_DATA</a>, <a class="el" href="impersonate__proto_8h_source.html#l00081">IMP_REP_HAS_FD</a>, <a class="el" href="impersonate__proto_8h_source.html#l00082">IMP_REP_HAS_STAT</a>, <a class="el" href="broker__ops_8c_source.html#l00132">imp_xattr_filter_user()</a>, <a class="el" href="broker__ops_8c_source.html#l00116">imp_xattr_name_ok()</a>, <a class="el" href="broker__ops_8c_source.html#l00102">imp_xattr_open()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00107">imp_req_t::length</a>, <a class="el" href="impersonate__proto_8h_source.html#l00106">imp_req_t::mode</a>, <a class="el" href="impersonate__proto_8h_source.html#l00112">imp_req_t::mtime_nsec</a>, <a class="el" href="impersonate__proto_8h_source.html#l00111">imp_req_t::mtime_sec</a>, <a class="el" href="resolve__confined__helpers_8c_source.html#l00060">O_PATH</a>, <a class="el" href="impersonate__proto_8h_source.html#l00104">imp_req_t::op</a>, <a class="el" href="impersonate__proto_8h_source.html#l00105">imp_req_t::open_flags</a>, <a class="el" href="impersonate__proto_8h_source.html#l00120">imp_req_t::path</a>, <a class="el" href="impersonate__proto_8h_source.html#l00122">imp_req_t::path2</a>, <a class="el" href="impersonate__proto_8h_source.html#l00130">imp_rep_t::rep_flags</a>, <a class="el" href="impersonate__proto_8h_source.html#l00114">imp_req_t::set_gid</a>, <a class="el" href="impersonate__proto_8h_source.html#l00113">imp_req_t::set_uid</a>, <a class="el" href="impersonate__proto_8h_source.html#l00131">imp_rep_t::st</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00131">BRIX_IMP_HARD_MIN_ID</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="broker__ops_8c.html#aac14cde8ffecd0f96cd8c8218c78f47c">imp_op_table</a>, <a class="el" href="broker__creds_8c_source.html#l00333">imp_rel()</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00106">imp_serve_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00211">imp_dispatch_op()</a>.</p>
 
 </div>
 </div>
@@ -414,11 +374,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00167">167</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00177">177</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
 
 <p class="reference">References <a class="el" href="broker__internal_8h_source.html#l00036">RENAME_NOREPLACE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__ops__ns_8c_source.html#l00156">imp_op_rename_link()</a>.</p>
 
 </div>
 </div>
@@ -438,11 +398,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00059">59</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00177">177</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00064">BRIX_DIAG_EMERG</a>, <a class="el" href="broker__creds_8c_source.html#l00024">brix_imp_broker_user_gid</a>, <a class="el" href="broker__creds_8c_source.html#l00023">brix_imp_broker_user_uid</a>, <a class="el" href="broker__creds_8c_source.html#l00028">imp_capset_setuid_setgid()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="broker__creds_8c_source.html#l00098">imp_apply_service_drop()</a>, <a class="el" href="broker__creds_8c_source.html#l00061">imp_resolve_service_ids()</a>, <a class="el" href="broker__creds_8c_source.html#l00147">imp_verify_service_drop()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00137">brix_imp_broker_drop_caps()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00203">brix_imp_broker_drop_caps()</a>.</p>
 
 </div>
 </div>
@@ -472,11 +432,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00073">73</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00083">83</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
 
 <p class="reference">References <a class="el" href="impersonate__proto_8h_source.html#l00093">imp_stat_t::atime</a>, <a class="el" href="impersonate__proto_8h_source.html#l00098">imp_stat_t::blksize</a>, <a class="el" href="impersonate__proto_8h_source.html#l00090">imp_stat_t::blocks</a>, <a class="el" href="impersonate__proto_8h_source.html#l00092">imp_stat_t::ctime</a>, <a class="el" href="impersonate__proto_8h_source.html#l00088">imp_stat_t::dev</a>, <a class="el" href="impersonate__proto_8h_source.html#l00096">imp_stat_t::gid</a>, <a class="el" href="impersonate__proto_8h_source.html#l00087">imp_stat_t::ino</a>, <a class="el" href="impersonate__proto_8h_source.html#l00094">imp_stat_t::mode</a>, <a class="el" href="impersonate__proto_8h_source.html#l00091">imp_stat_t::mtime</a>, <a class="el" href="impersonate__proto_8h_source.html#l00097">imp_stat_t::nlink</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="impersonate__proto_8h_source.html#l00089">imp_stat_t::size</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00095">imp_stat_t::uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00258">imp_op_stat()</a>.</p>
 
 </div>
 </div>
@@ -518,11 +478,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00041">41</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00051">51</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="broker__ops_8c_source.html#l00010">imp_openat2()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00032">IMP_PATH_MAX</a>, <a class="el" href="broker__creds_8c_source.html#l00263">imp_rel()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="resolve__confined__helpers_8c_source.html#l00060">O_PATH</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="broker__ops_8c_source.html#l00020">imp_openat2()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00032">IMP_PATH_MAX</a>, <a class="el" href="broker__creds_8c_source.html#l00333">imp_rel()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="resolve__confined__helpers_8c_source.html#l00060">O_PATH</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__ops__ns_8c_source.html#l00255">imp_op_readlink()</a>, <a class="el" href="broker__ops__ns_8c_source.html#l00156">imp_op_rename_link()</a>, <a class="el" href="broker__ops__ns_8c_source.html#l00192">imp_op_setattr()</a>, <a class="el" href="broker__ops__ns_8c_source.html#l00234">imp_op_symlink()</a>, and <a class="el" href="broker__ops__ns_8c_source.html#l00054">imp_with_parent()</a>.</p>
 
 </div>
 </div>
@@ -564,11 +524,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00010">10</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00020">20</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>, <a class="el" href="broker__ops_8c_source.html#l00041">imp_open_parent()</a>, and <a class="el" href="broker__ops_8c_source.html#l00102">imp_xattr_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00208">imp_op_open()</a>, <a class="el" href="broker__ops_8c_source.html#l00258">imp_op_stat()</a>, <a class="el" href="broker__ops_8c_source.html#l00285">imp_op_truncate()</a>, <a class="el" href="broker__ops_8c_source.html#l00051">imp_open_parent()</a>, and <a class="el" href="broker__ops_8c_source.html#l00112">imp_xattr_open()</a>.</p>
 
 </div>
 </div>
@@ -592,7 +550,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="broker_8c_source.html#l00007">brix_imp_broker_allow_uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00227">brix_imp_broker_run()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00344">imp_broker_accept()</a>.</p>
 
 </div>
 </div>
@@ -632,7 +590,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00106">imp_serve_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00118">imp_recv_request()</a>.</p>
 
 </div>
 </div>
@@ -652,9 +610,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00263">263</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00333">333</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>, and <a class="el" href="broker__ops_8c_source.html#l00041">imp_open_parent()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00429">imp_do_op()</a>, <a class="el" href="broker__ops__ns_8c_source.html#l00156">imp_op_rename_link()</a>, and <a class="el" href="broker__ops_8c_source.html#l00051">imp_open_parent()</a>.</p>
 
 </div>
 </div>
@@ -674,11 +632,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00252">252</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00322">322</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
 <p class="reference">References <a class="el" href="broker_8c_source.html#l00010">imp_base_gid</a>, <a class="el" href="broker_8c_source.html#l00012">imp_base_groups</a>, <a class="el" href="broker_8c_source.html#l00014">imp_base_ngroups</a>, and <a class="el" href="broker_8c_source.html#l00008">imp_base_uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00106">imp_serve_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00211">imp_dispatch_op()</a>.</p>
 
 </div>
 </div>
@@ -728,9 +686,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00061">61</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00106">imp_serve_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00177">imp_fatal_priv_refused()</a>, <a class="el" href="broker_8c_source.html#l00118">imp_recv_request()</a>, and <a class="el" href="broker_8c_source.html#l00240">imp_serve_one()</a>.</p>
 
 </div>
 </div>
@@ -766,11 +724,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00106">106</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00240">240</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00049">BRIX_IDMAP_OK</a>, <a class="el" href="idmap_8c_source.html#l00573">brix_idmap_resolve()</a>, <a class="el" href="impersonate_8h_source.html#l00050">BRIX_IDMAP_SQUASH</a>, <a class="el" href="impersonate_8h_source.html#l00131">BRIX_IMP_HARD_MIN_ID</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00132">imp_rep_t::data_len</a>, <a class="el" href="impersonate_8h_source.html#l00060">brix_idmap_creds_t::gid</a>, <a class="el" href="broker__creds_8c_source.html#l00203">imp_become()</a>, <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00045">IMP_OP_PING</a>, <a class="el" href="impersonate__proto_8h_source.html#l00061">IMP_OP_SETXATTR</a>, <a class="el" href="impersonate__proto_8h_source.html#l00032">IMP_PATH_MAX</a>, <a class="el" href="impersonate__proto_8h_source.html#l00031">IMP_PRINC_MAX</a>, <a class="el" href="impersonate__proto_8h_source.html#l00028">IMP_PROTO_VERSION</a>, <a class="el" href="broker_8c_source.html#l00038">imp_read_full()</a>, <a class="el" href="broker__internal_8h_source.html#l00028">IMP_REFUSE_PRIV</a>, <a class="el" href="broker__creds_8c_source.html#l00252">imp_restore()</a>, <a class="el" href="broker_8c_source.html#l00061">imp_send_reply()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00076">IMP_STATUS_BADREQ</a>, <a class="el" href="impersonate__proto_8h_source.html#l00075">IMP_STATUS_DENY</a>, <a class="el" href="impersonate__proto_8h_source.html#l00074">IMP_STATUS_OK</a>, <a class="el" href="impersonate__proto_8h_source.html#l00078">IMP_STATUS_PRIV_REFUSED</a>, <a class="el" href="impersonate__proto_8h_source.html#l00041">IMP_XATTR_MAX</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="impersonate__proto_8h_source.html#l00104">imp_req_t::op</a>, <a class="el" href="impersonate__proto_8h_source.html#l00120">imp_req_t::path</a>, <a class="el" href="impersonate__proto_8h_source.html#l00122">imp_req_t::path2</a>, <a class="el" href="impersonate__proto_8h_source.html#l00119">imp_req_t::principal</a>, <a class="el" href="impersonate__proto_8h_source.html#l00116">imp_req_t::req_data_len</a>, <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>, <a class="el" href="impersonate_8h_source.html#l00059">brix_idmap_creds_t::uid</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00103">imp_req_t::version</a>.</p>
+<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00049">BRIX_IDMAP_OK</a>, <a class="el" href="idmap_8c_source.html#l00192">brix_idmap_resolve()</a>, <a class="el" href="impersonate_8h_source.html#l00050">BRIX_IDMAP_SQUASH</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="broker__internal_8h_source.html#l00065">imp_op_ctx_t::data_in</a>, <a class="el" href="broker__internal_8h_source.html#l00066">imp_op_ctx_t::data_in_len</a>, <a class="el" href="impersonate__proto_8h_source.html#l00132">imp_rep_t::data_len</a>, <a class="el" href="broker__internal_8h_source.html#l00064">imp_op_ctx_t::data_max</a>, <a class="el" href="broker__internal_8h_source.html#l00063">imp_op_ctx_t::data_out</a>, <a class="el" href="broker_8c_source.html#l00211">imp_dispatch_op()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00045">IMP_OP_PING</a>, <a class="el" href="broker_8c_source.html#l00118">imp_recv_request()</a>, <a class="el" href="broker_8c_source.html#l00061">imp_send_reply()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00076">IMP_STATUS_BADREQ</a>, <a class="el" href="impersonate__proto_8h_source.html#l00075">IMP_STATUS_DENY</a>, <a class="el" href="impersonate__proto_8h_source.html#l00074">IMP_STATUS_OK</a>, <a class="el" href="impersonate__proto_8h_source.html#l00041">IMP_XATTR_MAX</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="impersonate__proto_8h_source.html#l00104">imp_req_t::op</a>, <a class="el" href="broker__internal_8h_source.html#l00062">imp_op_ctx_t::out_fd</a>, <a class="el" href="impersonate__proto_8h_source.html#l00119">imp_req_t::principal</a>, <a class="el" href="broker__internal_8h_source.html#l00067">imp_op_ctx_t::rel</a>, <a class="el" href="broker__internal_8h_source.html#l00061">imp_op_ctx_t::rep</a>, <a class="el" href="broker__internal_8h_source.html#l00060">imp_op_ctx_t::req</a>, <a class="el" href="broker__internal_8h_source.html#l00059">imp_op_ctx_t::rootfd</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00227">brix_imp_broker_run()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00387">imp_broker_reap()</a>.</p>
 
 </div>
 </div>
@@ -800,11 +758,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00132">132</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00142">142</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
 
-<p class="reference">References <a class="el" href="broker__ops_8c_source.html#l00116">imp_xattr_name_ok()</a>.</p>
+<p class="reference">References <a class="el" href="broker__ops_8c_source.html#l00126">imp_xattr_name_ok()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00307">imp_op_xattr_read()</a>.</p>
 
 </div>
 </div>
@@ -824,11 +782,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00116">116</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00126">126</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>, and <a class="el" href="broker__ops_8c_source.html#l00132">imp_xattr_filter_user()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00366">imp_op_removexattr()</a>, <a class="el" href="broker__ops_8c_source.html#l00343">imp_op_setxattr()</a>, <a class="el" href="broker__ops_8c_source.html#l00307">imp_op_xattr_read()</a>, and <a class="el" href="broker__ops_8c_source.html#l00142">imp_xattr_filter_user()</a>.</p>
 
 </div>
 </div>
@@ -858,11 +816,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00102">102</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__ops_8c_source.html#l00112">112</a> of file <a class="el" href="broker__ops_8c_source.html">broker_ops.c</a>.</p>
 
-<p class="reference">References <a class="el" href="broker__ops_8c_source.html#l00010">imp_openat2()</a>.</p>
+<p class="reference">References <a class="el" href="broker__ops_8c_source.html#l00020">imp_openat2()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00192">imp_do_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00366">imp_op_removexattr()</a>, <a class="el" href="broker__ops_8c_source.html#l00343">imp_op_setxattr()</a>, and <a class="el" href="broker__ops_8c_source.html#l00307">imp_op_xattr_read()</a>.</p>
 
 </div>
 </div>
@@ -889,7 +847,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00010">10</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00227">brix_imp_broker_run()</a>, and <a class="el" href="broker__creds_8c_source.html#l00252">imp_restore()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00314">imp_broker_init_creds()</a>, and <a class="el" href="broker__creds_8c_source.html#l00322">imp_restore()</a>.</p>
 
 </div>
 </div>
@@ -915,7 +873,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00012">12</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00227">brix_imp_broker_run()</a>, and <a class="el" href="broker__creds_8c_source.html#l00252">imp_restore()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00314">imp_broker_init_creds()</a>, and <a class="el" href="broker__creds_8c_source.html#l00322">imp_restore()</a>.</p>
 
 </div>
 </div>
@@ -941,7 +899,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00014">14</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00227">brix_imp_broker_run()</a>, and <a class="el" href="broker__creds_8c_source.html#l00252">imp_restore()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00314">imp_broker_init_creds()</a>, and <a class="el" href="broker__creds_8c_source.html#l00322">imp_restore()</a>.</p>
 
 </div>
 </div>
@@ -967,7 +925,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00008">8</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00227">brix_imp_broker_run()</a>, and <a class="el" href="broker__creds_8c_source.html#l00252">imp_restore()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00314">imp_broker_init_creds()</a>, and <a class="el" href="broker__creds_8c_source.html#l00322">imp_restore()</a>.</p>
 
 </div>
 </div>
@@ -993,7 +951,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00016">16</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00227">brix_imp_broker_run()</a>, and <a class="el" href="broker__creds_8c_source.html#l00203">imp_become()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00269">imp_become()</a>, and <a class="el" href="broker_8c_source.html#l00314">imp_broker_init_creds()</a>.</p>
 
 </div>
 </div>

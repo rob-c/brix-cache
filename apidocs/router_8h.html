@@ -103,7 +103,7 @@ $(document).ready(function(){initNavTree('router_8h.html',''); initResizable(); 
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="router_8h__dep__incl.svg" width="656" height="124"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="router_8h__dep__incl.svg" width="100%" height="393"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="router_8h_source.html">Go to the source code of this file.</a></p>
@@ -117,7 +117,7 @@ Data Structures</h2></td></tr>
 Macros</h2></td></tr>
 <tr class="memitem:a9df8a155cfef8e9ac6f15f94231763ad" id="r_a9df8a155cfef8e9ac6f15f94231763ad"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="router_8h.html#a9df8a155cfef8e9ac6f15f94231763ad">XRDCMS_RF_SYNC</a>&#160;&#160;&#160;0x01u   /* isSync: handled inline, reply now */</td></tr>
 <tr class="separator:a9df8a155cfef8e9ac6f15f94231763ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a326993ff6a1b48484a353d705894a046" id="r_a326993ff6a1b48484a353d705894a046"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="router_8h.html#a326993ff6a1b48484a353d705894a046">XRDCMS_RF_FORWARD</a>&#160;&#160;&#160;0x02u   /* Forward: manager fans op out to nodes */</td></tr>
+<tr class="memitem:a326993ff6a1b48484a353d705894a046" id="r_a326993ff6a1b48484a353d705894a046"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="router_8h.html#a326993ff6a1b48484a353d705894a046">XRDCMS_RF_FORWARD</a>&#160;&#160;&#160;0x02u   /* Forward: manager fans <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a> out to nodes */</td></tr>
 <tr class="separator:a326993ff6a1b48484a353d705894a046"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a83c8261c048ded1346d98f2dee2e81de" id="r_a83c8261c048ded1346d98f2dee2e81de"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="router_8h.html#a83c8261c048ded1346d98f2dee2e81de">XRDCMS_RF_REPLIABLE</a>&#160;&#160;&#160;0x04u   /* Repliable: originator expects a reply */</td></tr>
 <tr class="separator:a83c8261c048ded1346d98f2dee2e81de"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -135,7 +135,7 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:aad987463b076920acad7883c0c307f85" id="r_aad987463b076920acad7883c0c307f85"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__cms__route__t.html">brix_cms_route_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="router_8h.html#aad987463b076920acad7883c0c307f85">brix_cms_route_lookup</a> (<a class="el" href="router_8h.html#ae4df819dd6622e99f514575386de77fd">brix_cms_role_t</a> role, unsigned char code)</td></tr>
+<tr class="memitem:aad987463b076920acad7883c0c307f85" id="r_aad987463b076920acad7883c0c307f85"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__cms__route__t.html">brix_cms_route_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="router_8h.html#aad987463b076920acad7883c0c307f85">brix_cms_route_lookup</a> (<a class="el" href="router_8h.html#ae4df819dd6622e99f514575386de77fd">brix_cms_role_t</a> role, unsigned char <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>)</td></tr>
 <tr class="separator:aad987463b076920acad7883c0c307f85"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -162,7 +162,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define XRDCMS_RF_FORWARD&#160;&#160;&#160;0x02u   /* Forward: manager fans op out to nodes */</td>
+          <td class="memname">#define XRDCMS_RF_FORWARD&#160;&#160;&#160;0x02u   /* Forward: manager fans <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a> out to nodes */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -269,9 +269,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="router_8c_source.html#l00116">116</a> of file <a class="el" href="router_8c_source.html">router.c</a>.</p>
 
-<p class="reference">References <a class="el" href="router_8c_source.html#l00049">manager_routes</a>, <a class="el" href="router_8c_source.html#l00083">node_routes</a>, <a class="el" href="router_8c_source.html#l00104">route_scan()</a>, and <a class="el" href="router_8h_source.html#l00027">XRDCMS_ROLE_NODE</a>.</p>
+<p class="reference">References <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="router_8c_source.html#l00049">manager_routes</a>, <a class="el" href="router_8c_source.html#l00083">node_routes</a>, <a class="el" href="router_8c_source.html#l00104">route_scan()</a>, and <a class="el" href="router_8h_source.html#l00027">XRDCMS_ROLE_NODE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00321">ngx_brix_cms_process_frame()</a>, <a class="el" href="router__unittest_8c_source.html#l00030">test_manager_forwardable_mkdir()</a>, <a class="el" href="router__unittest_8c_source.html#l00044">test_manager_locate_not_forwarded()</a>, <a class="el" href="router__unittest_8c_source.html#l00057">test_manager_ping_sync_noargs()</a>, <a class="el" href="router__unittest_8c_source.html#l00071">test_node_executes_forwarded_mkdir_without_reforward()</a>, <a class="el" href="router__unittest_8c_source.html#l00083">test_node_rejects_node_status_opcode()</a>, <a class="el" href="router__unittest_8c_source.html#l00099">test_unknown_opcode_rejected()</a>, and <a class="el" href="router__unittest_8c_source.html#l00092">test_update_routed_both_roles()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00363">cms_srv_frame_unknown()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00399">ngx_brix_cms_process_frame()</a>, <a class="el" href="router__unittest_8c_source.html#l00030">test_manager_forwardable_mkdir()</a>, <a class="el" href="router__unittest_8c_source.html#l00044">test_manager_locate_not_forwarded()</a>, <a class="el" href="router__unittest_8c_source.html#l00057">test_manager_ping_sync_noargs()</a>, <a class="el" href="router__unittest_8c_source.html#l00071">test_node_executes_forwarded_mkdir_without_reforward()</a>, <a class="el" href="router__unittest_8c_source.html#l00083">test_node_rejects_node_status_opcode()</a>, <a class="el" href="router__unittest_8c_source.html#l00099">test_unknown_opcode_rejected()</a>, and <a class="el" href="router__unittest_8c_source.html#l00092">test_update_routed_both_roles()</a>.</p>
 
 </div>
 </div>

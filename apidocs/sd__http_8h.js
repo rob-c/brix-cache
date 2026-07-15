@@ -2,6 +2,7 @@ var sd__http_8h =
 [
     [ "brix_sd_http_ep_cfg_t", "structbrix__sd__http__ep__cfg__t.html", "structbrix__sd__http__ep__cfg__t" ],
     [ "brix_sd_http_cfg_t", "structbrix__sd__http__cfg__t.html", "structbrix__sd__http__cfg__t" ],
+    [ "BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS", "sd__http_8h.html#a411e305c1229e403001391e83d07e92b", null ],
     [ "SD_HTTP_EP_MAX", "sd__http_8h.html#a5c813c199fae19e6f35e482e2ad0aaf3", null ],
     [ "brix_sd_http_create", "sd__http_8h.html#ae312b23c666079432badb3c7dcd4c43f", null ],
     [ "brix_sd_http_destroy", "sd__http_8h.html#af0c735bf0c9527c116f6f09f950f190b", null ],

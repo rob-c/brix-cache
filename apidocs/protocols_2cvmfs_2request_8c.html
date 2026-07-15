@@ -108,10 +108,130 @@ $(document).ready(function(){initNavTree('protocols_2cvmfs_2request_8c.html','')
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a8228060757864f059b9a992d6cb192b1" id="r_a8228060757864f059b9a992d6cb192b1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2request_8c.html#a8228060757864f059b9a992d6cb192b1">brix_cvmfs_proxy_scheme_check</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:a8228060757864f059b9a992d6cb192b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a524ee10cadf3a608f701a515c52cecf9" id="r_a524ee10cadf3a608f701a515c52cecf9"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2request_8c.html#a524ee10cadf3a608f701a515c52cecf9">brix_cvmfs_proxy_parse_port</a> (ngx_http_request_t *r, in_port_t *port)</td></tr>
+<tr class="separator:a524ee10cadf3a608f701a515c52cecf9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afbfe61e02de5121fb294c222a029322d" id="r_afbfe61e02de5121fb294c222a029322d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2request_8c.html#afbfe61e02de5121fb294c222a029322d">brix_cvmfs_proxy_host_allowed</a> (const <a class="el" href="structbrix__cvmfs__conf__t.html">brix_cvmfs_conf_t</a> *cc, const ngx_str_t *host)</td></tr>
+<tr class="separator:afbfe61e02de5121fb294c222a029322d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8b67a3f6ed8e7bf0d033e29cbd942734" id="r_a8b67a3f6ed8e7bf0d033e29cbd942734"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2cvmfs_2request_8c.html#a8b67a3f6ed8e7bf0d033e29cbd942734">brix_cvmfs_proxy_target</a> (ngx_http_request_t *r, const <a class="el" href="structbrix__cvmfs__conf__t.html">brix_cvmfs_conf_t</a> *cc, ngx_str_t *host, in_port_t *port)</td></tr>
 <tr class="separator:a8b67a3f6ed8e7bf0d033e29cbd942734"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="afbfe61e02de5121fb294c222a029322d" name="afbfe61e02de5121fb294c222a029322d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afbfe61e02de5121fb294c222a029322d">&#9670;&#160;</a></span>brix_cvmfs_proxy_host_allowed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_cvmfs_proxy_host_allowed </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__cvmfs__conf__t.html">brix_cvmfs_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>host</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00097">97</a> of file <a class="el" href="protocols_2cvmfs_2request_8c_source.html">request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00059">brix_cvmfs_conf_t::upstream_allow</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>.</p>
+
+</div>
+</div>
+<a id="a524ee10cadf3a608f701a515c52cecf9" name="a524ee10cadf3a608f701a515c52cecf9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a524ee10cadf3a608f701a515c52cecf9">&#9670;&#160;</a></span>brix_cvmfs_proxy_parse_port()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_cvmfs_proxy_parse_port </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">in_port_t *&#160;</td>
+          <td class="paramname"><em>port</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00065">65</a> of file <a class="el" href="protocols_2cvmfs_2request_8c_source.html">request.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>.</p>
+
+</div>
+</div>
+<a id="a8228060757864f059b9a992d6cb192b1" name="a8228060757864f059b9a992d6cb192b1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8228060757864f059b9a992d6cb192b1">&#9670;&#160;</a></span>brix_cvmfs_proxy_scheme_check()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_cvmfs_proxy_scheme_check </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00031">31</a> of file <a class="el" href="protocols_2cvmfs_2request_8c_source.html">request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00339">ngx_http_brix_cvmfs_module</a>, and <a class="el" href="cvmfs_8h_source.html#l00139">ngx_http_brix_cvmfs_ctx_t::secure</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>.</p>
+
+</div>
+</div>
 <a id="a8b67a3f6ed8e7bf0d033e29cbd942734" name="a8b67a3f6ed8e7bf0d033e29cbd942734"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a8b67a3f6ed8e7bf0d033e29cbd942734">&#9670;&#160;</a></span>brix_cvmfs_proxy_target()</h2>
 
@@ -150,11 +270,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00015">15</a> of file <a class="el" href="protocols_2cvmfs_2request_8c_source.html">request.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">135</a> of file <a class="el" href="protocols_2cvmfs_2request_8c_source.html">request.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00869">ngx_http_brix_cvmfs_module</a>, <a class="el" href="cvmfs_8h_source.html#l00139">ngx_http_brix_cvmfs_ctx_t::secure</a>, and <a class="el" href="cvmfs_8h_source.html#l00059">brix_cvmfs_conf_t::upstream_allow</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00097">brix_cvmfs_proxy_host_allowed()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00065">brix_cvmfs_proxy_parse_port()</a>, and <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00031">brix_cvmfs_proxy_scheme_check()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00100">brix_cvmfs_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00103">cvmfs_gate_proxy_bind()</a>.</p>
 
 </div>
 </div>

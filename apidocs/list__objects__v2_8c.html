@@ -111,6 +111,10 @@ $(document).ready(function(){initNavTree('list__objects__v2_8c.html',''); initRe
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a9b9c7a5eeabc09b234c18d29f69816bf" id="r_a9b9c7a5eeabc09b234c18d29f69816bf"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__objects__v2_8c.html#a9b9c7a5eeabc09b234c18d29f69816bf">s3_list_decode_params</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, u_char *prefix_buf, size_t prefix_sz, u_char *delimiter_buf, size_t delimiter_sz, char *start_after, size_t start_after_sz, int *max_keys, int *fetch_owner, int *url_encode)</td></tr>
+<tr class="separator:a9b9c7a5eeabc09b234c18d29f69816bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad681f885a55e71cdf421f8790df18643" id="r_ad681f885a55e71cdf421f8790df18643"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__objects__v2_8c.html#ad681f885a55e71cdf421f8790df18643">s3_list_emit_header</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const u_char *prefix_buf, const u_char *delimiter_buf, const char *next_token, int url_encode, int truncated, int max_keys, int key_count, u_char *xml, size_t *xml_len_io, size_t xml_capacity)</td></tr>
+<tr class="separator:ad681f885a55e71cdf421f8790df18643"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2daa9db060ea3361197c7bedb9523ef9" id="r_a2daa9db060ea3361197c7bedb9523ef9"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="list__objects__v2_8c.html#a2daa9db060ea3361197c7bedb9523ef9">s3_handle_list</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
 <tr class="separator:a2daa9db060ea3361197c7bedb9523ef9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -141,11 +145,209 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="list__objects__v2_8c_source.html#l00039">39</a> of file <a class="el" href="list__objects__v2_8c_source.html">list_objects_v2.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="list__objects__v2_8c_source.html#l00149">149</a> of file <a class="el" href="list__objects__v2_8c_source.html">list_objects_v2.c</a>.</p>
 
-<p class="reference">References <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, <a class="el" href="b64url_8c_source.html#l00084">b64url_encode()</a>, <a class="el" href="http__query_8c_source.html#l00202">brix_http_query_get()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="s3_8h_source.html#l00086">ngx_http_s3_loc_conf_t::max_keys</a>, <a class="el" href="list__common_8c_source.html#l00073">s3_list_collect_sorted()</a>, <a class="el" href="list__common_8c_source.html#l00160">s3_list_emit_entries()</a>, <a class="el" href="list__common_8c_source.html#l00232">s3_list_finalize()</a>, <a class="el" href="list__common_8c_source.html#l00126">s3_list_paginate()</a>, <a class="el" href="list__common_8c_source.html#l00038">s3_list_parse_max_keys()</a>, <a class="el" href="s3_8h_source.html#l00156">S3_LIST_QUERY_FLAGS</a>, <a class="el" href="s3_8h_source.html#l00143">S3_MAX_KEY</a>, <a class="el" href="s3_8h_source.html#l00146">S3_MAX_PARAM</a>, <a class="el" href="s3_8h_source.html#l00186">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00196">XML_APPEND_ELEM</a>.</p>
+<p class="reference">References <a class="el" href="b64url_8c_source.html#l00086">b64url_encode()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="list__common_8c_source.html#l00073">s3_list_collect_sorted()</a>, <a class="el" href="list__objects__v2_8c_source.html#l00029">s3_list_decode_params()</a>, <a class="el" href="list__common_8c_source.html#l00160">s3_list_emit_entries()</a>, <a class="el" href="list__objects__v2_8c_source.html#l00082">s3_list_emit_header()</a>, <a class="el" href="list__common_8c_source.html#l00232">s3_list_finalize()</a>, <a class="el" href="list__common_8c_source.html#l00126">s3_list_paginate()</a>, <a class="el" href="s3_8h_source.html#l00152">S3_MAX_KEY</a>, <a class="el" href="s3_8h_source.html#l00155">S3_MAX_PARAM</a>, and <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00310">s3_dispatch_after_auth()</a>.</p>
+
+</div>
+</div>
+<a id="a9b9c7a5eeabc09b234c18d29f69816bf" name="a9b9c7a5eeabc09b234c18d29f69816bf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9b9c7a5eeabc09b234c18d29f69816bf">&#9670;&#160;</a></span>s3_list_decode_params()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void s3_list_decode_params </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>prefix_buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>prefix_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>delimiter_buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>delimiter_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>start_after</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>start_after_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>max_keys</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>fetch_owner</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>url_encode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="list__objects__v2_8c_source.html#l00029">29</a> of file <a class="el" href="list__objects__v2_8c_source.html">list_objects_v2.c</a>.</p>
+
+<p class="reference">References <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, <a class="el" href="http__query_8c_source.html#l00254">brix_http_query_get()</a>, <a class="el" href="s3_8h_source.html#l00086">ngx_http_s3_loc_conf_t::max_keys</a>, <a class="el" href="list__common_8c_source.html#l00038">s3_list_parse_max_keys()</a>, <a class="el" href="s3_8h_source.html#l00165">S3_LIST_QUERY_FLAGS</a>, and <a class="el" href="s3_8h_source.html#l00155">S3_MAX_PARAM</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="list__objects__v2_8c_source.html#l00149">s3_handle_list()</a>.</p>
+
+</div>
+</div>
+<a id="ad681f885a55e71cdf421f8790df18643" name="ad681f885a55e71cdf421f8790df18643"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad681f885a55e71cdf421f8790df18643">&#9670;&#160;</a></span>s3_list_emit_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_list_emit_header </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>prefix_buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>delimiter_buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>next_token</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>url_encode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>truncated</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>max_keys</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>key_count</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>xml</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>xml_len_io</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>xml_capacity</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="list__objects__v2_8c_source.html#l00082">82</a> of file <a class="el" href="list__objects__v2_8c_source.html">list_objects_v2.c</a>.</p>
+
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00205">XML_APPEND_ELEM</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="list__objects__v2_8c_source.html#l00149">s3_handle_list()</a>.</p>
 
 </div>
 </div>

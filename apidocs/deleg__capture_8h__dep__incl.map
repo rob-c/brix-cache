@@ -1,0 +1,13 @@
+<map id="src/protocols/shared/deleg_capture.h" name="src/protocols/shared/deleg_capture.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="430,5,583,45"/>
+<area shape="rect" id="Node000002" href="$protocols_2s3_2handler_8c.html" title=" " alt="" coords="5,101,192,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="417,48,153,103,152,98,416,43"/>
+<area shape="rect" id="Node000003" href="$handler__dispatch_8c.html" title=" " alt="" coords="217,93,394,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="451,53,350,96,348,91,449,48"/>
+<area shape="rect" id="Node000004" href="$handler__object__route_8c.html" title=" " alt="" coords="418,93,595,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="509,59,509,93,504,93,504,59"/>
+<area shape="rect" id="Node000005" href="$deleg__capture_8c.html" title=" " alt="" coords="619,93,773,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="562,49,656,91,653,96,559,53"/>
+<area shape="rect" id="Node000006" href="$protocols_2webdav_2access_8c.html" title=" " alt="" coords="797,93,957,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="597,45,797,91,796,96,596,50"/>
+</map>

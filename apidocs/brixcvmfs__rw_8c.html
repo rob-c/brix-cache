@@ -122,6 +122,8 @@ $(document).ready(function(){initNavTree('brixcvmfs__rw_8c.html',''); initResiza
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structov__loc__t.html">ov_loc_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrw__lowdir__t.html">rw_lowdir_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrw__lowcount__t.html">rw_lowcount_t</a></td></tr>
@@ -159,6 +161,10 @@ Functions</h2></td></tr>
 <tr class="separator:aa519d381a0511849c65a0aa911e70e26"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a14307f489d1cc22fd11c2cf7c5064da4" id="r_a14307f489d1cc22fd11c2cf7c5064da4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a14307f489d1cc22fd11c2cf7c5064da4">merged_exists</a> (const char *path)</td></tr>
 <tr class="separator:a14307f489d1cc22fd11c2cf7c5064da4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a152302d3924b9eac7f46e2ac6d2e6f5c" id="r_a152302d3924b9eac7f46e2ac6d2e6f5c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a152302d3924b9eac7f46e2ac6d2e6f5c">ov_locate</a> (const char *path, <a class="el" href="structov__loc__t.html">ov_loc_t</a> *l)</td></tr>
+<tr class="separator:a152302d3924b9eac7f46e2ac6d2e6f5c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad6f50840a417443c7b651684b720826e" id="r_ad6f50840a417443c7b651684b720826e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#ad6f50840a417443c7b651684b720826e">ov_locate_visible</a> (const char *path, <a class="el" href="structov__loc__t.html">ov_loc_t</a> *l)</td></tr>
+<tr class="separator:ad6f50840a417443c7b651684b720826e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a42125690f069357cdd6a290f195f2f25" id="r_a42125690f069357cdd6a290f195f2f25"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a42125690f069357cdd6a290f195f2f25">rw_read_lower</a> (void *ud, const char *rel, uint64_t off, size_t len, unsigned char *buf, size_t *outlen)</td></tr>
 <tr class="separator:a42125690f069357cdd6a290f195f2f25"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae4ef38dc27409233c7b06594e07a7704" id="r_ae4ef38dc27409233c7b06594e07a7704"><td class="memItemLeft" align="right" valign="top">static mode_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#ae4ef38dc27409233c7b06594e07a7704">rw_lower_dir_mode</a> (void *ud, const char *rel_dir)</td></tr>
@@ -169,13 +175,21 @@ Functions</h2></td></tr>
 <tr class="separator:a1b02c52e49104af503c4b4f7ba0bbfab"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a18ba51fb236a290ce7f9b7604676850f" id="r_a18ba51fb236a290ce7f9b7604676850f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a18ba51fb236a290ce7f9b7604676850f">fh_store</a> (struct fuse_file_info *fi, int fd)</td></tr>
 <tr class="separator:a18ba51fb236a290ce7f9b7604676850f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afb1b21504a4ad68f69e183345b396a36" id="r_afb1b21504a4ad68f69e183345b396a36"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#afb1b21504a4ad68f69e183345b396a36">rw_open_common</a> (const char *path, int oflags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, struct fuse_file_info *fi)</td></tr>
+<tr class="memitem:a43f3ce687a9106919df513527e171ce4" id="r_a43f3ce687a9106919df513527e171ce4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a43f3ce687a9106919df513527e171ce4">rw_want_write</a> (int oflags)</td></tr>
+<tr class="separator:a43f3ce687a9106919df513527e171ce4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3fb2a531f091ee1026c6c435c7a699e3" id="r_a3fb2a531f091ee1026c6c435c7a699e3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a3fb2a531f091ee1026c6c435c7a699e3">rw_open_upper</a> (const char *path, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, int oflags, mode_t mode, struct fuse_file_info *fi)</td></tr>
+<tr class="separator:a3fb2a531f091ee1026c6c435c7a699e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aad64bd96042055b862b281f5bd3edf5a" id="r_aad64bd96042055b862b281f5bd3edf5a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#aad64bd96042055b862b281f5bd3edf5a">rw_open_create</a> (const char *path, int oflags, mode_t mode, struct fuse_file_info *fi)</td></tr>
+<tr class="separator:aad64bd96042055b862b281f5bd3edf5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b8ee7799d680177a9c74015e682017f" id="r_a6b8ee7799d680177a9c74015e682017f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a6b8ee7799d680177a9c74015e682017f">rw_open_lower</a> (const char *path, const cvmfs_dirent_t *e, int oflags, mode_t mode, struct fuse_file_info *fi)</td></tr>
+<tr class="separator:a6b8ee7799d680177a9c74015e682017f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb1b21504a4ad68f69e183345b396a36" id="r_afb1b21504a4ad68f69e183345b396a36"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#afb1b21504a4ad68f69e183345b396a36">rw_open_common</a> (const char *path, int oflags, mode_t mode, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:afb1b21504a4ad68f69e183345b396a36"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aab0ea2af5c18f759666b59550f5caae7" id="r_aab0ea2af5c18f759666b59550f5caae7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#aab0ea2af5c18f759666b59550f5caae7">rw_open</a> (const char *path, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:aab0ea2af5c18f759666b59550f5caae7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a09c4fa5b52b646ce42072e7076bf5f45" id="r_a09c4fa5b52b646ce42072e7076bf5f45"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a09c4fa5b52b646ce42072e7076bf5f45">rw_create</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, struct fuse_file_info *fi)</td></tr>
+<tr class="memitem:a09c4fa5b52b646ce42072e7076bf5f45" id="r_a09c4fa5b52b646ce42072e7076bf5f45"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a09c4fa5b52b646ce42072e7076bf5f45">rw_create</a> (const char *path, mode_t mode, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a09c4fa5b52b646ce42072e7076bf5f45"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a982c891335aed89fe76de0d636739ae0" id="r_a982c891335aed89fe76de0d636739ae0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a982c891335aed89fe76de0d636739ae0">rw_mknod</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, dev_t dev)</td></tr>
+<tr class="memitem:a982c891335aed89fe76de0d636739ae0" id="r_a982c891335aed89fe76de0d636739ae0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a982c891335aed89fe76de0d636739ae0">rw_mknod</a> (const char *path, mode_t mode, dev_t dev)</td></tr>
 <tr class="separator:a982c891335aed89fe76de0d636739ae0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9f96fe229c72b01245feaaefef91b516" id="r_a9f96fe229c72b01245feaaefef91b516"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a9f96fe229c72b01245feaaefef91b516">rw_read</a> (const char *path, char *buf, size_t size, off_t off, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a9f96fe229c72b01245feaaefef91b516"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -195,14 +209,28 @@ Functions</h2></td></tr>
 <tr class="separator:ab9240f125412694e929acd85836562e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abd5f9ad690343e0ad694f83beebdbca7" id="r_abd5f9ad690343e0ad694f83beebdbca7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#abd5f9ad690343e0ad694f83beebdbca7">rw_readdir</a> (const char *path, void *buf, fuse_fill_dir_t filler, off_t off, struct fuse_file_info *fi, enum fuse_readdir_flags fl)</td></tr>
 <tr class="separator:abd5f9ad690343e0ad694f83beebdbca7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a55e5c8a9016e42bca529431085574c8f" id="r_a55e5c8a9016e42bca529431085574c8f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a55e5c8a9016e42bca529431085574c8f">rw_mkdir</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a55e5c8a9016e42bca529431085574c8f" id="r_a55e5c8a9016e42bca529431085574c8f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a55e5c8a9016e42bca529431085574c8f">rw_mkdir</a> (const char *path, mode_t mode)</td></tr>
 <tr class="separator:a55e5c8a9016e42bca529431085574c8f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a52e6aef80b3ce0a2fe0fcd63c34f65fa" id="r_a52e6aef80b3ce0a2fe0fcd63c34f65fa"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a52e6aef80b3ce0a2fe0fcd63c34f65fa">rw_unlink</a> (const char *path)</td></tr>
 <tr class="separator:a52e6aef80b3ce0a2fe0fcd63c34f65fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab01db37dded296f49fd135cefbcc3ea1" id="r_ab01db37dded296f49fd135cefbcc3ea1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#ab01db37dded296f49fd135cefbcc3ea1">rw_lowcount_cb</a> (const cvmfs_dirent_t *e, void *ud)</td></tr>
 <tr class="separator:ab01db37dded296f49fd135cefbcc3ea1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9fe9edcbfe7f7c6c690474107d6066ea" id="r_a9fe9edcbfe7f7c6c690474107d6066ea"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a9fe9edcbfe7f7c6c690474107d6066ea">rw_rmdir_shape</a> (const char *path, <a class="el" href="structov__loc__t.html">ov_loc_t</a> *l, int *lower_dir)</td></tr>
+<tr class="separator:a9fe9edcbfe7f7c6c690474107d6066ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5102b823dc845fccd5cd2f5da457b482" id="r_a5102b823dc845fccd5cd2f5da457b482"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a5102b823dc845fccd5cd2f5da457b482">rw_dir_merged_nonempty</a> (const char *path, int lower_dir, int *nonempty)</td></tr>
+<tr class="separator:a5102b823dc845fccd5cd2f5da457b482"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adeb9379bcc3046489b6764aad920fc69" id="r_adeb9379bcc3046489b6764aad920fc69"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#adeb9379bcc3046489b6764aad920fc69">rw_rmdir</a> (const char *path)</td></tr>
 <tr class="separator:adeb9379bcc3046489b6764aad920fc69"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac66695d5d85c7ed8243c297f0e9316a5" id="r_ac66695d5d85c7ed8243c297f0e9316a5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#ac66695d5d85c7ed8243c297f0e9316a5">rw_rename_preflight</a> (const char *from, const char *to, unsigned int flags)</td></tr>
+<tr class="separator:ac66695d5d85c7ed8243c297f0e9316a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a250bf67704ac5b8e2e58b911941244da" id="r_a250bf67704ac5b8e2e58b911941244da"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a250bf67704ac5b8e2e58b911941244da">rw_rename_target_ok</a> (const char *to)</td></tr>
+<tr class="separator:a250bf67704ac5b8e2e58b911941244da"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af2bcb786426299746c450bd82d754edb" id="r_af2bcb786426299746c450bd82d754edb"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#af2bcb786426299746c450bd82d754edb">rw_rename_commit</a> (const char *from, const char *to, int mask_from)</td></tr>
+<tr class="separator:af2bcb786426299746c450bd82d754edb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a30d9f176b665e41a7cbecd0d5368dc71" id="r_a30d9f176b665e41a7cbecd0d5368dc71"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a30d9f176b665e41a7cbecd0d5368dc71">rw_rename_dir</a> (const char *from, const char *to, int from_upper_dir, int from_lower_dir)</td></tr>
+<tr class="separator:a30d9f176b665e41a7cbecd0d5368dc71"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a438d9d61c3a47fab803515c08a052127" id="r_a438d9d61c3a47fab803515c08a052127"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a438d9d61c3a47fab803515c08a052127">rw_rename_file</a> (const char *from, const char *to, const <a class="el" href="structov__loc__t.html">ov_loc_t</a> *f)</td></tr>
+<tr class="separator:a438d9d61c3a47fab803515c08a052127"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3afa72ab4b8cbe8ff995fdb8853b5712" id="r_a3afa72ab4b8cbe8ff995fdb8853b5712"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a3afa72ab4b8cbe8ff995fdb8853b5712">rw_rename</a> (const char *from, const char *to, unsigned int flags)</td></tr>
 <tr class="separator:a3afa72ab4b8cbe8ff995fdb8853b5712"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaffeaacb85e6cbec3dc73b4300030da9" id="r_aaffeaacb85e6cbec3dc73b4300030da9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#aaffeaacb85e6cbec3dc73b4300030da9">rw_symlink</a> (const char *target, const char *path)</td></tr>
@@ -213,7 +241,7 @@ Functions</h2></td></tr>
 <tr class="separator:aa2b59eeade105e399b2e25f539bc3d15"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4f67b9b4599a5a4bd331c84d83c93f4d" id="r_a4f67b9b4599a5a4bd331c84d83c93f4d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a4f67b9b4599a5a4bd331c84d83c93f4d">rw_apply_chmod</a> (const char *rel, void *arg)</td></tr>
 <tr class="separator:a4f67b9b4599a5a4bd331c84d83c93f4d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5149e9fff7f84646389d9597ec2a85df" id="r_a5149e9fff7f84646389d9597ec2a85df"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a5149e9fff7f84646389d9597ec2a85df">rw_chmod</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, struct fuse_file_info *fi)</td></tr>
+<tr class="memitem:a5149e9fff7f84646389d9597ec2a85df" id="r_a5149e9fff7f84646389d9597ec2a85df"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a5149e9fff7f84646389d9597ec2a85df">rw_chmod</a> (const char *path, mode_t mode, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a5149e9fff7f84646389d9597ec2a85df"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a04a2f42a63b39f4fc4406cc967fa414c" id="r_a04a2f42a63b39f4fc4406cc967fa414c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixcvmfs__rw_8c.html#a04a2f42a63b39f4fc4406cc967fa414c">rw_chown</a> (const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a04a2f42a63b39f4fc4406cc967fa414c"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -277,7 +305,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00573">573</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00706">706</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 </div>
 </div>
@@ -308,9 +336,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00535">535</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00659">659</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00742">brixcvmfs_rw_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00875">brixcvmfs_rw_main()</a>.</p>
 
 </div>
 </div>
@@ -340,11 +368,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00742">742</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00875">875</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00535">brixcvmfs_main()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00190">brixcvmfs_rw</a>.</p>
+<p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00659">brixcvmfs_main()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00190">brixcvmfs_rw</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00615">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00676">main()</a>.</p>
 
 </div>
 </div>
@@ -374,11 +402,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00712">712</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00845">845</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00038">BRIX_OV_DIRNAME</a>, <a class="el" href="overlay_8c_source.html#l00121">brix_overlay_init()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00038">BRIX_OV_DIRNAME</a>, <a class="el" href="overlay_8c_source.html#l00141">brix_overlay_init()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00535">brixcvmfs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00601">brixcvmfs_setup_rw_overlay()</a>.</p>
 
 </div>
 </div>
@@ -398,11 +426,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00733">733</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00866">866</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00131">brix_overlay_close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00151">brix_overlay_close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00535">brixcvmfs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00630">brixcvmfs_mount_run()</a>.</p>
 
 </div>
 </div>
@@ -440,9 +468,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00151">151</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00199">199</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00229">rw_open_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00215">rw_open_upper()</a>.</p>
 
 </div>
 </div>
@@ -472,7 +500,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">81</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">rw_lower_dir_mode()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00162">rw_lower_dir_mode()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00589">rw_rename_target_ok()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00510">rw_rmdir_shape()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>.</p>
 
 </div>
 </div>
@@ -502,7 +530,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00082">82</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00639">rw_rename_file()</a>.</p>
 
 </div>
 </div>
@@ -544,7 +572,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00193">brixcvmfs_cat_path()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00192">brixcvmfs_client()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00194">brixcvmfs_mono_now()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">rw_lower_dir_mode()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00643">rw_overlay_xattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00124">ov_locate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00141">ov_locate_visible()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00162">rw_lower_dir_mode()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00776">rw_overlay_xattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00510">rw_rmdir_shape()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>.</p>
 
 </div>
 </div>
@@ -576,7 +604,91 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00581">rw_rename_preflight()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>.</p>
+
+</div>
+</div>
+<a id="a152302d3924b9eac7f46e2ac6d2e6f5c" name="a152302d3924b9eac7f46e2ac6d2e6f5c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a152302d3924b9eac7f46e2ac6d2e6f5c">&#9670;&#160;</a></span>ov_locate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ov_locate </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structov__loc__t.html">ov_loc_t</a> *&#160;</td>
+          <td class="paramname"><em>l</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00124">124</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00113">ov_loc_t::e</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">ov_loc_t::lower</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00111">ov_loc_t::st</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">rw_rename()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>.</p>
+
+</div>
+</div>
+<a id="ad6f50840a417443c7b651684b720826e" name="ad6f50840a417443c7b651684b720826e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad6f50840a417443c7b651684b720826e">&#9670;&#160;</a></span>ov_locate_visible()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ov_locate_visible </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structov__loc__t.html">ov_loc_t</a> *&#160;</td>
+          <td class="paramname"><em>l</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00141">141</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00043">BRIX_OV_NONE</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00113">ov_loc_t::e</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">ov_loc_t::lower</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00111">ov_loc_t::st</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00589">rw_rename_target_ok()</a>.</p>
 
 </div>
 </div>
@@ -606,7 +718,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">44</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00552">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00531">rw_dir_merged_nonempty()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00229">rw_open_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00215">rw_open_upper()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00685">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_rename_commit()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00621">rw_rename_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>.</p>
 
 </div>
 </div>
@@ -668,7 +780,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">60</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00298">pt_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_chmod()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00284">rw_getattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00552">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00622">rw_utimens()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00379">pt_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00738">rw_chmod()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00365">rw_getattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00685">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00755">rw_utimens()</a>.</p>
 
 </div>
 </div>
@@ -712,11 +824,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00298">298</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00379">379</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>.</p>
 
 </div>
 </div>
@@ -748,7 +860,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="overlay_8h_source.html#l00038">BRIX_OV_DIRNAME</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_chmod()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00284">rw_getattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00654">rw_getxattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00552">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00622">rw_utimens()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00738">rw_chmod()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00365">rw_getattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00787">rw_getxattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00685">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00755">rw_utimens()</a>.</p>
 
 </div>
 </div>
@@ -786,11 +898,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00601">601</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00734">734</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00367">brix_overlay_chmod()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00422">brix_overlay_chmod()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_chmod()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00738">rw_chmod()</a>.</p>
 
 </div>
 </div>
@@ -828,11 +940,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00618">618</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00751">751</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00381">brix_overlay_utimens()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00436">brix_overlay_utimens()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00622">rw_utimens()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00755">rw_utimens()</a>.</p>
 
 </div>
 </div>
@@ -876,9 +988,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">605</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00738">738</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00601">rw_apply_chmod()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>.</p>
+<p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00734">rw_apply_chmod()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>.</p>
 
 </div>
 </div>
@@ -928,7 +1040,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00612">612</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00745">745</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 </div>
 </div>
@@ -974,9 +1086,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">85</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00142">brix_overlay_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00203">brix_overlay_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00284">rw_getattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00654">rw_getxattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00643">rw_overlay_xattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00552">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00124">ov_locate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00141">ov_locate_visible()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00365">rw_getattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00787">rw_getxattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00776">rw_overlay_xattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00685">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00510">rw_rmdir_shape()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>.</p>
 
 </div>
 </div>
@@ -1014,11 +1126,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">138</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">186</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00440">brix_overlay_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00103">rw_read_lower()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00495">brix_overlay_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00151">rw_read_lower()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00639">rw_rename_file()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>.</p>
 
 </div>
 </div>
@@ -1062,9 +1174,57 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00208">208</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00289">289</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>.</p>
+<p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>.</p>
+
+</div>
+</div>
+<a id="a5102b823dc845fccd5cd2f5da457b482" name="a5102b823dc845fccd5cd2f5da457b482"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5102b823dc845fccd5cd2f5da457b482">&#9670;&#160;</a></span>rw_dir_merged_nonempty()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_dir_merged_nonempty </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>lower_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>nonempty</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00531">531</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00582">brix_ov_nameset_at()</a>, <a class="el" href="overlay_8c_source.html#l00595">brix_ov_nameset_free()</a>, <a class="el" href="overlay_8c_source.html#l00543">brix_overlay_read_upper()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00193">brixcvmfs_cat_path()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00192">brixcvmfs_client()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00495">rw_lowcount_cb()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>.</p>
 
 </div>
 </div>
@@ -1092,11 +1252,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">125</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">173</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00238">brix_overlay_mkdirs()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">rw_lower_dir_mode()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00293">brix_overlay_mkdirs()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00162">rw_lower_dir_mode()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00229">rw_open_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_rename_commit()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>.</p>
 
 </div>
 </div>
@@ -1140,7 +1300,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00245">245</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00326">326</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 </div>
 </div>
@@ -1184,7 +1344,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00284">284</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00365">365</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs_8c_source.html#l00198">brixcvmfs_op_getattr()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
@@ -1236,9 +1396,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00654">654</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00787">787</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs_8c_source.html#l00272">brixcvmfs_op_getxattr()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00643">rw_overlay_xattr()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs_8c_source.html#l00272">brixcvmfs_op_getxattr()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00776">rw_overlay_xattr()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
 </div>
 </div>
@@ -1282,7 +1442,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">673</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00806">806</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00280">brixcvmfs_op_listxattr()</a>.</p>
 
@@ -1322,11 +1482,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00419">419</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00495">495</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00517">brix_ov_nameset_flag()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00416">rw_lowcount_t::nonempty</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00572">brix_ov_nameset_flag()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00492">rw_lowcount_t::nonempty</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00531">rw_dir_merged_nonempty()</a>.</p>
 
 </div>
 </div>
@@ -1364,11 +1524,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00320">320</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00401">401</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00517">brix_ov_nameset_flag()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00315">rw_lowdir_t::filler</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00572">brix_ov_nameset_flag()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00396">rw_lowdir_t::filler</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>.</p>
 
 </div>
 </div>
@@ -1406,11 +1566,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">114</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00162">162</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>.</p>
 
 </div>
 </div>
@@ -1454,11 +1614,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">575</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">708</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00238">brix_overlay_mkdirs()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00082">lower_is_file()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">rw_lower_dir_mode()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00293">brix_overlay_mkdirs()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00082">lower_is_file()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00162">rw_lower_dir_mode()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_chmod()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00622">rw_utimens()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00738">rw_chmod()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00755">rw_utimens()</a>.</p>
 
 </div>
 </div>
@@ -1496,9 +1656,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">370</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">451</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00270">brix_overlay_mkdir()</a>, <a class="el" href="overlay_8c_source.html#l00279">brix_overlay_set_opaque()</a>, <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_whiteout_clear()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00325">brix_overlay_mkdir()</a>, <a class="el" href="overlay_8c_source.html#l00334">brix_overlay_set_opaque()</a>, <a class="el" href="overlay_8c_source.html#l00454">brix_overlay_whiteout_clear()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>.</p>
 
 </div>
 </div>
@@ -1542,9 +1702,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00212">212</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00293">293</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>.</p>
 
 </div>
 </div>
@@ -1582,9 +1742,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00204">204</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00285">285</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>.</p>
+<p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>.</p>
 
 </div>
 </div>
@@ -1634,11 +1794,185 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">156</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">267</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00043">BRIX_OV_NONE</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00259">brix_overlay_open()</a>, <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_whiteout_clear()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00236">brixcvmfs_op_open()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00151">fh_store()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00082">lower_is_file()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00113">ov_loc_t::e</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00199">fh_store()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">ov_loc_t::lower</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00141">ov_locate_visible()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00229">rw_open_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00215">rw_open_upper()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00205">rw_want_write()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00111">ov_loc_t::st</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00208">rw_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00212">rw_mknod()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00204">rw_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00289">rw_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00293">rw_mknod()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00285">rw_open()</a>.</p>
+
+</div>
+</div>
+<a id="aad64bd96042055b862b281f5bd3edf5a" name="aad64bd96042055b862b281f5bd3edf5a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad64bd96042055b862b281f5bd3edf5a">&#9670;&#160;</a></span>rw_open_create()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_open_create </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>oflags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct fuse_file_info *&#160;</td>
+          <td class="paramname"><em>fi</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00229">229</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00314">brix_overlay_open()</a>, <a class="el" href="overlay_8c_source.html#l00454">brix_overlay_whiteout_clear()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00199">fh_store()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>.</p>
+
+</div>
+</div>
+<a id="a6b8ee7799d680177a9c74015e682017f" name="a6b8ee7799d680177a9c74015e682017f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b8ee7799d680177a9c74015e682017f">&#9670;&#160;</a></span>rw_open_lower()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_open_lower </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const cvmfs_dirent_t *&#160;</td>
+          <td class="paramname"><em>e</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>oflags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct fuse_file_info *&#160;</td>
+          <td class="paramname"><em>fi</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">247</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00314">brix_overlay_open()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00236">brixcvmfs_op_open()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00199">fh_store()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00082">lower_is_file()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00205">rw_want_write()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>.</p>
+
+</div>
+</div>
+<a id="a3fb2a531f091ee1026c6c435c7a699e3" name="a3fb2a531f091ee1026c6c435c7a699e3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3fb2a531f091ee1026c6c435c7a699e3">&#9670;&#160;</a></span>rw_open_upper()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_open_upper </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>oflags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct fuse_file_info *&#160;</td>
+          <td class="paramname"><em>fi</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00215">215</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00314">brix_overlay_open()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00199">fh_store()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>.</p>
 
 </div>
 </div>
@@ -1666,11 +2000,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00643">643</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00776">776</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00654">rw_getxattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00787">rw_getxattr()</a>.</p>
 
 </div>
 </div>
@@ -1726,7 +2060,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00222">222</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00303">303</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00246">brixcvmfs_op_read()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>.</p>
 
@@ -1790,11 +2124,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00103">103</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00151">151</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00192">brixcvmfs_client()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00194">brixcvmfs_mono_now()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>.</p>
 
 </div>
 </div>
@@ -1856,9 +2190,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">327</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">408</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00038">BRIX_OV_DIRNAME</a>, <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8c_source.html#l00527">brix_ov_nameset_at()</a>, <a class="el" href="overlay_8c_source.html#l00540">brix_ov_nameset_free()</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00488">brix_overlay_read_upper()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00193">brixcvmfs_cat_path()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00192">brixcvmfs_client()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00194">brixcvmfs_mono_now()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00298">pt_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00320">rw_lowdir_emit()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00038">BRIX_OV_DIRNAME</a>, <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8c_source.html#l00582">brix_ov_nameset_at()</a>, <a class="el" href="overlay_8c_source.html#l00595">brix_ov_nameset_free()</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00543">brix_overlay_read_upper()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00193">brixcvmfs_cat_path()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00192">brixcvmfs_client()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00194">brixcvmfs_mono_now()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00379">pt_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00401">rw_lowdir_emit()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
 </div>
 </div>
@@ -1902,9 +2236,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00552">552</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00685">685</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00354">brix_overlay_readlink()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00255">brixcvmfs_op_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00409">brix_overlay_readlink()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00255">brixcvmfs_op_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
 </div>
 </div>
@@ -1942,7 +2276,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00239">239</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00320">320</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
 
@@ -1988,9 +2322,239 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">473</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">649</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8c_source.html#l00540">brix_ov_nameset_free()</a>, <a class="el" href="overlay_8h_source.html#l00043">BRIX_OV_NONE</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00488">brix_overlay_read_upper()</a>, <a class="el" href="overlay_8c_source.html#l00331">brix_overlay_rename_upper()</a>, <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_whiteout_clear()</a>, <a class="el" href="overlay_8c_source.html#l00212">brix_overlay_whiteout_set()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00082">lower_is_file()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="broker__internal_8h_source.html#l00036">RENAME_NOREPLACE</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00113">ov_loc_t::e</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">ov_loc_t::lower</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00124">ov_locate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00621">rw_rename_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00639">rw_rename_file()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00581">rw_rename_preflight()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00589">rw_rename_target_ok()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00111">ov_loc_t::st</a>.</p>
+
+</div>
+</div>
+<a id="af2bcb786426299746c450bd82d754edb" name="af2bcb786426299746c450bd82d754edb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af2bcb786426299746c450bd82d754edb">&#9670;&#160;</a></span>rw_rename_commit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_rename_commit </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>from</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>to</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>mask_from</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">605</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00386">brix_overlay_rename_upper()</a>, <a class="el" href="overlay_8c_source.html#l00454">brix_overlay_whiteout_clear()</a>, <a class="el" href="overlay_8c_source.html#l00267">brix_overlay_whiteout_set()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00621">rw_rename_dir()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00639">rw_rename_file()</a>.</p>
+
+</div>
+</div>
+<a id="a30d9f176b665e41a7cbecd0d5368dc71" name="a30d9f176b665e41a7cbecd0d5368dc71"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a30d9f176b665e41a7cbecd0d5368dc71">&#9670;&#160;</a></span>rw_rename_dir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_rename_dir </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>from</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>to</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>from_upper_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>from_lower_dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00621">621</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00595">brix_ov_nameset_free()</a>, <a class="el" href="overlay_8c_source.html#l00543">brix_overlay_read_upper()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_rename_commit()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">rw_rename()</a>.</p>
+
+</div>
+</div>
+<a id="a438d9d61c3a47fab803515c08a052127" name="a438d9d61c3a47fab803515c08a052127"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a438d9d61c3a47fab803515c08a052127">&#9670;&#160;</a></span>rw_rename_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_rename_file </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>from</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>to</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structov__loc__t.html">ov_loc_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00639">639</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00043">BRIX_OV_NONE</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00113">ov_loc_t::e</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">ov_loc_t::lower</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00082">lower_is_file()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_rename_commit()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">rw_rename()</a>.</p>
+
+</div>
+</div>
+<a id="ac66695d5d85c7ed8243c297f0e9316a5" name="ac66695d5d85c7ed8243c297f0e9316a5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac66695d5d85c7ed8243c297f0e9316a5">&#9670;&#160;</a></span>rw_rename_preflight()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_rename_preflight </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>from</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>to</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned int&#160;</td>
+          <td class="paramname"><em>flags</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00581">581</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="broker__internal_8h_source.html#l00036">RENAME_NOREPLACE</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">rw_rename()</a>.</p>
+
+</div>
+</div>
+<a id="a250bf67704ac5b8e2e58b911941244da" name="a250bf67704ac5b8e2e58b911941244da"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a250bf67704ac5b8e2e58b911941244da">&#9670;&#160;</a></span>rw_rename_target_ok()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_rename_target_ok </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>to</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00589">589</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00113">ov_loc_t::e</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">ov_loc_t::lower</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00141">ov_locate_visible()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00111">ov_loc_t::st</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">rw_rename()</a>.</p>
 
 </div>
 </div>
@@ -2022,7 +2586,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="overlay_8c_source.html#l00047">brix_ov_name_reserved()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00063">path_leaf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00581">rw_rename_preflight()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>.</p>
 
 </div>
 </div>
@@ -2050,9 +2614,57 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">426</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">553</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8c_source.html#l00527">brix_ov_nameset_at()</a>, <a class="el" href="overlay_8c_source.html#l00540">brix_ov_nameset_free()</a>, <a class="el" href="overlay_8h_source.html#l00043">BRIX_OV_NONE</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00488">brix_overlay_read_upper()</a>, <a class="el" href="overlay_8c_source.html#l00316">brix_overlay_rmdir_upper()</a>, <a class="el" href="overlay_8c_source.html#l00212">brix_overlay_whiteout_set()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00193">brixcvmfs_cat_path()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00192">brixcvmfs_client()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00419">rw_lowcount_cb()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00371">brix_overlay_rmdir_upper()</a>, <a class="el" href="overlay_8c_source.html#l00267">brix_overlay_whiteout_set()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00531">rw_dir_merged_nonempty()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00510">rw_rmdir_shape()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>.</p>
+
+</div>
+</div>
+<a id="a9fe9edcbfe7f7c6c690474107d6066ea" name="a9fe9edcbfe7f7c6c690474107d6066ea"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9fe9edcbfe7f7c6c690474107d6066ea">&#9670;&#160;</a></span>rw_rmdir_shape()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_rmdir_shape </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structov__loc__t.html">ov_loc_t</a> *&#160;</td>
+          <td class="paramname"><em>l</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>lower_dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00510">510</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00043">BRIX_OV_NONE</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00113">ov_loc_t::e</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">ov_loc_t::lower</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00111">ov_loc_t::st</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>.</p>
 
 </div>
 </div>
@@ -2090,7 +2702,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00634">634</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00767">767</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00264">brixcvmfs_op_statfs()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>.</p>
 
@@ -2130,9 +2742,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">540</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">673</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00344">brix_overlay_symlink()</a>, <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_whiteout_clear()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_symlink()</a>, <a class="el" href="overlay_8c_source.html#l00454">brix_overlay_whiteout_clear()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00090">merged_exists()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>.</p>
 
 </div>
 </div>
@@ -2176,9 +2788,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">252</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">333</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00391">brix_overlay_truncate()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00446">brix_overlay_truncate()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
 </div>
 </div>
@@ -2206,9 +2818,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">388</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">469</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00289">brix_overlay_unlink_upper()</a>, <a class="el" href="overlay_8c_source.html#l00212">brix_overlay_whiteout_set()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00076">lower_resolve()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8c_source.html#l00344">brix_overlay_unlink_upper()</a>, <a class="el" href="overlay_8c_source.html#l00267">brix_overlay_whiteout_set()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00113">ov_loc_t::e</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">g_ov</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00114">ov_loc_t::lower</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00081">lower_is_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00124">ov_locate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00044">ov_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00112">ov_loc_t::s</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00111">ov_loc_t::st</a>.</p>
 
 </div>
 </div>
@@ -2252,9 +2864,39 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00622">622</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00755">755</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00618">rw_apply_utimens()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>.</p>
+<p class="reference">References <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">g_writes_fd</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00060">pt_at()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00050">pt_rel()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00751">rw_apply_utimens()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>.</p>
+
+</div>
+</div>
+<a id="a43f3ce687a9106919df513527e171ce4" name="a43f3ce687a9106919df513527e171ce4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a43f3ce687a9106919df513527e171ce4">&#9670;&#160;</a></span>rw_want_write()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int rw_want_write </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>oflags</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00205">205</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>.</p>
 
 </div>
 </div>
@@ -2310,7 +2952,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00231">231</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00312">312</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
 </div>
 </div>
@@ -2350,32 +2992,32 @@ Variables</h2></td></tr>
 <div class="line">    .getxattr  = <a class="code hl_function" href="brixcvmfs__rw_8c.html#aa3c141c76c8fdde138fdbac7e9dcde15">rw_getxattr</a>,</div>
 <div class="line">    .listxattr = <a class="code hl_function" href="brixcvmfs__rw_8c.html#ac4f01157c562224aaaa8684425471d37">rw_listxattr</a>,</div>
 <div class="line">}</div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a04a2f42a63b39f4fc4406cc967fa414c"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a04a2f42a63b39f4fc4406cc967fa414c">rw_chown</a></div><div class="ttdeci">static int rw_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00612">brixcvmfs_rw.c:612</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a09c4fa5b52b646ce42072e7076bf5f45"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a09c4fa5b52b646ce42072e7076bf5f45">rw_create</a></div><div class="ttdeci">static int rw_create(const char *path, mode_t mode, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00208">brixcvmfs_rw.c:208</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a25368d10d40b420a1955a0214d634a6f"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a25368d10d40b420a1955a0214d634a6f">rw_write</a></div><div class="ttdeci">static int rw_write(const char *path, const char *buf, size_t size, off_t off, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00231">brixcvmfs_rw.c:231</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a3afa72ab4b8cbe8ff995fdb8853b5712"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a3afa72ab4b8cbe8ff995fdb8853b5712">rw_rename</a></div><div class="ttdeci">static int rw_rename(const char *from, const char *to, unsigned int flags)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00473">brixcvmfs_rw.c:473</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a5149e9fff7f84646389d9597ec2a85df"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a5149e9fff7f84646389d9597ec2a85df">rw_chmod</a></div><div class="ttdeci">static int rw_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00605">brixcvmfs_rw.c:605</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a52e6aef80b3ce0a2fe0fcd63c34f65fa"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a52e6aef80b3ce0a2fe0fcd63c34f65fa">rw_unlink</a></div><div class="ttdeci">static int rw_unlink(const char *path)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00388">brixcvmfs_rw.c:388</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a55e5c8a9016e42bca529431085574c8f"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a55e5c8a9016e42bca529431085574c8f">rw_mkdir</a></div><div class="ttdeci">static int rw_mkdir(const char *path, mode_t mode)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00370">brixcvmfs_rw.c:370</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a63621b7876eb3b1b702946961b94fdb0"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a63621b7876eb3b1b702946961b94fdb0">rw_readlink</a></div><div class="ttdeci">static int rw_readlink(const char *path, char *buf, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00552">brixcvmfs_rw.c:552</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a65923cc48baba7dbfde4f287cb3e512f"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a65923cc48baba7dbfde4f287cb3e512f">rw_release</a></div><div class="ttdeci">static int rw_release(const char *path, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00239">brixcvmfs_rw.c:239</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a8068a6a7c49537ab95d8c98d7cd5ff6e"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a8068a6a7c49537ab95d8c98d7cd5ff6e">rw_getattr</a></div><div class="ttdeci">static int rw_getattr(const char *path, struct stat *st, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00284">brixcvmfs_rw.c:284</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a886e127308eee224c9a2182c57a5e0aa"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a886e127308eee224c9a2182c57a5e0aa">rw_statfs</a></div><div class="ttdeci">static int rw_statfs(const char *path, struct statvfs *sv)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00634">brixcvmfs_rw.c:634</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a90a637f7c04d08ec6d116f3e64678e94"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a90a637f7c04d08ec6d116f3e64678e94">rw_fsync</a></div><div class="ttdeci">static int rw_fsync(const char *path, int datasync, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00245">brixcvmfs_rw.c:245</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a982c891335aed89fe76de0d636739ae0"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a982c891335aed89fe76de0d636739ae0">rw_mknod</a></div><div class="ttdeci">static int rw_mknod(const char *path, mode_t mode, dev_t dev)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00212">brixcvmfs_rw.c:212</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_a9f96fe229c72b01245feaaefef91b516"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a9f96fe229c72b01245feaaefef91b516">rw_read</a></div><div class="ttdeci">static int rw_read(const char *path, char *buf, size_t size, off_t off, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00222">brixcvmfs_rw.c:222</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_aa3c141c76c8fdde138fdbac7e9dcde15"><div class="ttname"><a href="brixcvmfs__rw_8c.html#aa3c141c76c8fdde138fdbac7e9dcde15">rw_getxattr</a></div><div class="ttdeci">static int rw_getxattr(const char *path, const char *name, char *value, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00654">brixcvmfs_rw.c:654</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_aab0ea2af5c18f759666b59550f5caae7"><div class="ttname"><a href="brixcvmfs__rw_8c.html#aab0ea2af5c18f759666b59550f5caae7">rw_open</a></div><div class="ttdeci">static int rw_open(const char *path, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00204">brixcvmfs_rw.c:204</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_aac0838964f876a70e406f9df811b82ae"><div class="ttname"><a href="brixcvmfs__rw_8c.html#aac0838964f876a70e406f9df811b82ae">rw_truncate</a></div><div class="ttdeci">static int rw_truncate(const char *path, off_t len, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00252">brixcvmfs_rw.c:252</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_aaffeaacb85e6cbec3dc73b4300030da9"><div class="ttname"><a href="brixcvmfs__rw_8c.html#aaffeaacb85e6cbec3dc73b4300030da9">rw_symlink</a></div><div class="ttdeci">static int rw_symlink(const char *target, const char *path)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00540">brixcvmfs_rw.c:540</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_abd5f9ad690343e0ad694f83beebdbca7"><div class="ttname"><a href="brixcvmfs__rw_8c.html#abd5f9ad690343e0ad694f83beebdbca7">rw_readdir</a></div><div class="ttdeci">static int rw_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t off, struct fuse_file_info *fi, enum fuse_readdir_flags fl)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00327">brixcvmfs_rw.c:327</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_ac4f01157c562224aaaa8684425471d37"><div class="ttname"><a href="brixcvmfs__rw_8c.html#ac4f01157c562224aaaa8684425471d37">rw_listxattr</a></div><div class="ttdeci">static int rw_listxattr(const char *path, char *list, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00673">brixcvmfs_rw.c:673</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_adb301a7f5f69aada6709e6aa6f96997a"><div class="ttname"><a href="brixcvmfs__rw_8c.html#adb301a7f5f69aada6709e6aa6f96997a">rw_utimens</a></div><div class="ttdeci">static int rw_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00622">brixcvmfs_rw.c:622</a></div></div>
-<div class="ttc" id="abrixcvmfs__rw_8c_html_adeb9379bcc3046489b6764aad920fc69"><div class="ttname"><a href="brixcvmfs__rw_8c.html#adeb9379bcc3046489b6764aad920fc69">rw_rmdir</a></div><div class="ttdeci">static int rw_rmdir(const char *path)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00426">brixcvmfs_rw.c:426</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a04a2f42a63b39f4fc4406cc967fa414c"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a04a2f42a63b39f4fc4406cc967fa414c">rw_chown</a></div><div class="ttdeci">static int rw_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00745">brixcvmfs_rw.c:745</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a09c4fa5b52b646ce42072e7076bf5f45"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a09c4fa5b52b646ce42072e7076bf5f45">rw_create</a></div><div class="ttdeci">static int rw_create(const char *path, mode_t mode, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00289">brixcvmfs_rw.c:289</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a25368d10d40b420a1955a0214d634a6f"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a25368d10d40b420a1955a0214d634a6f">rw_write</a></div><div class="ttdeci">static int rw_write(const char *path, const char *buf, size_t size, off_t off, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00312">brixcvmfs_rw.c:312</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a3afa72ab4b8cbe8ff995fdb8853b5712"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a3afa72ab4b8cbe8ff995fdb8853b5712">rw_rename</a></div><div class="ttdeci">static int rw_rename(const char *from, const char *to, unsigned int flags)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00649">brixcvmfs_rw.c:649</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a5149e9fff7f84646389d9597ec2a85df"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a5149e9fff7f84646389d9597ec2a85df">rw_chmod</a></div><div class="ttdeci">static int rw_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00738">brixcvmfs_rw.c:738</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a52e6aef80b3ce0a2fe0fcd63c34f65fa"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a52e6aef80b3ce0a2fe0fcd63c34f65fa">rw_unlink</a></div><div class="ttdeci">static int rw_unlink(const char *path)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00469">brixcvmfs_rw.c:469</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a55e5c8a9016e42bca529431085574c8f"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a55e5c8a9016e42bca529431085574c8f">rw_mkdir</a></div><div class="ttdeci">static int rw_mkdir(const char *path, mode_t mode)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00451">brixcvmfs_rw.c:451</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a63621b7876eb3b1b702946961b94fdb0"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a63621b7876eb3b1b702946961b94fdb0">rw_readlink</a></div><div class="ttdeci">static int rw_readlink(const char *path, char *buf, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00685">brixcvmfs_rw.c:685</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a65923cc48baba7dbfde4f287cb3e512f"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a65923cc48baba7dbfde4f287cb3e512f">rw_release</a></div><div class="ttdeci">static int rw_release(const char *path, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00320">brixcvmfs_rw.c:320</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a8068a6a7c49537ab95d8c98d7cd5ff6e"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a8068a6a7c49537ab95d8c98d7cd5ff6e">rw_getattr</a></div><div class="ttdeci">static int rw_getattr(const char *path, struct stat *st, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00365">brixcvmfs_rw.c:365</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a886e127308eee224c9a2182c57a5e0aa"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a886e127308eee224c9a2182c57a5e0aa">rw_statfs</a></div><div class="ttdeci">static int rw_statfs(const char *path, struct statvfs *sv)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00767">brixcvmfs_rw.c:767</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a90a637f7c04d08ec6d116f3e64678e94"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a90a637f7c04d08ec6d116f3e64678e94">rw_fsync</a></div><div class="ttdeci">static int rw_fsync(const char *path, int datasync, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00326">brixcvmfs_rw.c:326</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a982c891335aed89fe76de0d636739ae0"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a982c891335aed89fe76de0d636739ae0">rw_mknod</a></div><div class="ttdeci">static int rw_mknod(const char *path, mode_t mode, dev_t dev)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00293">brixcvmfs_rw.c:293</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_a9f96fe229c72b01245feaaefef91b516"><div class="ttname"><a href="brixcvmfs__rw_8c.html#a9f96fe229c72b01245feaaefef91b516">rw_read</a></div><div class="ttdeci">static int rw_read(const char *path, char *buf, size_t size, off_t off, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00303">brixcvmfs_rw.c:303</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_aa3c141c76c8fdde138fdbac7e9dcde15"><div class="ttname"><a href="brixcvmfs__rw_8c.html#aa3c141c76c8fdde138fdbac7e9dcde15">rw_getxattr</a></div><div class="ttdeci">static int rw_getxattr(const char *path, const char *name, char *value, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00787">brixcvmfs_rw.c:787</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_aab0ea2af5c18f759666b59550f5caae7"><div class="ttname"><a href="brixcvmfs__rw_8c.html#aab0ea2af5c18f759666b59550f5caae7">rw_open</a></div><div class="ttdeci">static int rw_open(const char *path, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00285">brixcvmfs_rw.c:285</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_aac0838964f876a70e406f9df811b82ae"><div class="ttname"><a href="brixcvmfs__rw_8c.html#aac0838964f876a70e406f9df811b82ae">rw_truncate</a></div><div class="ttdeci">static int rw_truncate(const char *path, off_t len, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00333">brixcvmfs_rw.c:333</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_aaffeaacb85e6cbec3dc73b4300030da9"><div class="ttname"><a href="brixcvmfs__rw_8c.html#aaffeaacb85e6cbec3dc73b4300030da9">rw_symlink</a></div><div class="ttdeci">static int rw_symlink(const char *target, const char *path)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00673">brixcvmfs_rw.c:673</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_abd5f9ad690343e0ad694f83beebdbca7"><div class="ttname"><a href="brixcvmfs__rw_8c.html#abd5f9ad690343e0ad694f83beebdbca7">rw_readdir</a></div><div class="ttdeci">static int rw_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t off, struct fuse_file_info *fi, enum fuse_readdir_flags fl)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00408">brixcvmfs_rw.c:408</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_ac4f01157c562224aaaa8684425471d37"><div class="ttname"><a href="brixcvmfs__rw_8c.html#ac4f01157c562224aaaa8684425471d37">rw_listxattr</a></div><div class="ttdeci">static int rw_listxattr(const char *path, char *list, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00806">brixcvmfs_rw.c:806</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_adb301a7f5f69aada6709e6aa6f96997a"><div class="ttname"><a href="brixcvmfs__rw_8c.html#adb301a7f5f69aada6709e6aa6f96997a">rw_utimens</a></div><div class="ttdeci">static int rw_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00755">brixcvmfs_rw.c:755</a></div></div>
+<div class="ttc" id="abrixcvmfs__rw_8c_html_adeb9379bcc3046489b6764aad920fc69"><div class="ttname"><a href="brixcvmfs__rw_8c.html#adeb9379bcc3046489b6764aad920fc69">rw_rmdir</a></div><div class="ttdeci">static int rw_rmdir(const char *path)</div><div class="ttdef"><b>Definition</b> <a href="brixcvmfs__rw_8c_source.html#l00553">brixcvmfs_rw.c:553</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00687">687</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00820">820</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00535">brixcvmfs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00615">brixcvmfs_run_fuse()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00601">brixcvmfs_setup_rw_overlay()</a>.</p>
 
 </div>
 </div>
@@ -2401,7 +3043,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00038">38</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00712">brixcvmfs_setup_rw()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00733">brixcvmfs_teardown_rw()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00601">rw_apply_chmod()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00618">rw_apply_utimens()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00552">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00845">brixcvmfs_setup_rw()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00866">brixcvmfs_teardown_rw()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00734">rw_apply_chmod()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00751">rw_apply_utimens()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00531">rw_dir_merged_nonempty()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00229">rw_open_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00215">rw_open_upper()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00685">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_rename_commit()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00621">rw_rename_dir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>.</p>
 
 </div>
 </div>
@@ -2427,7 +3069,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00039">39</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00712">brixcvmfs_setup_rw()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00733">brixcvmfs_teardown_rw()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00298">pt_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_chmod()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00284">rw_getattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00552">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00634">rw_statfs()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00622">rw_utimens()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00845">brixcvmfs_setup_rw()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00866">brixcvmfs_teardown_rw()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00379">pt_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00738">rw_chmod()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00365">rw_getattr()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00267">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00685">rw_readlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00649">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00767">rw_statfs()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00755">rw_utimens()</a>.</p>
 
 </div>
 </div>

@@ -99,6 +99,7 @@ $(document).ready(function(){initNavTree('macaroon_8c.html',''); initResizable()
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="token__internal_8h_source.html">token_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="macaroon_8h_source.html">macaroon.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="macaroon__internal_8h_source.html">macaroon_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="b64url_8h_source.html">b64url.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="scopes_8h_source.html">scopes.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="hex_8h_source.html">core/compat/hex.h</a>&quot;</code><br />
@@ -112,14 +113,14 @@ $(document).ready(function(){initNavTree('macaroon_8c.html',''); initResizable()
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="macaroon_8c__incl.svg" width="100%" height="492"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="macaroon_8c__incl.svg" width="100%" height="547"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="macaroon_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmacaroon__bundle__t.html">macaroon_bundle_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
@@ -130,53 +131,31 @@ Macros</h2></td></tr>
 <tr class="separator:a9d2f412171fbe60b53e0b73441e82d66"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adc40c1e15331d8bc948c0bf3c5cc1068" id="r_adc40c1e15331d8bc948c0bf3c5cc1068"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#adc40c1e15331d8bc948c0bf3c5cc1068">BRIX_MACAROON_MAX_TP_CAVEATS</a>&#160;&#160;&#160;8</td></tr>
 <tr class="separator:adc40c1e15331d8bc948c0bf3c5cc1068"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9b97815b2ff9c273067fef797693a1aa" id="r_a9b97815b2ff9c273067fef797693a1aa"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a9b97815b2ff9c273067fef797693a1aa">BRIX_MACAROON_MAX_CID_LEN</a>&#160;&#160;&#160;512</td></tr>
-<tr class="separator:a9b97815b2ff9c273067fef797693a1aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae6ce61fe3c359792a9b30cc0b12ca388" id="r_ae6ce61fe3c359792a9b30cc0b12ca388"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#ae6ce61fe3c359792a9b30cc0b12ca388">BRIX_MACAROON_MAX_VID_LEN</a>&#160;&#160;&#160;256</td></tr>
-<tr class="separator:ae6ce61fe3c359792a9b30cc0b12ca388"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a7ec018c8d9f9b62820a681c70f9c67d8" id="r_a7ec018c8d9f9b62820a681c70f9c67d8"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a7ec018c8d9f9b62820a681c70f9c67d8">parse_packet_len</a> (const u_char *p)</td></tr>
-<tr class="separator:a7ec018c8d9f9b62820a681c70f9c67d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6f49c3e54619c60c5e5cccf8c3342b5a" id="r_a6f49c3e54619c60c5e5cccf8c3342b5a"><td class="memItemLeft" align="right" valign="top">static time_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a6f49c3e54619c60c5e5cccf8c3342b5a">parse_iso8601</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, size_t len)</td></tr>
-<tr class="separator:a6f49c3e54619c60c5e5cccf8c3342b5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab086e3bc33a9cb6612747cfb1ce49526" id="r_ab086e3bc33a9cb6612747cfb1ce49526"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#ab086e3bc33a9cb6612747cfb1ce49526">brix_token_is_macaroon</a> (const char *token, size_t token_len)</td></tr>
 <tr class="separator:ab086e3bc33a9cb6612747cfb1ce49526"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a46f9f158624fbb0ecf8331e02b041bd2" id="r_a46f9f158624fbb0ecf8331e02b041bd2"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a46f9f158624fbb0ecf8331e02b041bd2">brix_macaroon_secret_parse</a> (const char *<a class="el" href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a>, size_t hex_len, u_char *bin, size_t bin_max)</td></tr>
 <tr class="separator:a46f9f158624fbb0ecf8331e02b041bd2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6b3e5149bfd448d56ca48579758f9bd4" id="r_a6b3e5149bfd448d56ca48579758f9bd4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a6b3e5149bfd448d56ca48579758f9bd4">macaroon_decrypt_vid_inner</a> (EVP_CIPHER_CTX *ctx, u_char *plain, const u_char *vid, size_t vid_len, const u_char *aes_key, u_char *discharge_key)</td></tr>
-<tr class="separator:a6b3e5149bfd448d56ca48579758f9bd4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aad0d2036ad703dd59d4c36c7721f616a" id="r_aad0d2036ad703dd59d4c36c7721f616a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#aad0d2036ad703dd59d4c36c7721f616a">macaroon_decrypt_vid</a> (const u_char *vid, size_t vid_len, const u_char *aes_key, u_char *discharge_key)</td></tr>
-<tr class="separator:aad0d2036ad703dd59d4c36c7721f616a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9beab0bf7d8ddbb55c6d60d52174af24" id="r_a9beab0bf7d8ddbb55c6d60d52174af24"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a9beab0bf7d8ddbb55c6d60d52174af24">macaroon_rebuild_scope_raw</a> (<a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims)</td></tr>
-<tr class="separator:a9beab0bf7d8ddbb55c6d60d52174af24"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a34bec4d6eef6754422ca48eb40d59b49" id="r_a34bec4d6eef6754422ca48eb40d59b49"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a34bec4d6eef6754422ca48eb40d59b49">macaroon_apply_path_caveats</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims, char path_caveats[][256], int n_path_caveats)</td></tr>
-<tr class="separator:a34bec4d6eef6754422ca48eb40d59b49"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a33cea43ff70d578bce7d182f2dca1f3f" id="r_a33cea43ff70d578bce7d182f2dca1f3f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a33cea43ff70d578bce7d182f2dca1f3f">macaroon_parse_core</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const u_char *bin, size_t bin_len, const u_char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims, <a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a> *tp_arr, int *n_tp, int max_tp)</td></tr>
-<tr class="separator:a33cea43ff70d578bce7d182f2dca1f3f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a21335d239ab5515dabadd63d7a53664f" id="r_a21335d239ab5515dabadd63d7a53664f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a21335d239ab5515dabadd63d7a53664f">macaroon_bundle_tokenize</a> (const char *token, size_t token_len, const char **tokens, size_t *token_lens, int *n_tokens)</td></tr>
+<tr class="separator:a21335d239ab5515dabadd63d7a53664f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad0f4bbbc524e43093d6efc3d2d7d91ed" id="r_ad0f4bbbc524e43093d6efc3d2d7d91ed"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#ad0f4bbbc524e43093d6efc3d2d7d91ed">macaroon_candidate_matches_cid</a> (const u_char *candidate, ssize_t candidate_len, <a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a> *tp)</td></tr>
+<tr class="separator:ad0f4bbbc524e43093d6efc3d2d7d91ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abfad90eccf3501948439b133199634ad" id="r_abfad90eccf3501948439b133199634ad"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#abfad90eccf3501948439b133199634ad">macaroon_find_discharge</a> (const <a class="el" href="structmacaroon__bundle__t.html">macaroon_bundle_t</a> *bundle, <a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a> *tp, u_char *discharge_bin, size_t discharge_cap)</td></tr>
+<tr class="separator:abfad90eccf3501948439b133199634ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae7b4958cbf2ccc134753946c67495299" id="r_ae7b4958cbf2ccc134753946c67495299"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#ae7b4958cbf2ccc134753946c67495299">macaroon_intersect_discharge_claims</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *d_claims)</td></tr>
+<tr class="separator:ae7b4958cbf2ccc134753946c67495299"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ade28c2550dd2d1d04cef1d8ba7aaf585" id="r_ade28c2550dd2d1d04cef1d8ba7aaf585"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#ade28c2550dd2d1d04cef1d8ba7aaf585">macaroon_validate_one_discharge</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const <a class="el" href="structmacaroon__bundle__t.html">macaroon_bundle_t</a> *bundle, <a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a> *tp, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims, int caveat_index)</td></tr>
+<tr class="separator:ade28c2550dd2d1d04cef1d8ba7aaf585"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a132a6a18c530cdf90a5355f786ffcde5" id="r_a132a6a18c530cdf90a5355f786ffcde5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a132a6a18c530cdf90a5355f786ffcde5">macaroon_validate_discharges</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const <a class="el" href="structmacaroon__bundle__t.html">macaroon_bundle_t</a> *bundle, <a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a> *tp_arr, int n_tp, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims)</td></tr>
+<tr class="separator:a132a6a18c530cdf90a5355f786ffcde5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9b3e4c75c453249702c7325d9a27c5fb" id="r_a9b3e4c75c453249702c7325d9a27c5fb"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a9b3e4c75c453249702c7325d9a27c5fb">brix_macaroon_validate_bundle</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *token, size_t token_len, const u_char *root_key, size_t root_key_len, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims)</td></tr>
 <tr class="separator:a9b3e4c75c453249702c7325d9a27c5fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4ae97a21aab7487bcd5a0c7b5fb90849" id="r_a4ae97a21aab7487bcd5a0c7b5fb90849"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon_8c.html#a4ae97a21aab7487bcd5a0c7b5fb90849">brix_macaroon_validate</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *token, size_t token_len, const u_char *root_key, size_t root_key_len, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims)</td></tr>
 <tr class="separator:a4ae97a21aab7487bcd5a0c7b5fb90849"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a9b97815b2ff9c273067fef797693a1aa" name="a9b97815b2ff9c273067fef797693a1aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9b97815b2ff9c273067fef797693a1aa">&#9670;&#160;</a></span>BRIX_MACAROON_MAX_CID_LEN</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_MACAROON_MAX_CID_LEN&#160;&#160;&#160;512</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00120">120</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
-
-</div>
-</div>
 <a id="a9d2f412171fbe60b53e0b73441e82d66" name="a9d2f412171fbe60b53e0b73441e82d66"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9d2f412171fbe60b53e0b73441e82d66">&#9670;&#160;</a></span>BRIX_MACAROON_MAX_DISCHARGES</h2>
 
@@ -189,7 +168,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00117">117</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00036">36</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
 </div>
 </div>
@@ -205,23 +184,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00119">119</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
-
-</div>
-</div>
-<a id="ae6ce61fe3c359792a9b30cc0b12ca388" name="ae6ce61fe3c359792a9b30cc0b12ca388"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae6ce61fe3c359792a9b30cc0b12ca388">&#9670;&#160;</a></span>BRIX_MACAROON_MAX_VID_LEN</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_MACAROON_MAX_VID_LEN&#160;&#160;&#160;256</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00121">121</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00038">38</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
 </div>
 </div>
@@ -237,7 +200,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00031">31</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00033">33</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
 </div>
 </div>
@@ -280,11 +243,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00092">92</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00055">55</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
 <p class="reference">References <a class="el" href="hex_8c_source.html#l00034">brix_hex_from_char()</a>, and <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="token_8c_source.html#l00044">brix_handle_token_auth()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>, and <a class="el" href="auth__token_8c_source.html#l00160">webdav_verify_bearer_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="token_8c_source.html#l00281">tokenauth_grace_retry()</a>, <a class="el" href="token_8c_source.html#l00331">tokenauth_validate()</a>, <a class="el" href="macaroon__endpoint__request_8c_source.html#l00203">webdav_handle_macaroon_request()</a>, <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00278">webdav_handle_macaroon_token()</a>, <a class="el" href="auth__token_8c_source.html#l00521">webdav_verify_bearer_token()</a>, and <a class="el" href="auth__token_8c_source.html#l00357">wt_grace_retry()</a>.</p>
 
 </div>
 </div>
@@ -338,11 +301,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00814">814</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00386">386</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
-<p class="reference">References <a class="el" href="macaroon_8c_source.html#l00595">brix_macaroon_validate_bundle()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="macaroon_8c_source.html#l00310">brix_macaroon_validate_bundle()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00190">brix_token_validate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00148">token_validate_macaroon()</a>.</p>
 
 </div>
 </div>
@@ -396,11 +359,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00595">595</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00310">310</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
-<p class="reference">References <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, <a class="el" href="macaroon_8c_source.html#l00117">BRIX_MACAROON_MAX_DISCHARGES</a>, <a class="el" href="macaroon_8c_source.html#l00119">BRIX_MACAROON_MAX_TP_CAVEATS</a>, <a class="el" href="token_8h_source.html#l00028">BRIX_MAX_TOKEN_SCOPES</a>, <a class="el" href="scopes_8h_source.html#l00010">BRIX_SCOPE_PATH_MAX</a>, <a class="el" href="macaroon_8c_source.html#l00132">brix_macaroon_tp_t::cid</a>, <a class="el" href="macaroon_8c_source.html#l00133">brix_macaroon_tp_t::cid_len</a>, <a class="el" href="token_8h_source.html#l00066">brix_token_claims_t::exp</a>, <a class="el" href="token_8h_source.html#l00064">brix_token_claims_t::iss</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="macaroon_8c_source.html#l00272">macaroon_apply_path_caveats()</a>, <a class="el" href="macaroon_8c_source.html#l00187">macaroon_decrypt_vid()</a>, <a class="el" href="macaroon_8c_source.html#l00031">MACAROON_MAX_BIN</a>, <a class="el" href="macaroon_8c_source.html#l00333">macaroon_parse_core()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="macaroon_8c_source.html#l00034">parse_packet_len()</a>, <a class="el" href="scopes_8h_source.html#l00016">brix_token_scope_t::path</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, <a class="el" href="token_8h_source.html#l00072">brix_token_claims_t::scopes</a>, <a class="el" href="macaroon_8c_source.html#l00136">brix_macaroon_tp_t::sig_before</a>, <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>, <a class="el" href="macaroon_8c_source.html#l00134">brix_macaroon_tp_t::vid</a>, and <a class="el" href="macaroon_8c_source.html#l00135">brix_macaroon_tp_t::vid_len</a>.</p>
+<p class="reference">References <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, <a class="el" href="macaroon_8c_source.html#l00036">BRIX_MACAROON_MAX_DISCHARGES</a>, <a class="el" href="macaroon_8c_source.html#l00038">BRIX_MACAROON_MAX_TP_CAVEATS</a>, <a class="el" href="macaroon__internal_8h_source.html#l00094">macaroon_parse_input_t::claims</a>, <a class="el" href="token_8h_source.html#l00066">brix_token_claims_t::exp</a>, <a class="el" href="token_8h_source.html#l00064">brix_token_claims_t::iss</a>, <a class="el" href="macaroon__internal_8h_source.html#l00092">macaroon_parse_input_t::key</a>, <a class="el" href="macaroon__internal_8h_source.html#l00093">macaroon_parse_input_t::key_len</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="macaroon__internal_8h_source.html#l00091">macaroon_parse_input_t::log</a>, <a class="el" href="macaroon_8c_source.html#l00079">macaroon_bundle_tokenize()</a>, <a class="el" href="macaroon_8c_source.html#l00033">MACAROON_MAX_BIN</a>, <a class="el" href="macaroon__parse_8c_source.html#l00231">macaroon_parse_core()</a>, <a class="el" href="macaroon_8c_source.html#l00269">macaroon_validate_discharges()</a>, <a class="el" href="macaroon__internal_8h_source.html#l00097">macaroon_parse_input_t::max_tp</a>, <a class="el" href="macaroon_8c_source.html#l00154">macaroon_bundle_t::n_tokens</a>, <a class="el" href="macaroon__internal_8h_source.html#l00096">macaroon_parse_input_t::n_tp</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>, <a class="el" href="macaroon_8c_source.html#l00153">macaroon_bundle_t::token_lens</a>, <a class="el" href="macaroon_8c_source.html#l00152">macaroon_bundle_t::tokens</a>, and <a class="el" href="macaroon__internal_8h_source.html#l00095">macaroon_parse_input_t::tp_arr</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00814">brix_macaroon_validate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00386">brix_macaroon_validate()</a>.</p>
 
 </div>
 </div>
@@ -430,14 +393,14 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00078">78</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00041">41</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00190">brix_token_validate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00400">brix_token_validate()</a>.</p>
 
 </div>
 </div>
-<a id="a34bec4d6eef6754422ca48eb40d59b49" name="a34bec4d6eef6754422ca48eb40d59b49"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a34bec4d6eef6754422ca48eb40d59b49">&#9670;&#160;</a></span>macaroon_apply_path_caveats()</h2>
+<a id="a21335d239ab5515dabadd63d7a53664f" name="a21335d239ab5515dabadd63d7a53664f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a21335d239ab5515dabadd63d7a53664f">&#9670;&#160;</a></span>macaroon_bundle_tokenize()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -446,7 +409,169 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void macaroon_apply_path_caveats </td>
+          <td class="memname">static int macaroon_bundle_tokenize </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>token</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>token_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>tokens</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>token_lens</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>n_tokens</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00079">79</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+
+<p class="reference">References <a class="el" href="macaroon_8c_source.html#l00036">BRIX_MACAROON_MAX_DISCHARGES</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00310">brix_macaroon_validate_bundle()</a>.</p>
+
+</div>
+</div>
+<a id="ad0f4bbbc524e43093d6efc3d2d7d91ed" name="ad0f4bbbc524e43093d6efc3d2d7d91ed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad0f4bbbc524e43093d6efc3d2d7d91ed">&#9670;&#160;</a></span>macaroon_candidate_matches_cid()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int macaroon_candidate_matches_cid </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>candidate</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ssize_t&#160;</td>
+          <td class="paramname"><em>candidate_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a> *&#160;</td>
+          <td class="paramname"><em>tp</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00107">107</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+
+<p class="reference">References <a class="el" href="macaroon__parse_8c_source.html#l00033">brix_macaroon_packet_len()</a>, <a class="el" href="macaroon__internal_8h_source.html#l00047">brix_macaroon_tp_t::cid</a>, and <a class="el" href="macaroon__internal_8h_source.html#l00048">brix_macaroon_tp_t::cid_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00158">macaroon_find_discharge()</a>.</p>
+
+</div>
+</div>
+<a id="abfad90eccf3501948439b133199634ad" name="abfad90eccf3501948439b133199634ad"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abfad90eccf3501948439b133199634ad">&#9670;&#160;</a></span>macaroon_find_discharge()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ssize_t macaroon_find_discharge </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structmacaroon__bundle__t.html">macaroon_bundle_t</a> *&#160;</td>
+          <td class="paramname"><em>bundle</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a> *&#160;</td>
+          <td class="paramname"><em>tp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>discharge_bin</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>discharge_cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00158">158</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+
+<p class="reference">References <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, <a class="el" href="macaroon_8c_source.html#l00107">macaroon_candidate_matches_cid()</a>, <a class="el" href="macaroon_8c_source.html#l00033">MACAROON_MAX_BIN</a>, <a class="el" href="macaroon_8c_source.html#l00154">macaroon_bundle_t::n_tokens</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="macaroon_8c_source.html#l00153">macaroon_bundle_t::token_lens</a>, and <a class="el" href="macaroon_8c_source.html#l00152">macaroon_bundle_t::tokens</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00217">macaroon_validate_one_discharge()</a>.</p>
+
+</div>
+</div>
+<a id="ae7b4958cbf2ccc134753946c67495299" name="ae7b4958cbf2ccc134753946c67495299"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae7b4958cbf2ccc134753946c67495299">&#9670;&#160;</a></span>macaroon_intersect_discharge_claims()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void macaroon_intersect_discharge_claims </td>
           <td>(</td>
           <td class="paramtype">ngx_log_t *&#160;</td>
           <td class="paramname"><em>log</em>, </td>
@@ -460,14 +585,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">char&#160;</td>
-          <td class="paramname"><em>path_caveats</em>[][256], </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>n_path_caveats</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
+          <td class="paramname"><em>d_claims</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -482,16 +601,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00272">272</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00183">183</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
-<p class="reference">References <a class="el" href="scopes_8h_source.html#l00019">brix_token_scope_t::create</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="macaroon_8c_source.html#l00220">macaroon_rebuild_scope_raw()</a>, <a class="el" href="scopes_8h_source.html#l00020">brix_token_scope_t::modify</a>, <a class="el" href="scopes_8h_source.html#l00016">brix_token_scope_t::path</a>, <a class="el" href="scopes_8h_source.html#l00017">brix_token_scope_t::read</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, <a class="el" href="token_8h_source.html#l00072">brix_token_claims_t::scopes</a>, and <a class="el" href="scopes_8h_source.html#l00018">brix_token_scope_t::write</a>.</p>
+<p class="reference">References <a class="el" href="token_8h_source.html#l00028">BRIX_MAX_TOKEN_SCOPES</a>, <a class="el" href="scopes_8h_source.html#l00010">BRIX_SCOPE_PATH_MAX</a>, <a class="el" href="token_8h_source.html#l00066">brix_token_claims_t::exp</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="macaroon__caveats_8c_source.html#l00161">macaroon_apply_path_caveats()</a>, <a class="el" href="scopes_8h_source.html#l00016">brix_token_scope_t::path</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, and <a class="el" href="token_8h_source.html#l00072">brix_token_claims_t::scopes</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00595">brix_macaroon_validate_bundle()</a>, and <a class="el" href="macaroon_8c_source.html#l00333">macaroon_parse_core()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00217">macaroon_validate_one_discharge()</a>.</p>
 
 </div>
 </div>
-<a id="aad0d2036ad703dd59d4c36c7721f616a" name="aad0d2036ad703dd59d4c36c7721f616a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aad0d2036ad703dd59d4c36c7721f616a">&#9670;&#160;</a></span>macaroon_decrypt_vid()</h2>
+<a id="a132a6a18c530cdf90a5355f786ffcde5" name="a132a6a18c530cdf90a5355f786ffcde5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a132a6a18c530cdf90a5355f786ffcde5">&#9670;&#160;</a></span>macaroon_validate_discharges()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -500,127 +619,7 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int macaroon_decrypt_vid </td>
-          <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>vid</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>vid_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>aes_key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>discharge_key</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00187">187</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
-
-<p class="reference">References <a class="el" href="macaroon_8c_source.html#l00151">macaroon_decrypt_vid_inner()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00595">brix_macaroon_validate_bundle()</a>.</p>
-
-</div>
-</div>
-<a id="a6b3e5149bfd448d56ca48579758f9bd4" name="a6b3e5149bfd448d56ca48579758f9bd4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6b3e5149bfd448d56ca48579758f9bd4">&#9670;&#160;</a></span>macaroon_decrypt_vid_inner()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int macaroon_decrypt_vid_inner </td>
-          <td>(</td>
-          <td class="paramtype">EVP_CIPHER_CTX *&#160;</td>
-          <td class="paramname"><em>ctx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>plain</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>vid</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>vid_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>aes_key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>discharge_key</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00151">151</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00187">macaroon_decrypt_vid()</a>.</p>
-
-</div>
-</div>
-<a id="a33cea43ff70d578bce7d182f2dca1f3f" name="a33cea43ff70d578bce7d182f2dca1f3f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a33cea43ff70d578bce7d182f2dca1f3f">&#9670;&#160;</a></span>macaroon_parse_core()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int macaroon_parse_core </td>
+          <td class="memname">static int macaroon_validate_discharges </td>
           <td>(</td>
           <td class="paramtype">ngx_log_t *&#160;</td>
           <td class="paramname"><em>log</em>, </td>
@@ -628,32 +627,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>bin</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bin_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>key_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
-          <td class="paramname"><em>claims</em>, </td>
+          <td class="paramtype">const <a class="el" href="structmacaroon__bundle__t.html">macaroon_bundle_t</a> *&#160;</td>
+          <td class="paramname"><em>bundle</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -664,14 +639,14 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int *&#160;</td>
+          <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>n_tp</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>max_tp</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
+          <td class="paramname"><em>claims</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -686,16 +661,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00333">333</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00269">269</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
-<p class="reference">References <a class="el" href="macaroon_8c_source.html#l00120">BRIX_MACAROON_MAX_CID_LEN</a>, <a class="el" href="token_8h_source.html#l00028">BRIX_MAX_TOKEN_SCOPES</a>, <a class="el" href="scopes_8h_source.html#l00010">BRIX_SCOPE_PATH_MAX</a>, <a class="el" href="scopes_8c_source.html#l00126">brix_token_parse_scopes()</a>, <a class="el" href="macaroon_8c_source.html#l00132">brix_macaroon_tp_t::cid</a>, <a class="el" href="macaroon_8c_source.html#l00133">brix_macaroon_tp_t::cid_len</a>, <a class="el" href="token_8h_source.html#l00066">brix_token_claims_t::exp</a>, <a class="el" href="token_8h_source.html#l00064">brix_token_claims_t::iss</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="macaroon_8c_source.html#l00272">macaroon_apply_path_caveats()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="macaroon_8c_source.html#l00052">parse_iso8601()</a>, <a class="el" href="macaroon_8c_source.html#l00034">parse_packet_len()</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, <a class="el" href="token_8h_source.html#l00072">brix_token_claims_t::scopes</a>, <a class="el" href="macaroon_8c_source.html#l00136">brix_macaroon_tp_t::sig_before</a>, <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>, <a class="el" href="macaroon_8c_source.html#l00134">brix_macaroon_tp_t::vid</a>, and <a class="el" href="macaroon_8c_source.html#l00135">brix_macaroon_tp_t::vid_len</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="macaroon_8c_source.html#l00217">macaroon_validate_one_discharge()</a>, and <a class="el" href="macaroon_8c_source.html#l00154">macaroon_bundle_t::n_tokens</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00595">brix_macaroon_validate_bundle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00310">brix_macaroon_validate_bundle()</a>.</p>
 
 </div>
 </div>
-<a id="a9beab0bf7d8ddbb55c6d60d52174af24" name="a9beab0bf7d8ddbb55c6d60d52174af24"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9beab0bf7d8ddbb55c6d60d52174af24">&#9670;&#160;</a></span>macaroon_rebuild_scope_raw()</h2>
+<a id="ade28c2550dd2d1d04cef1d8ba7aaf585" name="ade28c2550dd2d1d04cef1d8ba7aaf585"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ade28c2550dd2d1d04cef1d8ba7aaf585">&#9670;&#160;</a></span>macaroon_validate_one_discharge()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -704,48 +679,34 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void macaroon_rebuild_scope_raw </td>
+          <td class="memname">static int macaroon_validate_one_discharge </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
-          <td class="paramname"><em>claims</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00220">220</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
-
-<p class="reference">References <a class="el" href="token_8h_source.html#l00028">BRIX_MAX_TOKEN_SCOPES</a>, <a class="el" href="scopes_8c_source.html#l00126">brix_token_parse_scopes()</a>, <a class="el" href="scopes_8h_source.html#l00019">brix_token_scope_t::create</a>, <a class="el" href="scopes_8h_source.html#l00020">brix_token_scope_t::modify</a>, <a class="el" href="scopes_8h_source.html#l00016">brix_token_scope_t::path</a>, <a class="el" href="scopes_8h_source.html#l00017">brix_token_scope_t::read</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, <a class="el" href="token_8h_source.html#l00072">brix_token_claims_t::scopes</a>, and <a class="el" href="scopes_8h_source.html#l00018">brix_token_scope_t::write</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00272">macaroon_apply_path_caveats()</a>.</p>
-
-</div>
-</div>
-<a id="a6f49c3e54619c60c5e5cccf8c3342b5a" name="a6f49c3e54619c60c5e5cccf8c3342b5a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6f49c3e54619c60c5e5cccf8c3342b5a">&#9670;&#160;</a></span>parse_iso8601()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static time_t parse_iso8601 </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>s</em>, </td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structmacaroon__bundle__t.html">macaroon_bundle_t</a> *&#160;</td>
+          <td class="paramname"><em>bundle</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__macaroon__tp__t.html">brix_macaroon_tp_t</a> *&#160;</td>
+          <td class="paramname"><em>tp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
+          <td class="paramname"><em>claims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>caveat_index</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -760,43 +721,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00052">52</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00217">217</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="macaroon__internal_8h_source.html#l00094">macaroon_parse_input_t::claims</a>, <a class="el" href="macaroon__internal_8h_source.html#l00092">macaroon_parse_input_t::key</a>, <a class="el" href="macaroon__internal_8h_source.html#l00093">macaroon_parse_input_t::key_len</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="macaroon__internal_8h_source.html#l00091">macaroon_parse_input_t::log</a>, <a class="el" href="macaroon__crypto_8c_source.html#l00098">macaroon_decrypt_vid()</a>, <a class="el" href="macaroon_8c_source.html#l00158">macaroon_find_discharge()</a>, <a class="el" href="macaroon_8c_source.html#l00183">macaroon_intersect_discharge_claims()</a>, <a class="el" href="macaroon_8c_source.html#l00033">MACAROON_MAX_BIN</a>, <a class="el" href="macaroon__parse_8c_source.html#l00231">macaroon_parse_core()</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, <a class="el" href="macaroon__internal_8h_source.html#l00051">brix_macaroon_tp_t::sig_before</a>, <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>, <a class="el" href="macaroon__internal_8h_source.html#l00049">brix_macaroon_tp_t::vid</a>, and <a class="el" href="macaroon__internal_8h_source.html#l00050">brix_macaroon_tp_t::vid_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00333">macaroon_parse_core()</a>.</p>
-
-</div>
-</div>
-<a id="a7ec018c8d9f9b62820a681c70f9c67d8" name="a7ec018c8d9f9b62820a681c70f9c67d8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7ec018c8d9f9b62820a681c70f9c67d8">&#9670;&#160;</a></span>parse_packet_len()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int parse_packet_len </td>
-          <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>p</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon_8c_source.html#l00034">34</a> of file <a class="el" href="macaroon_8c_source.html">macaroon.c</a>.</p>
-
-<p class="reference">References <a class="el" href="hex_8c_source.html#l00034">brix_hex_from_char()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00595">brix_macaroon_validate_bundle()</a>, and <a class="el" href="macaroon_8c_source.html#l00333">macaroon_parse_core()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon_8c_source.html#l00269">macaroon_validate_discharges()</a>.</p>
 
 </div>
 </div>

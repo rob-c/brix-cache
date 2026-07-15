@@ -118,7 +118,7 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a547654d1d0d3c3d97110ccd112812a52" id="r_a547654d1d0d3c3d97110ccd112812a52"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="audit_8c.html#a547654d1d0d3c3d97110ccd112812a52">acc_audit_sanitize</a> (u_char *dst, size_t cap, const char *src)</td></tr>
 <tr class="separator:a547654d1d0d3c3d97110ccd112812a52"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ada7c64a185ab3899f1db3e3a84a599b7" id="r_ada7c64a185ab3899f1db3e3a84a599b7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="audit_8c.html#ada7c64a185ab3899f1db3e3a84a599b7">brix_acc_audit</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_uint_t level, int granted, const char *op, const char *id, const char *host, const char *path)</td></tr>
+<tr class="memitem:ada7c64a185ab3899f1db3e3a84a599b7" id="r_ada7c64a185ab3899f1db3e3a84a599b7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="audit_8c.html#ada7c64a185ab3899f1db3e3a84a599b7">brix_acc_audit</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_uint_t level, int granted, const char *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *id, const char *host, const char *path)</td></tr>
 <tr class="separator:ada7c64a185ab3899f1db3e3a84a599b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -197,7 +197,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="audit_8c_source.html#l00024">24</a> of file <a class="el" href="audit_8c_source.html">audit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="audit_8c_source.html#l00044">brix_acc_audit()</a>.</p>
 
@@ -261,9 +261,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="audit_8c_source.html#l00044">44</a> of file <a class="el" href="audit_8c_source.html">audit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="audit_8c_source.html#l00024">acc_audit_sanitize()</a>, <a class="el" href="audit_8c_source.html#l00018">BRIX_ACC_AUDIT_DENY</a>, <a class="el" href="audit_8c_source.html#l00019">BRIX_ACC_AUDIT_GRANT</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="audit_8c_source.html#l00024">acc_audit_sanitize()</a>, <a class="el" href="audit_8c_source.html#l00018">BRIX_ACC_AUDIT_DENY</a>, <a class="el" href="audit_8c_source.html#l00019">BRIX_ACC_AUDIT_GRANT</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00026">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00140">brix_acc_gate_engine()</a>, and <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>.</p>
 
 </div>
 </div>

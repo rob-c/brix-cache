@@ -13,7 +13,7 @@ var structbrix__stream__mirror__t =
     [ "resp_body_pos", "structbrix__stream__mirror__t.html#ad0d1d1491592e982cade4655cea7cb8b", null ],
     [ "resp_dlen", "structbrix__stream__mirror__t.html#a4ca781b3700d54ee9f5a5a5dc3889cb6", null ],
     [ "resp_status", "structbrix__stream__mirror__t.html#a25641562d7534693a18320824ca35fdd", null ],
-    [ "rhdr", "structbrix__stream__mirror__t.html#af3cbeb047d3fb795ce4c0a756c2c0aa0", null ],
+    [ "rhdr", "structbrix__stream__mirror__t.html#a6f3317a67691c6e8b9cc34d19bc05fb8", null ],
     [ "rhdr_pos", "structbrix__stream__mirror__t.html#a893f4624e65cea6317358a5b22bf378c", null ],
     [ "saved_dlen", "structbrix__stream__mirror__t.html#a14fab6f6af049ff532281b6fde1e1870", null ],
     [ "saved_hdr", "structbrix__stream__mirror__t.html#a3fbace996312ad038c228b09ed324509", null ],

@@ -114,10 +114,90 @@ Functions</h2></td></tr>
 <tr class="separator:ad289abb45e749bf04ff89d0d4e49bda3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4338cc39b8824b07642b67af6a1ac98a" id="r_a4338cc39b8824b07642b67af6a1ac98a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2upstream_2events_8c.html#a4338cc39b8824b07642b67af6a1ac98a">brix_upstream_write_handler</a> (ngx_event_t *wev)</td></tr>
 <tr class="separator:a4338cc39b8824b07642b67af6a1ac98a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a706db82aa1fbb3a19caabad64a9a21eb" id="r_a706db82aa1fbb3a19caabad64a9a21eb"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2upstream_2events_8c.html#a706db82aa1fbb3a19caabad64a9a21eb">brix_upstream_recv_chunk</a> (brix_upstream_t *up, ngx_connection_t *uconn, ngx_event_t *rev, u_char *buf, size_t *pos, size_t total, const char *again_msg, const char *closed_msg)</td></tr>
+<tr class="separator:a706db82aa1fbb3a19caabad64a9a21eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a787a6ac250dd47ae97fc6126bdaeb032" id="r_a787a6ac250dd47ae97fc6126bdaeb032"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2upstream_2events_8c.html#a787a6ac250dd47ae97fc6126bdaeb032">brix_upstream_parse_header_and_alloc</a> (brix_upstream_t *up, ngx_connection_t *uconn)</td></tr>
+<tr class="separator:a787a6ac250dd47ae97fc6126bdaeb032"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9e5bb6b7a4f03016b66abd185f83cdd3" id="r_a9e5bb6b7a4f03016b66abd185f83cdd3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2upstream_2events_8c.html#a9e5bb6b7a4f03016b66abd185f83cdd3">brix_upstream_dispatch_response</a> (brix_upstream_t *up)</td></tr>
+<tr class="separator:a9e5bb6b7a4f03016b66abd185f83cdd3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3723bdb3e4eb9b86efeeb0056487bdfb" id="r_a3723bdb3e4eb9b86efeeb0056487bdfb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2upstream_2events_8c.html#a3723bdb3e4eb9b86efeeb0056487bdfb">brix_upstream_read_handler</a> (ngx_event_t *rev)</td></tr>
 <tr class="separator:a3723bdb3e4eb9b86efeeb0056487bdfb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a9e5bb6b7a4f03016b66abd185f83cdd3" name="a9e5bb6b7a4f03016b66abd185f83cdd3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9e5bb6b7a4f03016b66abd185f83cdd3">&#9670;&#160;</a></span>brix_upstream_dispatch_response()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_upstream_dispatch_response </td>
+          <td>(</td>
+          <td class="paramtype">brix_upstream_t *&#160;</td>
+          <td class="paramname"><em>up</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2events_8c_source.html#l00210">210</a> of file <a class="el" href="net_2upstream_2events_8c_source.html">events.c</a>.</p>
+
+<p class="reference">References <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="response_8c_source.html#l00020">brix_upstream_forward_response()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00305">brix_upstream_handle_bootstrap_response()</a>, <a class="el" href="upstream__internal_8h_source.html#l00049">XRD_UP_ASYNC</a>, <a class="el" href="upstream__internal_8h_source.html#l00047">XRD_UP_BOOTSTRAP</a>, and <a class="el" href="upstream__internal_8h_source.html#l00048">XRD_UP_REQUEST</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2events_8c_source.html#l00244">brix_upstream_read_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a787a6ac250dd47ae97fc6126bdaeb032" name="a787a6ac250dd47ae97fc6126bdaeb032"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a787a6ac250dd47ae97fc6126bdaeb032">&#9670;&#160;</a></span>brix_upstream_parse_header_and_alloc()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_upstream_parse_header_and_alloc </td>
+          <td>(</td>
+          <td class="paramtype">brix_upstream_t *&#160;</td>
+          <td class="paramname"><em>up</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>uconn</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2events_8c_source.html#l00169">169</a> of file <a class="el" href="net_2upstream_2events_8c_source.html">events.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="wire__core__requests_8h_source.html#l00120">ServerResponseHdr::dlen</a>, and <a class="el" href="wire__core__requests_8h_source.html#l00119">ServerResponseHdr::status</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2events_8c_source.html#l00244">brix_upstream_read_handler()</a>.</p>
+
+</div>
+</div>
 <a id="a3723bdb3e4eb9b86efeeb0056487bdfb" name="a3723bdb3e4eb9b86efeeb0056487bdfb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a3723bdb3e4eb9b86efeeb0056487bdfb">&#9670;&#160;</a></span>brix_upstream_read_handler()</h2>
 
@@ -134,11 +214,89 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2upstream_2events_8c_source.html#l00135">135</a> of file <a class="el" href="net_2upstream_2events_8c_source.html">events.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2events_8c_source.html#l00244">244</a> of file <a class="el" href="net_2upstream_2events_8c_source.html">events.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00013">brix_upstream_cleanup()</a>, <a class="el" href="response_8c_source.html#l00020">brix_upstream_forward_response()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00103">brix_upstream_handle_bootstrap_response()</a>, <a class="el" href="context_8h_source.html#l00204">brix_ctx_t::destroyed</a>, <a class="el" href="wire__core__requests_8h_source.html#l00120">ServerResponseHdr::dlen</a>, <a class="el" href="wire__core__requests_8h_source.html#l00119">ServerResponseHdr::status</a>, <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>, <a class="el" href="upstream__internal_8h_source.html#l00049">XRD_UP_ASYNC</a>, <a class="el" href="upstream__internal_8h_source.html#l00047">XRD_UP_BOOTSTRAP</a>, and <a class="el" href="upstream__internal_8h_source.html#l00048">XRD_UP_REQUEST</a>.</p>
+<p class="reference">References <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00013">brix_upstream_cleanup()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00210">brix_upstream_dispatch_response()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00169">brix_upstream_parse_header_and_alloc()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00134">brix_upstream_recv_chunk()</a>, <a class="el" href="context_8h_source.html#l00204">brix_ctx_t::destroyed</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="start_8c_source.html#l00034">brix_upstream_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="start_8c_source.html#l00153">brix_upstream_start_wrap_conn()</a>.</p>
+
+</div>
+</div>
+<a id="a706db82aa1fbb3a19caabad64a9a21eb" name="a706db82aa1fbb3a19caabad64a9a21eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a706db82aa1fbb3a19caabad64a9a21eb">&#9670;&#160;</a></span>brix_upstream_recv_chunk()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_upstream_recv_chunk </td>
+          <td>(</td>
+          <td class="paramtype">brix_upstream_t *&#160;</td>
+          <td class="paramname"><em>up</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>uconn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>rev</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>total</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>again_msg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>closed_msg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2events_8c_source.html#l00134">134</a> of file <a class="el" href="net_2upstream_2events_8c_source.html">events.c</a>.</p>
+
+<p class="reference">References <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2events_8c_source.html#l00244">brix_upstream_read_handler()</a>.</p>
 
 </div>
 </div>
@@ -186,7 +344,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00013">brix_upstream_cleanup()</a>, <a class="el" href="net_2upstream_2request_8c_source.html#l00101">brix_upstream_flush()</a>, <a class="el" href="context_8h_source.html#l00204">brix_ctx_t::destroyed</a>, <a class="el" href="upstream__internal_8h_source.html#l00047">XRD_UP_BOOTSTRAP</a>, <a class="el" href="upstream__internal_8h_source.html#l00037">XRD_UP_BS_HANDSHAKE</a>, and <a class="el" href="upstream__internal_8h_source.html#l00046">XRD_UP_CONNECTING</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="start_8c_source.html#l00034">brix_upstream_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="start_8c_source.html#l00153">brix_upstream_start_wrap_conn()</a>.</p>
 
 </div>
 </div>

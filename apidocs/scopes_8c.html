@@ -113,9 +113,9 @@ Functions</h2></td></tr>
 <tr class="separator:a51a17afb9580f94c26e1c589dac74ee1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae59729dfbfbb74d7ec43fa031e48aa6f" id="r_ae59729dfbfbb74d7ec43fa031e48aa6f"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scopes_8c.html#ae59729dfbfbb74d7ec43fa031e48aa6f">token_scope_end</a> (const char *scope_start)</td></tr>
 <tr class="separator:ae59729dfbfbb74d7ec43fa031e48aa6f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aad0fbb03d71c6fe66978c1258d9450c7" id="r_aad0fbb03d71c6fe66978c1258d9450c7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scopes_8c.html#aad0fbb03d71c6fe66978c1258d9450c7">token_scope_copy_path</a> (<a class="el" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *scope, const char *path, size_t path_len)</td></tr>
+<tr class="memitem:aad0fbb03d71c6fe66978c1258d9450c7" id="r_aad0fbb03d71c6fe66978c1258d9450c7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scopes_8c.html#aad0fbb03d71c6fe66978c1258d9450c7">token_scope_copy_path</a> (<a class="el" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, const char *path, size_t path_len)</td></tr>
 <tr class="separator:aad0fbb03d71c6fe66978c1258d9450c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aefa23676d3bb1e1ad651bca73cbdcaea" id="r_aefa23676d3bb1e1ad651bca73cbdcaea"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scopes_8c.html#aefa23676d3bb1e1ad651bca73cbdcaea">token_scope_set_permission</a> (<a class="el" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *scope, const char *permission, size_t permission_len)</td></tr>
+<tr class="memitem:aefa23676d3bb1e1ad651bca73cbdcaea" id="r_aefa23676d3bb1e1ad651bca73cbdcaea"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scopes_8c.html#aefa23676d3bb1e1ad651bca73cbdcaea">token_scope_set_permission</a> (<a class="el" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, const char *permission, size_t permission_len)</td></tr>
 <tr class="separator:aefa23676d3bb1e1ad651bca73cbdcaea"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a38d11c761d9960c51d1ec3676e4f5db6" id="r_a38d11c761d9960c51d1ec3676e4f5db6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scopes_8c.html#a38d11c761d9960c51d1ec3676e4f5db6">brix_token_parse_scopes</a> (const char *scope_str, <a class="el" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *scopes, int max_scopes)</td></tr>
 <tr class="separator:a38d11c761d9960c51d1ec3676e4f5db6"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -163,7 +163,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="scopes_8c_source.html#l00206">brix_token_scope_path_matches()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00019">brix_check_token_scope()</a>, <a class="el" href="identity_8c_source.html#l00482">brix_identity_check_token_scope()</a>, <a class="el" href="validate_8c_source.html#l00581">brix_token_authz_strategy()</a>, <a class="el" href="auth__token_8c_source.html#l00069">webdav_check_token_scope()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00019">brix_check_token_scope()</a>, <a class="el" href="identity_8c_source.html#l00401">brix_identity_check_token_scope()</a>, <a class="el" href="validate__registry_8c_source.html#l00151">brix_token_authz_strategy()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00156">mac_authorize()</a>, and <a class="el" href="auth__token_8c_source.html#l00069">webdav_check_token_scope()</a>.</p>
 
 </div>
 </div>
@@ -203,7 +203,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="scopes_8c_source.html#l00206">brix_token_scope_path_matches()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00019">brix_check_token_scope()</a>, <a class="el" href="identity_8c_source.html#l00482">brix_identity_check_token_scope()</a>, <a class="el" href="validate_8c_source.html#l00581">brix_token_authz_strategy()</a>, <a class="el" href="auth__token_8c_source.html#l00069">webdav_check_token_scope()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00019">brix_check_token_scope()</a>, <a class="el" href="identity_8c_source.html#l00401">brix_identity_check_token_scope()</a>, <a class="el" href="validate__registry_8c_source.html#l00151">brix_token_authz_strategy()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00156">mac_authorize()</a>, and <a class="el" href="auth__token_8c_source.html#l00069">webdav_check_token_scope()</a>.</p>
 
 </div>
 </div>
@@ -243,7 +243,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="scopes_8c_source.html#l00050">token_scope_copy_path()</a>, <a class="el" href="scopes_8c_source.html#l00033">token_scope_end()</a>, <a class="el" href="scopes_8c_source.html#l00072">token_scope_set_permission()</a>, and <a class="el" href="scopes_8c_source.html#l00023">token_scope_skip_spaces()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00111">brix_token_meta_get()</a>, <a class="el" href="validate_8c_source.html#l00190">brix_token_validate()</a>, <a class="el" href="macaroon_8c_source.html#l00333">macaroon_parse_core()</a>, and <a class="el" href="macaroon_8c_source.html#l00220">macaroon_rebuild_scope_raw()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00400">brix_token_validate()</a>, <a class="el" href="macaroon__parse_8c_source.html#l00198">macaroon_finalize_scopes()</a>, <a class="el" href="macaroon__caveats_8c_source.html#l00069">macaroon_rebuild_scope_raw()</a>, and <a class="el" href="credinfo_8c_source.html#l00180">token_meta_apply_scope()</a>.</p>
 
 </div>
 </div>
@@ -275,7 +275,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="scopes_8c_source.html#l00206">206</a> of file <a class="el" href="scopes_8c_source.html">scopes.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="scopes_8c_source.html#l00238">brix_token_check_read()</a>, <a class="el" href="scopes_8c_source.html#l00265">brix_token_check_write()</a>, and <a class="el" href="issuer__registry_8c_source.html#l00287">brix_token_issuer_path_ok()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="scopes_8c_source.html#l00238">brix_token_check_read()</a>, <a class="el" href="scopes_8c_source.html#l00265">brix_token_check_write()</a>, and <a class="el" href="issuer__registry_8c_source.html#l00425">brix_token_issuer_path_ok()</a>.</p>
 
 </div>
 </div>
@@ -321,7 +321,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="scopes_8c_source.html#l00050">50</a> of file <a class="el" href="scopes_8c_source.html">scopes.c</a>.</p>
 
-<p class="reference">References <a class="el" href="scopes_8h_source.html#l00010">BRIX_SCOPE_PATH_MAX</a>, and <a class="el" href="scopes_8h_source.html#l00016">brix_token_scope_t::path</a>.</p>
+<p class="reference">References <a class="el" href="scopes_8h_source.html#l00010">BRIX_SCOPE_PATH_MAX</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="scopes_8c_source.html#l00126">brix_token_parse_scopes()</a>.</p>
 
@@ -399,7 +399,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="scopes_8c_source.html#l00072">72</a> of file <a class="el" href="scopes_8c_source.html">scopes.c</a>.</p>
 
-<p class="reference">References <a class="el" href="scopes_8h_source.html#l00019">brix_token_scope_t::create</a>, <a class="el" href="scopes_8h_source.html#l00020">brix_token_scope_t::modify</a>, <a class="el" href="scopes_8h_source.html#l00017">brix_token_scope_t::read</a>, and <a class="el" href="scopes_8h_source.html#l00018">brix_token_scope_t::write</a>.</p>
+<p class="reference">References <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="scopes_8c_source.html#l00126">brix_token_parse_scopes()</a>.</p>
 

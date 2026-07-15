@@ -124,9 +124,9 @@ Functions</h2></td></tr>
 <tr class="separator:a5daea6f468a968aef3252f422806d17e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6512e49776210fcb91a507b69f06fced" id="r_a6512e49776210fcb91a507b69f06fced"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2s3_2metrics_8c.html#a6512e49776210fcb91a507b69f06fced">s3_sess_method_has_xfer</a> (ngx_uint_t method_slot)</td></tr>
 <tr class="separator:a6512e49776210fcb91a507b69f06fced"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8e833748967bfb7c51cca68f704337c3" id="r_a8e833748967bfb7c51cca68f704337c3"><td class="memItemLeft" align="right" valign="top">static int64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2s3_2metrics_8c.html#a8e833748967bfb7c51cca68f704337c3">s3_sess_xfer_expected</a> (ngx_http_request_t *r, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a8e833748967bfb7c51cca68f704337c3" id="r_a8e833748967bfb7c51cca68f704337c3"><td class="memItemLeft" align="right" valign="top">static int64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2s3_2metrics_8c.html#a8e833748967bfb7c51cca68f704337c3">s3_sess_xfer_expected</a> (ngx_http_request_t *r, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> mode)</td></tr>
 <tr class="separator:a8e833748967bfb7c51cca68f704337c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4da6207b772dc42b140ab3039d70bf68" id="r_a4da6207b772dc42b140ab3039d70bf68"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2s3_2metrics_8c.html#a4da6207b772dc42b140ab3039d70bf68">s3_sess_xfer_bytes</a> (ngx_http_request_t *r, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int64_t expected)</td></tr>
+<tr class="memitem:a4da6207b772dc42b140ab3039d70bf68" id="r_a4da6207b772dc42b140ab3039d70bf68"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2s3_2metrics_8c.html#a4da6207b772dc42b140ab3039d70bf68">s3_sess_xfer_bytes</a> (ngx_http_request_t *r, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> mode, int64_t expected)</td></tr>
 <tr class="separator:a4da6207b772dc42b140ab3039d70bf68"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad3e0c250300939a409566fec7894ce62" id="r_ad3e0c250300939a409566fec7894ce62"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2s3_2metrics_8c.html#ad3e0c250300939a409566fec7894ce62">s3_sess_start_xfer</a> (ngx_http_request_t *r, <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *sess, const char *path, ngx_uint_t method_slot)</td></tr>
 <tr class="separator:ad3e0c250300939a409566fec7894ce62"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -186,7 +186,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">s3_metrics_response_method()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>, <a class="el" href="delete__objects_8c_source.html#l00197">s3_delete_objects_finish()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00274">s3_mpu_aio_done()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00193">s3_mpu_send_result()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00290">s3_multipart_complete_body_handler_inner()</a>, <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>, <a class="el" href="put__finalize_8c_source.html#l00209">s3_put_finalize_bad_digest()</a>, <a class="el" href="put__finalize_8c_source.html#l00327">s3_put_finalize_client_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00247">s3_put_finalize_codec_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00162">s3_put_finalize_empty_ok()</a>, <a class="el" href="put__finalize_8c_source.html#l00087">s3_put_finalize_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00114">s3_put_finalize_fs_error()</a>, and <a class="el" href="put__finalize_8c_source.html#l00226">s3_put_finalize_invalid_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delete__objects_8c_source.html#l00590">s3_delete_objects_body_handler_inner()</a>, <a class="el" href="delete__objects_8c_source.html#l00218">s3_delete_objects_finish()</a>, <a class="el" href="delete__objects_8c_source.html#l00309">s3_delete_parse_body()</a>, <a class="el" href="delete__objects_8c_source.html#l00532">s3_delete_run_batch()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00279">s3_mpu_aio_done()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00198">s3_mpu_send_result()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00295">s3_multipart_complete_body_handler_inner()</a>, <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>, <a class="el" href="put__finalize_8c_source.html#l00221">s3_put_finalize_bad_digest()</a>, <a class="el" href="put__finalize_8c_source.html#l00339">s3_put_finalize_client_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00259">s3_put_finalize_codec_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00174">s3_put_finalize_empty_ok()</a>, <a class="el" href="put__finalize_8c_source.html#l00099">s3_put_finalize_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00126">s3_put_finalize_fs_error()</a>, and <a class="el" href="put__finalize_8c_source.html#l00238">s3_put_finalize_invalid_request()</a>.</p>
 
 </div>
 </div>
@@ -208,9 +208,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00246">246</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocol__caps_8c_source.html#l00014">brix_http_operation_find()</a>, <a class="el" href="metrics__s3_8h_source.html#l00031">BRIX_S3_METHOD_OTHER</a>, <a class="el" href="s3_2operation__table_8c_source.html#l00017">brix_s3_operations</a>, <a class="el" href="s3_2operation__table_8c_source.html#l00035">brix_s3_operations_count</a>, and <a class="el" href="protocol__caps_8h_source.html#l00042">brix_http_operation_t::metric_slot</a>.</p>
+<p class="reference">References <a class="el" href="protocol__caps_8c_source.html#l00014">brix_http_operation_find()</a>, <a class="el" href="metrics__s3_8h_source.html#l00031">BRIX_S3_METHOD_OTHER</a>, <a class="el" href="s3_2operation__table_8c_source.html#l00017">brix_s3_operations</a>, <a class="el" href="s3_2operation__table_8c_source.html#l00035">brix_s3_operations_count</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, <a class="el" href="delete__objects_8c_source.html#l00278">s3_delete_objects_body_handler_inner()</a>, and <a class="el" href="multipart__complete__body_8c_source.html#l00290">s3_multipart_complete_body_handler_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>, <a class="el" href="delete__objects_8c_source.html#l00590">s3_delete_objects_body_handler_inner()</a>, and <a class="el" href="multipart__complete__body_8c_source.html#l00295">s3_multipart_complete_body_handler_inner()</a>.</p>
 
 </div>
 </div>
@@ -234,7 +234,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00031">BRIX_S3_METHOD_OTHER</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, and <a class="el" href="metrics__s3_8h_source.html#l00032">BRIX_S3_NMETHODS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>.</p>
 
 </div>
 </div>
@@ -272,7 +272,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">283</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00255">brix_http_effective_status()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00353">brix_sess_result()</a>, <a class="el" href="sesslog_8c_source.html#l00557">brix_sesslog_err_from_http()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00267">s3_metrics_response_status()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00113">s3_sess()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00190">s3_sess_finish_xfer()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00058">s3_sess_mode()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers__set_8c_source.html#l00040">brix_http_effective_status()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00361">brix_sess_result()</a>, <a class="el" href="sesslog_8c_source.html#l00611">brix_sesslog_err_from_http()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00267">s3_metrics_response_status()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00113">s3_sess()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00190">s3_sess_finish_xfer()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00058">s3_sess_mode()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>.</p>
 
@@ -306,7 +306,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00267">267</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2http__common_8h_source.html#l00032">brix_http_status_class()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00187">brix_metric_err_from_http_status()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="metrics__s3_8h_source.html#l00031">BRIX_S3_METHOD_OTHER</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="metrics__s3_8h_source.html#l00032">BRIX_S3_NMETHODS</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00038">s3_unified_op()</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2http__common_8h_source.html#l00032">brix_http_status_class()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00186">brix_metric_err_from_http_status()</a>, <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="metrics__s3_8h_source.html#l00031">BRIX_S3_METHOD_OTHER</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="metrics__s3_8h_source.html#l00032">BRIX_S3_NMETHODS</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00038">s3_unified_op()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">s3_metrics_response_method()</a>.</p>
 
@@ -348,7 +348,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">s3_metrics_response_method()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, and <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>, <a class="el" href="handler__object__route_8c_source.html#l00124">s3_apply_put_precondition()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00161">s3_check_token_scope()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00310">s3_dispatch_after_auth()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00231">s3_dispatch_bucket_get()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00257">s3_dispatch_empty_key()</a>, <a class="el" href="handler__object__route_8c_source.html#l00182">s3_dispatch_object_delete()</a>, <a class="el" href="handler__object__route_8c_source.html#l00058">s3_dispatch_object_get()</a>, <a class="el" href="handler__object__route_8c_source.html#l00227">s3_dispatch_object_method()</a>, <a class="el" href="handler__object__route_8c_source.html#l00203">s3_dispatch_object_post()</a>, <a class="el" href="handler__object__route_8c_source.html#l00146">s3_dispatch_object_put()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00131">s3_dispatch_parse_uri()</a>, <a class="el" href="handler__object__route_8c_source.html#l00080">s3_prepare_upload_part()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00200">s3_read_body_metric()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00190">s3_reject_write_disabled()</a>, and <a class="el" href="handler__dispatch_8c_source.html#l00287">s3_resolve_object_key()</a>.</p>
 
 </div>
 </div>
@@ -378,7 +378,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00113">113</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog__conn_8c_source.html#l00166">brix_http_sess()</a>, <a class="el" href="sesslog_8h_source.html#l00019">BRIX_SESS_PROTO_S3</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00077">s3_sess_auth_method()</a>.</p>
+<p class="reference">References <a class="el" href="sesslog__conn_8c_source.html#l00166">brix_http_sess()</a>, <a class="el" href="sesslog_8h_source.html#l00019">BRIX_SESS_PROTO_S3</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00077">s3_sess_auth_method()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">s3_metrics_response_method()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00234">s3_sess_attempt_request()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00219">s3_sess_begin_request()</a>.</p>
 
@@ -412,9 +412,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00234">234</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00327">brix_sess_attempt()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00113">s3_sess()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00058">s3_sess_mode()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00170">s3_sess_start_xfer()</a>.</p>
+<p class="reference">References <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00333">brix_sess_attempt()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00113">s3_sess()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00058">s3_sess_mode()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00170">s3_sess_start_xfer()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>.</p>
 
 </div>
 </div>
@@ -478,9 +478,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00219">219</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00305">brix_sess_auth_once()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00113">s3_sess()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00077">s3_sess_auth_method()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00095">s3_sess_user()</a>.</p>
+<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00311">brix_sess_auth_once()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00113">s3_sess()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00077">s3_sess_auth_method()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00095">s3_sess_user()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>.</p>
 
 </div>
 </div>
@@ -532,7 +532,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00190">190</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00057">BRIX_SESS_XFER_ABORTED</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00399">brix_sess_xfer_add()</a>, <a class="el" href="sesslog_8h_source.html#l00056">BRIX_SESS_XFER_COMPLETE</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00408">brix_sess_xfer_end()</a>, <a class="el" href="sesslog_8h_source.html#l00077">brix_sess_xfer_t::bytes</a>, <a class="el" href="sesslog_8h_source.html#l00078">brix_sess_xfer_t::expected</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00058">s3_sess_mode()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00153">s3_sess_xfer_bytes()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00133">s3_sess_xfer_expected()</a>, <a class="el" href="s3_8h_source.html#l00135">ngx_http_s3_req_ctx_t::sess_xfer</a>, and <a class="el" href="s3_8h_source.html#l00136">ngx_http_s3_req_ctx_t::sess_xfer_started</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00057">BRIX_SESS_XFER_ABORTED</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00413">brix_sess_xfer_add()</a>, <a class="el" href="sesslog_8h_source.html#l00056">BRIX_SESS_XFER_COMPLETE</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00422">brix_sess_xfer_end()</a>, <a class="el" href="sesslog_8h_source.html#l00077">brix_sess_xfer_t::bytes</a>, <a class="el" href="sesslog_8h_source.html#l00078">brix_sess_xfer_t::expected</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00058">s3_sess_mode()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00153">s3_sess_xfer_bytes()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00133">s3_sess_xfer_expected()</a>, <a class="el" href="s3_8h_source.html#l00144">ngx_http_s3_req_ctx_t::sess_xfer</a>, and <a class="el" href="s3_8h_source.html#l00145">ngx_http_s3_req_ctx_t::sess_xfer_started</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">s3_metrics_response_method()</a>.</p>
 
@@ -650,7 +650,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00170">170</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00080">brix_sess_xfer_t::active</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00375">brix_sess_xfer_start()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00126">s3_sess_method_has_xfer()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00058">s3_sess_mode()</a>, <a class="el" href="s3_8h_source.html#l00135">ngx_http_s3_req_ctx_t::sess_xfer</a>, and <a class="el" href="s3_8h_source.html#l00136">ngx_http_s3_req_ctx_t::sess_xfer_started</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00080">brix_sess_xfer_t::active</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00389">brix_sess_xfer_start()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00126">s3_sess_method_has_xfer()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00058">s3_sess_mode()</a>, <a class="el" href="s3_8h_source.html#l00144">ngx_http_s3_req_ctx_t::sess_xfer</a>, and <a class="el" href="s3_8h_source.html#l00145">ngx_http_s3_req_ctx_t::sess_xfer_started</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00234">s3_sess_attempt_request()</a>.</p>
 
@@ -682,7 +682,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00095">95</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="identity_8c_source.html#l00432">brix_identity_dn_cstr()</a>, <a class="el" href="identity_8c_source.html#l00439">brix_identity_subject_cstr()</a>, and <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>.</p>
+<p class="reference">References <a class="el" href="identity_8c_source.html#l00351">brix_identity_dn_cstr()</a>, <a class="el" href="identity_8c_source.html#l00358">brix_identity_subject_cstr()</a>, and <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00219">s3_sess_begin_request()</a>.</p>
 
@@ -730,7 +730,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00153">153</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, and <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00190">s3_sess_finish_xfer()</a>.</p>
 
@@ -772,7 +772,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00133">133</a> of file <a class="el" href="protocols_2s3_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, and <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00190">s3_sess_finish_xfer()</a>.</p>
 

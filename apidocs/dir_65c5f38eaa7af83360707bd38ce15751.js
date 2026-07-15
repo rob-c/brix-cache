@@ -2,8 +2,11 @@ var dir_65c5f38eaa7af83360707bd38ce15751 =
 [
     [ "chkpoint.c", "chkpoint_8c.html", "chkpoint_8c" ],
     [ "chkpoint.h", "chkpoint_8h.html", "chkpoint_8h" ],
+    [ "chkpoint_recover.c", "chkpoint__recover_8c.html", "chkpoint__recover_8c" ],
     [ "chkpoint_xeq.c", "chkpoint__xeq_8c.html", "chkpoint__xeq_8c" ],
     [ "chkpoint_xeq.h", "chkpoint__xeq_8h.html", "chkpoint__xeq_8h" ],
+    [ "chkpoint_xeq_internal.h", "chkpoint__xeq__internal_8h.html", "chkpoint__xeq__internal_8h" ],
+    [ "chkpoint_xeq_write.c", "chkpoint__xeq__write_8c.html", "chkpoint__xeq__write_8c" ],
     [ "chmod.c", "chmod_8c.html", "chmod_8c" ],
     [ "common.c", "common_8c.html", "common_8c" ],
     [ "ext_ops.c", "ext__ops_8c.html", "ext__ops_8c" ],
@@ -22,7 +25,10 @@ var dir_65c5f38eaa7af83360707bd38ce15751 =
     [ "write.c", "protocols_2root_2write_2write_8c.html", "protocols_2root_2write_2write_8c" ],
     [ "write.h", "write_8h.html", "write_8h" ],
     [ "write_compress.c", "write__compress_8c.html", "write__compress_8c" ],
+    [ "write_staged.c", "write__staged_8c.html", "write__staged_8c" ],
     [ "writev.c", "writev_8c.html", "writev_8c" ],
+    [ "writev_aio.c", "writev__aio_8c.html", "writev__aio_8c" ],
+    [ "writev_internal.h", "writev__internal_8h.html", "writev__internal_8h" ],
     [ "wrts_journal.c", "wrts__journal_8c.html", "wrts__journal_8c" ],
     [ "wrts_journal.h", "wrts__journal_8h.html", "wrts__journal_8h" ]
 ];

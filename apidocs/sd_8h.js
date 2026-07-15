@@ -1,5 +1,6 @@
 var sd_8h =
 [
+    [ "brix_sd_cred_t", "structbrix__sd__cred__t.html", "structbrix__sd__cred__t" ],
     [ "brix_sd_catalog_ent_t", "structbrix__sd__catalog__ent__t.html", "structbrix__sd__catalog__ent__t" ],
     [ "brix_sd_stat_t", "structbrix__sd__stat__t.html", "structbrix__sd__stat__t" ],
     [ "brix_sd_dirent_t", "structbrix__sd__dirent__t.html", "structbrix__sd__dirent__t" ],
@@ -18,6 +19,14 @@ var sd_8h =
     [ "BRIX_SD_O_TRUNC", "sd_8h.html#abc65eb191ad01309884ff42458e5ed7e", null ],
     [ "BRIX_SD_O_WRITE", "sd_8h.html#aa9cc60930f39f1dd9ed1e04e2f8346ed", null ],
     [ "brix_sd_catalog_cb", "sd_8h.html#a5647884fbc8754c827f5351a0fe2c57d", null ],
+    [ "brix_cred_mode", "sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7", [
+      [ "BRIX_CRED_SELECT", "sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b", null ],
+      [ "BRIX_CRED_PASSTHROUGH", "sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd", null ],
+      [ "BRIX_CRED_EXCHANGE", "sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214", null ],
+      [ "BRIX_CRED_DELEGATE", "sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03", null ],
+      [ "BRIX_CRED_MINT", "sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739", null ],
+      [ "BRIX_CRED_AUTO", "sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b", null ]
+    ] ],
     [ "brix_sd_cap_t", "sd_8h.html#a014489da062b3e2b72231889903fa3cd", [
       [ "BRIX_SD_CAP_FD", "sd_8h.html#a014489da062b3e2b72231889903fa3cda3836870f3b37865db03a2f1325662b80", null ],
       [ "BRIX_SD_CAP_SENDFILE", "sd_8h.html#a014489da062b3e2b72231889903fa3cdadd0d15c806fa9afc50108d9bbad27f94", null ],
@@ -32,7 +41,15 @@ var sd_8h =
       [ "BRIX_SD_CAP_IOURING", "sd_8h.html#a014489da062b3e2b72231889903fa3cda43af1c1f66bd4bb27a0a79f439232e23", null ],
       [ "BRIX_SD_CAP_FSCS", "sd_8h.html#a014489da062b3e2b72231889903fa3cdaa43e4d7f921bc3f1b3b961a9e2afa9d2", null ],
       [ "BRIX_SD_CAP_NEARLINE", "sd_8h.html#a014489da062b3e2b72231889903fa3cdaf1bff861db83c03efd44f796ffb28957", null ],
-      [ "BRIX_SD_CAP_CATALOG", "sd_8h.html#a014489da062b3e2b72231889903fa3cda00eb5a3c25d23af0a3e09016c757bb40", null ]
+      [ "BRIX_SD_CAP_CATALOG", "sd_8h.html#a014489da062b3e2b72231889903fa3cda00eb5a3c25d23af0a3e09016c757bb40", null ],
+      [ "BRIX_SD_CAP_DIRS_WRITE", "sd_8h.html#a014489da062b3e2b72231889903fa3cda28d8d93121c136c620e01266b29cbf9a", null ],
+      [ "BRIX_SD_CAP_XATTR_WRITE", "sd_8h.html#a014489da062b3e2b72231889903fa3cda35a82716cf5dbbb26b8c69d1d9897bdb", null ],
+      [ "BRIX_SD_CAP_MEMFILE", "sd_8h.html#a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c", null ]
+    ] ],
+    [ "brix_sd_cred_kind_t", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5", [
+      [ "BRIX_SD_CRED_NONE", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a3268f7345ede0b45efbd6381f0941345", null ],
+      [ "BRIX_SD_CRED_BEARER", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b", null ],
+      [ "BRIX_SD_CRED_PROXY_PEM", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630", null ]
     ] ],
     [ "brix_sd_residency_t", "sd_8h.html#adcf5163d1b44e53391d7876814133d2e", [
       [ "BRIX_SD_RES_ONLINE", "sd_8h.html#adcf5163d1b44e53391d7876814133d2ea5808b29f6197f162d0911558dc90e550", null ],
@@ -43,18 +60,32 @@ var sd_8h =
     [ "brix_sd_backend_name", "sd_8h.html#a05a5f40f81f7a08c02bc26a4c1e393aa", null ],
     [ "brix_sd_block_open_unconfined", "sd_8h.html#a9700d1570379236b0d95e96b3fee6a42", null ],
     [ "brix_sd_caps", "sd_8h.html#ae9e412fd5ac2fb04de48c04761f52e64", null ],
+    [ "brix_sd_cred_accept", "sd_8h.html#a5caf13180ef3494f3adf31d0dcddabcf", null ],
     [ "brix_sd_default_driver", "sd_8h.html#a2930ffbaed75ae0f6e3c9a024a08c54b", null ],
     [ "brix_sd_driver_at", "sd_8h.html#ad685eff00cf2812ac014f5e7d6a7b96c", null ],
     [ "brix_sd_driver_count", "sd_8h.html#a19073b9b7197e97b4492761b0f22fc03", null ],
     [ "brix_sd_driver_find", "sd_8h.html#a31fc7eb614a7ac7ade25d847b0e8001e", null ],
     [ "brix_sd_fd", "sd_8h.html#af8a058ea090c61cc140ca177e21572a4", null ],
-    [ "brix_sd_instance_create", "sd_8h.html#ac547435a2019fe08fa09cd1a78db4fc4", null ],
+    [ "brix_sd_getxattr_maybe_cred", "sd_8h.html#aa55da2b533dae4b3d336b523391a552c", null ],
+    [ "brix_sd_instance_create", "sd_8h.html#a96f5e2d1c1b23d8db2f8ecfbdb78076b", null ],
     [ "brix_sd_instance_destroy", "sd_8h.html#aa2505c51ae311a1c3af3dd144feed399", null ],
+    [ "brix_sd_listxattr_maybe_cred", "sd_8h.html#a28ed16e160fc56564e8ebc82ba90c65f", null ],
+    [ "brix_sd_mkdir_maybe_cred", "sd_8h.html#a7d3fb145adb83eb15b40efdcd3d2dd9a", null ],
     [ "brix_sd_obj_release", "sd_8h.html#aaaf8275711dbb922c9eb84802b20575d", null ],
+    [ "brix_sd_open_maybe_cred", "sd_8h.html#a31ca4d429ffeca0836b9aec2d74bf85e", null ],
+    [ "brix_sd_opendir_maybe_cred", "sd_8h.html#afc13a8988ff61b04bf7574886f1cadf7", null ],
     [ "brix_sd_posix_borrow_instance", "sd_8h.html#ada4f4b6c600ca1d727e710e903af9c86", null ],
     [ "brix_sd_posix_open_unconfined", "sd_8h.html#a529a5189f1b8ce2a5d1c828313a89a61", null ],
     [ "brix_sd_posix_wrap", "sd_8h.html#a7e5da1d786888ae8aac242c4901e0efd", null ],
+    [ "brix_sd_removexattr_maybe_cred", "sd_8h.html#aba5875e3eb4ebdf10d3b42852098c74f", null ],
+    [ "brix_sd_rename_maybe_cred", "sd_8h.html#a283c4f200f9e952dbe3e1b1d76010a68", null ],
+    [ "brix_sd_server_copy_maybe_cred", "sd_8h.html#a142f2fca00a8e56a8b8d40abad83f30f", null ],
+    [ "brix_sd_setattr_maybe_cred", "sd_8h.html#a91a23c94870804975a7af338b56d788d", null ],
+    [ "brix_sd_setxattr_maybe_cred", "sd_8h.html#a2d26bbf3e0a48b9a9065e5144388f942", null ],
+    [ "brix_sd_staged_open_maybe_cred", "sd_8h.html#af9ddf937c8cd0e5b82fa962fcffdb694", null ],
+    [ "brix_sd_stat_maybe_cred", "sd_8h.html#a9428ac6e57e49aa0ac0122da8d98ac1f", null ],
     [ "brix_sd_supports", "sd_8h.html#a06b32f1b45c61bdb50aa3c7104dc390d", null ],
+    [ "brix_sd_unlink_maybe_cred", "sd_8h.html#aa279963277829954079e600ebb85ab41", null ],
     [ "brix_sd_block_driver", "sd_8h.html#aec8cf88b84c5ac8952dd5175e378144a", null ],
     [ "brix_sd_posix_driver", "sd_8h.html#ad2bb0e46690e2559ff742ad5be09a178", null ]
 ];

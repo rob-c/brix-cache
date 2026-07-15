@@ -91,16 +91,13 @@ $(document).ready(function(){initNavTree('kv_8c.html',''); initResizable(); });
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">kv.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="ngx__brix__module_8h_source.html">core/ngx_brix_module.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="kv_8h_source.html">kv.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="shm__slots_8h_source.html">core/compat/shm_slots.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="alloc__guard_8h_source.html">core/compat/alloc_guard.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="kv__internal_8h_source.html">kv_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for kv.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -111,19 +108,10 @@ $(document).ready(function(){initNavTree('kv_8c.html',''); initResizable(); });
 </div>
 <p><a href="kv_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__kv__header__t.html">brix_kv_header_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__kv__entry__t.html">brix_kv_entry_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a7a1f4d5baefe254e2dce6e14cfbadabe" id="r_a7a1f4d5baefe254e2dce6e14cfbadabe"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a7a1f4d5baefe254e2dce6e14cfbadabe">brix_kv_hash</a> (const void *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t len)</td></tr>
+<tr class="memitem:a7a1f4d5baefe254e2dce6e14cfbadabe" id="r_a7a1f4d5baefe254e2dce6e14cfbadabe"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a7a1f4d5baefe254e2dce6e14cfbadabe">brix_kv_hash</a> (const void *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t len)</td></tr>
 <tr class="separator:a7a1f4d5baefe254e2dce6e14cfbadabe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adff2227a8b500c40a2ae3e33558d1f48" id="r_adff2227a8b500c40a2ae3e33558d1f48"><td class="memItemLeft" align="right" valign="top">static uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#adff2227a8b500c40a2ae3e33558d1f48">brix_kv_floor_pow2</a> (size_t n)</td></tr>
-<tr class="separator:adff2227a8b500c40a2ae3e33558d1f48"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae395db7613eb5a388ab9d662c52404a0" id="r_ae395db7613eb5a388ab9d662c52404a0"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__kv__header__t.html">brix_kv_header_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#ae395db7613eb5a388ab9d662c52404a0">brix_kv_hdr</a> (<a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>)</td></tr>
 <tr class="separator:ae395db7613eb5a388ab9d662c52404a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaa149799c55708fde1b60bbca249fc95" id="r_aaa149799c55708fde1b60bbca249fc95"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__kv__entry__t.html">brix_kv_entry_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#aaa149799c55708fde1b60bbca249fc95">brix_kv_slot</a> (<a class="el" href="structbrix__kv__header__t.html">brix_kv_header_t</a> *h, size_t stride, uint32_t i)</td></tr>
@@ -132,48 +120,34 @@ Functions</h2></td></tr>
 <tr class="separator:a18ea635440aed1f06248c58058d8da28"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a12642ea8bddb0f98a5eaf088788e5da5" id="r_a12642ea8bddb0f98a5eaf088788e5da5"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a12642ea8bddb0f98a5eaf088788e5da5">brix_kv_remove_at</a> (<a class="el" href="structbrix__kv__header__t.html">brix_kv_header_t</a> *h, size_t stride, uint32_t mask, uint32_t hole)</td></tr>
 <tr class="separator:a12642ea8bddb0f98a5eaf088788e5da5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4266d5bea73f295eb19c82b293a48e84" id="r_a4266d5bea73f295eb19c82b293a48e84"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a4266d5bea73f295eb19c82b293a48e84">brix_kv_init_zone</a> (ngx_shm_zone_t *shm_zone, void *data)</td></tr>
-<tr class="separator:a4266d5bea73f295eb19c82b293a48e84"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1d69fb14f0a07c84355ca606f066530f" id="r_a1d69fb14f0a07c84355ca606f066530f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a1d69fb14f0a07c84355ca606f066530f">brix_kv_configure</a> (ngx_conf_t *cf, <a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, ngx_str_t *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t size, size_t key_max, size_t val_max, void *module)</td></tr>
-<tr class="separator:a1d69fb14f0a07c84355ca606f066530f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad442e6ff4df83c5a316bb75778ab95f5" id="r_ad442e6ff4df83c5a316bb75778ab95f5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#ad442e6ff4df83c5a316bb75778ab95f5">brix_kv_get</a> (<a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, const void *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, void *out, size_t *out_len)</td></tr>
+<tr class="memitem:a6682ca6a0178c85de33a5b244fb4880d" id="r_a6682ca6a0178c85de33a5b244fb4880d"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a6682ca6a0178c85de33a5b244fb4880d">brix_kv_entry_matches</a> (<a class="el" href="structbrix__kv__entry__t.html">brix_kv_entry_t</a> *e, uint64_t hash, const void *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len)</td></tr>
+<tr class="separator:a6682ca6a0178c85de33a5b244fb4880d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aefb715ab66c5cf58257598f1b9a0ddf7" id="r_aefb715ab66c5cf58257598f1b9a0ddf7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#aefb715ab66c5cf58257598f1b9a0ddf7">brix_kv_copy_value</a> (<a class="el" href="structbrix__kv__entry__t.html">brix_kv_entry_t</a> *e, <a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, void *out, size_t *out_len)</td></tr>
+<tr class="separator:aefb715ab66c5cf58257598f1b9a0ddf7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad442e6ff4df83c5a316bb75778ab95f5" id="r_ad442e6ff4df83c5a316bb75778ab95f5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#ad442e6ff4df83c5a316bb75778ab95f5">brix_kv_get</a> (<a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, const void *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, void *out, size_t *out_len)</td></tr>
 <tr class="separator:ad442e6ff4df83c5a316bb75778ab95f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6884cfba836902eaba78ebd29a0be063" id="r_a6884cfba836902eaba78ebd29a0be063"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a6884cfba836902eaba78ebd29a0be063">brix_kv_set</a> (<a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, const void *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const void *val, size_t val_len, ngx_msec_t ttl_ms)</td></tr>
+<tr class="memitem:a6884cfba836902eaba78ebd29a0be063" id="r_a6884cfba836902eaba78ebd29a0be063"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a6884cfba836902eaba78ebd29a0be063">brix_kv_set</a> (<a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, const void *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const void *val, size_t val_len, ngx_msec_t ttl_ms)</td></tr>
 <tr class="separator:a6884cfba836902eaba78ebd29a0be063"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2cc20f1afe09fa36b75833b310a9072a" id="r_a2cc20f1afe09fa36b75833b310a9072a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a2cc20f1afe09fa36b75833b310a9072a">brix_kv_delete</a> (<a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, const void *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len)</td></tr>
+<tr class="memitem:a2cc20f1afe09fa36b75833b310a9072a" id="r_a2cc20f1afe09fa36b75833b310a9072a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a2cc20f1afe09fa36b75833b310a9072a">brix_kv_delete</a> (<a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, const void *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len)</td></tr>
 <tr class="separator:a2cc20f1afe09fa36b75833b310a9072a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af8e8d5e94a19337005a4f507db0a1ef4" id="r_af8e8d5e94a19337005a4f507db0a1ef4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#af8e8d5e94a19337005a4f507db0a1ef4">brix_kv_stats</a> (<a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *<a class="el" href="structkv.html">kv</a>, <a class="el" href="structbrix__kv__stats__t.html">brix_kv_stats_t</a> *out)</td></tr>
 <tr class="separator:af8e8d5e94a19337005a4f507db0a1ef4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aef9899ae1e71277ee9ac78f1e6b1ba7f" id="r_aef9899ae1e71277ee9ac78f1e6b1ba7f"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#aef9899ae1e71277ee9ac78f1e6b1ba7f">brix_kv_find</a> (const ngx_str_t *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
-<tr class="separator:aef9899ae1e71277ee9ac78f1e6b1ba7f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac5fb09db05558326e3cfd427d3308f6a" id="r_ac5fb09db05558326e3cfd427d3308f6a"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#ac5fb09db05558326e3cfd427d3308f6a">brix_kv_zone_count</a> (void)</td></tr>
-<tr class="separator:ac5fb09db05558326e3cfd427d3308f6a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af2d33433faacd17e5a32f705e05b0d94" id="r_af2d33433faacd17e5a32f705e05b0d94"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#af2d33433faacd17e5a32f705e05b0d94">brix_kv_zone_get</a> (ngx_uint_t i)</td></tr>
-<tr class="separator:af2d33433faacd17e5a32f705e05b0d94"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a67d25e5fce3a407cb4bb3853fc3804eb" id="r_a67d25e5fce3a407cb4bb3853fc3804eb"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a67d25e5fce3a407cb4bb3853fc3804eb">brix_kv_zone_directive</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
-<tr class="separator:a67d25e5fce3a407cb4bb3853fc3804eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:ac0d274f302a4c56fb72c0077d7a8d2d8" id="r_ac0d274f302a4c56fb72c0077d7a8d2d8"><td class="memItemLeft" align="right" valign="top">ngx_module_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a></td></tr>
-<tr class="separator:ac0d274f302a4c56fb72c0077d7a8d2d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a92873ca286b2bf8871a8a76db80d548a" id="r_a92873ca286b2bf8871a8a76db80d548a"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__kv__t.html">brix_kv_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a92873ca286b2bf8871a8a76db80d548a">brix_kv_zones</a> [16]</td></tr>
-<tr class="separator:a92873ca286b2bf8871a8a76db80d548a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1a496f99f676e8fd3da0233904b7208b" id="r_a1a496f99f676e8fd3da0233904b7208b"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kv_8c.html#a1a496f99f676e8fd3da0233904b7208b">brix_kv_nzones</a></td></tr>
-<tr class="separator:a1a496f99f676e8fd3da0233904b7208b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a1d69fb14f0a07c84355ca606f066530f" name="a1d69fb14f0a07c84355ca606f066530f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1d69fb14f0a07c84355ca606f066530f">&#9670;&#160;</a></span>brix_kv_configure()</h2>
+<a id="aefb715ab66c5cf58257598f1b9a0ddf7" name="aefb715ab66c5cf58257598f1b9a0ddf7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aefb715ab66c5cf58257598f1b9a0ddf7">&#9670;&#160;</a></span>brix_kv_copy_value()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">ngx_int_t brix_kv_configure </td>
+          <td class="memname">static void brix_kv_copy_value </td>
           <td>(</td>
-          <td class="paramtype">ngx_conf_t *&#160;</td>
-          <td class="paramname"><em>cf</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__kv__entry__t.html">brix_kv_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>e</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -184,32 +158,14 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">ngx_str_t *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>size</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>key_max</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>val_max</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
           <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>module</em>&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>out_len</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -217,13 +173,18 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00192">192</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00146">146</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00074">brix_kv_floor_pow2()</a>, <a class="el" href="kv_8c_source.html#l00160">brix_kv_init_zone()</a>, <a class="el" href="kv_8h_source.html#l00032">BRIX_KV_MAX_ZONES</a>, <a class="el" href="kv_8h_source.html#l00031">BRIX_KV_MIN_SIZE</a>, <a class="el" href="kv_8c_source.html#l00056">brix_kv_nzones</a>, <a class="el" href="kv_8c_source.html#l00055">brix_kv_zones</a>, <a class="el" href="shm__slots_8c_source.html#l00180">brix_shm_zone_size()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="kv__internal_8h_source.html#l00056">brix_kv_entry_t::val_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00469">brix_kv_zone_directive()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00164">brix_kv_get()</a>.</p>
 
 </div>
 </div>
@@ -259,38 +220,14 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00380">380</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00282">282</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00060">brix_kv_hash()</a>, <a class="el" href="kv_8c_source.html#l00088">brix_kv_hdr()</a>, <a class="el" href="kv_8c_source.html#l00129">brix_kv_remove_at()</a>, <a class="el" href="kv_8c_source.html#l00107">brix_kv_slot()</a>, <a class="el" href="kv_8c_source.html#l00040">brix_kv_header_t::capacity</a>, <a class="el" href="kv_8c_source.html#l00036">brix_kv_header_t::count</a>, <a class="el" href="kv_8c_source.html#l00047">brix_kv_entry_t::hash</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="kv_8c_source.html#l00048">brix_kv_entry_t::key_len</a>.</p>
-
-</div>
-</div>
-<a id="aef9899ae1e71277ee9ac78f1e6b1ba7f" name="aef9899ae1e71277ee9ac78f1e6b1ba7f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aef9899ae1e71277ee9ac78f1e6b1ba7f">&#9670;&#160;</a></span>brix_kv_find()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="structbrix__kv__t.html">brix_kv_t</a> * brix_kv_find </td>
-          <td>(</td>
-          <td class="paramtype">const ngx_str_t *&#160;</td>
-          <td class="paramname"><em>name</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00440">440</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
-
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00056">brix_kv_nzones</a>, <a class="el" href="kv_8c_source.html#l00055">brix_kv_zones</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="auth__cache_8c_source.html#l00011">brix_auth_cache_directive()</a>, <a class="el" href="kv_8c_source.html#l00469">brix_kv_zone_directive()</a>, <a class="el" href="rate__limit_8c_source.html#l00150">brix_rate_limit_directive()</a>, <a class="el" href="token__cache_8c_source.html#l00078">brix_token_cache_directive()</a>, and <a class="el" href="introspect_8c_source.html#l00250">webdav_conf_revoke_cache()</a>.</p>
+<p class="reference">References <a class="el" href="kv_8c_source.html#l00122">brix_kv_entry_matches()</a>, <a class="el" href="kv_8c_source.html#l00020">brix_kv_hash()</a>, <a class="el" href="kv_8c_source.html#l00034">brix_kv_hdr()</a>, <a class="el" href="kv_8c_source.html#l00075">brix_kv_remove_at()</a>, <a class="el" href="kv_8c_source.html#l00053">brix_kv_slot()</a>, <a class="el" href="kv__internal_8h_source.html#l00047">brix_kv_header_t::capacity</a>, <a class="el" href="kv__internal_8h_source.html#l00043">brix_kv_header_t::count</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="kv__internal_8h_source.html#l00055">brix_kv_entry_t::key_len</a>.</p>
 
 </div>
 </div>
-<a id="adff2227a8b500c40a2ae3e33558d1f48" name="adff2227a8b500c40a2ae3e33558d1f48"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adff2227a8b500c40a2ae3e33558d1f48">&#9670;&#160;</a></span>brix_kv_floor_pow2()</h2>
+<a id="a6682ca6a0178c85de33a5b244fb4880d" name="a6682ca6a0178c85de33a5b244fb4880d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6682ca6a0178c85de33a5b244fb4880d">&#9670;&#160;</a></span>brix_kv_entry_matches()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -299,11 +236,33 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static uint32_t brix_kv_floor_pow2 </td>
+          <td class="memname">static ngx_uint_t brix_kv_entry_matches </td>
           <td>(</td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>n</em></td><td>)</td>
+          <td class="paramtype"><a class="el" href="structbrix__kv__entry__t.html">brix_kv_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>e</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>hash</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>key_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -313,9 +272,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00074">74</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00122">122</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00192">brix_kv_configure()</a>.</p>
+<p class="reference">References <a class="el" href="kv__internal_8h_source.html#l00054">brix_kv_entry_t::hash</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="kv__internal_8h_source.html#l00055">brix_kv_entry_t::key_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00282">brix_kv_delete()</a>, <a class="el" href="kv_8c_source.html#l00164">brix_kv_get()</a>, and <a class="el" href="kv_8c_source.html#l00215">brix_kv_set()</a>.</p>
 
 </div>
 </div>
@@ -363,11 +324,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00253">253</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00164">164</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00060">brix_kv_hash()</a>, <a class="el" href="kv_8c_source.html#l00088">brix_kv_hdr()</a>, <a class="el" href="kv_8c_source.html#l00129">brix_kv_remove_at()</a>, <a class="el" href="kv_8c_source.html#l00107">brix_kv_slot()</a>, <a class="el" href="kv_8c_source.html#l00040">brix_kv_header_t::capacity</a>, <a class="el" href="kv_8c_source.html#l00036">brix_kv_header_t::count</a>, <a class="el" href="kv_8c_source.html#l00039">brix_kv_header_t::evictions</a>, <a class="el" href="kv_8c_source.html#l00050">brix_kv_entry_t::expires</a>, <a class="el" href="kv_8c_source.html#l00047">brix_kv_entry_t::hash</a>, <a class="el" href="kv_8c_source.html#l00037">brix_kv_header_t::hits</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="kv_8c_source.html#l00048">brix_kv_entry_t::key_len</a>, <a class="el" href="kv_8c_source.html#l00038">brix_kv_header_t::misses</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="kv_8c_source.html#l00049">brix_kv_entry_t::val_len</a>.</p>
+<p class="reference">References <a class="el" href="kv_8c_source.html#l00146">brix_kv_copy_value()</a>, <a class="el" href="kv_8c_source.html#l00122">brix_kv_entry_matches()</a>, <a class="el" href="kv_8c_source.html#l00020">brix_kv_hash()</a>, <a class="el" href="kv_8c_source.html#l00034">brix_kv_hdr()</a>, <a class="el" href="kv_8c_source.html#l00075">brix_kv_remove_at()</a>, <a class="el" href="kv_8c_source.html#l00053">brix_kv_slot()</a>, <a class="el" href="kv__internal_8h_source.html#l00047">brix_kv_header_t::capacity</a>, <a class="el" href="kv__internal_8h_source.html#l00043">brix_kv_header_t::count</a>, <a class="el" href="kv__internal_8h_source.html#l00046">brix_kv_header_t::evictions</a>, <a class="el" href="kv__internal_8h_source.html#l00057">brix_kv_entry_t::expires</a>, <a class="el" href="kv__internal_8h_source.html#l00044">brix_kv_header_t::hits</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="kv__internal_8h_source.html#l00055">brix_kv_entry_t::key_len</a>, and <a class="el" href="kv__internal_8h_source.html#l00045">brix_kv_header_t::misses</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00213">brix_auth_gate_op()</a>, <a class="el" href="rate__limit_8c_source.html#l00047">brix_rate_limit_check()</a>, <a class="el" href="token__cache_8c_source.html#l00019">brix_token_cache_lookup()</a>, and <a class="el" href="introspect_8c_source.html#l00174">webdav_introspect_access_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00336">brix_auth_gate_cache_probe()</a>, <a class="el" href="rate__limit_8c_source.html#l00047">brix_rate_limit_check()</a>, <a class="el" href="token__cache_8c_source.html#l00019">brix_token_cache_lookup()</a>, and <a class="el" href="introspect_8c_source.html#l00174">webdav_introspect_access_handler()</a>.</p>
 
 </div>
 </div>
@@ -405,11 +366,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00060">60</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00020">20</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00380">brix_kv_delete()</a>, <a class="el" href="kv_8c_source.html#l00253">brix_kv_get()</a>, and <a class="el" href="kv_8c_source.html#l00311">brix_kv_set()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00282">brix_kv_delete()</a>, <a class="el" href="kv_8c_source.html#l00164">brix_kv_get()</a>, and <a class="el" href="kv_8c_source.html#l00215">brix_kv_set()</a>.</p>
 
 </div>
 </div>
@@ -437,51 +398,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00088">88</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00034">34</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00380">brix_kv_delete()</a>, <a class="el" href="kv_8c_source.html#l00253">brix_kv_get()</a>, <a class="el" href="kv_8c_source.html#l00311">brix_kv_set()</a>, and <a class="el" href="kv_8c_source.html#l00420">brix_kv_stats()</a>.</p>
-
-</div>
-</div>
-<a id="a4266d5bea73f295eb19c82b293a48e84" name="a4266d5bea73f295eb19c82b293a48e84"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4266d5bea73f295eb19c82b293a48e84">&#9670;&#160;</a></span>brix_kv_init_zone()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_kv_init_zone </td>
-          <td>(</td>
-          <td class="paramtype">ngx_shm_zone_t *&#160;</td>
-          <td class="paramname"><em>shm_zone</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>data</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00160">160</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
-
-<p class="reference">References <a class="el" href="shm__slots_8c_source.html#l00061">brix_shm_table_alloc()</a>, <a class="el" href="kv_8c_source.html#l00040">brix_kv_header_t::capacity</a>, <a class="el" href="kv_8c_source.html#l00041">brix_kv_header_t::key_max</a>, and <a class="el" href="kv_8c_source.html#l00042">brix_kv_header_t::val_max</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00192">brix_kv_configure()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00282">brix_kv_delete()</a>, <a class="el" href="kv_8c_source.html#l00164">brix_kv_get()</a>, <a class="el" href="kv_8c_source.html#l00215">brix_kv_set()</a>, and <a class="el" href="kv_8c_source.html#l00320">brix_kv_stats()</a>.</p>
 
 </div>
 </div>
@@ -531,11 +450,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00129">129</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00075">75</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00119">brix_kv_should_shift()</a>, <a class="el" href="kv_8c_source.html#l00107">brix_kv_slot()</a>, <a class="el" href="kv_8c_source.html#l00047">brix_kv_entry_t::hash</a>, <a class="el" href="kv_8c_source.html#l00048">brix_kv_entry_t::key_len</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="kv_8c_source.html#l00065">brix_kv_should_shift()</a>, <a class="el" href="kv_8c_source.html#l00053">brix_kv_slot()</a>, <a class="el" href="kv__internal_8h_source.html#l00054">brix_kv_entry_t::hash</a>, <a class="el" href="kv__internal_8h_source.html#l00055">brix_kv_entry_t::key_len</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00380">brix_kv_delete()</a>, and <a class="el" href="kv_8c_source.html#l00253">brix_kv_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00282">brix_kv_delete()</a>, and <a class="el" href="kv_8c_source.html#l00164">brix_kv_get()</a>.</p>
 
 </div>
 </div>
@@ -589,11 +508,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00311">311</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00215">215</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00060">brix_kv_hash()</a>, <a class="el" href="kv_8c_source.html#l00088">brix_kv_hdr()</a>, <a class="el" href="kv_8c_source.html#l00107">brix_kv_slot()</a>, <a class="el" href="kv_8c_source.html#l00040">brix_kv_header_t::capacity</a>, <a class="el" href="kv_8c_source.html#l00036">brix_kv_header_t::count</a>, <a class="el" href="kv_8c_source.html#l00050">brix_kv_entry_t::expires</a>, <a class="el" href="kv_8c_source.html#l00047">brix_kv_entry_t::hash</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="kv_8c_source.html#l00048">brix_kv_entry_t::key_len</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="kv_8c_source.html#l00049">brix_kv_entry_t::val_len</a>.</p>
+<p class="reference">References <a class="el" href="kv_8c_source.html#l00122">brix_kv_entry_matches()</a>, <a class="el" href="kv_8c_source.html#l00020">brix_kv_hash()</a>, <a class="el" href="kv_8c_source.html#l00034">brix_kv_hdr()</a>, <a class="el" href="kv_8c_source.html#l00053">brix_kv_slot()</a>, <a class="el" href="kv__internal_8h_source.html#l00047">brix_kv_header_t::capacity</a>, <a class="el" href="kv__internal_8h_source.html#l00043">brix_kv_header_t::count</a>, <a class="el" href="kv__internal_8h_source.html#l00057">brix_kv_entry_t::expires</a>, <a class="el" href="kv__internal_8h_source.html#l00054">brix_kv_entry_t::hash</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="kv__internal_8h_source.html#l00055">brix_kv_entry_t::key_len</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="kv__internal_8h_source.html#l00056">brix_kv_entry_t::val_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00194">brix_auth_gate_cache_put()</a>, <a class="el" href="rate__limit_8c_source.html#l00047">brix_rate_limit_check()</a>, <a class="el" href="token__cache_8c_source.html#l00045">brix_token_cache_store()</a>, and <a class="el" href="introspect_8c_source.html#l00091">webdav_introspect_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00277">brix_auth_gate_cache_put()</a>, <a class="el" href="rate__limit_8c_source.html#l00047">brix_rate_limit_check()</a>, <a class="el" href="token__cache_8c_source.html#l00045">brix_token_cache_store()</a>, and <a class="el" href="introspect_8c_source.html#l00091">webdav_introspect_done()</a>.</p>
 
 </div>
 </div>
@@ -637,9 +556,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00119">119</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00065">65</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00129">brix_kv_remove_at()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00075">brix_kv_remove_at()</a>.</p>
 
 </div>
 </div>
@@ -683,9 +602,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00107">107</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00053">53</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00380">brix_kv_delete()</a>, <a class="el" href="kv_8c_source.html#l00253">brix_kv_get()</a>, <a class="el" href="kv_8c_source.html#l00129">brix_kv_remove_at()</a>, and <a class="el" href="kv_8c_source.html#l00311">brix_kv_set()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00282">brix_kv_delete()</a>, <a class="el" href="kv_8c_source.html#l00164">brix_kv_get()</a>, <a class="el" href="kv_8c_source.html#l00075">brix_kv_remove_at()</a>, and <a class="el" href="kv_8c_source.html#l00215">brix_kv_set()</a>.</p>
 
 </div>
 </div>
@@ -715,176 +634,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00420">420</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00320">320</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00088">brix_kv_hdr()</a>, <a class="el" href="kv_8c_source.html#l00040">brix_kv_header_t::capacity</a>, <a class="el" href="kv_8h_source.html#l00058">brix_kv_stats_t::capacity</a>, <a class="el" href="kv_8c_source.html#l00036">brix_kv_header_t::count</a>, <a class="el" href="kv_8h_source.html#l00057">brix_kv_stats_t::count</a>, <a class="el" href="kv_8c_source.html#l00039">brix_kv_header_t::evictions</a>, <a class="el" href="kv_8h_source.html#l00056">brix_kv_stats_t::evictions</a>, <a class="el" href="kv_8c_source.html#l00037">brix_kv_header_t::hits</a>, <a class="el" href="kv_8h_source.html#l00054">brix_kv_stats_t::hits</a>, <a class="el" href="kv_8c_source.html#l00038">brix_kv_header_t::misses</a>, and <a class="el" href="kv_8h_source.html#l00055">brix_kv_stats_t::misses</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="writer_8c_source.html#l00172">brix_kv_metrics_emit()</a>.</p>
-
-</div>
-</div>
-<a id="ac5fb09db05558326e3cfd427d3308f6a" name="ac5fb09db05558326e3cfd427d3308f6a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac5fb09db05558326e3cfd427d3308f6a">&#9670;&#160;</a></span>brix_kv_zone_count()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_uint_t brix_kv_zone_count </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00456">456</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
-
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00056">brix_kv_nzones</a>.</p>
+<p class="reference">References <a class="el" href="kv_8c_source.html#l00034">brix_kv_hdr()</a>, <a class="el" href="kv_8h_source.html#l00058">brix_kv_stats_t::capacity</a>, <a class="el" href="kv__internal_8h_source.html#l00047">brix_kv_header_t::capacity</a>, <a class="el" href="kv_8h_source.html#l00057">brix_kv_stats_t::count</a>, <a class="el" href="kv__internal_8h_source.html#l00043">brix_kv_header_t::count</a>, <a class="el" href="kv_8h_source.html#l00056">brix_kv_stats_t::evictions</a>, <a class="el" href="kv__internal_8h_source.html#l00046">brix_kv_header_t::evictions</a>, <a class="el" href="kv_8h_source.html#l00054">brix_kv_stats_t::hits</a>, <a class="el" href="kv__internal_8h_source.html#l00044">brix_kv_header_t::hits</a>, <a class="el" href="kv_8h_source.html#l00055">brix_kv_stats_t::misses</a>, and <a class="el" href="kv__internal_8h_source.html#l00045">brix_kv_header_t::misses</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="writer_8c_source.html#l00172">brix_kv_metrics_emit()</a>.</p>
-
-</div>
-</div>
-<a id="a67d25e5fce3a407cb4bb3853fc3804eb" name="a67d25e5fce3a407cb4bb3853fc3804eb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a67d25e5fce3a407cb4bb3853fc3804eb">&#9670;&#160;</a></span>brix_kv_zone_directive()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">char * brix_kv_zone_directive </td>
-          <td>(</td>
-          <td class="paramtype">ngx_conf_t *&#160;</td>
-          <td class="paramname"><em>cf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_command_t *&#160;</td>
-          <td class="paramname"><em>cmd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>conf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00469">469</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
-
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00192">brix_kv_configure()</a>, <a class="el" href="kv_8c_source.html#l00440">brix_kv_find()</a>, <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
-
-</div>
-</div>
-<a id="af2d33433faacd17e5a32f705e05b0d94" name="af2d33433faacd17e5a32f705e05b0d94"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af2d33433faacd17e5a32f705e05b0d94">&#9670;&#160;</a></span>brix_kv_zone_get()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="structbrix__kv__t.html">brix_kv_t</a> * brix_kv_zone_get </td>
-          <td>(</td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>i</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00462">462</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
-
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00056">brix_kv_nzones</a>, and <a class="el" href="kv_8c_source.html#l00055">brix_kv_zones</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="writer_8c_source.html#l00172">brix_kv_metrics_emit()</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="a1a496f99f676e8fd3da0233904b7208b" name="a1a496f99f676e8fd3da0233904b7208b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1a496f99f676e8fd3da0233904b7208b">&#9670;&#160;</a></span>brix_kv_nzones</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_uint_t brix_kv_nzones</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00056">56</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00192">brix_kv_configure()</a>, <a class="el" href="kv_8c_source.html#l00440">brix_kv_find()</a>, <a class="el" href="kv_8c_source.html#l00456">brix_kv_zone_count()</a>, and <a class="el" href="kv_8c_source.html#l00462">brix_kv_zone_get()</a>.</p>
-
-</div>
-</div>
-<a id="a92873ca286b2bf8871a8a76db80d548a" name="a92873ca286b2bf8871a8a76db80d548a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a92873ca286b2bf8871a8a76db80d548a">&#9670;&#160;</a></span>brix_kv_zones</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="structbrix__kv__t.html">brix_kv_t</a>* brix_kv_zones[16]</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="kv_8c_source.html#l00055">55</a> of file <a class="el" href="kv_8c_source.html">kv.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="kv_8c_source.html#l00192">brix_kv_configure()</a>, <a class="el" href="kv_8c_source.html#l00440">brix_kv_find()</a>, and <a class="el" href="kv_8c_source.html#l00462">brix_kv_zone_get()</a>.</p>
-
-</div>
-</div>
-<a id="ac0d274f302a4c56fb72c0077d7a8d2d8" name="ac0d274f302a4c56fb72c0077d7a8d2d8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac0d274f302a4c56fb72c0077d7a8d2d8">&#9670;&#160;</a></span>ngx_http_brix_webdav_module</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_module_t ngx_http_brix_webdav_module</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">extern</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">548</a> of file <a class="el" href="protocols_2webdav_2module_8c_source.html">module.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="module__acc__directives_8c_source.html#l00109">brix_acc_http_both()</a>, <a class="el" href="module__acc__directives_8c_source.html#l00093">brix_acc_http_set_audit()</a>, <a class="el" href="module__acc__directives_8c_source.html#l00051">brix_acc_http_set_authdb()</a>, <a class="el" href="module__acc__directives_8c_source.html#l00082">brix_acc_http_set_format()</a>, <a class="el" href="dig_8c_source.html#l00125">brix_dig_handle()</a>, <a class="el" href="http__mirror_8c_source.html#l00617">brix_http_mirror_log_handler()</a>, <a class="el" href="http__mirror_8c_source.html#l00522">brix_http_mirror_precontent_handler()</a>, <a class="el" href="http__mirror_8c_source.html#l00408">brix_http_mirror_proxy()</a>, <a class="el" href="module__init_8c_source.html#l00029">brix_http_protocol_variable()</a>, <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>, <a class="el" href="module__acc__directives_8c_source.html#l00026">brix_http_set_ktls()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00070">brix_proto_mask()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00043">brix_rl_http_access_handler()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00157">brix_rl_http_log_handler()</a>, <a class="el" href="http__mirror_8c_source.html#l00136">mirror_create_request()</a>, <a class="el" href="http__mirror_8c_source.html#l00368">mirror_finalize_request()</a>, <a class="el" href="http__mirror_8c_source.html#l00468">mirror_fire_subrequests()</a>, <a class="el" href="http__mirror_8c_source.html#l00317">mirror_process_status_line()</a>, <a class="el" href="http__mirror_8c_source.html#l00501">mirror_put_body_handler()</a>, <a class="el" href="http__mirror_8c_source.html#l00304">mirror_reinit_request()</a>, <a class="el" href="protocols_2webdav_2access_8c_source.html#l00127">ngx_http_brix_webdav_access_handler()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00037">ngx_http_brix_webdav_handler()</a>, <a class="el" href="postconfig_8c_source.html#l00019">ngx_http_brix_webdav_postconfiguration()</a>, <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, <a class="el" href="propfind__props_8c_source.html#l00021">propfind_append_acl_properties()</a>, <a class="el" href="propfind_8c_source.html#l00251">propfind_body_handler()</a>, <a class="el" href="propfind__props_8c_source.html#l00157">propfind_entry()</a>, <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>, <a class="el" href="tape__rest_8c_source.html#l00680">tape_dispatch_post()</a>, <a class="el" href="tape__rest_8c_source.html#l00195">tape_residency()</a>, <a class="el" href="protocols_2webdav_2access_8c_source.html#l00061">webdav_acc_check()</a>, <a class="el" href="cors_8c_source.html#l00181">webdav_add_cors_headers()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00269">webdav_check_locks()</a>, <a class="el" href="auth__token_8c_source.html#l00069">webdav_check_token_scope()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00263">webdav_copy_probe()</a>, <a class="el" href="tpc_8c_source.html#l00055">webdav_dashboard_identity()</a>, <a class="el" href="dead__props_8c_source.html#l00036">webdav_dead_prop_vfs_ctx_init()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00302">webdav_handle_copy()</a>, <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>, <a class="el" href="methods__basic_8c_source.html#l00099">webdav_handle_head()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00464">webdav_handle_lock()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00475">webdav_handle_lock_inner()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>, <a class="el" href="namespace_8c_source.html#l00113">webdav_handle_mkcol()</a>, <a class="el" href="move_8c_source.html#l00241">webdav_handle_move()</a>, <a class="el" href="methods__basic_8c_source.html#l00039">webdav_handle_options()</a>, <a class="el" href="webdav_2put_8c_source.html#l00233">webdav_handle_put_body()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00595">webdav_handle_unlock()</a>, <a class="el" href="introspect_8c_source.html#l00174">webdav_introspect_access_handler()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00222">webdav_lock_vfs_ctx()</a>, <a class="el" href="prop__xattr_8c_source.html#l00037">webdav_lock_vfs_ctx_init()</a>, <a class="el" href="move_8c_source.html#l00037">webdav_move_probe()</a>, <a class="el" href="namespace_8c_source.html#l00019">webdav_ns_vfs_ctx_init()</a>, <a class="el" href="methods__basic_8c_source.html#l00485">webdav_proppatch_body_handler()</a>, <a class="el" href="proxy__request_8c_source.html#l00070">webdav_proxy_create_request()</a>, <a class="el" href="proxy__response_8c_source.html#l00174">webdav_proxy_finalize_request()</a>, <a class="el" href="src_2protocols_2webdav_2proxy_8c_source.html#l00022">webdav_proxy_handler()</a>, <a class="el" href="proxy__response_8c_source.html#l00043">webdav_proxy_process_status_line()</a>, <a class="el" href="proxy__response_8c_source.html#l00021">webdav_proxy_reinit_request()</a>, <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>, <a class="el" href="webdav_2put_8c_source.html#l00079">webdav_put_persist_checksums()</a>, <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>, <a class="el" href="webdav_2put_8c_source.html#l00045">webdav_put_vfs_ctx_init()</a>, <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>, <a class="el" href="search_8c_source.html#l00428">webdav_search_body_handler()</a>, <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">webdav_sess()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00221">webdav_sess_begin_request()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00189">webdav_sess_finish_xfer()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00170">webdav_sess_start_xfer()</a>, <a class="el" href="tape__rest_8c_source.html#l00735">webdav_tape_handle()</a>, <a class="el" href="tpc__cred_8c_source.html#l00461">webdav_tpc_cred_obtain_token()</a>, <a class="el" href="tpc_8c_source.html#l00075">webdav_tpc_note_client_copy_xfer()</a>, <a class="el" href="tpc_8c_source.html#l00026">webdav_tpc_probe()</a>, <a class="el" href="tpc_8c_source.html#l00066">webdav_tpc_request_identity()</a>, <a class="el" href="auth__token_8c_source.html#l00160">webdav_verify_bearer_token()</a>, and <a class="el" href="auth__cert_8c_source.html#l00461">webdav_verify_proxy_cert()</a>.</p>
 
 </div>
 </div>

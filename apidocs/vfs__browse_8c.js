@@ -5,6 +5,7 @@ var vfs__browse_8c =
     [ "ngx_http_brix_dashboard_vfs_exports_handler", "vfs__browse_8c.html#aac00662b2d8be75f216d5bf2148783a6", null ],
     [ "ngx_http_brix_dashboard_vfs_files_handler", "vfs__browse_8c.html#a431f26bea293b97e294307a45ac32135", null ],
     [ "vfs_browse_abs_path", "vfs__browse_8c.html#af471954af5cadd618c3956e477b51181", null ],
+    [ "vfs_browse_collect", "vfs__browse_8c.html#ab1c2f4036b25a39cb42144eb7b91ea18", null ],
     [ "vfs_browse_ctx", "vfs__browse_8c.html#a9c6195f2f87ffaeba64945479dd37d86", null ],
     [ "vfs_browse_entry", "vfs__browse_8c.html#ad93f6a89f282cede0c03e030a7684337", null ],
     [ "vfs_browse_get_export", "vfs__browse_8c.html#a362e86b7ecdc7d2f9b5e74164cd3e602", null ],

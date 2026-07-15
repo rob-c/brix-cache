@@ -114,9 +114,9 @@ $(document).ready(function(){initNavTree('tap__decode_8c_source.html',''); initR
 <div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="comment">/* True for request opcodes whose data payload is (or begins with) a path. */</span></div>
 <div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="keywordtype">int</span></div>
 <div class="foldopen" id="foldopen00016" data-start="{" data-end="}">
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno"><a class="line" href="tap_8h.html#a1669016225e38259ca14c7ca520b232b">   16</a></span><a class="code hl_function" href="tap__decode_8c.html#a1669016225e38259ca14c7ca520b232b">brix_tap_opcode_has_path</a>(uint16_t op)</div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno"><a class="line" href="tap_8h.html#a1669016225e38259ca14c7ca520b232b">   16</a></span><a class="code hl_function" href="tap__decode_8c.html#a1669016225e38259ca14c7ca520b232b">brix_tap_opcode_has_path</a>(uint16_t <a class="code hl_variable" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>)</div>
 <div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>{</div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    <span class="keywordflow">switch</span> (op) {</div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    <span class="keywordflow">switch</span> (<a class="code hl_variable" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>) {</div>
 <div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    <span class="keywordflow">case</span> <a class="code hl_define" href="opcodes_8h.html#a788607a4432b5ab5be9d780f862b7356">kXR_open</a>:</div>
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    <span class="keywordflow">case</span> <a class="code hl_define" href="opcodes_8h.html#a9c8a46cf6b86232b09b0a542ff8ae9c3">kXR_stat</a>:</div>
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    <span class="keywordflow">case</span> <a class="code hl_define" href="opcodes_8h.html#a8daab762e5700bddedf3ba67c180a003">kXR_statx</a>:</div>
@@ -189,6 +189,7 @@ $(document).ready(function(){initNavTree('tap__decode_8c_source.html',''); initR
 <div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="keywordflow">return</span> 8;</div>
 <div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>}</div>
 </div>
+<div class="ttc" id="abroker__ops_8c_html_a0a0aa265e5eadd9a8815f58be2fa559c"><div class="ttname"><a href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a></div><div class="ttdeci">uint32_t op</div><div class="ttdef"><b>Definition</b> <a href="broker__ops_8c_source.html#l00392">broker_ops.c:392</a></div></div>
 <div class="ttc" id="aframe__hdr_8h_html"><div class="ttname"><a href="frame__hdr_8h.html">frame_hdr.h</a></div></div>
 <div class="ttc" id="aframe__hdr_8h_html_a8999f82a5bd31849ab716c7f08338feb"><div class="ttname"><a href="frame__hdr_8h.html#a8999f82a5bd31849ab716c7f08338feb">xrd_get_u16_be</a></div><div class="ttdeci">static uint16_t xrd_get_u16_be(const void *p)</div><div class="ttdef"><b>Definition</b> <a href="frame__hdr_8h_source.html#l00030">frame_hdr.h:30</a></div></div>
 <div class="ttc" id="aframe__hdr_8h_html_aeb9f71de57902d12ab98d7fe09013738"><div class="ttname"><a href="frame__hdr_8h.html#aeb9f71de57902d12ab98d7fe09013738">xrd_resp_hdr_unpack</a></div><div class="ttdeci">static void xrd_resp_hdr_unpack(const uint8_t h[8], uint16_t *streamid, uint16_t *status, uint32_t *dlen)</div><div class="ttdef"><b>Definition</b> <a href="frame__hdr_8h_source.html#l00083">frame_hdr.h:83</a></div></div>

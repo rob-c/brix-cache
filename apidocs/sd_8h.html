@@ -103,6 +103,7 @@ $(document).ready(function(){initNavTree('sd_8h.html',''); initResizable(); });
 <div class="textblock"><code>#include &lt;ngx_config.h&gt;</code><br />
 <code>#include &lt;ngx_core.h&gt;</code><br />
 <code>#include &lt;stdint.h&gt;</code><br />
+<code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;sys/stat.h&gt;</code><br />
 <code>#include &lt;sys/types.h&gt;</code><br />
 <code>#include &lt;sys/uio.h&gt;</code><br />
@@ -111,20 +112,15 @@ $(document).ready(function(){initNavTree('sd_8h.html',''); initResizable(); });
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="sd_8h__incl.svg" width="662" height="110"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
-</div>
-</div><div class="textblock"><div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
-  <img id="dynsection-1-trigger" src="closed.png" alt="+"/> This graph shows which files directly or indirectly include this file:</div>
-<div id="dynsection-1-summary" class="dynsummary" style="display:block;">
-</div>
-<div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="sd_8h__dep__incl.svg" width="100%" height="536"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="sd_8h__incl.svg" width="100%" height="382"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="sd_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__catalog__ent__t.html">brix_sd_catalog_ent_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a></td></tr>
@@ -188,9 +184,29 @@ Enumerations</h2></td></tr>
 , <br />
 &#160;&#160;<a class="el" href="sd_8h.html#a014489da062b3e2b72231889903fa3cdaf1bff861db83c03efd44f796ffb28957">BRIX_SD_CAP_NEARLINE</a> = 1u &lt;&lt; 12
 , <a class="el" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda00eb5a3c25d23af0a3e09016c757bb40">BRIX_SD_CAP_CATALOG</a> = 1u &lt;&lt; 13
+, <a class="el" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda28d8d93121c136c620e01266b29cbf9a">BRIX_SD_CAP_DIRS_WRITE</a> = 1u &lt;&lt; 14
+, <a class="el" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda35a82716cf5dbbb26b8c69d1d9897bdb">BRIX_SD_CAP_XATTR_WRITE</a> = 1u &lt;&lt; 15
+, <br />
+&#160;&#160;<a class="el" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c">BRIX_SD_CAP_MEMFILE</a> = 1u &lt;&lt; 16
 <br />
  }</td></tr>
 <tr class="separator:a014489da062b3e2b72231889903fa3cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a79590dd9eb9df69b9f7efb775364c4c5" id="r_a79590dd9eb9df69b9f7efb775364c4c5"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5">brix_sd_cred_kind_t</a> { <a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a3268f7345ede0b45efbd6381f0941345">BRIX_SD_CRED_NONE</a> = 0
+, <a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b">BRIX_SD_CRED_BEARER</a> = 1u &lt;&lt; 0
+, <a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630">BRIX_SD_CRED_PROXY_PEM</a> = 1u &lt;&lt; 1
+ }</td></tr>
+<tr class="separator:a79590dd9eb9df69b9f7efb775364c4c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a14e5dbdc241bcb9af0bfe56db399dfb7" id="r_a14e5dbdc241bcb9af0bfe56db399dfb7"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7">brix_cred_mode</a> { <br />
+&#160;&#160;<a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b">BRIX_CRED_SELECT</a> = 0
+, <a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd">BRIX_CRED_PASSTHROUGH</a>
+, <a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214">BRIX_CRED_EXCHANGE</a>
+, <a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03">BRIX_CRED_DELEGATE</a>
+, <br />
+&#160;&#160;<a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739">BRIX_CRED_MINT</a>
+, <a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a>
+<br />
+ }</td></tr>
+<tr class="separator:a14e5dbdc241bcb9af0bfe56db399dfb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adcf5163d1b44e53391d7876814133d2e" id="r_adcf5163d1b44e53391d7876814133d2e"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#adcf5163d1b44e53391d7876814133d2e">brix_sd_residency_t</a> { <a class="el" href="sd_8h.html#adcf5163d1b44e53391d7876814133d2ea5808b29f6197f162d0911558dc90e550">BRIX_SD_RES_ONLINE</a> = 0
 , <a class="el" href="sd_8h.html#adcf5163d1b44e53391d7876814133d2ea8ad4dc8c86575fcd0a52374c1ae615a2">BRIX_SD_RES_NEARLINE</a> = 1
 , <a class="el" href="sd_8h.html#adcf5163d1b44e53391d7876814133d2eabdc6329bc286d4f4aa285e3e524bb856">BRIX_SD_RES_OFFLINE</a> = 2
@@ -210,19 +226,47 @@ Functions</h2></td></tr>
 <tr class="separator:a05a5f40f81f7a08c02bc26a4c1e393aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a06b32f1b45c61bdb50aa3c7104dc390d" id="r_a06b32f1b45c61bdb50aa3c7104dc390d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a06b32f1b45c61bdb50aa3c7104dc390d">brix_sd_supports</a> (const brix_sd_instance_t *inst, uint32_t required_caps)</td></tr>
 <tr class="separator:a06b32f1b45c61bdb50aa3c7104dc390d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5caf13180ef3494f3adf31d0dcddabcf" id="r_a5caf13180ef3494f3adf31d0dcddabcf"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a5caf13180ef3494f3adf31d0dcddabcf">brix_sd_cred_accept</a> (const brix_sd_instance_t *inst)</td></tr>
+<tr class="separator:a5caf13180ef3494f3adf31d0dcddabcf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a31ca4d429ffeca0836b9aec2d74bf85e" id="r_a31ca4d429ffeca0836b9aec2d74bf85e"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a31ca4d429ffeca0836b9aec2d74bf85e">brix_sd_open_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:a31ca4d429ffeca0836b9aec2d74bf85e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af9ddf937c8cd0e5b82fa962fcffdb694" id="r_af9ddf937c8cd0e5b82fa962fcffdb694"><td class="memItemLeft" align="right" valign="top">static brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#af9ddf937c8cd0e5b82fa962fcffdb694">brix_sd_staged_open_maybe_cred</a> (brix_sd_instance_t *inst, const char *final_path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:af9ddf937c8cd0e5b82fa962fcffdb694"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9428ac6e57e49aa0ac0122da8d98ac1f" id="r_a9428ac6e57e49aa0ac0122da8d98ac1f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a9428ac6e57e49aa0ac0122da8d98ac1f">brix_sd_stat_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a9428ac6e57e49aa0ac0122da8d98ac1f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa279963277829954079e600ebb85ab41" id="r_aa279963277829954079e600ebb85ab41"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#aa279963277829954079e600ebb85ab41">brix_sd_unlink_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, int is_dir, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:aa279963277829954079e600ebb85ab41"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7d3fb145adb83eb15b40efdcd3d2dd9a" id="r_a7d3fb145adb83eb15b40efdcd3d2dd9a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a7d3fb145adb83eb15b40efdcd3d2dd9a">brix_sd_mkdir_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a7d3fb145adb83eb15b40efdcd3d2dd9a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a283c4f200f9e952dbe3e1b1d76010a68" id="r_a283c4f200f9e952dbe3e1b1d76010a68"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a283c4f200f9e952dbe3e1b1d76010a68">brix_sd_rename_maybe_cred</a> (brix_sd_instance_t *inst, const char *src, const char *dst, int noreplace, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a283c4f200f9e952dbe3e1b1d76010a68"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a91a23c94870804975a7af338b56d788d" id="r_a91a23c94870804975a7af338b56d788d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a91a23c94870804975a7af338b56d788d">brix_sd_setattr_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, const <a class="el" href="structbrix__sd__setattr__t.html">brix_sd_setattr_t</a> *attr, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a91a23c94870804975a7af338b56d788d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa55da2b533dae4b3d336b523391a552c" id="r_aa55da2b533dae4b3d336b523391a552c"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#aa55da2b533dae4b3d336b523391a552c">brix_sd_getxattr_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *buf, size_t cap, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:aa55da2b533dae4b3d336b523391a552c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a28ed16e160fc56564e8ebc82ba90c65f" id="r_a28ed16e160fc56564e8ebc82ba90c65f"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a28ed16e160fc56564e8ebc82ba90c65f">brix_sd_listxattr_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, void *buf, size_t cap, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a28ed16e160fc56564e8ebc82ba90c65f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2d26bbf3e0a48b9a9065e5144388f942" id="r_a2d26bbf3e0a48b9a9065e5144388f942"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a2d26bbf3e0a48b9a9065e5144388f942">brix_sd_setxattr_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const void *val, size_t len, int flags, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a2d26bbf3e0a48b9a9065e5144388f942"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aba5875e3eb4ebdf10d3b42852098c74f" id="r_aba5875e3eb4ebdf10d3b42852098c74f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#aba5875e3eb4ebdf10d3b42852098c74f">brix_sd_removexattr_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:aba5875e3eb4ebdf10d3b42852098c74f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a142f2fca00a8e56a8b8d40abad83f30f" id="r_a142f2fca00a8e56a8b8d40abad83f30f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a142f2fca00a8e56a8b8d40abad83f30f">brix_sd_server_copy_maybe_cred</a> (brix_sd_instance_t *inst, const char *src, const char *dst, off_t *bytes_out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a142f2fca00a8e56a8b8d40abad83f30f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afc13a8988ff61b04bf7574886f1cadf7" id="r_afc13a8988ff61b04bf7574886f1cadf7"><td class="memItemLeft" align="right" valign="top">static brix_sd_dir_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#afc13a8988ff61b04bf7574886f1cadf7">brix_sd_opendir_maybe_cred</a> (brix_sd_instance_t *inst, const char *path, int *err_out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:afc13a8988ff61b04bf7574886f1cadf7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a31fc7eb614a7ac7ade25d847b0e8001e" id="r_a31fc7eb614a7ac7ade25d847b0e8001e"><td class="memItemLeft" align="right" valign="top">const brix_sd_driver_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a31fc7eb614a7ac7ade25d847b0e8001e">brix_sd_driver_find</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
 <tr class="separator:a31fc7eb614a7ac7ade25d847b0e8001e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a19073b9b7197e97b4492761b0f22fc03" id="r_a19073b9b7197e97b4492761b0f22fc03"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a19073b9b7197e97b4492761b0f22fc03">brix_sd_driver_count</a> (void)</td></tr>
 <tr class="separator:a19073b9b7197e97b4492761b0f22fc03"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad685eff00cf2812ac014f5e7d6a7b96c" id="r_ad685eff00cf2812ac014f5e7d6a7b96c"><td class="memItemLeft" align="right" valign="top">const brix_sd_driver_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#ad685eff00cf2812ac014f5e7d6a7b96c">brix_sd_driver_at</a> (ngx_uint_t i)</td></tr>
 <tr class="separator:ad685eff00cf2812ac014f5e7d6a7b96c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac547435a2019fe08fa09cd1a78db4fc4" id="r_ac547435a2019fe08fa09cd1a78db4fc4"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#ac547435a2019fe08fa09cd1a78db4fc4">brix_sd_instance_create</a> (ngx_pool_t *pool, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *driver_conf, int *err_out)</td></tr>
-<tr class="separator:ac547435a2019fe08fa09cd1a78db4fc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a96f5e2d1c1b23d8db2f8ecfbdb78076b" id="r_a96f5e2d1c1b23d8db2f8ecfbdb78076b"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a96f5e2d1c1b23d8db2f8ecfbdb78076b">brix_sd_instance_create</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *driver_conf, int *err_out)</td></tr>
+<tr class="separator:a96f5e2d1c1b23d8db2f8ecfbdb78076b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa2505c51ae311a1c3af3dd144feed399" id="r_aa2505c51ae311a1c3af3dd144feed399"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#aa2505c51ae311a1c3af3dd144feed399">brix_sd_instance_destroy</a> (brix_sd_instance_t *inst)</td></tr>
 <tr class="separator:aa2505c51ae311a1c3af3dd144feed399"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a529a5189f1b8ce2a5d1c828313a89a61" id="r_a529a5189f1b8ce2a5d1c828313a89a61"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a529a5189f1b8ce2a5d1c828313a89a61">brix_sd_posix_open_unconfined</a> (const char *path, int sd_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a529a5189f1b8ce2a5d1c828313a89a61" id="r_a529a5189f1b8ce2a5d1c828313a89a61"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a529a5189f1b8ce2a5d1c828313a89a61">brix_sd_posix_open_unconfined</a> (const char *path, int sd_flags, mode_t mode)</td></tr>
 <tr class="separator:a529a5189f1b8ce2a5d1c828313a89a61"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9700d1570379236b0d95e96b3fee6a42" id="r_a9700d1570379236b0d95e96b3fee6a42"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a9700d1570379236b0d95e96b3fee6a42">brix_sd_block_open_unconfined</a> (const char *path, int sd_flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a9700d1570379236b0d95e96b3fee6a42" id="r_a9700d1570379236b0d95e96b3fee6a42"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a9700d1570379236b0d95e96b3fee6a42">brix_sd_block_open_unconfined</a> (const char *path, int sd_flags, mode_t mode)</td></tr>
 <tr class="separator:a9700d1570379236b0d95e96b3fee6a42"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2930ffbaed75ae0f6e3c9a024a08c54b" id="r_a2930ffbaed75ae0f6e3c9a024a08c54b"><td class="memItemLeft" align="right" valign="top">const brix_sd_driver_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a2930ffbaed75ae0f6e3c9a024a08c54b">brix_sd_default_driver</a> (void)</td></tr>
 <tr class="separator:a2930ffbaed75ae0f6e3c9a024a08c54b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -251,7 +295,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00114">114</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00130">130</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -267,7 +311,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00111">111</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00127">127</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -283,7 +327,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00115">115</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00131">131</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -299,7 +343,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00112">112</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00128">128</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -315,7 +359,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00116">116</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00132">132</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -331,7 +375,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00109">109</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00125">125</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -347,7 +391,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00113">113</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00129">129</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -363,7 +407,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00110">110</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00126">126</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -380,11 +424,35 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00154">154</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00247">247</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="a14e5dbdc241bcb9af0bfe56db399dfb7" name="a14e5dbdc241bcb9af0bfe56db399dfb7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a14e5dbdc241bcb9af0bfe56db399dfb7">&#9670;&#160;</a></span>brix_cred_mode</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7">brix_cred_mode</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b" name="a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b"></a>BRIX_CRED_SELECT&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd" name="a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd"></a>BRIX_CRED_PASSTHROUGH&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214" name="a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214"></a>BRIX_CRED_EXCHANGE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03" name="a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03"></a>BRIX_CRED_DELEGATE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739" name="a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739"></a>BRIX_CRED_MINT&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b" name="a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b"></a>BRIX_CRED_AUTO&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00191">191</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
 <a id="a014489da062b3e2b72231889903fa3cd" name="a014489da062b3e2b72231889903fa3cd"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a014489da062b3e2b72231889903fa3cd">&#9670;&#160;</a></span>brix_sd_cap_t</h2>
 
@@ -411,9 +479,33 @@ Variables</h2></td></tr>
 <tr><td class="fieldname"><a id="a014489da062b3e2b72231889903fa3cdaa43e4d7f921bc3f1b3b961a9e2afa9d2" name="a014489da062b3e2b72231889903fa3cdaa43e4d7f921bc3f1b3b961a9e2afa9d2"></a>BRIX_SD_CAP_FSCS&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a014489da062b3e2b72231889903fa3cdaf1bff861db83c03efd44f796ffb28957" name="a014489da062b3e2b72231889903fa3cdaf1bff861db83c03efd44f796ffb28957"></a>BRIX_SD_CAP_NEARLINE&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a014489da062b3e2b72231889903fa3cda00eb5a3c25d23af0a3e09016c757bb40" name="a014489da062b3e2b72231889903fa3cda00eb5a3c25d23af0a3e09016c757bb40"></a>BRIX_SD_CAP_CATALOG&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a014489da062b3e2b72231889903fa3cda28d8d93121c136c620e01266b29cbf9a" name="a014489da062b3e2b72231889903fa3cda28d8d93121c136c620e01266b29cbf9a"></a>BRIX_SD_CAP_DIRS_WRITE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a014489da062b3e2b72231889903fa3cda35a82716cf5dbbb26b8c69d1d9897bdb" name="a014489da062b3e2b72231889903fa3cda35a82716cf5dbbb26b8c69d1d9897bdb"></a>BRIX_SD_CAP_XATTR_WRITE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c" name="a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c"></a>BRIX_SD_CAP_MEMFILE&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00080">80</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00082">82</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+</div>
+</div>
+<a id="a79590dd9eb9df69b9f7efb775364c4c5" name="a79590dd9eb9df69b9f7efb775364c4c5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a79590dd9eb9df69b9f7efb775364c4c5">&#9670;&#160;</a></span>brix_sd_cred_kind_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5">brix_sd_cred_kind_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a79590dd9eb9df69b9f7efb775364c4c5a3268f7345ede0b45efbd6381f0941345" name="a79590dd9eb9df69b9f7efb775364c4c5a3268f7345ede0b45efbd6381f0941345"></a>BRIX_SD_CRED_NONE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b" name="a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b"></a>BRIX_SD_CRED_BEARER&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630" name="a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630"></a>BRIX_SD_CRED_PROXY_PEM&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00116">116</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -435,7 +527,7 @@ Variables</h2></td></tr>
 <tr><td class="fieldname"><a id="adcf5163d1b44e53391d7876814133d2ea1a1f77be78d75bdedf0260374e5d372d" name="adcf5163d1b44e53391d7876814133d2ea1a1f77be78d75bdedf0260374e5d372d"></a>BRIX_SD_RES_LOST&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00130">130</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00223">223</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -456,9 +548,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00147">147</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00179">179</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00165">brix_cache_fill_from_source()</a>, <a class="el" href="open__or__fill_8c_source.html#l00018">brix_cache_open_or_fill()</a>, <a class="el" href="vfs__open_8c_source.html#l00632">brix_vfs_file_backend_name()</a>, and <a class="el" href="vfs__internal_8h_source.html#l00330">brix_vfs_observe_ctx_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00235">brix_cache_fill_body()</a>, <a class="el" href="open__or__fill_8c_source.html#l00018">brix_cache_open_or_fill()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00187">brix_vfs_file_backend_name()</a>, <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00185">vfs_cred_no_cap()</a>.</p>
 
 </div>
 </div>
@@ -496,7 +588,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__block_8c_source.html#l00100">100</a> of file <a class="el" href="sd__block_8c_source.html">sd_block.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00111">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00113">BRIX_SD_O_TRUNC</a>, <a class="el" href="sd__posix_8c_source.html#l00085">brix_sd_posix_open_unconfined()</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00127">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00129">BRIX_SD_O_TRUNC</a>, and <a class="el" href="sd__posix_8c_source.html#l00084">brix_sd_posix_open_unconfined()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__block_8c_source.html#l00359">block_be_open()</a>, and <a class="el" href="vfs__block_8c_source.html#l00444">block_be_stat()</a>.</p>
 
@@ -518,9 +610,31 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00130">130</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00162">162</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00045">brix_cstore_init()</a>, <a class="el" href="sd__cache_8c_source.html#l00920">brix_sd_cache_fill_needs_offload()</a>, <a class="el" href="sd__registry_8c_source.html#l00153">brix_sd_supports()</a>, <a class="el" href="vfs__stat_8c_source.html#l00128">brix_vfs_residency()</a>, <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>, and <a class="el" href="sd__cache_8c_source.html#l00425">sd_cache_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00045">brix_cstore_init()</a>, <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00163">brix_open_write_needs_staged()</a>, <a class="el" href="sd__cache_8c_source.html#l00383">brix_sd_cache_fill_needs_offload()</a>, <a class="el" href="sd__registry_8c_source.html#l00185">brix_sd_supports()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00104">brix_vfs_memfile_materialize()</a>, <a class="el" href="vfs__stat_8c_source.html#l00155">brix_vfs_residency()</a>, <a class="el" href="sd__cache_8c_source.html#l00100">cache_open_recall_parked()</a>, and <a class="el" href="scan__http_8c_source.html#l00309">scan_run_walk()</a>.</p>
+
+</div>
+</div>
+<a id="a5caf13180ef3494f3adf31d0dcddabcf" name="a5caf13180ef3494f3adf31d0dcddabcf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5caf13180ef3494f3adf31d0dcddabcf">&#9670;&#160;</a></span>brix_sd_cred_accept()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint32_t brix_sd_cred_accept </td>
+          <td>(</td>
+          <td class="paramtype">const brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00192">192</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__deleg_8c_source.html#l00485">brix_vfs_deleg_live_cred()</a>.</p>
 
 </div>
 </div>
@@ -542,9 +656,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00060">60</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00731">brix_sd_posix_driver</a>.</p>
+<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00251">brix_sd_posix_driver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="staged__file_8c_source.html#l00368">brix_commit_staged()</a>, <a class="el" href="stat_8c_source.html#l00106">brix_handle_stat()</a>, <a class="el" href="vfs__internal_8h_source.html#l00126">brix_vfs_ctx_driver()</a>, <a class="el" href="vfs__internal_8h_source.html#l00157">brix_vfs_ctx_sd_obj()</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="vfs__rename_8c_source.html#l00025">brix_vfs_rename_path()</a>, <a class="el" href="vfs__staged_8c_source.html#l00065">brix_vfs_staged_open()</a>, and <a class="el" href="net_2cms_2recv_8c_source.html#l00095">cms_node_exec_forward()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="staged__file__commit_8c_source.html#l00364">brix_commit_staged()</a>, <a class="el" href="vfs__internal_8h_source.html#l00161">brix_vfs_ctx_driver()</a>, <a class="el" href="vfs__internal_8h_source.html#l00192">brix_vfs_ctx_sd_obj()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, <a class="el" href="vfs__rename_8c_source.html#l00025">brix_vfs_rename_path()</a>, <a class="el" href="vfs__staged_8c_source.html#l00225">brix_vfs_staged_open()</a>, <a class="el" href="recv__forward_8c_source.html#l00272">cms_node_exec_forward()</a>, and <a class="el" href="stat_8c_source.html#l00442">stat_query_handle()</a>.</p>
 
 </div>
 </div>
@@ -612,7 +726,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="sd__registry_8c_source.html#l00033">sd_drivers</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__registry_8c_source.html#l00088">brix_sd_instance_create()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__registry_8c_source.html#l00113">brix_sd_instance_create()</a>.</p>
 
 </div>
 </div>
@@ -632,14 +746,80 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00136">136</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00168">168</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00081">BRIX_SD_CAP_FD</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00083">BRIX_SD_CAP_FD</a>.</p>
 
 </div>
 </div>
-<a id="ac547435a2019fe08fa09cd1a78db4fc4" name="ac547435a2019fe08fa09cd1a78db4fc4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac547435a2019fe08fa09cd1a78db4fc4">&#9670;&#160;</a></span>brix_sd_instance_create()</h2>
+<a id="aa55da2b533dae4b3d336b523391a552c" name="aa55da2b533dae4b3d336b523391a552c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa55da2b533dae4b3d336b523391a552c">&#9670;&#160;</a></span>brix_sd_getxattr_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ssize_t brix_sd_getxattr_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00738">738</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>.</p>
+
+</div>
+</div>
+<a id="a96f5e2d1c1b23d8db2f8ecfbdb78076b" name="a96f5e2d1c1b23d8db2f8ecfbdb78076b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96f5e2d1c1b23d8db2f8ecfbdb78076b">&#9670;&#160;</a></span>brix_sd_instance_create()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -647,12 +827,6 @@ Variables</h2></td></tr>
         <tr>
           <td class="memname">brix_sd_instance_t * brix_sd_instance_create </td>
           <td>(</td>
-          <td class="paramtype">ngx_pool_t *&#160;</td>
-          <td class="paramname"><em>pool</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
           <td class="paramtype">ngx_log_t *&#160;</td>
           <td class="paramname"><em>log</em>, </td>
         </tr>
@@ -682,11 +856,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00088">88</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00113">113</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00069">brix_sd_driver_find()</a>, <a class="el" href="tier__config_8c_source.html#l00027">driver</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
+<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00069">brix_sd_driver_find()</a>, <a class="el" href="sd__registry_8c_source.html#l00098">brix_sd_instance_pool()</a>, <a class="el" href="tier__config_8c_source.html#l00027">driver</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tier__build_8c_source.html#l00070">brix_tier_build()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00114">brix_vfs_backend_build_source()</a>, and <a class="el" href="vfs__backend__registry_8c_source.html#l00349">brix_vfs_backend_entry_build()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00076">brix_vbr_build_posix()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00102">brix_vbr_wrap_staging_shim()</a>, <a class="el" href="tier__build_8c_source.html#l00206">tier_build_ceph()</a>, <a class="el" href="tier__build_8c_source.html#l00100">tier_build_pblock()</a>, and <a class="el" href="tier__build_8c_source.html#l00088">tier_build_posix()</a>.</p>
 
 </div>
 </div>
@@ -706,7 +880,121 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00120">120</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00152">152</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+
+</div>
+</div>
+<a id="a28ed16e160fc56564e8ebc82ba90c65f" name="a28ed16e160fc56564e8ebc82ba90c65f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a28ed16e160fc56564e8ebc82ba90c65f">&#9670;&#160;</a></span>brix_sd_listxattr_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ssize_t brix_sd_listxattr_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00759">759</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>.</p>
+
+</div>
+</div>
+<a id="a7d3fb145adb83eb15b40efdcd3d2dd9a" name="a7d3fb145adb83eb15b40efdcd3d2dd9a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7d3fb145adb83eb15b40efdcd3d2dd9a">&#9670;&#160;</a></span>brix_sd_mkdir_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sd_mkdir_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00677">677</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00116">vfs_backend_mkdir_dispatch()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00041">vfs_backend_mkpath_leaf()</a>.</p>
 
 </div>
 </div>
@@ -734,9 +1022,129 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00349">349</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00523">523</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00760">sd_cache_close()</a>, <a class="el" href="sd__cache_8c_source.html#l00039">sd_cache_fill()</a>, and <a class="el" href="stage__engine_8c_source.html#l00175">stage_engine_move()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00076">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00163">cache_fill_pump()</a>, <a class="el" href="sd__cache__partial_8c_source.html#l00374">sd_cache_close()</a>, and <a class="el" href="stage__engine_8c_source.html#l00209">stage_engine_move()</a>.</p>
+
+</div>
+</div>
+<a id="a31ca4d429ffeca0836b9aec2d74bf85e" name="a31ca4d429ffeca0836b9aec2d74bf85e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a31ca4d429ffeca0836b9aec2d74bf85e">&#9670;&#160;</a></span>brix_sd_open_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static brix_sd_obj_t * brix_sd_open_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>sd_flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00567">567</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="open__resolved__file__open_8c_source.html#l00116">brix_open_resolved_via_driver()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00076">cache_fill_acquire()</a>, <a class="el" href="sd__cache__partial_8c_source.html#l00090">partial_source_ensure()</a>, <a class="el" href="sd__cache_8c_source.html#l00180">sd_cache_open_common()</a>, and <a class="el" href="sd__stage_8c_source.html#l00058">sd_stage_open_cred()</a>.</p>
+
+</div>
+</div>
+<a id="afc13a8988ff61b04bf7574886f1cadf7" name="afc13a8988ff61b04bf7574886f1cadf7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc13a8988ff61b04bf7574886f1cadf7">&#9670;&#160;</a></span>brix_sd_opendir_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static brix_sd_dir_t * brix_sd_opendir_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00845">845</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__unlink_8c_source.html#l00041">brix_vfs_driver_rmtree()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>.</p>
 
 </div>
 </div>
@@ -778,11 +1186,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00158">158</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00159">159</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00049">sd_posix_state_t::borrowed</a>, <a class="el" href="sd__posix_8c_source.html#l00731">brix_sd_posix_driver</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="sd__posix_8c_source.html#l00048">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix_8c_source.html#l00047">sd_posix_state_t::rootfd</a>.</p>
+<p class="reference">References <a class="el" href="sd__posix__internal_8h_source.html#l00035">sd_posix_state_t::borrowed</a>, <a class="el" href="sd__posix_8c_source.html#l00251">brix_sd_posix_driver</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="sd__posix__internal_8h_source.html#l00034">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix__internal_8h_source.html#l00033">sd_posix_state_t::rootfd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="cache__storage_8c_source.html#l00276">cache_build_instance()</a>, <a class="el" href="cache__storage_8c_source.html#l00297">cache_build_wt_stage()</a>, and <a class="el" href="cache__storage_8c_source.html#l00159">cs_root_lazy_posix()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00296">brix_vfs_open_confined_fd()</a>, <a class="el" href="cache__storage_8c_source.html#l00276">cache_build_instance()</a>, <a class="el" href="cache__storage_8c_source.html#l00297">cache_build_wt_stage()</a>, and <a class="el" href="cache__storage_8c_source.html#l00159">cs_root_lazy_posix()</a>.</p>
 
 </div>
 </div>
@@ -818,9 +1226,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00085">85</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00084">84</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="sd__posix_8c_source.html#l00058">sd_posix_flags()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="sd__posix_8c_source.html#l00057">sd_posix_flags()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__block_8c_source.html#l00100">brix_sd_block_open_unconfined()</a>, and <a class="el" href="vfs__posix_8c_source.html#l00403">posix_be_open()</a>.</p>
 
@@ -860,11 +1268,425 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00457">457</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00957">957</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00731">brix_sd_posix_driver</a>.</p>
+<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00251">brix_sd_posix_driver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__block_8c_source.html#l00444">block_be_stat()</a>, <a class="el" href="vfs__block_8c_source.html#l00272">block_commit()</a>, <a class="el" href="vfs__block_8c_source.html#l00190">block_fstat()</a>, <a class="el" href="vfs__block_8c_source.html#l00111">block_pread()</a>, <a class="el" href="vfs__block_8c_source.html#l00144">block_pwrite()</a>, <a class="el" href="vfs__block_8c_source.html#l00240">block_sync()</a>, <a class="el" href="fs_2cache_2io_8c_source.html#l00122">brix_cache_fd_write_all()</a>, <a class="el" href="checksum__core_8c_source.html#l00196">brix_cksum_digest_fd()</a>, <a class="el" href="checksum__core_8c_source.html#l00078">brix_cksum_u32_fd()</a>, <a class="el" href="checksum__core_8c_source.html#l00125">brix_cksum_u64_fd()</a>, <a class="el" href="staged__file_8c_source.html#l00368">brix_commit_staged()</a>, <a class="el" href="copy__range_8c_source.html#l00095">brix_copy_range()</a>, <a class="el" href="cstore_8c_source.html#l00189">brix_cstore_serve_pread()</a>, <a class="el" href="read_8c_source.html#l00156">brix_handle_read()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00132">brix_vfs_effective_obj()</a>, <a class="el" href="vfs__read_8c_source.html#l00029">brix_vfs_pread_full()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="staged__file_8c_source.html#l00260">commit_staged_to_backend()</a>, <a class="el" href="vfs__core__unittest_8c_source.html#l00033">main()</a>, <a class="el" href="tpc__curl__pmark_8c_source.html#l00089">ms_write_cb()</a>, <a class="el" href="vfs__posix_8c_source.html#l00227">posix_fstat()</a>, <a class="el" href="vfs__posix_8c_source.html#l00150">posix_pread()</a>, <a class="el" href="vfs__posix_8c_source.html#l00184">posix_pwrite()</a>, <a class="el" href="vfs__posix_8c_source.html#l00277">posix_sync()</a>, <a class="el" href="vfs__posix_8c_source.html#l00255">posix_truncate()</a>, <a class="el" href="zip__dir_8c_source.html#l00031">pread_full()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00054">s3_handle_upload_part_copy()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00184">srq_pread_all()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00209">srq_pwrite_all()</a>, <a class="el" href="tpc__curl_8c_source.html#l00280">webdav_tpc_run_curl_pull_multi()</a>, <a class="el" href="protocols_2webdav_2io_8c_source.html#l00013">webdav_write_full()</a>, <a class="el" href="vfs__core_8c_source.html#l00158">xvfs_stage_fd()</a>, <a class="el" href="zip__member_8c_source.html#l00099">zip_deflate_pump()</a>, and <a class="el" href="zip__member_8c_source.html#l00190">zip_pread_full()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__block_8c_source.html#l00444">block_be_stat()</a>, <a class="el" href="vfs__block_8c_source.html#l00272">block_commit()</a>, <a class="el" href="vfs__block_8c_source.html#l00190">block_fstat()</a>, <a class="el" href="vfs__block_8c_source.html#l00111">block_pread()</a>, <a class="el" href="vfs__block_8c_source.html#l00144">block_pwrite()</a>, <a class="el" href="vfs__block_8c_source.html#l00240">block_sync()</a>, <a class="el" href="fs_2cache_2io_8c_source.html#l00122">brix_cache_fd_write_all()</a>, <a class="el" href="checksum__core_8c_source.html#l00259">brix_cksum_digest_fd()</a>, <a class="el" href="checksum__core_8c_source.html#l00141">brix_cksum_u32_fd()</a>, <a class="el" href="checksum__core_8c_source.html#l00188">brix_cksum_u64_fd()</a>, <a class="el" href="cstore_8c_source.html#l00189">brix_cstore_serve_pread()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00132">brix_vfs_effective_obj()</a>, <a class="el" href="vfs__read_8c_source.html#l00029">brix_vfs_pread_full()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00299">commit_cross_device()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00260">commit_flush_and_chmod()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00136">cstb_pump_and_commit()</a>, <a class="el" href="vfs__core__unittest_8c_source.html#l00033">main()</a>, <a class="el" href="tpc__curl__pmark_8c_source.html#l00093">ms_write_cb()</a>, <a class="el" href="vfs__posix_8c_source.html#l00227">posix_fstat()</a>, <a class="el" href="vfs__posix_8c_source.html#l00150">posix_pread()</a>, <a class="el" href="vfs__posix_8c_source.html#l00184">posix_pwrite()</a>, <a class="el" href="vfs__posix_8c_source.html#l00277">posix_sync()</a>, <a class="el" href="vfs__posix_8c_source.html#l00255">posix_truncate()</a>, <a class="el" href="zip__dir_8c_source.html#l00031">pread_full()</a>, <a class="el" href="read__buffered_8c_source.html#l00158">read_try_warm()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00218">s3_copy_bytes()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00123">srq_pread_all()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00148">srq_pwrite_all()</a>, <a class="el" href="tpc__curl_8c_source.html#l00459">tpc_ms_prepare_output()</a>, <a class="el" href="protocols_2webdav_2io_8c_source.html#l00013">webdav_write_full()</a>, <a class="el" href="vfs__core_8c_source.html#l00158">xvfs_stage_fd()</a>, <a class="el" href="zip__member_8c_source.html#l00099">zip_deflate_pump()</a>, and <a class="el" href="zip__member_8c_source.html#l00190">zip_pread_full()</a>.</p>
+
+</div>
+</div>
+<a id="aba5875e3eb4ebdf10d3b42852098c74f" name="aba5875e3eb4ebdf10d3b42852098c74f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aba5875e3eb4ebdf10d3b42852098c74f">&#9670;&#160;</a></span>brix_sd_removexattr_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sd_removexattr_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00803">803</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>.</p>
+
+</div>
+</div>
+<a id="a283c4f200f9e952dbe3e1b1d76010a68" name="a283c4f200f9e952dbe3e1b1d76010a68"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a283c4f200f9e952dbe3e1b1d76010a68">&#9670;&#160;</a></span>brix_sd_rename_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sd_rename_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>noreplace</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00695">695</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>.</p>
+
+</div>
+</div>
+<a id="a142f2fca00a8e56a8b8d40abad83f30f" name="a142f2fca00a8e56a8b8d40abad83f30f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a142f2fca00a8e56a8b8d40abad83f30f">&#9670;&#160;</a></span>brix_sd_server_copy_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sd_server_copy_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>bytes_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00824">824</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>.</p>
+
+</div>
+</div>
+<a id="a91a23c94870804975a7af338b56d788d" name="a91a23c94870804975a7af338b56d788d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a91a23c94870804975a7af338b56d788d">&#9670;&#160;</a></span>brix_sd_setattr_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sd_setattr_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__setattr__t.html">brix_sd_setattr_t</a> *&#160;</td>
+          <td class="paramname"><em>attr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00715">715</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00345">brix_vfs_setattr()</a>.</p>
+
+</div>
+</div>
+<a id="a2d26bbf3e0a48b9a9065e5144388f942" name="a2d26bbf3e0a48b9a9065e5144388f942"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2d26bbf3e0a48b9a9065e5144388f942">&#9670;&#160;</a></span>brix_sd_setxattr_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sd_setxattr_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>val</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00780">780</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>.</p>
+
+</div>
+</div>
+<a id="af9ddf937c8cd0e5b82fa962fcffdb694" name="af9ddf937c8cd0e5b82fa962fcffdb694"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af9ddf937c8cd0e5b82fa962fcffdb694">&#9670;&#160;</a></span>brix_sd_staged_open_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static brix_sd_staged_t * brix_sd_staged_open_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>final_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00594">594</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__cache__forward_8c_source.html#l00240">sd_cache_staged_open_cred()</a>, <a class="el" href="stage__engine_8c_source.html#l00209">stage_engine_move()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00168">staged_open_driver()</a>.</p>
+
+</div>
+</div>
+<a id="a9428ac6e57e49aa0ac0122da8d98ac1f" name="a9428ac6e57e49aa0ac0122da8d98ac1f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9428ac6e57e49aa0ac0122da8d98ac1f">&#9670;&#160;</a></span>brix_sd_stat_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sd_stat_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00637">637</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00079">brix_open_read_probe()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00041">brix_vfs_driver_rmtree()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, and <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>.</p>
 
 </div>
 </div>
@@ -894,9 +1716,63 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00153">153</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00185">185</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00130">brix_sd_caps()</a>.</p>
+<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00162">brix_sd_caps()</a>.</p>
+
+</div>
+</div>
+<a id="aa279963277829954079e600ebb85ab41" name="aa279963277829954079e600ebb85ab41"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa279963277829954079e600ebb85ab41">&#9670;&#160;</a></span>brix_sd_unlink_maybe_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sd_unlink_maybe_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>is_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00657">657</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__unlink_8c_source.html#l00112">brix_vfs_delete_via_driver()</a>, and <a class="el" href="vfs__unlink_8c_source.html#l00041">brix_vfs_driver_rmtree()</a>.</p>
 
 </div>
 </div>
@@ -947,9 +1823,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00731">731</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00251">251</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="sd__posix_8c_source.html#l00158">brix_sd_posix_borrow_instance()</a>, <a class="el" href="sd_8h_source.html#l00457">brix_sd_posix_wrap()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="sd__block_8c_source.html#l00062">sd_block_fsync()</a>, <a class="el" href="sd__block_8c_source.html#l00036">sd_block_pread()</a>, <a class="el" href="sd__block_8c_source.html#l00048">sd_block_preadv()</a>, <a class="el" href="sd__block_8c_source.html#l00055">sd_block_preadv2()</a>, <a class="el" href="sd__block_8c_source.html#l00042">sd_block_pwrite()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00280">webdav_tpc_run_curl_pull_multi()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="sd__posix_8c_source.html#l00159">brix_sd_posix_borrow_instance()</a>, <a class="el" href="sd_8h_source.html#l00957">brix_sd_posix_wrap()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="sd__block_8c_source.html#l00062">sd_block_fsync()</a>, <a class="el" href="sd__block_8c_source.html#l00036">sd_block_pread()</a>, <a class="el" href="sd__block_8c_source.html#l00048">sd_block_preadv()</a>, <a class="el" href="sd__block_8c_source.html#l00055">sd_block_preadv2()</a>, <a class="el" href="sd__block_8c_source.html#l00042">sd_block_pwrite()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00459">tpc_ms_prepare_output()</a>.</p>
 
 </div>
 </div>

@@ -102,6 +102,7 @@ $(document).ready(function(){initNavTree('src_2protocols_2s3_2checksum_8c.html',
 <code>#include &quot;<a class="el" href="http__headers_8h_source.html">core/http/http_headers.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__query_8h_source.html">core/http/http_query.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="integrity__info_8h_source.html">core/compat/integrity_info.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="hex_8h_source.html">core/compat/hex.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2fs_2vfs_2vfs_8h_source.html">fs/vfs/vfs.h</a>&quot;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
@@ -134,17 +135,15 @@ Functions</h2></td></tr>
 <tr class="separator:a99fc666983569bc5fd448804febe18a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a51d3a50768d84a5de550d3c0e84ac3d1" id="r_a51d3a50768d84a5de550d3c0e84ac3d1"><td class="memItemLeft" align="right" valign="top">static brix_vfs_file_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#a51d3a50768d84a5de550d3c0e84ac3d1">s3_cksum_vfs_open</a> (ngx_http_request_t *r, const char *fs_path, const char *root_canon)</td></tr>
 <tr class="separator:a51d3a50768d84a5de550d3c0e84ac3d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5ea9842e08d460c48055d410a783453a" id="r_a5ea9842e08d460c48055d410a783453a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#a5ea9842e08d460c48055d410a783453a">s3_hexval</a> (unsigned char <a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
-<tr class="separator:a5ea9842e08d460c48055d410a783453a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3eb0779c181ee42bbe5413640262e84a" id="r_a3eb0779c181ee42bbe5413640262e84a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#a3eb0779c181ee42bbe5413640262e84a">s3_checksum_b64</a> (ngx_http_request_t *r, int fd, const char *path, const char *alg_name, ngx_flag_t cache_only, char *out, size_t outsz)</td></tr>
 <tr class="separator:a3eb0779c181ee42bbe5413640262e84a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abc01dafcf86779853d66aa31596e3a96" id="r_abc01dafcf86779853d66aa31596e3a96"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structs3__cksum__desc__t.html">s3_cksum_desc_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#abc01dafcf86779853d66aa31596e3a96">s3_cksum_by_token</a> (const char *tok, size_t len)</td></tr>
 <tr class="separator:abc01dafcf86779853d66aa31596e3a96"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abe2599b8b60eeb702308e6a00b8d1abc" id="r_abe2599b8b60eeb702308e6a00b8d1abc"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structs3__cksum__desc__t.html">s3_cksum_desc_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#abe2599b8b60eeb702308e6a00b8d1abc">s3_put_select_algo</a> (ngx_http_request_t *r, ngx_table_elt_t **want_value, int *conflict)</td></tr>
 <tr class="separator:abe2599b8b60eeb702308e6a00b8d1abc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2f1b93b59482d998345d0897e7c0bd7e" id="r_a2f1b93b59482d998345d0897e7c0bd7e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="s3_8h.html#af26cf917d4074b5b3ee5dd775b4d6013">s3_cksum_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#a2f1b93b59482d998345d0897e7c0bd7e">s3_put_checksum_apply</a> (ngx_http_request_t *r, const char *fs_path, const char *root_canon)</td></tr>
+<tr class="memitem:a2f1b93b59482d998345d0897e7c0bd7e" id="r_a2f1b93b59482d998345d0897e7c0bd7e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="s3__ops_8h.html#af26cf917d4074b5b3ee5dd775b4d6013">s3_cksum_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#a2f1b93b59482d998345d0897e7c0bd7e">s3_put_checksum_apply</a> (ngx_http_request_t *r, const char *fs_path, const char *root_canon)</td></tr>
 <tr class="separator:a2f1b93b59482d998345d0897e7c0bd7e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a84a6c1c8536fad5c0b434be40eacd969" id="r_a84a6c1c8536fad5c0b434be40eacd969"><td class="memItemLeft" align="right" valign="top"><a class="el" href="s3_8h.html#af26cf917d4074b5b3ee5dd775b4d6013">s3_cksum_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#a84a6c1c8536fad5c0b434be40eacd969">s3_put_trailer_checksum_apply</a> (ngx_http_request_t *r, const char *fs_path, const char *root_canon, const char *algo_token, const char *value)</td></tr>
+<tr class="memitem:a84a6c1c8536fad5c0b434be40eacd969" id="r_a84a6c1c8536fad5c0b434be40eacd969"><td class="memItemLeft" align="right" valign="top"><a class="el" href="s3__ops_8h.html#af26cf917d4074b5b3ee5dd775b4d6013">s3_cksum_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#a84a6c1c8536fad5c0b434be40eacd969">s3_put_trailer_checksum_apply</a> (ngx_http_request_t *r, const char *fs_path, const char *root_canon, const char *algo_token, const char *value)</td></tr>
 <tr class="separator:a84a6c1c8536fad5c0b434be40eacd969"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a97910d6600b9fd076664a76ea1044ac7" id="r_a97910d6600b9fd076664a76ea1044ac7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2s3_2checksum_8c.html#a97910d6600b9fd076664a76ea1044ac7">s3_echo_object_checksums</a> (ngx_http_request_t *r, int fd, const char *path)</td></tr>
 <tr class="separator:a97910d6600b9fd076664a76ea1044ac7"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -167,7 +166,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00054">54</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00055">55</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
 </div>
 </div>
@@ -183,7 +182,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00050">50</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00051">51</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
 </div>
 </div>
@@ -244,11 +243,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00135">135</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00127">127</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="integrity__info_8h_source.html#l00034">brix_integrity_opts_t::allow_xattr_cache</a>, <a class="el" href="integrity__info_8c_source.html#l00409">brix_integrity_get_fd()</a>, <a class="el" href="integrity__info_8h_source.html#l00019">brix_integrity_info_t::hex</a>, <a class="el" href="integrity__info_8h_source.html#l00037">brix_integrity_opts_t::no_compute</a>, <a class="el" href="integrity__info_8h_source.html#l00036">brix_integrity_opts_t::require_regular_file</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00116">s3_hexval()</a>, and <a class="el" href="integrity__info_8h_source.html#l00035">brix_integrity_opts_t::update_xattr_cache</a>.</p>
+<p class="reference">References <a class="el" href="integrity__info_8h_source.html#l00034">brix_integrity_opts_t::allow_xattr_cache</a>, <a class="el" href="hex_8c_source.html#l00034">brix_hex_from_char()</a>, <a class="el" href="integrity__info_8c_source.html#l00359">brix_integrity_get_fd()</a>, <a class="el" href="integrity__info_8h_source.html#l00019">brix_integrity_info_t::hex</a>, <a class="el" href="integrity__info_8h_source.html#l00037">brix_integrity_opts_t::no_compute</a>, <a class="el" href="integrity__info_8h_source.html#l00036">brix_integrity_opts_t::require_regular_file</a>, and <a class="el" href="integrity__info_8h_source.html#l00035">brix_integrity_opts_t::update_xattr_cache</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00378">s3_echo_object_checksums()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00274">s3_put_checksum_apply()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00328">s3_put_trailer_checksum_apply()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00370">s3_echo_object_checksums()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>.</p>
 
 </div>
 </div>
@@ -286,11 +285,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00184">184</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00176">176</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00042">s3_cksum_table</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00050">S3_CKSUM_TABLE_N</a>.</p>
+<p class="reference">References <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00043">s3_cksum_table</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00051">S3_CKSUM_TABLE_N</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00212">s3_put_select_algo()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00328">s3_put_trailer_checksum_apply()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00204">s3_put_select_algo()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>.</p>
 
 </div>
 </div>
@@ -334,11 +333,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00094">94</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00095">95</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00274">s3_put_checksum_apply()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00328">s3_put_trailer_checksum_apply()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>.</p>
 
 </div>
 </div>
@@ -382,11 +381,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00066">66</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00067">67</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00151">brix_vfs_unlink()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00273">brix_vfs_unlink()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00274">s3_put_checksum_apply()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00328">s3_put_trailer_checksum_apply()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>.</p>
 
 </div>
 </div>
@@ -422,43 +421,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00378">378</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00370">370</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00135">s3_checksum_b64()</a>, <a class="el" href="s3_8h_source.html#l00481">S3_CHECKSUM_B64_MAX</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00054">S3_CKSUM_DEFAULT_IDX</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00042">s3_cksum_table</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00050">S3_CKSUM_TABLE_N</a>, <a class="el" href="s3_8h_source.html#l00459">S3_HDR_CHECKSUM_TYPE</a>, and <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00127">s3_checksum_b64()</a>, <a class="el" href="s3__ops_8h_source.html#l00103">S3_CHECKSUM_B64_MAX</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00055">S3_CKSUM_DEFAULT_IDX</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00043">s3_cksum_table</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00051">S3_CKSUM_TABLE_N</a>, <a class="el" href="s3__ops_8h_source.html#l00081">S3_HDR_CHECKSUM_TYPE</a>, and <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="object_8c_source.html#l00318">s3_handle_head()</a>.</p>
-
-</div>
-</div>
-<a id="a5ea9842e08d460c48055d410a783453a" name="a5ea9842e08d460c48055d410a783453a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5ea9842e08d460c48055d410a783453a">&#9670;&#160;</a></span>s3_hexval()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int s3_hexval </td>
-          <td>(</td>
-          <td class="paramtype">unsigned char&#160;</td>
-          <td class="paramname"><em>c</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00116">116</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00135">s3_checksum_b64()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00348">s3_get_echo_headers()</a>, and <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>.</p>
 
 </div>
 </div>
@@ -469,7 +436,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="s3_8h.html#af26cf917d4074b5b3ee5dd775b4d6013">s3_cksum_result_t</a> s3_put_checksum_apply </td>
+          <td class="memname"><a class="el" href="s3__ops_8h.html#af26cf917d4074b5b3ee5dd775b4d6013">s3_cksum_result_t</a> s3_put_checksum_apply </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -494,11 +461,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00274">274</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">266</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00038">s3_cksum_desc_t::alg_name</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00039">s3_cksum_desc_t::header</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00135">s3_checksum_b64()</a>, <a class="el" href="s3_8h_source.html#l00481">S3_CHECKSUM_B64_MAX</a>, <a class="el" href="s3_8h_source.html#l00487">S3_CKSUM_CONFLICT</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00054">S3_CKSUM_DEFAULT_IDX</a>, <a class="el" href="s3_8h_source.html#l00488">S3_CKSUM_ERROR</a>, <a class="el" href="s3_8h_source.html#l00486">S3_CKSUM_MISMATCH</a>, <a class="el" href="s3_8h_source.html#l00485">S3_CKSUM_OK</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00042">s3_cksum_table</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00094">s3_cksum_vfs_open()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00066">s3_cksum_vfs_unlink()</a>, <a class="el" href="s3_8h_source.html#l00459">S3_HDR_CHECKSUM_TYPE</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00212">s3_put_select_algo()</a>, and <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>.</p>
+<p class="reference">References <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00039">s3_cksum_desc_t::alg_name</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00040">s3_cksum_desc_t::header</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00127">s3_checksum_b64()</a>, <a class="el" href="s3__ops_8h_source.html#l00103">S3_CHECKSUM_B64_MAX</a>, <a class="el" href="s3__ops_8h_source.html#l00109">S3_CKSUM_CONFLICT</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00055">S3_CKSUM_DEFAULT_IDX</a>, <a class="el" href="s3__ops_8h_source.html#l00110">S3_CKSUM_ERROR</a>, <a class="el" href="s3__ops_8h_source.html#l00108">S3_CKSUM_MISMATCH</a>, <a class="el" href="s3__ops_8h_source.html#l00107">S3_CKSUM_OK</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00043">s3_cksum_table</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00095">s3_cksum_vfs_open()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00067">s3_cksum_vfs_unlink()</a>, <a class="el" href="s3__ops_8h_source.html#l00081">S3_HDR_CHECKSUM_TYPE</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00204">s3_put_select_algo()</a>, and <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__finalize_8c_source.html#l00273">s3_put_checksum_failed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__finalize_8c_source.html#l00285">s3_put_checksum_failed()</a>.</p>
 
 </div>
 </div>
@@ -542,11 +509,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00212">212</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00204">204</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00184">s3_cksum_by_token()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00042">s3_cksum_table</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00050">S3_CKSUM_TABLE_N</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00176">s3_cksum_by_token()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00043">s3_cksum_table</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00051">S3_CKSUM_TABLE_N</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00274">s3_put_checksum_apply()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>.</p>
 
 </div>
 </div>
@@ -557,7 +524,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="s3_8h.html#af26cf917d4074b5b3ee5dd775b4d6013">s3_cksum_result_t</a> s3_put_trailer_checksum_apply </td>
+          <td class="memname"><a class="el" href="s3__ops_8h.html#af26cf917d4074b5b3ee5dd775b4d6013">s3_cksum_result_t</a> s3_put_trailer_checksum_apply </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -594,9 +561,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00328">328</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">320</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00038">s3_cksum_desc_t::alg_name</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00039">s3_cksum_desc_t::header</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00135">s3_checksum_b64()</a>, <a class="el" href="s3_8h_source.html#l00481">S3_CHECKSUM_B64_MAX</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00184">s3_cksum_by_token()</a>, <a class="el" href="s3_8h_source.html#l00487">S3_CKSUM_CONFLICT</a>, <a class="el" href="s3_8h_source.html#l00488">S3_CKSUM_ERROR</a>, <a class="el" href="s3_8h_source.html#l00486">S3_CKSUM_MISMATCH</a>, <a class="el" href="s3_8h_source.html#l00485">S3_CKSUM_OK</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00094">s3_cksum_vfs_open()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00066">s3_cksum_vfs_unlink()</a>, <a class="el" href="s3_8h_source.html#l00459">S3_HDR_CHECKSUM_TYPE</a>, and <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>.</p>
+<p class="reference">References <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00039">s3_cksum_desc_t::alg_name</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00040">s3_cksum_desc_t::header</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00127">s3_checksum_b64()</a>, <a class="el" href="s3__ops_8h_source.html#l00103">S3_CHECKSUM_B64_MAX</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00176">s3_cksum_by_token()</a>, <a class="el" href="s3__ops_8h_source.html#l00109">S3_CKSUM_CONFLICT</a>, <a class="el" href="s3__ops_8h_source.html#l00110">S3_CKSUM_ERROR</a>, <a class="el" href="s3__ops_8h_source.html#l00108">S3_CKSUM_MISMATCH</a>, <a class="el" href="s3__ops_8h_source.html#l00107">S3_CKSUM_OK</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00095">s3_cksum_vfs_open()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00067">s3_cksum_vfs_unlink()</a>, <a class="el" href="s3__ops_8h_source.html#l00081">S3_HDR_CHECKSUM_TYPE</a>, and <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>.</p>
 
@@ -630,9 +597,9 @@ Variables</h2></td></tr>
 <div class="line">    { <span class="stringliteral">&quot;sha256&quot;</span>,    <span class="stringliteral">&quot;sha256&quot;</span>,    <span class="stringliteral">&quot;x-amz-checksum-sha256&quot;</span>    },</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00042">42</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00043">43</a> of file <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html">checksum.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00184">s3_cksum_by_token()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00378">s3_echo_object_checksums()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00274">s3_put_checksum_apply()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00212">s3_put_select_algo()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00176">s3_cksum_by_token()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00370">s3_echo_object_checksums()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, and <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00204">s3_put_select_algo()</a>.</p>
 
 </div>
 </div>

@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('scan__http_8c.html',''); initResizable
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">scan_http.c File Reference</div></div>
 </div><!--header-->
@@ -118,18 +119,37 @@ $(document).ready(function(){initNavTree('scan__http_8c.html',''); initResizable
 </div>
 <p><a href="scan__http_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscan__arg__spec__t.html">scan_arg_spec_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscan__request__t.html">scan_request_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscan__result__t.html">scan_result_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structscan__err__t.html">scan_err_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a283f279a4fe0d4c4fe34a6d85c23abbf" id="r_a283f279a4fe0d4c4fe34a6d85c23abbf"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a283f279a4fe0d4c4fe34a6d85c23abbf">scan_arg</a> (ngx_http_request_t *r, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t namelen, char *out, size_t outsz, const char *dflt)</td></tr>
-<tr class="separator:a283f279a4fe0d4c4fe34a6d85c23abbf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3f1d81adaeb9c6df924789b8538d3231" id="r_a3f1d81adaeb9c6df924789b8538d3231"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a3f1d81adaeb9c6df924789b8538d3231">scan_arg</a> (ngx_http_request_t *r, const <a class="el" href="structscan__arg__spec__t.html">scan_arg_spec_t</a> *spec)</td></tr>
+<tr class="separator:a3f1d81adaeb9c6df924789b8538d3231"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a431ea646e8e2c831a51fd0e5ea528e8c" id="r_a431ea646e8e2c831a51fd0e5ea528e8c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a431ea646e8e2c831a51fd0e5ea528e8c">scan_get_path</a> (ngx_http_request_t *r, char *out, size_t outsz)</td></tr>
 <tr class="separator:a431ea646e8e2c831a51fd0e5ea528e8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a09542c93a70b4625da516f50a63747ec" id="r_a09542c93a70b4625da516f50a63747ec"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a09542c93a70b4625da516f50a63747ec">scan_err_http</a> (uint16_t code)</td></tr>
+<tr class="memitem:a09542c93a70b4625da516f50a63747ec" id="r_a09542c93a70b4625da516f50a63747ec"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a09542c93a70b4625da516f50a63747ec">scan_err_http</a> (uint16_t <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>)</td></tr>
 <tr class="separator:a09542c93a70b4625da516f50a63747ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac200a9669f9482a54d4bebef00e7d283" id="r_ac200a9669f9482a54d4bebef00e7d283"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#ac200a9669f9482a54d4bebef00e7d283">scan_send</a> (ngx_http_request_t *r, u_char *body, size_t len)</td></tr>
 <tr class="separator:ac200a9669f9482a54d4bebef00e7d283"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a54d641bf03602f62912340cd2f646c17" id="r_a54d641bf03602f62912340cd2f646c17"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a54d641bf03602f62912340cd2f646c17">scan_health</a> (ngx_http_request_t *r, const char *root_canon)</td></tr>
 <tr class="separator:a54d641bf03602f62912340cd2f646c17"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2440f1846427b9ce1ae008e739d06c8e" id="r_a2440f1846427b9ce1ae008e739d06c8e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a2440f1846427b9ce1ae008e739d06c8e">scan_read_mode</a> (ngx_http_request_t *r, <a class="el" href="structscan__request__t.html">scan_request_t</a> *req)</td></tr>
+<tr class="separator:a2440f1846427b9ce1ae008e739d06c8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4195eb85fa4e5716a25985b4d5ec348e" id="r_a4195eb85fa4e5716a25985b4d5ec348e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a4195eb85fa4e5716a25985b4d5ec348e">scan_parse_query</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *conf, <a class="el" href="structscan__request__t.html">scan_request_t</a> *req)</td></tr>
+<tr class="separator:a4195eb85fa4e5716a25985b4d5ec348e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7cd91ffaeb719cca3388a7dfb97465c9" id="r_a7cd91ffaeb719cca3388a7dfb97465c9"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a7cd91ffaeb719cca3388a7dfb97465c9">scan_run_walk</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *conf, <a class="el" href="structscan__request__t.html">scan_request_t</a> *req, <a class="el" href="structscan__result__t.html">scan_result_t</a> *res, <a class="el" href="structscan__err__t.html">scan_err_t</a> *err)</td></tr>
+<tr class="separator:a7cd91ffaeb719cca3388a7dfb97465c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8aaa619fa15d6ea03dce68a304a760ae" id="r_a8aaa619fa15d6ea03dce68a304a760ae"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#a8aaa619fa15d6ea03dce68a304a760ae">scan_render</a> (ngx_http_request_t *r, <a class="el" href="structscan__result__t.html">scan_result_t</a> *res)</td></tr>
+<tr class="separator:a8aaa619fa15d6ea03dce68a304a760ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af0a9390ba1983e5ce4abcd6eb7b08c14" id="r_af0a9390ba1983e5ce4abcd6eb7b08c14"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="scan__http_8c.html#af0a9390ba1983e5ce4abcd6eb7b08c14">ngx_http_brix_dashboard_scan_handler</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:af0a9390ba1983e5ce4abcd6eb7b08c14"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -150,16 +170,14 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00170">170</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00392">392</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="scan__engine_8h_source.html#l00035">brix_scan_opts_t::alg</a>, <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="http__headers_8c_source.html#l00378">brix_http_source_offer()</a>, <a class="el" href="scan__engine_8h_source.html#l00029">BRIX_SCAN_INVENTORY</a>, <a class="el" href="scan__engine_8c_source.html#l00038">brix_scan_mode_parse()</a>, <a class="el" href="scan__record_8c_source.html#l00228">brix_scan_record_summary()</a>, <a class="el" href="scan__engine_8c_source.html#l00304">brix_scan_run()</a>, <a class="el" href="scan__engine_8c_source.html#l00391">brix_scan_run_inventory()</a>, <a class="el" href="scan__engine_8c_source.html#l00531">brix_scan_run_verify_catalog()</a>, <a class="el" href="scan__engine_8h_source.html#l00025">BRIX_SCAN_VERIFY</a>, <a class="el" href="sd_8h_source.html#l00103">BRIX_SD_CAP_CATALOG</a>, <a class="el" href="sd__registry_8c_source.html#l00130">brix_sd_caps()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00458">brix_vfs_backend_resolve()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="scan__record_8h_source.html#l00029">brix_scan_summary_t::elapsed_s</a>, <a class="el" href="scan__engine_8h_source.html#l00036">brix_scan_opts_t::max_depth</a>, <a class="el" href="scan__engine_8h_source.html#l00037">brix_scan_opts_t::max_files</a>, <a class="el" href="scan__engine_8h_source.html#l00034">brix_scan_opts_t::mode</a>, <a class="el" href="src_2observability_2dashboard_2auth_8c_source.html#l00364">ngx_http_brix_dashboard_check_auth()</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00501">ngx_http_brix_dashboard_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="scan__http_8c_source.html#l00037">scan_arg()</a>, <a class="el" href="scan__http_8c_source.html#l00094">scan_err_http()</a>, <a class="el" href="scan__http_8c_source.html#l00073">scan_get_path()</a>, <a class="el" href="scan__http_8c_source.html#l00140">scan_health()</a>, <a class="el" href="dashboard__http_8h_source.html#l00069">ngx_http_brix_dashboard_loc_conf_t::scan_max_files</a>, <a class="el" href="dashboard__http_8h_source.html#l00064">ngx_http_brix_dashboard_loc_conf_t::scan_root_canon</a>, and <a class="el" href="scan__http_8c_source.html#l00107">scan_send()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00520">ngx_http_brix_dashboard_main_handler()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers__set_8c_source.html#l00163">brix_http_source_offer()</a>, <a class="el" href="scan__http_8c_source.html#l00215">scan_result_t::buf</a>, <a class="el" href="scan__http_8c_source.html#l00230">scan_err_t::code</a>, <a class="el" href="scan__record_8h_source.html#l00029">brix_scan_summary_t::elapsed_s</a>, <a class="el" href="scan__http_8c_source.html#l00204">scan_request_t::mode_raw</a>, <a class="el" href="scan__http_8c_source.html#l00231">scan_err_t::msg</a>, <a class="el" href="src_2observability_2dashboard_2auth_8c_source.html#l00221">ngx_http_brix_dashboard_check_auth()</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00431">ngx_http_brix_dashboard_module</a>, <a class="el" href="scan__http_8c_source.html#l00203">scan_request_t::relpath</a>, <a class="el" href="scan__http_8c_source.html#l00118">scan_err_http()</a>, <a class="el" href="scan__http_8c_source.html#l00164">scan_health()</a>, <a class="el" href="scan__http_8c_source.html#l00265">scan_parse_query()</a>, <a class="el" href="scan__http_8c_source.html#l00243">scan_read_mode()</a>, <a class="el" href="scan__http_8c_source.html#l00357">scan_render()</a>, <a class="el" href="dashboard__http_8h_source.html#l00064">ngx_http_brix_dashboard_loc_conf_t::scan_root_canon</a>, <a class="el" href="scan__http_8c_source.html#l00309">scan_run_walk()</a>, and <a class="el" href="scan__http_8c_source.html#l00218">scan_result_t::summary</a>.</p>
 
 </div>
 </div>
-<a id="a283f279a4fe0d4c4fe34a6d85c23abbf" name="a283f279a4fe0d4c4fe34a6d85c23abbf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a283f279a4fe0d4c4fe34a6d85c23abbf">&#9670;&#160;</a></span>scan_arg()</h2>
+<a id="a3f1d81adaeb9c6df924789b8538d3231" name="a3f1d81adaeb9c6df924789b8538d3231"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3f1d81adaeb9c6df924789b8538d3231">&#9670;&#160;</a></span>scan_arg()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -176,32 +194,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>namelen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>outsz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dflt</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structscan__arg__spec__t.html">scan_arg_spec_t</a> *&#160;</td>
+          <td class="paramname"><em>spec</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -216,11 +210,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00037">37</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00059">59</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="scan__http_8c_source.html#l00048">scan_arg_spec_t::dflt</a>, <a class="el" href="scan__http_8c_source.html#l00044">scan_arg_spec_t::name</a>, <a class="el" href="scan__http_8c_source.html#l00045">scan_arg_spec_t::namelen</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="scan__http_8c_source.html#l00046">scan_arg_spec_t::out</a>, and <a class="el" href="scan__http_8c_source.html#l00047">scan_arg_spec_t::outsz</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>, and <a class="el" href="scan__http_8c_source.html#l00073">scan_get_path()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00096">scan_get_path()</a>, <a class="el" href="scan__http_8c_source.html#l00265">scan_parse_query()</a>, and <a class="el" href="scan__http_8c_source.html#l00243">scan_read_mode()</a>.</p>
 
 </div>
 </div>
@@ -248,11 +242,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00094">94</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00118">118</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, and <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>.</p>
+<p class="reference">References <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, and <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00392">ngx_http_brix_dashboard_scan_handler()</a>.</p>
 
 </div>
 </div>
@@ -296,11 +290,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00073">73</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00096">96</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="scan__http_8c_source.html#l00037">scan_arg()</a>.</p>
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="scan__http_8c_source.html#l00059">scan_arg()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00265">scan_parse_query()</a>.</p>
 
 </div>
 </div>
@@ -338,11 +332,203 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00140">140</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00164">164</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="scan__record_8c_source.html#l00124">brix_scan_record_health()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="scan__http_8c_source.html#l00107">scan_send()</a>.</p>
+<p class="reference">References <a class="el" href="scan__record_8c_source.html#l00124">brix_scan_record_health()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="scan__http_8c_source.html#l00131">scan_send()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00392">ngx_http_brix_dashboard_scan_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a4195eb85fa4e5716a25985b4d5ec348e" name="a4195eb85fa4e5716a25985b4d5ec348e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4195eb85fa4e5716a25985b4d5ec348e">&#9670;&#160;</a></span>scan_parse_query()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t scan_parse_query </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structscan__request__t.html">scan_request_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00265">265</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="scan__engine_8h_source.html#l00035">brix_scan_opts_t::alg</a>, <a class="el" href="scan__engine_8c_source.html#l00036">brix_scan_mode_parse()</a>, <a class="el" href="scan__engine_8h_source.html#l00036">brix_scan_opts_t::max_depth</a>, <a class="el" href="scan__engine_8h_source.html#l00037">brix_scan_opts_t::max_files</a>, <a class="el" href="scan__engine_8h_source.html#l00034">brix_scan_opts_t::mode</a>, <a class="el" href="scan__http_8c_source.html#l00204">scan_request_t::mode_raw</a>, <a class="el" href="scan__http_8c_source.html#l00202">scan_request_t::opts</a>, <a class="el" href="scan__http_8c_source.html#l00203">scan_request_t::relpath</a>, <a class="el" href="scan__http_8c_source.html#l00059">scan_arg()</a>, <a class="el" href="scan__http_8c_source.html#l00096">scan_get_path()</a>, and <a class="el" href="dashboard__http_8h_source.html#l00069">ngx_http_brix_dashboard_loc_conf_t::scan_max_files</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00392">ngx_http_brix_dashboard_scan_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a2440f1846427b9ce1ae008e739d06c8e" name="a2440f1846427b9ce1ae008e739d06c8e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2440f1846427b9ce1ae008e739d06c8e">&#9670;&#160;</a></span>scan_read_mode()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t scan_read_mode </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structscan__request__t.html">scan_request_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00243">243</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="scan__http_8c_source.html#l00204">scan_request_t::mode_raw</a>, <a class="el" href="scan__http_8c_source.html#l00202">scan_request_t::opts</a>, and <a class="el" href="scan__http_8c_source.html#l00059">scan_arg()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00392">ngx_http_brix_dashboard_scan_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a8aaa619fa15d6ea03dce68a304a760ae" name="a8aaa619fa15d6ea03dce68a304a760ae"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8aaa619fa15d6ea03dce68a304a760ae">&#9670;&#160;</a></span>scan_render()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t scan_render </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structscan__result__t.html">scan_result_t</a> *&#160;</td>
+          <td class="paramname"><em>res</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00357">357</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="scan__record_8c_source.html#l00228">brix_scan_record_summary()</a>, <a class="el" href="scan__http_8c_source.html#l00215">scan_result_t::buf</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="scan__http_8c_source.html#l00131">scan_send()</a>, <a class="el" href="scan__http_8c_source.html#l00218">scan_result_t::summary</a>, and <a class="el" href="scan__http_8c_source.html#l00217">scan_result_t::used</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00392">ngx_http_brix_dashboard_scan_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a7cd91ffaeb719cca3388a7dfb97465c9" name="a7cd91ffaeb719cca3388a7dfb97465c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7cd91ffaeb719cca3388a7dfb97465c9">&#9670;&#160;</a></span>scan_run_walk()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t scan_run_walk </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structscan__request__t.html">scan_request_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structscan__result__t.html">scan_result_t</a> *&#160;</td>
+          <td class="paramname"><em>res</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structscan__err__t.html">scan_err_t</a> *&#160;</td>
+          <td class="paramname"><em>err</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00309">309</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="scan__engine_8h_source.html#l00029">BRIX_SCAN_INVENTORY</a>, <a class="el" href="scan__engine_8c_source.html#l00322">brix_scan_run()</a>, <a class="el" href="scan__engine__catalog_8c_source.html#l00055">brix_scan_run_inventory()</a>, <a class="el" href="scan__engine__catalog_8c_source.html#l00221">brix_scan_run_verify_catalog()</a>, <a class="el" href="scan__engine_8h_source.html#l00025">BRIX_SCAN_VERIFY</a>, <a class="el" href="sd_8h_source.html#l00105">BRIX_SD_CAP_CATALOG</a>, <a class="el" href="sd__registry_8c_source.html#l00162">brix_sd_caps()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00248">brix_vfs_backend_resolve()</a>, <a class="el" href="scan__http_8c_source.html#l00215">scan_result_t::buf</a>, <a class="el" href="scan__http_8c_source.html#l00216">scan_result_t::cap</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="scan__http_8c_source.html#l00230">scan_err_t::code</a>, <a class="el" href="scan__engine_8h_source.html#l00034">brix_scan_opts_t::mode</a>, <a class="el" href="scan__http_8c_source.html#l00231">scan_err_t::msg</a>, <a class="el" href="scan__http_8c_source.html#l00202">scan_request_t::opts</a>, <a class="el" href="scan__http_8c_source.html#l00203">scan_request_t::relpath</a>, <a class="el" href="dashboard__http_8h_source.html#l00064">ngx_http_brix_dashboard_loc_conf_t::scan_root_canon</a>, <a class="el" href="scan__http_8c_source.html#l00218">scan_result_t::summary</a>, and <a class="el" href="scan__http_8c_source.html#l00217">scan_result_t::used</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00392">ngx_http_brix_dashboard_scan_handler()</a>.</p>
 
 </div>
 </div>
@@ -386,11 +572,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00107">107</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="scan__http_8c_source.html#l00131">131</a> of file <a class="el" href="scan__http_8c_source.html">scan_http.c</a>.</p>
 
 <p class="reference">References <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>, and <a class="el" href="scan__http_8c_source.html#l00140">scan_health()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="scan__http_8c_source.html#l00164">scan_health()</a>, and <a class="el" href="scan__http_8c_source.html#l00357">scan_render()</a>.</p>
 
 </div>
 </div>

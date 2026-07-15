@@ -133,6 +133,8 @@ Functions</h2></td></tr>
 <tr class="separator:a7ac3c187757dfcb0ac6fa20b2f4a436a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9fe044283caed98c6ac7a11612c321bd" id="r_a9fe044283caed98c6ac7a11612c321bd"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a9fe044283caed98c6ac7a11612c321bd">ov_marker_at</a> (int dirfd, const char *marker)</td></tr>
 <tr class="separator:a9fe044283caed98c6ac7a11612c321bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad4659b23cc2baf8c75c195ca0d916f77" id="r_ad4659b23cc2baf8c75c195ca0d916f77"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#ad4659b23cc2baf8c75c195ca0d916f77">ov_descend_dir</a> (int dirfd, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, int <a class="el" href="cta__queue__unittest_8c.html#abf74252a90bd06bd7740a1daa777eb9a">mk</a>, mode_t(*mode_fn)(void *ud, const char *rel_dir), void *ud, const char *prefix)</td></tr>
+<tr class="separator:ad4659b23cc2baf8c75c195ca0d916f77"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3fb502fc70fb4c0ca3e7ffed44b0d378" id="r_a3fb502fc70fb4c0ca3e7ffed44b0d378"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a3fb502fc70fb4c0ca3e7ffed44b0d378">ov_walk_parent_mk</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, char *leaf, size_t leafcap, int <a class="el" href="cta__queue__unittest_8c.html#abf74252a90bd06bd7740a1daa777eb9a">mk</a>, mode_t(*mode_fn)(void *ud, const char *rel_dir), void *ud)</td></tr>
 <tr class="separator:a3fb502fc70fb4c0ca3e7ffed44b0d378"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0d586102cc42c9a0bd09f513f36879d0" id="r_a0d586102cc42c9a0bd09f513f36879d0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a0d586102cc42c9a0bd09f513f36879d0">ov_walk_parent</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, char *leaf, size_t leafcap)</td></tr>
@@ -141,6 +143,10 @@ Functions</h2></td></tr>
 <tr class="separator:a6ab046ee2052e9e172e08c932b1d18aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a01db1d3998d1c34cdcc74b76e411b95d" id="r_a01db1d3998d1c34cdcc74b76e411b95d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a01db1d3998d1c34cdcc74b76e411b95d">brix_overlay_close</a> (<a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov)</td></tr>
 <tr class="separator:a01db1d3998d1c34cdcc74b76e411b95d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aadca6e84e4de01a6682abdb5396c70f9" id="r_aadca6e84e4de01a6682abdb5396c70f9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#aadca6e84e4de01a6682abdb5396c70f9">ov_classify_root</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, <a class="el" href="overlay_8h.html#a8c741d4e5134a6c7c9e74d9229651abd">brix_ov_state</a> *state)</td></tr>
+<tr class="separator:aadca6e84e4de01a6682abdb5396c70f9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9d71c816cedf1bf0fb5aea380812e13e" id="r_a9d71c816cedf1bf0fb5aea380812e13e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a9d71c816cedf1bf0fb5aea380812e13e">ov_descend_child</a> (int cur, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, int *opaque)</td></tr>
+<tr class="separator:a9d71c816cedf1bf0fb5aea380812e13e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adbef14661e85120c13fd033fe2094272" id="r_adbef14661e85120c13fd033fe2094272"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#adbef14661e85120c13fd033fe2094272">brix_overlay_classify</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, <a class="el" href="overlay_8h.html#a8c741d4e5134a6c7c9e74d9229651abd">brix_ov_state</a> *state)</td></tr>
 <tr class="separator:adbef14661e85120c13fd033fe2094272"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7374effd3f8c76f4dee0fde6a8524331" id="r_a7374effd3f8c76f4dee0fde6a8524331"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a7374effd3f8c76f4dee0fde6a8524331">brix_overlay_whiteout</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel)</td></tr>
@@ -151,9 +157,9 @@ Functions</h2></td></tr>
 <tr class="separator:a56903b9f2e601c7190cce7593a57c129"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abb020509728eea10af5ec30e3c29e77c" id="r_abb020509728eea10af5ec30e3c29e77c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#abb020509728eea10af5ec30e3c29e77c">brix_overlay_mkdirs</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel_dir, mode_t(*mode_fn)(void *ud, const char *rel_dir), void *ud)</td></tr>
 <tr class="separator:abb020509728eea10af5ec30e3c29e77c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9ed03bf60fd58ece688949aac67a7b84" id="r_a9ed03bf60fd58ece688949aac67a7b84"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a9ed03bf60fd58ece688949aac67a7b84">brix_overlay_open</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, int oflags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a9ed03bf60fd58ece688949aac67a7b84" id="r_a9ed03bf60fd58ece688949aac67a7b84"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a9ed03bf60fd58ece688949aac67a7b84">brix_overlay_open</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, int oflags, mode_t mode)</td></tr>
 <tr class="separator:a9ed03bf60fd58ece688949aac67a7b84"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5ad730bdf62cb19dec0515a687da29ff" id="r_a5ad730bdf62cb19dec0515a687da29ff"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a5ad730bdf62cb19dec0515a687da29ff">brix_overlay_mkdir</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a5ad730bdf62cb19dec0515a687da29ff" id="r_a5ad730bdf62cb19dec0515a687da29ff"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a5ad730bdf62cb19dec0515a687da29ff">brix_overlay_mkdir</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, mode_t mode)</td></tr>
 <tr class="separator:a5ad730bdf62cb19dec0515a687da29ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a461bf36fa2d804bd8f245d9ab0422493" id="r_a461bf36fa2d804bd8f245d9ab0422493"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a461bf36fa2d804bd8f245d9ab0422493">brix_overlay_set_opaque</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel_dir)</td></tr>
 <tr class="separator:a461bf36fa2d804bd8f245d9ab0422493"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -169,7 +175,7 @@ Functions</h2></td></tr>
 <tr class="separator:ac47a30cd07df6ce2e759848c36e09f17"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9e2737310a3e3df3627b87d874949e9b" id="r_a9e2737310a3e3df3627b87d874949e9b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a9e2737310a3e3df3627b87d874949e9b">brix_overlay_readlink</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, char *buf, size_t n)</td></tr>
 <tr class="separator:a9e2737310a3e3df3627b87d874949e9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a055a374e1e0155135b96189bed7ba39d" id="r_a055a374e1e0155135b96189bed7ba39d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a055a374e1e0155135b96189bed7ba39d">brix_overlay_chmod</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a055a374e1e0155135b96189bed7ba39d" id="r_a055a374e1e0155135b96189bed7ba39d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a055a374e1e0155135b96189bed7ba39d">brix_overlay_chmod</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, mode_t mode)</td></tr>
 <tr class="separator:a055a374e1e0155135b96189bed7ba39d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a50d2b51d2e741a680734cf40fd487d16" id="r_a50d2b51d2e741a680734cf40fd487d16"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a50d2b51d2e741a680734cf40fd487d16">brix_overlay_utimens</a> (const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *ov, const char *rel, const struct timespec tv[2])</td></tr>
 <tr class="separator:a50d2b51d2e741a680734cf40fd487d16"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -195,6 +201,8 @@ Functions</h2></td></tr>
 <tr class="separator:a0302e9889c350e6f8712e7fe92ac726b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa5444f00f2a739b5155d8988c46fc0aa" id="r_aa5444f00f2a739b5155d8988c46fc0aa"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#aa5444f00f2a739b5155d8988c46fc0aa">ov_cli_kind</a> (const char *mountdir, const char *rel, char *kind, size_t cap)</td></tr>
 <tr class="separator:aa5444f00f2a739b5155d8988c46fc0aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a840b272e70f9a188e74d1db991016cfb" id="r_a840b272e70f9a188e74d1db991016cfb"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a840b272e70f9a188e74d1db991016cfb">ov_cli_list_entry</a> (const char *mountdir, const char *upper_root, const char *rel, const char *dirp, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, FILE *out)</td></tr>
+<tr class="separator:a840b272e70f9a188e74d1db991016cfb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9725c4fdba9d4f355799d683ba53200f" id="r_a9725c4fdba9d4f355799d683ba53200f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a9725c4fdba9d4f355799d683ba53200f">ov_cli_list_dir</a> (const char *mountdir, const char *upper_root, const char *rel, FILE *out)</td></tr>
 <tr class="separator:a9725c4fdba9d4f355799d683ba53200f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a861e1d2f455394a7cf16b131a3d3d664" id="r_a861e1d2f455394a7cf16b131a3d3d664"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="overlay_8c.html#a861e1d2f455394a7cf16b131a3d3d664">brix_overlay_cli_list</a> (const char *mountdir, FILE *out)</td></tr>
@@ -233,7 +241,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00412">412</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00467">467</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 </div>
 </div>
@@ -274,7 +282,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="overlay_8h_source.html#l00037">BRIX_OV_TMP_PREFIX</a>, <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00299">ov_clear_markers()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00080">test_reserved_names()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00354">ov_clear_markers()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00069">rw_reserved()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00080">test_reserved_names()</a>.</p>
 
 </div>
 </div>
@@ -310,11 +318,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00527">527</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00582">582</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00306">test_nameset()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00531">rw_dir_merged_nonempty()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00387">test_nameset()</a>.</p>
 
 </div>
 </div>
@@ -344,11 +352,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00517">517</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00572">572</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00419">rw_lowcount_cb()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00320">rw_lowdir_emit()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00306">test_nameset()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00495">rw_lowcount_cb()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00401">rw_lowdir_emit()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00387">test_nameset()</a>.</p>
 
 </div>
 </div>
@@ -368,11 +376,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00540">540</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00595">595</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00488">brix_overlay_read_upper()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00306">test_nameset()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00543">brix_overlay_read_upper()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00531">rw_dir_merged_nonempty()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00621">rw_rename_dir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00387">test_nameset()</a>.</p>
 
 </div>
 </div>
@@ -408,11 +416,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00367">367</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00422">422</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00601">rw_apply_chmod()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00734">rw_apply_chmod()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00251">test_mut_attrs()</a>.</p>
 
 </div>
 </div>
@@ -454,9 +462,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00142">142</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00203">203</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00043">BRIX_OV_NONE</a>, <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00060">ov_marker_at()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00034">ov_split()</a>, <a class="el" href="overlay_8c_source.html#l00055">ov_wh_name()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00045">BRIX_OV_MASKED</a>, <a class="el" href="overlay_8h_source.html#l00043">BRIX_OV_NONE</a>, <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00170">ov_classify_root()</a>, <a class="el" href="overlay_8c_source.html#l00191">ov_descend_child()</a>, <a class="el" href="overlay_8c_source.html#l00060">ov_marker_at()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00034">ov_split()</a>, <a class="el" href="overlay_8c_source.html#l00055">ov_wh_name()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="overlay__unittest_8c_source.html#l00071">cls()</a>, and <a class="el" href="brixcvmfs__rw_8c_source.html#l00085">rw_classify()</a>.</p>
 
@@ -488,11 +496,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00621">621</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00706">706</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00549">ov_cli_guard()</a>, and <a class="el" href="overlay_8c_source.html#l00576">ov_cli_list_dir()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00604">ov_cli_guard()</a>, and <a class="el" href="overlay_8c_source.html#l00637">ov_cli_list_dir()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00352">test_cli()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00433">test_cli()</a>.</p>
 
 </div>
 </div>
@@ -512,11 +520,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00658">658</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00743">743</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="overlay_8c_source.html#l00549">ov_cli_guard()</a>, and <a class="el" href="overlay_8c_source.html#l00631">ov_cli_reset_contents()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="overlay_8c_source.html#l00604">ov_cli_guard()</a>, and <a class="el" href="overlay_8c_source.html#l00716">ov_cli_reset_contents()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00352">test_cli()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00433">test_cli()</a>.</p>
 
 </div>
 </div>
@@ -536,11 +544,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00131">131</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00151">151</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00733">brixcvmfs_teardown_rw()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00048">fix_down()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00866">brixcvmfs_teardown_rw()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00048">fix_down()</a>.</p>
 
 </div>
 </div>
@@ -588,11 +596,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00440">440</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00495">495</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00037">BRIX_OV_TMP_PREFIX</a>, <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_whiteout_clear()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00416">ov_copyup_stream()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00072">ov_walk_parent_mk()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00037">BRIX_OV_TMP_PREFIX</a>, <a class="el" href="overlay_8c_source.html#l00454">brix_overlay_whiteout_clear()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00471">ov_copyup_stream()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00101">ov_walk_parent_mk()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00138">rw_copyup()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00261">test_copyup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00186">rw_copyup()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00342">test_copyup()</a>.</p>
 
 </div>
 </div>
@@ -622,11 +630,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00121">121</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00141">141</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 <p class="reference">References <a class="el" href="overlay_8h_source.html#l00039">BRIX_OV_UPPER_DIRNAME</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>, and <a class="el" href="overlay_8h_source.html#l00050">brix_overlay::writes_fd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00712">brixcvmfs_setup_rw()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00040">fix_up()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00845">brixcvmfs_setup_rw()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00040">fix_up()</a>.</p>
 
 </div>
 </div>
@@ -662,11 +670,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00270">270</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00325">325</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00166">test_mut_mkdirs_create()</a>.</p>
 
 </div>
 </div>
@@ -708,11 +716,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00238">238</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00293">293</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00072">ov_walk_parent_mk()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00101">ov_walk_parent_mk()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00125">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00575">rw_meta_apply()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00173">rw_ensure_parents()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00708">rw_meta_apply()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00166">test_mut_mkdirs_create()</a>.</p>
 
 </div>
 </div>
@@ -754,11 +762,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00259">259</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00314">314</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00391">brix_overlay_truncate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="overlay__unittest_8c_source.html#l00261">test_copyup()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00446">brix_overlay_truncate()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00229">rw_open_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00247">rw_open_lower()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00215">rw_open_upper()</a>, <a class="el" href="overlay__unittest_8c_source.html#l00342">test_copyup()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00166">test_mut_mkdirs_create()</a>.</p>
 
 </div>
 </div>
@@ -800,11 +808,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00488">488</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00543">543</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00540">brix_ov_nameset_free()</a>, <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="overlay_8h_source.html#l00037">BRIX_OV_TMP_PREFIX</a>, <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00471">ov_nameset_add()</a>, and <a class="el" href="overlay_8c_source.html#l00226">ov_open_dir()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00595">brix_ov_nameset_free()</a>, <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="overlay_8h_source.html#l00037">BRIX_OV_TMP_PREFIX</a>, <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00526">ov_nameset_add()</a>, and <a class="el" href="overlay_8c_source.html#l00281">ov_open_dir()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00327">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00306">test_nameset()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00531">rw_dir_merged_nonempty()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00408">rw_readdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00621">rw_rename_dir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00387">test_nameset()</a>.</p>
 
 </div>
 </div>
@@ -846,11 +854,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00354">354</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00409">409</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00552">rw_readlink()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00685">rw_readlink()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00227">test_mut_rename_symlink()</a>.</p>
 
 </div>
 </div>
@@ -886,11 +894,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00331">331</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00386">386</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_rename_commit()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00227">test_mut_rename_symlink()</a>.</p>
 
 </div>
 </div>
@@ -920,11 +928,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00316">316</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00371">371</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00299">ov_clear_markers()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00226">ov_open_dir()</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00354">ov_clear_markers()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00281">ov_open_dir()</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00207">test_mut_rmdir()</a>.</p>
 
 </div>
 </div>
@@ -954,11 +962,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00279">279</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00334">334</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, and <a class="el" href="overlay_8c_source.html#l00226">ov_open_dir()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, and <a class="el" href="overlay_8c_source.html#l00281">ov_open_dir()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00166">test_mut_mkdirs_create()</a>.</p>
 
 </div>
 </div>
@@ -994,11 +1002,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00344">344</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00399">399</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00227">test_mut_rename_symlink()</a>.</p>
 
 </div>
 </div>
@@ -1034,11 +1042,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00391">391</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00446">446</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00259">brix_overlay_open()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00314">brix_overlay_open()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00252">rw_truncate()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00333">rw_truncate()</a>, <a class="el" href="overlay__unittest_8c_source.html#l00251">test_mut_attrs()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00279">test_mut_symlink_escape()</a>.</p>
 
 </div>
 </div>
@@ -1068,11 +1076,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00289">289</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00344">344</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00166">test_mut_mkdirs_create()</a>.</p>
 
 </div>
 </div>
@@ -1108,11 +1116,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00381">381</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00436">436</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00618">rw_apply_utimens()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00751">rw_apply_utimens()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00251">test_mut_attrs()</a>.</p>
 
 </div>
 </div>
@@ -1142,11 +1150,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00201">201</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00256">256</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00060">ov_marker_at()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>, and <a class="el" href="overlay_8c_source.html#l00055">ov_wh_name()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00060">ov_marker_at()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>, and <a class="el" href="overlay_8c_source.html#l00055">ov_wh_name()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay__unittest_8c_source.html#l00089">test_classify()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00261">test_copyup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay__unittest_8c_source.html#l00089">test_classify()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00342">test_copyup()</a>.</p>
 
 </div>
 </div>
@@ -1176,11 +1184,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00399">399</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00454">454</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>, and <a class="el" href="overlay_8c_source.html#l00055">ov_wh_name()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>, and <a class="el" href="overlay_8c_source.html#l00055">ov_wh_name()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00440">brix_overlay_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00370">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00156">rw_open_common()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00540">rw_symlink()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00089">test_classify()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00495">brix_overlay_copyup()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00451">rw_mkdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00229">rw_open_create()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_rename_commit()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00673">rw_symlink()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00089">test_classify()</a>.</p>
 
 </div>
 </div>
@@ -1210,11 +1218,59 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00212">212</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00267">267</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00072">ov_walk_parent_mk()</a>, and <a class="el" href="overlay_8c_source.html#l00055">ov_wh_name()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00101">ov_walk_parent_mk()</a>, and <a class="el" href="overlay_8c_source.html#l00055">ov_wh_name()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00473">rw_rename()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00426">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00388">rw_unlink()</a>, <a class="el" href="overlay__unittest_8c_source.html#l00089">test_classify()</a>, <a class="el" href="overlay__unittest_8c_source.html#l00261">test_copyup()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00150">test_mutations()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs__rw_8c_source.html#l00605">rw_rename_commit()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00553">rw_rmdir()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00469">rw_unlink()</a>, <a class="el" href="overlay__unittest_8c_source.html#l00089">test_classify()</a>, <a class="el" href="overlay__unittest_8c_source.html#l00342">test_copyup()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00207">test_mut_rmdir()</a>.</p>
+
+</div>
+</div>
+<a id="aadca6e84e4de01a6682abdb5396c70f9" name="aadca6e84e4de01a6682abdb5396c70f9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aadca6e84e4de01a6682abdb5396c70f9">&#9670;&#160;</a></span>ov_classify_root()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ov_classify_root </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__overlay.html">brix_overlay</a> *&#160;</td>
+          <td class="paramname"><em>ov</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="overlay_8h.html#a8c741d4e5134a6c7c9e74d9229651abd">brix_ov_state</a> *&#160;</td>
+          <td class="paramname"><em>state</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00170">170</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00044">BRIX_OV_UPPER</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, and <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00203">brix_overlay_classify()</a>.</p>
 
 </div>
 </div>
@@ -1242,11 +1298,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00299">299</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00354">354</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 <p class="reference">References <a class="el" href="overlay_8c_source.html#l00047">brix_ov_name_reserved()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00316">brix_overlay_rmdir_upper()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00371">brix_overlay_rmdir_upper()</a>.</p>
 
 </div>
 </div>
@@ -1284,11 +1340,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00549">549</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00604">604</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 <p class="reference">References <a class="el" href="overlay_8h_source.html#l00038">BRIX_OV_DIRNAME</a>, <a class="el" href="overlay_8h_source.html#l00039">BRIX_OV_UPPER_DIRNAME</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00621">brix_overlay_cli_list()</a>, and <a class="el" href="overlay_8c_source.html#l00658">brix_overlay_cli_reset()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00706">brix_overlay_cli_list()</a>, and <a class="el" href="overlay_8c_source.html#l00743">brix_overlay_cli_reset()</a>.</p>
 
 </div>
 </div>
@@ -1338,9 +1394,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00564">564</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00619">619</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00576">ov_cli_list_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00671">ov_cli_list_entry()</a>.</p>
 
 </div>
 </div>
@@ -1390,11 +1446,77 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00576">576</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00637">637</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="overlay_8h_source.html#l00037">BRIX_OV_TMP_PREFIX</a>, <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, <a class="el" href="overlay_8c_source.html#l00564">ov_cli_kind()</a>, <a class="el" href="overlay_8c_source.html#l00576">ov_cli_list_dir()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00671">ov_cli_list_entry()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00621">brix_overlay_cli_list()</a>, and <a class="el" href="overlay_8c_source.html#l00576">ov_cli_list_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00706">brix_overlay_cli_list()</a>, and <a class="el" href="overlay_8c_source.html#l00671">ov_cli_list_entry()</a>.</p>
+
+</div>
+</div>
+<a id="a840b272e70f9a188e74d1db991016cfb" name="a840b272e70f9a188e74d1db991016cfb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a840b272e70f9a188e74d1db991016cfb">&#9670;&#160;</a></span>ov_cli_list_entry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ov_cli_list_entry </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>mountdir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>upper_root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>rel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dirp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00671">671</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="overlay_8h_source.html#l00037">BRIX_OV_TMP_PREFIX</a>, <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="overlay_8c_source.html#l00619">ov_cli_kind()</a>, <a class="el" href="overlay_8c_source.html#l00637">ov_cli_list_dir()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00637">ov_cli_list_dir()</a>.</p>
 
 </div>
 </div>
@@ -1422,11 +1544,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00631">631</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00716">716</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00631">ov_cli_reset_contents()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00716">ov_cli_reset_contents()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00658">brix_overlay_cli_reset()</a>, and <a class="el" href="overlay_8c_source.html#l00631">ov_cli_reset_contents()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00743">brix_overlay_cli_reset()</a>, and <a class="el" href="overlay_8c_source.html#l00716">ov_cli_reset_contents()</a>.</p>
 
 </div>
 </div>
@@ -1482,11 +1604,125 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00416">416</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00471">471</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00412">OV_COPYUP_CHUNK</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00467">OV_COPYUP_CHUNK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00440">brix_overlay_copyup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00495">brix_overlay_copyup()</a>.</p>
+
+</div>
+</div>
+<a id="a9d71c816cedf1bf0fb5aea380812e13e" name="a9d71c816cedf1bf0fb5aea380812e13e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9d71c816cedf1bf0fb5aea380812e13e">&#9670;&#160;</a></span>ov_descend_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ov_descend_child </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>cur</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>opaque</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00191">191</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay_8h_source.html#l00036">BRIX_OV_OPQ_NAME</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, and <a class="el" href="overlay_8c_source.html#l00060">ov_marker_at()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00203">brix_overlay_classify()</a>.</p>
+
+</div>
+</div>
+<a id="ad4659b23cc2baf8c75c195ca0d916f77" name="ad4659b23cc2baf8c75c195ca0d916f77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad4659b23cc2baf8c75c195ca0d916f77">&#9670;&#160;</a></span>ov_descend_dir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ov_descend_dir </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>dirfd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>mk</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t(*)(void *ud, const char *rel_dir)&#160;</td>
+          <td class="paramname"><em>mode_fn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ud</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prefix</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00084">84</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cta__queue__unittest_8c_source.html#l00018">mk()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00101">ov_walk_parent_mk()</a>.</p>
 
 </div>
 </div>
@@ -1528,7 +1764,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00142">brix_overlay_classify()</a>, and <a class="el" href="overlay_8c_source.html#l00201">brix_overlay_whiteout()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00203">brix_overlay_classify()</a>, <a class="el" href="overlay_8c_source.html#l00256">brix_overlay_whiteout()</a>, and <a class="el" href="overlay_8c_source.html#l00191">ov_descend_child()</a>.</p>
 
 </div>
 </div>
@@ -1572,11 +1808,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00471">471</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00526">526</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00488">brix_overlay_read_upper()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00543">brix_overlay_read_upper()</a>.</p>
 
 </div>
 </div>
@@ -1614,11 +1850,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00226">226</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00281">281</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>, and <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00027">OV_NAME_MAX</a>, <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>, and <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00488">brix_overlay_read_upper()</a>, <a class="el" href="overlay_8c_source.html#l00316">brix_overlay_rmdir_upper()</a>, and <a class="el" href="overlay_8c_source.html#l00279">brix_overlay_set_opaque()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00543">brix_overlay_read_upper()</a>, <a class="el" href="overlay_8c_source.html#l00371">brix_overlay_rmdir_upper()</a>, and <a class="el" href="overlay_8c_source.html#l00334">brix_overlay_set_opaque()</a>.</p>
 
 </div>
 </div>
@@ -1666,7 +1902,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00142">brix_overlay_classify()</a>, and <a class="el" href="overlay_8c_source.html#l00072">ov_walk_parent_mk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00203">brix_overlay_classify()</a>, and <a class="el" href="overlay_8c_source.html#l00101">ov_walk_parent_mk()</a>.</p>
 
 </div>
 </div>
@@ -1716,11 +1952,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00114">114</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00134">134</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="overlay_8c_source.html#l00072">ov_walk_parent_mk()</a>.</p>
+<p class="reference">References <a class="el" href="overlay_8c_source.html#l00101">ov_walk_parent_mk()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00367">brix_overlay_chmod()</a>, <a class="el" href="overlay_8c_source.html#l00270">brix_overlay_mkdir()</a>, <a class="el" href="overlay_8c_source.html#l00259">brix_overlay_open()</a>, <a class="el" href="overlay_8c_source.html#l00354">brix_overlay_readlink()</a>, <a class="el" href="overlay_8c_source.html#l00331">brix_overlay_rename_upper()</a>, <a class="el" href="overlay_8c_source.html#l00316">brix_overlay_rmdir_upper()</a>, <a class="el" href="overlay_8c_source.html#l00344">brix_overlay_symlink()</a>, <a class="el" href="overlay_8c_source.html#l00289">brix_overlay_unlink_upper()</a>, <a class="el" href="overlay_8c_source.html#l00381">brix_overlay_utimens()</a>, <a class="el" href="overlay_8c_source.html#l00201">brix_overlay_whiteout()</a>, <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_whiteout_clear()</a>, and <a class="el" href="overlay_8c_source.html#l00226">ov_open_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00422">brix_overlay_chmod()</a>, <a class="el" href="overlay_8c_source.html#l00325">brix_overlay_mkdir()</a>, <a class="el" href="overlay_8c_source.html#l00314">brix_overlay_open()</a>, <a class="el" href="overlay_8c_source.html#l00409">brix_overlay_readlink()</a>, <a class="el" href="overlay_8c_source.html#l00386">brix_overlay_rename_upper()</a>, <a class="el" href="overlay_8c_source.html#l00371">brix_overlay_rmdir_upper()</a>, <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_symlink()</a>, <a class="el" href="overlay_8c_source.html#l00344">brix_overlay_unlink_upper()</a>, <a class="el" href="overlay_8c_source.html#l00436">brix_overlay_utimens()</a>, <a class="el" href="overlay_8c_source.html#l00256">brix_overlay_whiteout()</a>, <a class="el" href="overlay_8c_source.html#l00454">brix_overlay_whiteout_clear()</a>, and <a class="el" href="overlay_8c_source.html#l00281">ov_open_dir()</a>.</p>
 
 </div>
 </div>
@@ -1788,11 +2024,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00072">72</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="overlay_8c_source.html#l00101">101</a> of file <a class="el" href="overlay_8c_source.html">overlay.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="cta__queue__unittest_8c_source.html#l00018">mk()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00034">ov_split()</a>, and <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="cta__queue__unittest_8c_source.html#l00018">mk()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00274">openat()</a>, <a class="el" href="overlay_8c_source.html#l00084">ov_descend_dir()</a>, <a class="el" href="overlay_8c_source.html#l00034">ov_split()</a>, and <a class="el" href="overlay_8h_source.html#l00051">brix_overlay::upper_fd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00440">brix_overlay_copyup()</a>, <a class="el" href="overlay_8c_source.html#l00238">brix_overlay_mkdirs()</a>, <a class="el" href="overlay_8c_source.html#l00212">brix_overlay_whiteout_set()</a>, and <a class="el" href="overlay_8c_source.html#l00114">ov_walk_parent()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00495">brix_overlay_copyup()</a>, <a class="el" href="overlay_8c_source.html#l00293">brix_overlay_mkdirs()</a>, <a class="el" href="overlay_8c_source.html#l00267">brix_overlay_whiteout_set()</a>, and <a class="el" href="overlay_8c_source.html#l00134">ov_walk_parent()</a>.</p>
 
 </div>
 </div>
@@ -1840,7 +2076,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="overlay_8h_source.html#l00035">BRIX_OV_WH_PREFIX</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00142">brix_overlay_classify()</a>, <a class="el" href="overlay_8c_source.html#l00201">brix_overlay_whiteout()</a>, <a class="el" href="overlay_8c_source.html#l00399">brix_overlay_whiteout_clear()</a>, and <a class="el" href="overlay_8c_source.html#l00212">brix_overlay_whiteout_set()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="overlay_8c_source.html#l00203">brix_overlay_classify()</a>, <a class="el" href="overlay_8c_source.html#l00256">brix_overlay_whiteout()</a>, <a class="el" href="overlay_8c_source.html#l00454">brix_overlay_whiteout_clear()</a>, and <a class="el" href="overlay_8c_source.html#l00267">brix_overlay_whiteout_set()</a>.</p>
 
 </div>
 </div>

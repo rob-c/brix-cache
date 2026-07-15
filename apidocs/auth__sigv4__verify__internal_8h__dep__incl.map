@@ -1,0 +1,9 @@
+<map id="src/protocols/s3/auth_sigv4_verify_internal.h" name="src/protocols/s3/auth_sigv4_verify_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="182,5,359,45"/>
+<area shape="rect" id="Node000002" href="$auth__sigv4__verify_8c.html" title=" " alt="" coords="5,93,163,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="219,53,126,96,124,91,216,49"/>
+<area shape="rect" id="Node000003" href="$auth__sigv4__verify__crypto_8c.html" title=" " alt="" coords="187,93,354,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="273,59,273,93,268,93,268,59"/>
+<area shape="rect" id="Node000004" href="$auth__sigv4__verify__time_8c.html" title=" " alt="" coords="379,93,536,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="325,49,418,91,415,96,323,53"/>
+</map>

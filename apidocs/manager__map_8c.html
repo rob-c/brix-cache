@@ -111,6 +111,16 @@ $(document).ready(function(){initNavTree('manager__map_8c.html',''); initResizab
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a7b9492d6eaab99c2b51aa04b8ab419b9" id="r_a7b9492d6eaab99c2b51aa04b8ab419b9"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="manager__map_8c.html#a7b9492d6eaab99c2b51aa04b8ab419b9">brix_manager_map_store_host</a> (ngx_conf_t *cf, <a class="el" href="structbrix__manager__map__t.html">brix_manager_map_t</a> *entry, const char *src, size_t hostlen)</td></tr>
+<tr class="separator:a7b9492d6eaab99c2b51aa04b8ab419b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a63d9a6fc61a7d6900b4c570afe6b3b3f" id="r_a63d9a6fc61a7d6900b4c570afe6b3b3f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="manager__map_8c.html#a63d9a6fc61a7d6900b4c570afe6b3b3f">brix_manager_map_parse_port</a> (ngx_conf_t *cf, const char *port_str, ngx_str_t *arg, uint16_t *out_port)</td></tr>
+<tr class="separator:a63d9a6fc61a7d6900b4c570afe6b3b3f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2d979f0979b8435e9aafc88e6048287f" id="r_a2d979f0979b8435e9aafc88e6048287f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="manager__map_8c.html#a2d979f0979b8435e9aafc88e6048287f">brix_manager_map_parse_ipv6</a> (ngx_conf_t *cf, <a class="el" href="structbrix__manager__map__t.html">brix_manager_map_t</a> *entry, char *addr_copy, ngx_str_t *arg)</td></tr>
+<tr class="separator:a2d979f0979b8435e9aafc88e6048287f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac7bc83495e90f5012ac4206553fb80fc" id="r_ac7bc83495e90f5012ac4206553fb80fc"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="manager__map_8c.html#ac7bc83495e90f5012ac4206553fb80fc">brix_manager_map_parse_hostport</a> (ngx_conf_t *cf, <a class="el" href="structbrix__manager__map__t.html">brix_manager_map_t</a> *entry, char *addr_copy, ngx_str_t *arg)</td></tr>
+<tr class="separator:ac7bc83495e90f5012ac4206553fb80fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afc4279c01a53f8238f2f2307c0b37be8" id="r_afc4279c01a53f8238f2f2307c0b37be8"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="manager__map_8c.html#afc4279c01a53f8238f2f2307c0b37be8">brix_manager_map_parse_endpoint</a> (ngx_conf_t *cf, <a class="el" href="structbrix__manager__map__t.html">brix_manager_map_t</a> *entry, char *addr_copy, ngx_str_t *arg)</td></tr>
+<tr class="separator:afc4279c01a53f8238f2f2307c0b37be8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a537a0a25c67cf0ef97883e4ed357ec3c" id="r_a537a0a25c67cf0ef97883e4ed357ec3c"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="manager__map_8c.html#a537a0a25c67cf0ef97883e4ed357ec3c">brix_conf_set_manager_map</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:a537a0a25c67cf0ef97883e4ed357ec3c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -147,9 +157,277 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="manager__map_8c_source.html#l00016">16</a> of file <a class="el" href="manager__map_8c_source.html">manager_map.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="manager__map_8c_source.html#l00202">202</a> of file <a class="el" href="manager__map_8c_source.html">manager_map.c</a>.</p>
 
-<p class="reference">References <a class="el" href="normalize_8c_source.html#l00019">brix_normalize_policy_path()</a>, <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, <a class="el" href="types_2config_8h_source.html#l00084">brix_manager_map_t::host</a>, <a class="el" href="types_2config_8h_source.html#l00156">ngx_stream_brix_srv_conf_t::manager_map</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="types_2config_8h_source.html#l00085">brix_manager_map_t::port</a>, and <a class="el" href="types_2config_8h_source.html#l00083">brix_manager_map_t::prefix</a>.</p>
+<p class="reference">References <a class="el" href="manager__map_8c_source.html#l00174">brix_manager_map_parse_endpoint()</a>, <a class="el" href="normalize_8c_source.html#l00019">brix_normalize_policy_path()</a>, <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, <a class="el" href="types_2config_8h_source.html#l00084">brix_manager_map_t::host</a>, <a class="el" href="types_2config_8h_source.html#l00085">brix_manager_map_t::port</a>, and <a class="el" href="types_2config_8h_source.html#l00083">brix_manager_map_t::prefix</a>.</p>
+
+</div>
+</div>
+<a id="afc4279c01a53f8238f2f2307c0b37be8" name="afc4279c01a53f8238f2f2307c0b37be8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc4279c01a53f8238f2f2307c0b37be8">&#9670;&#160;</a></span>brix_manager_map_parse_endpoint()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_manager_map_parse_endpoint </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__manager__map__t.html">brix_manager_map_t</a> *&#160;</td>
+          <td class="paramname"><em>entry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>addr_copy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>arg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="manager__map_8c_source.html#l00174">174</a> of file <a class="el" href="manager__map_8c_source.html">manager_map.c</a>.</p>
+
+<p class="reference">References <a class="el" href="manager__map_8c_source.html#l00139">brix_manager_map_parse_hostport()</a>, and <a class="el" href="manager__map_8c_source.html#l00094">brix_manager_map_parse_ipv6()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="manager__map_8c_source.html#l00202">brix_conf_set_manager_map()</a>.</p>
+
+</div>
+</div>
+<a id="ac7bc83495e90f5012ac4206553fb80fc" name="ac7bc83495e90f5012ac4206553fb80fc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac7bc83495e90f5012ac4206553fb80fc">&#9670;&#160;</a></span>brix_manager_map_parse_hostport()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_manager_map_parse_hostport </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__manager__map__t.html">brix_manager_map_t</a> *&#160;</td>
+          <td class="paramname"><em>entry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>addr_copy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>arg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="manager__map_8c_source.html#l00139">139</a> of file <a class="el" href="manager__map_8c_source.html">manager_map.c</a>.</p>
+
+<p class="reference">References <a class="el" href="manager__map_8c_source.html#l00060">brix_manager_map_parse_port()</a>, <a class="el" href="manager__map_8c_source.html#l00028">brix_manager_map_store_host()</a>, and <a class="el" href="types_2config_8h_source.html#l00085">brix_manager_map_t::port</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="manager__map_8c_source.html#l00174">brix_manager_map_parse_endpoint()</a>.</p>
+
+</div>
+</div>
+<a id="a2d979f0979b8435e9aafc88e6048287f" name="a2d979f0979b8435e9aafc88e6048287f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2d979f0979b8435e9aafc88e6048287f">&#9670;&#160;</a></span>brix_manager_map_parse_ipv6()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_manager_map_parse_ipv6 </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__manager__map__t.html">brix_manager_map_t</a> *&#160;</td>
+          <td class="paramname"><em>entry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>addr_copy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>arg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="manager__map_8c_source.html#l00094">94</a> of file <a class="el" href="manager__map_8c_source.html">manager_map.c</a>.</p>
+
+<p class="reference">References <a class="el" href="manager__map_8c_source.html#l00060">brix_manager_map_parse_port()</a>, <a class="el" href="manager__map_8c_source.html#l00028">brix_manager_map_store_host()</a>, and <a class="el" href="types_2config_8h_source.html#l00085">brix_manager_map_t::port</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="manager__map_8c_source.html#l00174">brix_manager_map_parse_endpoint()</a>.</p>
+
+</div>
+</div>
+<a id="a63d9a6fc61a7d6900b4c570afe6b3b3f" name="a63d9a6fc61a7d6900b4c570afe6b3b3f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a63d9a6fc61a7d6900b4c570afe6b3b3f">&#9670;&#160;</a></span>brix_manager_map_parse_port()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_manager_map_parse_port </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>port_str</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t *&#160;</td>
+          <td class="paramname"><em>out_port</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="manager__map_8c_source.html#l00060">60</a> of file <a class="el" href="manager__map_8c_source.html">manager_map.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="manager__map_8c_source.html#l00139">brix_manager_map_parse_hostport()</a>, and <a class="el" href="manager__map_8c_source.html#l00094">brix_manager_map_parse_ipv6()</a>.</p>
+
+</div>
+</div>
+<a id="a7b9492d6eaab99c2b51aa04b8ab419b9" name="a7b9492d6eaab99c2b51aa04b8ab419b9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7b9492d6eaab99c2b51aa04b8ab419b9">&#9670;&#160;</a></span>brix_manager_map_store_host()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_manager_map_store_host </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__manager__map__t.html">brix_manager_map_t</a> *&#160;</td>
+          <td class="paramname"><em>entry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>hostlen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="manager__map_8c_source.html#l00028">28</a> of file <a class="el" href="manager__map_8c_source.html">manager_map.c</a>.</p>
+
+<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00084">brix_manager_map_t::host</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="manager__map_8c_source.html#l00139">brix_manager_map_parse_hostport()</a>, and <a class="el" href="manager__map_8c_source.html#l00094">brix_manager_map_parse_ipv6()</a>.</p>
 
 </div>
 </div>

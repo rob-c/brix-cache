@@ -10,6 +10,8 @@ var dir_695350d44e388e64925183d463c9ba35 =
     [ "metadata.c", "metadata_8c.html", "metadata_8c" ],
     [ "prepare.c", "prepare_8c.html", "prepare_8c" ],
     [ "prepare_cmd.c", "prepare__cmd_8c.html", "prepare__cmd_8c" ],
+    [ "prepare_internal.h", "prepare__internal_8h.html", "prepare__internal_8h" ],
+    [ "prepare_qprep.c", "prepare__qprep_8c.html", "prepare__qprep_8c" ],
     [ "query_internal.h", "query__internal_8h.html", "query__internal_8h" ],
     [ "set.c", "query_2set_8c.html", "query_2set_8c" ],
     [ "space.c", "protocols_2root_2query_2space_8c.html", "protocols_2root_2query_2space_8c" ],

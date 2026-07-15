@@ -13,5 +13,8 @@ var dir_80739b26cb30f72b63d8bcb72cf37f56 =
     [ "resolve_confined_ops.c", "resolve__confined__ops_8c.html", "resolve__confined__ops_8c" ],
     [ "resolve_path_variants.c", "resolve__path__variants_8c.html", "resolve__path__variants_8c" ],
     [ "unified.c", "fs_2path_2unified_8c.html", "fs_2path_2unified_8c" ],
-    [ "unified.h", "fs_2path_2unified_8h.html", "fs_2path_2unified_8h" ]
+    [ "unified.h", "fs_2path_2unified_8h.html", "fs_2path_2unified_8h" ],
+    [ "unified_build.c", "unified__build_8c.html", "unified__build_8c" ],
+    [ "unified_internal.h", "fs_2path_2unified__internal_8h.html", "fs_2path_2unified__internal_8h" ],
+    [ "unified_resolve.c", "unified__resolve_8c.html", "unified__resolve_8c" ]
 ];

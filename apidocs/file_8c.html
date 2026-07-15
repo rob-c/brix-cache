@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('file_8c.html',''); initResizable(); })
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">file.c File Reference</div></div>
 </div><!--header-->
@@ -110,12 +111,57 @@ $(document).ready(function(){initNavTree('file_8c.html',''); initResizable(); })
 </div>
 <p><a href="file_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__token__diag__t.html">brix_token_diag_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a96a37299d0423ec305693d36932ef7ab" id="r_a96a37299d0423ec305693d36932ef7ab"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file_8c.html#a96a37299d0423ec305693d36932ef7ab">brix_token_label</a> (const <a class="el" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *diag)</td></tr>
+<tr class="separator:a96a37299d0423ec305693d36932ef7ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aec8fc7d4db689d971ce466bb3f3650bc" id="r_aec8fc7d4db689d971ce466bb3f3650bc"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file_8c.html#aec8fc7d4db689d971ce466bb3f3650bc">brix_token_validate_args</a> (const ngx_str_t *path, const u_char *buf, size_t buf_sz, char *pathz, const <a class="el" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *diag)</td></tr>
+<tr class="separator:aec8fc7d4db689d971ce466bb3f3650bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a868cf7c9cc7731918cb5b56389173e20" id="r_a868cf7c9cc7731918cb5b56389173e20"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file_8c.html#a868cf7c9cc7731918cb5b56389173e20">brix_token_slurp</a> (const char *pathz, u_char *buf, size_t buf_sz, size_t *n_out, const <a class="el" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *diag)</td></tr>
+<tr class="separator:a868cf7c9cc7731918cb5b56389173e20"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac0a0f6a50098f68f8a37265e38fd04ce" id="r_ac0a0f6a50098f68f8a37265e38fd04ce"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file_8c.html#ac0a0f6a50098f68f8a37265e38fd04ce">brix_token_trim</a> (u_char *buf, size_t n)</td></tr>
+<tr class="separator:ac0a0f6a50098f68f8a37265e38fd04ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ada5899fcbd61429e689dea61508d0c22" id="r_ada5899fcbd61429e689dea61508d0c22"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file_8c.html#ada5899fcbd61429e689dea61508d0c22">brix_token_read_file</a> (const ngx_str_t *path, u_char *buf, size_t buf_sz, size_t *out_len, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *label)</td></tr>
 <tr class="separator:ada5899fcbd61429e689dea61508d0c22"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a96a37299d0423ec305693d36932ef7ab" name="a96a37299d0423ec305693d36932ef7ab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96a37299d0423ec305693d36932ef7ab">&#9670;&#160;</a></span>brix_token_label()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const char * brix_token_label </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *&#160;</td>
+          <td class="paramname"><em>diag</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file_8c_source.html#l00057">57</a> of file <a class="el" href="file_8c_source.html">file.c</a>.</p>
+
+<p class="reference">References <a class="el" href="file_8c_source.html#l00045">brix_token_diag_t::label</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file_8c_source.html#l00164">brix_token_read_file()</a>, <a class="el" href="file_8c_source.html#l00108">brix_token_slurp()</a>, and <a class="el" href="file_8c_source.html#l00076">brix_token_validate_args()</a>.</p>
+
+</div>
+</div>
 <a id="ada5899fcbd61429e689dea61508d0c22" name="ada5899fcbd61429e689dea61508d0c22"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ada5899fcbd61429e689dea61508d0c22">&#9670;&#160;</a></span>brix_token_read_file()</h2>
 
@@ -166,11 +212,171 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="file_8c_source.html#l00034">34</a> of file <a class="el" href="file_8c_source.html">file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="file_8c_source.html#l00164">164</a> of file <a class="el" href="file_8c_source.html">file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="file_8c_source.html#l00057">brix_token_label()</a>, <a class="el" href="file_8c_source.html#l00108">brix_token_slurp()</a>, <a class="el" href="file_8c_source.html#l00154">brix_token_trim()</a>, <a class="el" href="file_8c_source.html#l00076">brix_token_validate_args()</a>, <a class="el" href="file_8c_source.html#l00045">brix_token_diag_t::label</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="file_8c_source.html#l00044">brix_token_diag_t::log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="events__bootstrap_8c_source.html#l00207">brix_proxy_bs_login()</a>, <a class="el" href="src_2net_2upstream_2auth_8c_source.html#l00040">brix_upstream_send_token_auth()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00103">tpc_read_bearer_token()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2net_2upstream_2auth_8c_source.html#l00040">brix_upstream_send_token_auth()</a>, <a class="el" href="events__bootstrap__auth_8c_source.html#l00300">proxy_bs_auth_token_file()</a>, <a class="el" href="events__bootstrap__auth_8c_source.html#l00384">proxy_bs_login_sec_ztn()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00103">tpc_read_bearer_token()</a>, and <a class="el" href="tpc__token__exchange_8c_source.html#l00045">tpc_rfc8693_read_subject()</a>.</p>
+
+</div>
+</div>
+<a id="a868cf7c9cc7731918cb5b56389173e20" name="a868cf7c9cc7731918cb5b56389173e20"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a868cf7c9cc7731918cb5b56389173e20">&#9670;&#160;</a></span>brix_token_slurp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_token_slurp </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>pathz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>buf_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>n_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *&#160;</td>
+          <td class="paramname"><em>diag</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file_8c_source.html#l00108">108</a> of file <a class="el" href="file_8c_source.html">file.c</a>.</p>
+
+<p class="reference">References <a class="el" href="file_8c_source.html#l00057">brix_token_label()</a>, and <a class="el" href="file_8c_source.html#l00044">brix_token_diag_t::log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file_8c_source.html#l00164">brix_token_read_file()</a>.</p>
+
+</div>
+</div>
+<a id="ac0a0f6a50098f68f8a37265e38fd04ce" name="ac0a0f6a50098f68f8a37265e38fd04ce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac0a0f6a50098f68f8a37265e38fd04ce">&#9670;&#160;</a></span>brix_token_trim()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t brix_token_trim </td>
+          <td>(</td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file_8c_source.html#l00154">154</a> of file <a class="el" href="file_8c_source.html">file.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file_8c_source.html#l00164">brix_token_read_file()</a>.</p>
+
+</div>
+</div>
+<a id="aec8fc7d4db689d971ce466bb3f3650bc" name="aec8fc7d4db689d971ce466bb3f3650bc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aec8fc7d4db689d971ce466bb3f3650bc">&#9670;&#160;</a></span>brix_token_validate_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_token_validate_args </td>
+          <td>(</td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>buf_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>pathz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__diag__t.html">brix_token_diag_t</a> *&#160;</td>
+          <td class="paramname"><em>diag</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file_8c_source.html#l00076">76</a> of file <a class="el" href="file_8c_source.html">file.c</a>.</p>
+
+<p class="reference">References <a class="el" href="file_8c_source.html#l00057">brix_token_label()</a>, <a class="el" href="file_8c_source.html#l00044">brix_token_diag_t::log</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file_8c_source.html#l00164">brix_token_read_file()</a>.</p>
 
 </div>
 </div>

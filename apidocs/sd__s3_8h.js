@@ -1,12 +1,13 @@
 var sd__s3_8h =
 [
     [ "sd_s3_open_params", "structsd__s3__open__params.html", "structsd__s3__open__params" ],
+    [ "sd_s3_meta_buf", "structsd__s3__meta__buf.html", "structsd__s3__meta__buf" ],
     [ "sd_s3_meta_kv", "structsd__s3__meta__kv.html", "structsd__s3__meta__kv" ],
     [ "sd_s3_abort", "sd__s3_8h.html#a9a0c6f593d77c4f77a888030fadc80ec", null ],
     [ "sd_s3_close", "sd__s3_8h.html#ac466406cefcedddd9d49445c744549d2", null ],
     [ "sd_s3_commit", "sd__s3_8h.html#a45e610f048eaa8deef486fb2203e2b71", null ],
     [ "sd_s3_delete", "sd__s3_8h.html#a9ada0ff9cbf3b0c9e061315ae80fa453", null ],
-    [ "sd_s3_get_meta", "sd__s3_8h.html#a06af70536d6b696ec0f2e4cc4d9f9cf8", null ],
+    [ "sd_s3_get_meta", "sd__s3_8h.html#acea862ec68a6808111bdd2d7223d26e4", null ],
     [ "sd_s3_get_unixattr", "sd__s3_8h.html#a1f613261d2b7ff2190a0cf4e7a4e3209", null ],
     [ "sd_s3_open_read", "sd__s3_8h.html#a03da992ca2890d86c6dd2eaf7523e93e", null ],
     [ "sd_s3_open_write", "sd__s3_8h.html#ae7a8357c3141c1e3764c310cd81c153c", null ],

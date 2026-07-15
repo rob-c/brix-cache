@@ -100,11 +100,51 @@ $(document).ready(function(){initNavTree('structsd__http__obj__state.html',''); 
 Data Fields</h2></td></tr>
 <tr class="memitem:adfe9675511f9e89b8bf9151c6e66e5e3" id="r_adfe9675511f9e89b8bf9151c6e66e5e3"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__http__obj__state.html#adfe9675511f9e89b8bf9151c6e66e5e3">key</a> [2048]</td></tr>
 <tr class="separator:adfe9675511f9e89b8bf9151c6e66e5e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff10369aa4e2472d50a8b6797d5f97d9" id="r_aff10369aa4e2472d50a8b6797d5f97d9"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__http__obj__state.html#aff10369aa4e2472d50a8b6797d5f97d9">auth_hdr</a> [4160]</td></tr>
+<tr class="separator:aff10369aa4e2472d50a8b6797d5f97d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aba907024a84e48dfd3bf5cb928b18193" id="r_aba907024a84e48dfd3bf5cb928b18193"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__http__obj__state.html#aba907024a84e48dfd3bf5cb928b18193">cert_pem</a> [2048]</td></tr>
+<tr class="separator:aba907024a84e48dfd3bf5cb928b18193"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
-<p class="definition">Definition at line <a class="el" href="sd__http_8c_source.html#l00039">39</a> of file <a class="el" href="sd__http_8c_source.html">sd_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00038">38</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
+<a id="aff10369aa4e2472d50a8b6797d5f97d9" name="aff10369aa4e2472d50a8b6797d5f97d9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aff10369aa4e2472d50a8b6797d5f97d9">&#9670;&#160;</a></span>auth_hdr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char sd_http_obj_state::auth_hdr[4160]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00041">41</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00176">sd_http_build_obj()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00315">sd_http_pread()</a>.</p>
+
+</div>
+</div>
+<a id="aba907024a84e48dfd3bf5cb928b18193" name="aba907024a84e48dfd3bf5cb928b18193"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aba907024a84e48dfd3bf5cb928b18193">&#9670;&#160;</a></span>cert_pem</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char sd_http_obj_state::cert_pem[2048]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00048">48</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00176">sd_http_build_obj()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00315">sd_http_pread()</a>.</p>
+
+</div>
+</div>
 <a id="adfe9675511f9e89b8bf9151c6e66e5e3" name="adfe9675511f9e89b8bf9151c6e66e5e3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#adfe9675511f9e89b8bf9151c6e66e5e3">&#9670;&#160;</a></span>key</h2>
 
@@ -117,14 +157,14 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http_8c_source.html#l00040">40</a> of file <a class="el" href="sd__http_8c_source.html">sd_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__read_8c_source.html#l00039">39</a> of file <a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__http_8c_source.html#l00345">sd_http_open()</a>, and <a class="el" href="sd__http_8c_source.html#l00401">sd_http_pread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00176">sd_http_build_obj()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00315">sd_http_pread()</a>.</p>
 
 </div>
 </div>
 <hr/>The documentation for this struct was generated from the following file:<ul>
-<li>src/fs/backend/http/<a class="el" href="sd__http_8c_source.html">sd_http.c</a></li>
+<li>src/fs/backend/http/<a class="el" href="sd__http__read_8c_source.html">sd_http_read.c</a></li>
 </ul>
 </div><!-- contents -->
 </div><!-- doc-content -->

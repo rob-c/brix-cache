@@ -122,11 +122,17 @@ Data Structures</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:adf2678c3aa3b8ea59d95c1f6d8d83627" id="r_adf2678c3aa3b8ea59d95c1f6d8d83627"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="jwks_8c.html#adf2678c3aa3b8ea59d95c1f6d8d83627">JWKS_STRING_FIELD</a>(obj,  field)&#160;&#160;&#160;        (v = json_object_get((obj), (field)), json_is_string(v) ? json_string_value(v) : &quot;&quot;)</td></tr>
+<tr class="memitem:adf2678c3aa3b8ea59d95c1f6d8d83627" id="r_adf2678c3aa3b8ea59d95c1f6d8d83627"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="jwks_8c.html#adf2678c3aa3b8ea59d95c1f6d8d83627">JWKS_STRING_FIELD</a>(obj,  field)&#160;&#160;&#160;    (v = json_object_get((obj), (field)), json_is_string(v) ? json_string_value(v) : &quot;&quot;)</td></tr>
 <tr class="separator:adf2678c3aa3b8ea59d95c1f6d8d83627"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a876849f9e7b020432b4dccdb03392273" id="r_a876849f9e7b020432b4dccdb03392273"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="jwks_8c.html#a876849f9e7b020432b4dccdb03392273">brix_jwks_store_rsa</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *kid, const char *n_b64, const char *e_b64, <a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *dest)</td></tr>
+<tr class="separator:a876849f9e7b020432b4dccdb03392273"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab57d053259c25d184c6d05f684d28764" id="r_ab57d053259c25d184c6d05f684d28764"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="jwks_8c.html#ab57d053259c25d184c6d05f684d28764">brix_jwks_store_ec</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *kid, const char *x_b64, const char *y_b64, <a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *dest)</td></tr>
+<tr class="separator:ab57d053259c25d184c6d05f684d28764"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2e9b0ed2d98ce9b4403526431330f073" id="r_a2e9b0ed2d98ce9b4403526431330f073"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="jwks_8c.html#a2e9b0ed2d98ce9b4403526431330f073">brix_jwks_process_item</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, json_t *item, <a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *dest)</td></tr>
+<tr class="separator:a2e9b0ed2d98ce9b4403526431330f073"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af13717b99f32aba1d7e93b03bcfb7211" id="r_af13717b99f32aba1d7e93b03bcfb7211"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="jwks_8c.html#af13717b99f32aba1d7e93b03bcfb7211">brix_jwks_load_jansson</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *path, const char *buf, size_t len, <a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *keys, int max_keys)</td></tr>
 <tr class="separator:af13717b99f32aba1d7e93b03bcfb7211"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a658a9814ab21d182590e127d71d328b2" id="r_a658a9814ab21d182590e127d71d328b2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="jwks_8c.html#a658a9814ab21d182590e127d71d328b2">brix_jwks_load</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *path, <a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *keys, int max_keys)</td></tr>
@@ -160,7 +166,7 @@ Functions</h2></td></tr>
         <tr>
           <td></td>
           <td>)</td>
-          <td></td><td>&#160;&#160;&#160;        (v = json_object_get((obj), (field)), json_is_string(v) ? json_string_value(v) : &quot;&quot;)</td>
+          <td></td><td>&#160;&#160;&#160;    (v = json_object_get((obj), (field)), json_is_string(v) ? json_string_value(v) : &quot;&quot;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -194,11 +200,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00245">245</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00326">326</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
 
 <p class="reference">References <a class="el" href="token_8h_source.html#l00046">brix_jwks_key_t::pkey</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00217">brix_jwks_pool_cleanup()</a>, and <a class="el" href="refresh_8c_source.html#l00040">brix_token_jwks_try_reload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00298">brix_jwks_pool_cleanup()</a>, and <a class="el" href="refresh_8c_source.html#l00040">brix_token_jwks_try_reload()</a>.</p>
 
 </div>
 </div>
@@ -240,11 +246,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00138">138</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00212">212</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="jwks_8c_source.html#l00026">brix_jwks_load_jansson()</a>, <a class="el" href="safe__size_8h_source.html#l00065">brix_size_add()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="jwks_8c_source.html#l00152">brix_jwks_load_jansson()</a>, <a class="el" href="safe__size_8h_source.html#l00065">brix_size_add()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2token_2config_8c_source.html#l00012">brix_configure_token_auth()</a>, <a class="el" href="refresh_8c_source.html#l00040">brix_token_jwks_try_reload()</a>, <a class="el" href="issuer__registry_8c_source.html#l00186">brix_token_registry_load()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>, and <a class="el" href="protocols_2s3_2module_8c_source.html#l00083">ngx_http_s3_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="refresh_8c_source.html#l00040">brix_token_jwks_try_reload()</a>, <a class="el" href="auth_2token_2config_8c_source.html#l00107">brix_token_load_and_register_jwks()</a>, <a class="el" href="issuer__registry_8c_source.html#l00324">brix_token_registry_load()</a>, <a class="el" href="module__merge_8c_source.html#l00124">s3_merge_token()</a>, and <a class="el" href="config__proxy_8c_source.html#l00051">webdav_merge_auth_token_conf()</a>.</p>
 
 </div>
 </div>
@@ -306,11 +312,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00026">26</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00152">152</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="keys_8c_source.html#l00091">brix_token_ec_pubkey_from_xy()</a>, <a class="el" href="keys_8c_source.html#l00031">brix_token_rsa_pubkey_from_ne()</a>, <a class="el" href="jwks_8c.html#adf2678c3aa3b8ea59d95c1f6d8d83627">JWKS_STRING_FIELD</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="token_8h_source.html#l00046">brix_jwks_key_t::pkey</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="jwks_8c_source.html#l00117">brix_jwks_process_item()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00138">brix_jwks_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00212">brix_jwks_load()</a>.</p>
 
 </div>
 </div>
@@ -338,11 +344,59 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00217">217</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00298">298</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
 
-<p class="reference">References <a class="el" href="jwks_8c_source.html#l00245">brix_jwks_free()</a>, and <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="jwks_8c_source.html#l00326">brix_jwks_free()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00225">brix_jwks_register_cleanup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00306">brix_jwks_register_cleanup()</a>.</p>
+
+</div>
+</div>
+<a id="a2e9b0ed2d98ce9b4403526431330f073" name="a2e9b0ed2d98ce9b4403526431330f073"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2e9b0ed2d98ce9b4403526431330f073">&#9670;&#160;</a></span>brix_jwks_process_item()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_jwks_process_item </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>item</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *&#160;</td>
+          <td class="paramname"><em>dest</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00117">117</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
+
+<p class="reference">References <a class="el" href="jwks_8c_source.html#l00079">brix_jwks_store_ec()</a>, <a class="el" href="jwks_8c_source.html#l00043">brix_jwks_store_rsa()</a>, <a class="el" href="jwks_8c.html#adf2678c3aa3b8ea59d95c1f6d8d83627">JWKS_STRING_FIELD</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00152">brix_jwks_load_jansson()</a>.</p>
 
 </div>
 </div>
@@ -378,11 +432,131 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00225">225</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00306">306</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
 
-<p class="reference">References <a class="el" href="jwks_8c_source.html#l00217">brix_jwks_pool_cleanup()</a>, and <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="jwks_8c_source.html#l00298">brix_jwks_pool_cleanup()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2token_2config_8c_source.html#l00012">brix_configure_token_auth()</a>, <a class="el" href="issuer__registry_8c_source.html#l00234">brix_token_registry_build()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>, and <a class="el" href="protocols_2s3_2module_8c_source.html#l00083">ngx_http_s3_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2token_2config_8c_source.html#l00107">brix_token_load_and_register_jwks()</a>, <a class="el" href="issuer__registry_8c_source.html#l00372">brix_token_registry_build()</a>, <a class="el" href="module__merge_8c_source.html#l00124">s3_merge_token()</a>, and <a class="el" href="config__proxy_8c_source.html#l00051">webdav_merge_auth_token_conf()</a>.</p>
+
+</div>
+</div>
+<a id="ab57d053259c25d184c6d05f684d28764" name="ab57d053259c25d184c6d05f684d28764"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab57d053259c25d184c6d05f684d28764">&#9670;&#160;</a></span>brix_jwks_store_ec()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_jwks_store_ec </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>kid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>x_b64</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>y_b64</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *&#160;</td>
+          <td class="paramname"><em>dest</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00079">79</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
+
+<p class="reference">References <a class="el" href="keys_8c_source.html#l00091">brix_token_ec_pubkey_from_xy()</a>, <a class="el" href="token_8h_source.html#l00045">brix_jwks_key_t::kid</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="token_8h_source.html#l00046">brix_jwks_key_t::pkey</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00117">brix_jwks_process_item()</a>.</p>
+
+</div>
+</div>
+<a id="a876849f9e7b020432b4dccdb03392273" name="a876849f9e7b020432b4dccdb03392273"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a876849f9e7b020432b4dccdb03392273">&#9670;&#160;</a></span>brix_jwks_store_rsa()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_jwks_store_rsa </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>kid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>n_b64</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>e_b64</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *&#160;</td>
+          <td class="paramname"><em>dest</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="jwks_8c_source.html#l00043">43</a> of file <a class="el" href="jwks_8c_source.html">jwks.c</a>.</p>
+
+<p class="reference">References <a class="el" href="keys_8c_source.html#l00031">brix_token_rsa_pubkey_from_ne()</a>, <a class="el" href="token_8h_source.html#l00045">brix_jwks_key_t::kid</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="token_8h_source.html#l00046">brix_jwks_key_t::pkey</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="jwks_8c_source.html#l00117">brix_jwks_process_item()</a>.</p>
 
 </div>
 </div>

@@ -253,472 +253,474 @@ var NAVTREE =
       [ "Invariants, security & gotchas", "md_src_2fs_2tier_2README.html#autotoc_md197", null ],
       [ "See also", "md_src_2fs_2tier_2README.html#autotoc_md198", null ]
     ] ],
-    [ "fs/vfs — the VFS facade (public API + per-op implementations)", "md_src_2fs_2vfs_2README.html", null ],
+    [ "fs/vfs — the VFS facade (public API + per-op implementations)", "md_src_2fs_2vfs_2README.html", [
+      [ "Additional file", "md_src_2fs_2vfs_2README.html#autotoc_md200", null ]
+    ] ],
     [ "<tt>src/fs/xfer/</tt> — unified durable-transfer engine", "md_src_2fs_2xfer_2README.html", [
-      [ "Where it sits", "md_src_2fs_2xfer_2README.html#autotoc_md201", null ],
-      [ "Files", "md_src_2fs_2xfer_2README.html#autotoc_md202", null ],
-      [ "STAGE audit coverage — every upload mode", "md_src_2fs_2xfer_2README.html#autotoc_md203", null ],
-      [ "Reload contract (§8b)", "md_src_2fs_2xfer_2README.html#autotoc_md204", [
-        [ "The audit line (Phase 2)", "md_src_2fs_2xfer_2README.html#autotoc_md205", null ]
+      [ "Where it sits", "md_src_2fs_2xfer_2README.html#autotoc_md202", null ],
+      [ "Files", "md_src_2fs_2xfer_2README.html#autotoc_md203", null ],
+      [ "STAGE audit coverage — every upload mode", "md_src_2fs_2xfer_2README.html#autotoc_md204", null ],
+      [ "Reload contract (§8b)", "md_src_2fs_2xfer_2README.html#autotoc_md205", [
+        [ "The audit line (Phase 2)", "md_src_2fs_2xfer_2README.html#autotoc_md206", null ]
       ] ],
-      [ "Durability (spec §7–§8)", "md_src_2fs_2xfer_2README.html#autotoc_md206", null ]
+      [ "Durability (spec §7–§8)", "md_src_2fs_2xfer_2README.html#autotoc_md207", null ]
     ] ],
     [ "cms — XRootD CMS cluster membership (heartbeat client + manager-side server)", "md_src_2net_2cms_2README.html", [
-      [ "Overview", "md_src_2net_2cms_2README.html#autotoc_md208", null ],
-      [ "Files", "md_src_2net_2cms_2README.html#autotoc_md209", [
-        [ "Heartbeat client (main module)", "md_src_2net_2cms_2README.html#autotoc_md210", null ],
-        [ "Shared frame I/O", "md_src_2net_2cms_2README.html#autotoc_md211", null ],
-        [ "Manager-side server (<tt>ngx_stream_brix_cms_srv_module</tt>)", "md_src_2net_2cms_2README.html#autotoc_md212", null ]
+      [ "Overview", "md_src_2net_2cms_2README.html#autotoc_md209", null ],
+      [ "Files", "md_src_2net_2cms_2README.html#autotoc_md210", [
+        [ "Heartbeat client (main module)", "md_src_2net_2cms_2README.html#autotoc_md211", null ],
+        [ "Shared frame I/O", "md_src_2net_2cms_2README.html#autotoc_md212", null ],
+        [ "Manager-side server (<tt>ngx_stream_brix_cms_srv_module</tt>)", "md_src_2net_2cms_2README.html#autotoc_md213", null ]
       ] ],
-      [ "Key types & data structures", "md_src_2net_2cms_2README.html#autotoc_md213", null ],
-      [ "Control & data flow", "md_src_2net_2cms_2README.html#autotoc_md214", null ],
-      [ "Invariants, security & gotchas", "md_src_2net_2cms_2README.html#autotoc_md215", null ],
-      [ "Entry points / extending", "md_src_2net_2cms_2README.html#autotoc_md216", null ],
-      [ "See also", "md_src_2net_2cms_2README.html#autotoc_md217", null ]
+      [ "Key types & data structures", "md_src_2net_2cms_2README.html#autotoc_md214", null ],
+      [ "Control & data flow", "md_src_2net_2cms_2README.html#autotoc_md215", null ],
+      [ "Invariants, security & gotchas", "md_src_2net_2cms_2README.html#autotoc_md216", null ],
+      [ "Entry points / extending", "md_src_2net_2cms_2README.html#autotoc_md217", null ],
+      [ "See also", "md_src_2net_2cms_2README.html#autotoc_md218", null ]
     ] ],
     [ "net/guard — protocol-agnostic bad-actor classifier", "md_src_2net_2guard_2README.html", [
-      [ "The <tt>guard_request_t</tt> contract", "md_src_2net_2guard_2README.html#autotoc_md219", null ],
-      [ "Audit line (the fail2ban contract)", "md_src_2net_2guard_2README.html#autotoc_md220", null ],
-      [ "Testing", "md_src_2net_2guard_2README.html#autotoc_md221", null ]
+      [ "The <tt>guard_request_t</tt> contract", "md_src_2net_2guard_2README.html#autotoc_md220", null ],
+      [ "Audit line (the fail2ban contract)", "md_src_2net_2guard_2README.html#autotoc_md221", null ],
+      [ "Testing", "md_src_2net_2guard_2README.html#autotoc_md222", null ]
     ] ],
     [ "net/httpguard — HTTP adapter for the bad-actor guard", "md_src_2net_2httpguard_2README.html", [
-      [ "Directives", "md_src_2net_2httpguard_2README.html#autotoc_md223", null ],
-      [ "ARC deployment recipe", "md_src_2net_2httpguard_2README.html#autotoc_md224", null ],
-      [ "fail2ban wiring", "md_src_2net_2httpguard_2README.html#autotoc_md225", null ],
-      [ "Tests", "md_src_2net_2httpguard_2README.html#autotoc_md226", null ]
+      [ "Directives", "md_src_2net_2httpguard_2README.html#autotoc_md224", null ],
+      [ "ARC deployment recipe", "md_src_2net_2httpguard_2README.html#autotoc_md225", null ],
+      [ "fail2ban wiring", "md_src_2net_2httpguard_2README.html#autotoc_md226", null ],
+      [ "Tests", "md_src_2net_2httpguard_2README.html#autotoc_md227", null ]
     ] ],
     [ "manager — Cluster / redirector control plane (server registry, redirect cache, active health checks)", "md_src_2net_2manager_2README.html", [
-      [ "Overview", "md_src_2net_2manager_2README.html#autotoc_md228", null ],
-      [ "Files", "md_src_2net_2manager_2README.html#autotoc_md229", null ],
-      [ "Key types & data structures", "md_src_2net_2manager_2README.html#autotoc_md230", null ],
-      [ "Control & data flow", "md_src_2net_2manager_2README.html#autotoc_md231", null ],
-      [ "Invariants, security & gotchas", "md_src_2net_2manager_2README.html#autotoc_md232", null ],
-      [ "Entry points / extending", "md_src_2net_2manager_2README.html#autotoc_md233", null ],
-      [ "See also", "md_src_2net_2manager_2README.html#autotoc_md234", null ]
+      [ "Overview", "md_src_2net_2manager_2README.html#autotoc_md229", null ],
+      [ "Files", "md_src_2net_2manager_2README.html#autotoc_md230", null ],
+      [ "Key types & data structures", "md_src_2net_2manager_2README.html#autotoc_md231", null ],
+      [ "Control & data flow", "md_src_2net_2manager_2README.html#autotoc_md232", null ],
+      [ "Invariants, security & gotchas", "md_src_2net_2manager_2README.html#autotoc_md233", null ],
+      [ "Entry points / extending", "md_src_2net_2manager_2README.html#autotoc_md234", null ],
+      [ "See also", "md_src_2net_2manager_2README.html#autotoc_md235", null ]
     ] ],
     [ "mirror — fire-and-forget traffic mirroring (shadow replay) for XRootD and WebDAV", "md_src_2net_2mirror_2README.html", [
-      [ "Overview", "md_src_2net_2mirror_2README.html#autotoc_md236", null ],
-      [ "Files", "md_src_2net_2mirror_2README.html#autotoc_md237", null ],
-      [ "Key types & data structures", "md_src_2net_2mirror_2README.html#autotoc_md238", null ],
-      [ "Control & data flow", "md_src_2net_2mirror_2README.html#autotoc_md239", null ],
-      [ "Invariants, security & gotchas", "md_src_2net_2mirror_2README.html#autotoc_md240", null ],
-      [ "Entry points / extending", "md_src_2net_2mirror_2README.html#autotoc_md241", null ],
-      [ "See also", "md_src_2net_2mirror_2README.html#autotoc_md242", null ]
+      [ "Overview", "md_src_2net_2mirror_2README.html#autotoc_md237", null ],
+      [ "Files", "md_src_2net_2mirror_2README.html#autotoc_md238", null ],
+      [ "Key types & data structures", "md_src_2net_2mirror_2README.html#autotoc_md239", null ],
+      [ "Control & data flow", "md_src_2net_2mirror_2README.html#autotoc_md240", null ],
+      [ "Invariants, security & gotchas", "md_src_2net_2mirror_2README.html#autotoc_md241", null ],
+      [ "Entry points / extending", "md_src_2net_2mirror_2README.html#autotoc_md242", null ],
+      [ "See also", "md_src_2net_2mirror_2README.html#autotoc_md243", null ]
     ] ],
     [ "proxy — Transparent XRootD reverse proxy (<tt>brix_proxy</tt>)", "md_src_2net_2proxy_2README.html", [
-      [ "Overview", "md_src_2net_2proxy_2README.html#autotoc_md244", null ],
-      [ "Files", "md_src_2net_2proxy_2README.html#autotoc_md245", null ],
-      [ "Key types & data structures", "md_src_2net_2proxy_2README.html#autotoc_md246", null ],
-      [ "Control & data flow", "md_src_2net_2proxy_2README.html#autotoc_md247", null ],
-      [ "Invariants, security & gotchas", "md_src_2net_2proxy_2README.html#autotoc_md248", null ],
-      [ "Entry points / extending", "md_src_2net_2proxy_2README.html#autotoc_md249", null ],
-      [ "See also", "md_src_2net_2proxy_2README.html#autotoc_md250", null ]
+      [ "Overview", "md_src_2net_2proxy_2README.html#autotoc_md245", null ],
+      [ "Files", "md_src_2net_2proxy_2README.html#autotoc_md246", null ],
+      [ "Key types & data structures", "md_src_2net_2proxy_2README.html#autotoc_md247", null ],
+      [ "Control & data flow", "md_src_2net_2proxy_2README.html#autotoc_md248", null ],
+      [ "Invariants, security & gotchas", "md_src_2net_2proxy_2README.html#autotoc_md249", null ],
+      [ "Entry points / extending", "md_src_2net_2proxy_2README.html#autotoc_md250", null ],
+      [ "See also", "md_src_2net_2proxy_2README.html#autotoc_md251", null ]
     ] ],
     [ "ratelimit — identity-aware leaky-bucket rate, bandwidth & concurrency limiting (Phase 25)", "md_src_2net_2ratelimit_2README.html", [
-      [ "Overview", "md_src_2net_2ratelimit_2README.html#autotoc_md252", null ],
-      [ "Files", "md_src_2net_2ratelimit_2README.html#autotoc_md253", null ],
-      [ "Key types & data structures", "md_src_2net_2ratelimit_2README.html#autotoc_md254", null ],
-      [ "Directive reference (configuration surface)", "md_src_2net_2ratelimit_2README.html#autotoc_md255", null ],
-      [ "Control & data flow", "md_src_2net_2ratelimit_2README.html#autotoc_md256", null ],
-      [ "Invariants, security & gotchas", "md_src_2net_2ratelimit_2README.html#autotoc_md257", null ],
-      [ "Entry points / extending", "md_src_2net_2ratelimit_2README.html#autotoc_md258", null ],
-      [ "See also", "md_src_2net_2ratelimit_2README.html#autotoc_md259", null ]
+      [ "Overview", "md_src_2net_2ratelimit_2README.html#autotoc_md253", null ],
+      [ "Files", "md_src_2net_2ratelimit_2README.html#autotoc_md254", null ],
+      [ "Key types & data structures", "md_src_2net_2ratelimit_2README.html#autotoc_md255", null ],
+      [ "Directive reference (configuration surface)", "md_src_2net_2ratelimit_2README.html#autotoc_md256", null ],
+      [ "Control & data flow", "md_src_2net_2ratelimit_2README.html#autotoc_md257", null ],
+      [ "Invariants, security & gotchas", "md_src_2net_2ratelimit_2README.html#autotoc_md258", null ],
+      [ "Entry points / extending", "md_src_2net_2ratelimit_2README.html#autotoc_md259", null ],
+      [ "See also", "md_src_2net_2ratelimit_2README.html#autotoc_md260", null ]
     ] ],
     [ "net — clustering, proxying, shadowing, and connection defense", "md_src_2net_2README.html", null ],
     [ "tap — ngx-free protocol observation tap (decode + sink fan-out)", "md_src_2net_2tap_2README.html", [
-      [ "Overview", "md_src_2net_2tap_2README.html#autotoc_md262", null ],
-      [ "Files", "md_src_2net_2tap_2README.html#autotoc_md263", null ],
-      [ "Invariants, security & gotchas", "md_src_2net_2tap_2README.html#autotoc_md264", null ],
-      [ "See also", "md_src_2net_2tap_2README.html#autotoc_md265", null ]
+      [ "Overview", "md_src_2net_2tap_2README.html#autotoc_md263", null ],
+      [ "Files", "md_src_2net_2tap_2README.html#autotoc_md264", null ],
+      [ "Invariants, security & gotchas", "md_src_2net_2tap_2README.html#autotoc_md265", null ],
+      [ "See also", "md_src_2net_2tap_2README.html#autotoc_md266", null ]
     ] ],
     [ "upstream — outbound XRootD redirector/proxy client (manager-side server-to-server query)", "md_src_2net_2upstream_2README.html", [
-      [ "Overview", "md_src_2net_2upstream_2README.html#autotoc_md267", null ],
-      [ "Files", "md_src_2net_2upstream_2README.html#autotoc_md268", null ],
-      [ "Key types & data structures", "md_src_2net_2upstream_2README.html#autotoc_md269", null ],
-      [ "Control & data flow", "md_src_2net_2upstream_2README.html#autotoc_md270", null ],
-      [ "Invariants, security & gotchas", "md_src_2net_2upstream_2README.html#autotoc_md271", null ],
-      [ "Entry points / extending", "md_src_2net_2upstream_2README.html#autotoc_md272", null ],
-      [ "See also", "md_src_2net_2upstream_2README.html#autotoc_md273", null ]
+      [ "Overview", "md_src_2net_2upstream_2README.html#autotoc_md268", null ],
+      [ "Files", "md_src_2net_2upstream_2README.html#autotoc_md269", null ],
+      [ "Key types & data structures", "md_src_2net_2upstream_2README.html#autotoc_md270", null ],
+      [ "Control & data flow", "md_src_2net_2upstream_2README.html#autotoc_md271", null ],
+      [ "Invariants, security & gotchas", "md_src_2net_2upstream_2README.html#autotoc_md272", null ],
+      [ "Entry points / extending", "md_src_2net_2upstream_2README.html#autotoc_md273", null ],
+      [ "See also", "md_src_2net_2upstream_2README.html#autotoc_md274", null ]
     ] ],
     [ "dashboard — live HTTPS transfer monitor + REST admin write API", "md_src_2observability_2dashboard_2README.html", [
-      [ "Overview", "md_src_2observability_2dashboard_2README.html#autotoc_md275", null ],
-      [ "Files", "md_src_2observability_2dashboard_2README.html#autotoc_md276", null ],
-      [ "Key types & data structures", "md_src_2observability_2dashboard_2README.html#autotoc_md277", null ],
-      [ "Control & data flow", "md_src_2observability_2dashboard_2README.html#autotoc_md278", null ],
-      [ "Invariants, security & gotchas", "md_src_2observability_2dashboard_2README.html#autotoc_md279", null ],
-      [ "Entry points / extending", "md_src_2observability_2dashboard_2README.html#autotoc_md280", null ],
-      [ "See also", "md_src_2observability_2dashboard_2README.html#autotoc_md281", null ],
-      [ "VFS export browser (<tt>brix_dashboard_vfs_browse on</tt>)", "md_src_2observability_2dashboard_2README.html#autotoc_md282", null ]
+      [ "Overview", "md_src_2observability_2dashboard_2README.html#autotoc_md276", null ],
+      [ "Files", "md_src_2observability_2dashboard_2README.html#autotoc_md277", null ],
+      [ "Key types & data structures", "md_src_2observability_2dashboard_2README.html#autotoc_md278", null ],
+      [ "Control & data flow", "md_src_2observability_2dashboard_2README.html#autotoc_md279", null ],
+      [ "Invariants, security & gotchas", "md_src_2observability_2dashboard_2README.html#autotoc_md280", null ],
+      [ "Entry points / extending", "md_src_2observability_2dashboard_2README.html#autotoc_md281", null ],
+      [ "See also", "md_src_2observability_2dashboard_2README.html#autotoc_md282", null ],
+      [ "VFS export browser (<tt>brix_dashboard_vfs_browse on</tt>)", "md_src_2observability_2dashboard_2README.html#autotoc_md283", null ]
     ] ],
     [ "metrics — shared-memory counters and the Prometheus <tt>/metrics</tt> exporter", "md_src_2observability_2metrics_2README.html", [
-      [ "Overview", "md_src_2observability_2metrics_2README.html#autotoc_md284", null ],
-      [ "Files", "md_src_2observability_2metrics_2README.html#autotoc_md285", null ],
-      [ "Key types & data structures", "md_src_2observability_2metrics_2README.html#autotoc_md286", null ],
-      [ "Control & data flow", "md_src_2observability_2metrics_2README.html#autotoc_md287", null ],
-      [ "Invariants, security & gotchas", "md_src_2observability_2metrics_2README.html#autotoc_md288", null ],
-      [ "Entry points / extending", "md_src_2observability_2metrics_2README.html#autotoc_md289", null ],
-      [ "See also", "md_src_2observability_2metrics_2README.html#autotoc_md290", null ]
+      [ "Overview", "md_src_2observability_2metrics_2README.html#autotoc_md285", null ],
+      [ "Files", "md_src_2observability_2metrics_2README.html#autotoc_md286", null ],
+      [ "Key types & data structures", "md_src_2observability_2metrics_2README.html#autotoc_md287", null ],
+      [ "Control & data flow", "md_src_2observability_2metrics_2README.html#autotoc_md288", null ],
+      [ "Invariants, security & gotchas", "md_src_2observability_2metrics_2README.html#autotoc_md289", null ],
+      [ "Entry points / extending", "md_src_2observability_2metrics_2README.html#autotoc_md290", null ],
+      [ "See also", "md_src_2observability_2metrics_2README.html#autotoc_md291", null ]
     ] ],
     [ "pmark — SciTags packet marking", "md_src_2observability_2pmark_2README.html", [
-      [ "Overview", "md_src_2observability_2pmark_2README.html#autotoc_md292", null ],
-      [ "Files", "md_src_2observability_2pmark_2README.html#autotoc_md293", null ],
-      [ "Configuration", "md_src_2observability_2pmark_2README.html#autotoc_md294", null ],
-      [ "Control & data flow", "md_src_2observability_2pmark_2README.html#autotoc_md295", null ],
-      [ "Invariants, security & gotchas", "md_src_2observability_2pmark_2README.html#autotoc_md296", null ],
-      [ "See also", "md_src_2observability_2pmark_2README.html#autotoc_md297", null ]
+      [ "Overview", "md_src_2observability_2pmark_2README.html#autotoc_md293", null ],
+      [ "Files", "md_src_2observability_2pmark_2README.html#autotoc_md294", null ],
+      [ "Configuration", "md_src_2observability_2pmark_2README.html#autotoc_md295", null ],
+      [ "Control & data flow", "md_src_2observability_2pmark_2README.html#autotoc_md296", null ],
+      [ "Invariants, security & gotchas", "md_src_2observability_2pmark_2README.html#autotoc_md297", null ],
+      [ "See also", "md_src_2observability_2pmark_2README.html#autotoc_md298", null ]
     ] ],
     [ "observability — metrics, packet marking, dashboard, and access logs", "md_src_2observability_2README.html", null ],
     [ "Session Lifecycle Logging", "md_src_2observability_2sesslog_2README.html", null ],
     [ "cvmfs — the cvmfs:// site cache (+ experimental scvmfs:// TLS variant)", "md_src_2protocols_2cvmfs_2README.html", [
-      [ "Overview", "md_src_2protocols_2cvmfs_2README.html#autotoc_md301", null ],
-      [ "Files", "md_src_2protocols_2cvmfs_2README.html#autotoc_md302", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2cvmfs_2README.html#autotoc_md303", null ],
-      [ "See also", "md_src_2protocols_2cvmfs_2README.html#autotoc_md304", null ]
+      [ "Overview", "md_src_2protocols_2cvmfs_2README.html#autotoc_md302", null ],
+      [ "Files", "md_src_2protocols_2cvmfs_2README.html#autotoc_md303", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2cvmfs_2README.html#autotoc_md304", null ],
+      [ "See also", "md_src_2protocols_2cvmfs_2README.html#autotoc_md305", null ]
     ] ],
     [ "<tt>src/protocols/dig/</tt> — XrdDig-style remote diagnostics", "md_src_2protocols_2dig_2README.html", [
-      [ "Overview", "md_src_2protocols_2dig_2README.html#autotoc_md306", null ],
-      [ "Files", "md_src_2protocols_2dig_2README.html#autotoc_md307", null ],
-      [ "See also", "md_src_2protocols_2dig_2README.html#autotoc_md308", null ]
+      [ "Overview", "md_src_2protocols_2dig_2README.html#autotoc_md307", null ],
+      [ "Files", "md_src_2protocols_2dig_2README.html#autotoc_md308", null ],
+      [ "See also", "md_src_2protocols_2dig_2README.html#autotoc_md309", null ]
     ] ],
     [ "protocols — one subdirectory per wire protocol", "md_src_2protocols_2README.html", null ],
     [ "connection — TCP connection lifecycle, framing, and the async I/O state machine for <tt>root://</tt>", "md_src_2protocols_2root_2connection_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2connection_2README.html#autotoc_md311", null ],
-      [ "Files", "md_src_2protocols_2root_2connection_2README.html#autotoc_md312", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2connection_2README.html#autotoc_md313", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2connection_2README.html#autotoc_md314", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2connection_2README.html#autotoc_md315", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2connection_2README.html#autotoc_md316", null ],
-      [ "See also", "md_src_2protocols_2root_2connection_2README.html#autotoc_md317", null ]
+      [ "Overview", "md_src_2protocols_2root_2connection_2README.html#autotoc_md312", null ],
+      [ "Files", "md_src_2protocols_2root_2connection_2README.html#autotoc_md313", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2connection_2README.html#autotoc_md314", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2connection_2README.html#autotoc_md315", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2connection_2README.html#autotoc_md316", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2connection_2README.html#autotoc_md317", null ],
+      [ "See also", "md_src_2protocols_2root_2connection_2README.html#autotoc_md318", null ]
     ] ],
     [ "dirlist — XRootD <tt>kXR_dirlist</tt> directory enumeration (stream protocol)", "md_src_2protocols_2root_2dirlist_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md319", null ],
-      [ "Files", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md320", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md321", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md322", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md323", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md324", null ],
-      [ "See also", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md325", null ]
+      [ "Overview", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md320", null ],
+      [ "Files", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md321", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md322", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md323", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md324", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md325", null ],
+      [ "See also", "md_src_2protocols_2root_2dirlist_2README.html#autotoc_md326", null ]
     ] ],
     [ "fattr — XRootD <tt>kXR_fattr</tt> extended-attribute operations", "md_src_2protocols_2root_2fattr_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md327", null ],
-      [ "Files", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md328", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md329", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md330", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md331", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md332", null ],
-      [ "See also", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md333", null ]
+      [ "Overview", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md328", null ],
+      [ "Files", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md329", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md330", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md331", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md332", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md333", null ],
+      [ "See also", "md_src_2protocols_2root_2fattr_2README.html#autotoc_md334", null ]
     ] ],
     [ "handoff — single-port protocol handoff for the stream xrootd listener", "md_src_2protocols_2root_2handoff_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2handoff_2README.html#autotoc_md335", null ],
-      [ "Files", "md_src_2protocols_2root_2handoff_2README.html#autotoc_md336", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2handoff_2README.html#autotoc_md337", null ],
-      [ "See also", "md_src_2protocols_2root_2handoff_2README.html#autotoc_md338", null ]
+      [ "Overview", "md_src_2protocols_2root_2handoff_2README.html#autotoc_md336", null ],
+      [ "Files", "md_src_2protocols_2root_2handoff_2README.html#autotoc_md337", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2handoff_2README.html#autotoc_md338", null ],
+      [ "See also", "md_src_2protocols_2root_2handoff_2README.html#autotoc_md339", null ]
     ] ],
     [ "handshake — XRootD stream request entry point and opcode dispatcher", "md_src_2protocols_2root_2handshake_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md340", null ],
-      [ "Files", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md341", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md342", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md343", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md344", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md345", null ],
-      [ "See also", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md346", null ]
+      [ "Overview", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md341", null ],
+      [ "Files", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md342", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md343", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md344", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md345", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md346", null ],
+      [ "See also", "md_src_2protocols_2root_2handshake_2README.html#autotoc_md347", null ]
     ] ],
     [ "path — wire-path extraction, sanitization, and stat formatting", "md_src_2protocols_2root_2path_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2path_2README.html#autotoc_md348", null ],
-      [ "Files", "md_src_2protocols_2root_2path_2README.html#autotoc_md349", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2path_2README.html#autotoc_md350", null ],
-      [ "See also", "md_src_2protocols_2root_2path_2README.html#autotoc_md351", null ]
+      [ "Overview", "md_src_2protocols_2root_2path_2README.html#autotoc_md349", null ],
+      [ "Files", "md_src_2protocols_2root_2path_2README.html#autotoc_md350", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2path_2README.html#autotoc_md351", null ],
+      [ "See also", "md_src_2protocols_2root_2path_2README.html#autotoc_md352", null ]
     ] ],
     [ "protocol — XRootD <tt>root://</tt> wire-format constants & packed structs", "md_src_2protocols_2root_2protocol_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md353", [
-        [ "Provenance & licensing", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md354", null ]
+      [ "Overview", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md354", [
+        [ "Provenance & licensing", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md355", null ]
       ] ],
-      [ "Files", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md355", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md356", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md357", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md358", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md359", null ],
-      [ "See also", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md360", null ]
+      [ "Files", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md356", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md357", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md358", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md359", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md360", null ],
+      [ "See also", "md_src_2protocols_2root_2protocol_2README.html#autotoc_md361", null ]
     ] ],
     [ "query — XRootD <tt>kXR_query</tt> sub-protocol, <tt>kXR_prepare</tt> staging, and <tt>kXR_set</tt> hints", "md_src_2protocols_2root_2query_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2query_2README.html#autotoc_md362", null ],
-      [ "Files", "md_src_2protocols_2root_2query_2README.html#autotoc_md363", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2query_2README.html#autotoc_md364", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2query_2README.html#autotoc_md365", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2query_2README.html#autotoc_md366", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2query_2README.html#autotoc_md367", null ],
-      [ "See also", "md_src_2protocols_2root_2query_2README.html#autotoc_md368", null ]
+      [ "Overview", "md_src_2protocols_2root_2query_2README.html#autotoc_md363", null ],
+      [ "Files", "md_src_2protocols_2root_2query_2README.html#autotoc_md364", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2query_2README.html#autotoc_md365", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2query_2README.html#autotoc_md366", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2query_2README.html#autotoc_md367", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2query_2README.html#autotoc_md368", null ],
+      [ "See also", "md_src_2protocols_2root_2query_2README.html#autotoc_md369", null ]
     ] ],
     [ "read — XRootD read-side opcodes and the file-handle lifecycle", "md_src_2protocols_2root_2read_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2read_2README.html#autotoc_md370", null ],
-      [ "Files", "md_src_2protocols_2root_2read_2README.html#autotoc_md371", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2read_2README.html#autotoc_md372", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2read_2README.html#autotoc_md373", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2read_2README.html#autotoc_md374", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2read_2README.html#autotoc_md375", null ],
-      [ "See also", "md_src_2protocols_2root_2read_2README.html#autotoc_md376", null ]
+      [ "Overview", "md_src_2protocols_2root_2read_2README.html#autotoc_md371", null ],
+      [ "Files", "md_src_2protocols_2root_2read_2README.html#autotoc_md372", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2read_2README.html#autotoc_md373", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2read_2README.html#autotoc_md374", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2read_2README.html#autotoc_md375", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2read_2README.html#autotoc_md376", null ],
+      [ "See also", "md_src_2protocols_2root_2read_2README.html#autotoc_md377", null ]
     ] ],
     [ "root — the XRootD (<tt>root://</tt> / <tt>roots://</tt>) protocol plane", "md_src_2protocols_2root_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2README.html#autotoc_md378", null ],
-      [ "Subdirectories", "md_src_2protocols_2root_2README.html#autotoc_md379", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2README.html#autotoc_md380", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2README.html#autotoc_md381", null ],
-      [ "See also", "md_src_2protocols_2root_2README.html#autotoc_md382", null ]
+      [ "Overview", "md_src_2protocols_2root_2README.html#autotoc_md379", null ],
+      [ "Subdirectories", "md_src_2protocols_2root_2README.html#autotoc_md380", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2README.html#autotoc_md381", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2README.html#autotoc_md382", null ],
+      [ "See also", "md_src_2protocols_2root_2README.html#autotoc_md383", null ]
     ] ],
     [ "relay — transparent pass-through relay with a passive observation tap", "md_src_2protocols_2root_2relay_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2relay_2README.html#autotoc_md384", null ],
-      [ "Files", "md_src_2protocols_2root_2relay_2README.html#autotoc_md385", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2relay_2README.html#autotoc_md386", null ],
-      [ "See also", "md_src_2protocols_2root_2relay_2README.html#autotoc_md387", null ]
+      [ "Overview", "md_src_2protocols_2root_2relay_2README.html#autotoc_md385", null ],
+      [ "Files", "md_src_2protocols_2root_2relay_2README.html#autotoc_md386", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2relay_2README.html#autotoc_md387", null ],
+      [ "See also", "md_src_2protocols_2root_2relay_2README.html#autotoc_md388", null ]
     ] ],
     [ "response — XRootD wire-response framing helpers", "md_src_2protocols_2root_2response_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2response_2README.html#autotoc_md389", null ],
-      [ "Files", "md_src_2protocols_2root_2response_2README.html#autotoc_md390", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2response_2README.html#autotoc_md391", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2response_2README.html#autotoc_md392", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2response_2README.html#autotoc_md393", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2response_2README.html#autotoc_md394", null ],
-      [ "See also", "md_src_2protocols_2root_2response_2README.html#autotoc_md395", null ]
+      [ "Overview", "md_src_2protocols_2root_2response_2README.html#autotoc_md390", null ],
+      [ "Files", "md_src_2protocols_2root_2response_2README.html#autotoc_md391", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2response_2README.html#autotoc_md392", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2response_2README.html#autotoc_md393", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2response_2README.html#autotoc_md394", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2response_2README.html#autotoc_md395", null ],
+      [ "See also", "md_src_2protocols_2root_2response_2README.html#autotoc_md396", null ]
     ] ],
     [ "session — XRootD session lifecycle, identity binding & cross-worker registry", "md_src_2protocols_2root_2session_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2session_2README.html#autotoc_md397", null ],
-      [ "Files", "md_src_2protocols_2root_2session_2README.html#autotoc_md398", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2session_2README.html#autotoc_md399", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2session_2README.html#autotoc_md400", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2session_2README.html#autotoc_md401", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2session_2README.html#autotoc_md402", null ],
-      [ "See also", "md_src_2protocols_2root_2session_2README.html#autotoc_md403", null ]
+      [ "Overview", "md_src_2protocols_2root_2session_2README.html#autotoc_md398", null ],
+      [ "Files", "md_src_2protocols_2root_2session_2README.html#autotoc_md399", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2session_2README.html#autotoc_md400", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2session_2README.html#autotoc_md401", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2session_2README.html#autotoc_md402", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2session_2README.html#autotoc_md403", null ],
+      [ "See also", "md_src_2protocols_2root_2session_2README.html#autotoc_md404", null ]
     ] ],
     [ "stream — <tt>ngx_stream_brix_module</tt> descriptor & directive table", "md_src_2protocols_2root_2stream_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2stream_2README.html#autotoc_md405", null ],
-      [ "Files", "md_src_2protocols_2root_2stream_2README.html#autotoc_md406", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2stream_2README.html#autotoc_md407", [
-        [ "Directive groups (authoritative <tt>module.c</tt> set)", "md_src_2protocols_2root_2stream_2README.html#autotoc_md408", null ]
+      [ "Overview", "md_src_2protocols_2root_2stream_2README.html#autotoc_md406", null ],
+      [ "Files", "md_src_2protocols_2root_2stream_2README.html#autotoc_md407", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2stream_2README.html#autotoc_md408", [
+        [ "Directive groups (authoritative <tt>module.c</tt> set)", "md_src_2protocols_2root_2stream_2README.html#autotoc_md409", null ]
       ] ],
-      [ "Control & data flow", "md_src_2protocols_2root_2stream_2README.html#autotoc_md409", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2stream_2README.html#autotoc_md410", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2stream_2README.html#autotoc_md411", null ],
-      [ "See also", "md_src_2protocols_2root_2stream_2README.html#autotoc_md412", null ]
+      [ "Control & data flow", "md_src_2protocols_2root_2stream_2README.html#autotoc_md410", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2stream_2README.html#autotoc_md411", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2stream_2README.html#autotoc_md412", null ],
+      [ "See also", "md_src_2protocols_2root_2stream_2README.html#autotoc_md413", null ]
     ] ],
     [ "write — XRootD mutating-opcode handlers (the stream write path)", "md_src_2protocols_2root_2write_2README.html", [
-      [ "Overview", "md_src_2protocols_2root_2write_2README.html#autotoc_md414", null ],
-      [ "Files", "md_src_2protocols_2root_2write_2README.html#autotoc_md415", null ],
-      [ "Key types & data structures", "md_src_2protocols_2root_2write_2README.html#autotoc_md416", null ],
-      [ "Control & data flow", "md_src_2protocols_2root_2write_2README.html#autotoc_md417", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2write_2README.html#autotoc_md418", null ],
-      [ "Entry points / extending", "md_src_2protocols_2root_2write_2README.html#autotoc_md419", null ],
-      [ "See also", "md_src_2protocols_2root_2write_2README.html#autotoc_md420", null ]
+      [ "Overview", "md_src_2protocols_2root_2write_2README.html#autotoc_md415", null ],
+      [ "Files", "md_src_2protocols_2root_2write_2README.html#autotoc_md416", null ],
+      [ "Key types & data structures", "md_src_2protocols_2root_2write_2README.html#autotoc_md417", null ],
+      [ "Control & data flow", "md_src_2protocols_2root_2write_2README.html#autotoc_md418", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2root_2write_2README.html#autotoc_md419", null ],
+      [ "Entry points / extending", "md_src_2protocols_2root_2write_2README.html#autotoc_md420", null ],
+      [ "See also", "md_src_2protocols_2root_2write_2README.html#autotoc_md421", null ]
     ] ],
     [ "src/protocols/root/zip — ZIP member access (phase-57 W2)", "md_src_2protocols_2root_2zip_2README.html", [
-      [ "Status", "md_src_2protocols_2root_2zip_2README.html#autotoc_md422", null ],
-      [ "zip_dir.c — the parser", "md_src_2protocols_2root_2zip_2README.html#autotoc_md423", null ],
-      [ "Running the unit test (standalone, no nginx build)", "md_src_2protocols_2root_2zip_2README.html#autotoc_md424", null ]
+      [ "Status", "md_src_2protocols_2root_2zip_2README.html#autotoc_md423", null ],
+      [ "zip_dir.c — the parser", "md_src_2protocols_2root_2zip_2README.html#autotoc_md424", null ],
+      [ "Running the unit test (standalone, no nginx build)", "md_src_2protocols_2root_2zip_2README.html#autotoc_md425", null ]
     ] ],
     [ "s3 — S3-compatible REST endpoint over the local export root", "md_src_2protocols_2s3_2README.html", [
-      [ "Overview", "md_src_2protocols_2s3_2README.html#autotoc_md426", null ],
-      [ "Files", "md_src_2protocols_2s3_2README.html#autotoc_md427", null ],
-      [ "Key types & data structures", "md_src_2protocols_2s3_2README.html#autotoc_md428", null ],
-      [ "Control & data flow", "md_src_2protocols_2s3_2README.html#autotoc_md429", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2s3_2README.html#autotoc_md430", null ],
-      [ "Entry points / extending", "md_src_2protocols_2s3_2README.html#autotoc_md431", null ],
-      [ "See also", "md_src_2protocols_2s3_2README.html#autotoc_md432", null ]
+      [ "Overview", "md_src_2protocols_2s3_2README.html#autotoc_md427", null ],
+      [ "Files", "md_src_2protocols_2s3_2README.html#autotoc_md428", null ],
+      [ "Key types & data structures", "md_src_2protocols_2s3_2README.html#autotoc_md429", null ],
+      [ "Control & data flow", "md_src_2protocols_2s3_2README.html#autotoc_md430", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2s3_2README.html#autotoc_md431", null ],
+      [ "Entry points / extending", "md_src_2protocols_2s3_2README.html#autotoc_md432", null ],
+      [ "See also", "md_src_2protocols_2s3_2README.html#autotoc_md433", null ]
     ] ],
     [ "shared — cross-protocol helper library (HTTP file serving + overflow-safe size math)", "md_src_2protocols_2shared_2README.html", [
-      [ "Overview", "md_src_2protocols_2shared_2README.html#autotoc_md434", null ],
-      [ "Files", "md_src_2protocols_2shared_2README.html#autotoc_md435", null ],
-      [ "Key types & data structures", "md_src_2protocols_2shared_2README.html#autotoc_md436", null ],
-      [ "Control & data flow", "md_src_2protocols_2shared_2README.html#autotoc_md437", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2shared_2README.html#autotoc_md438", null ],
-      [ "Entry points / extending", "md_src_2protocols_2shared_2README.html#autotoc_md439", null ],
-      [ "See also", "md_src_2protocols_2shared_2README.html#autotoc_md440", null ]
+      [ "Overview", "md_src_2protocols_2shared_2README.html#autotoc_md435", null ],
+      [ "Files", "md_src_2protocols_2shared_2README.html#autotoc_md436", null ],
+      [ "Key types & data structures", "md_src_2protocols_2shared_2README.html#autotoc_md437", null ],
+      [ "Control & data flow", "md_src_2protocols_2shared_2README.html#autotoc_md438", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2shared_2README.html#autotoc_md439", null ],
+      [ "Entry points / extending", "md_src_2protocols_2shared_2README.html#autotoc_md440", null ],
+      [ "See also", "md_src_2protocols_2shared_2README.html#autotoc_md441", null ]
     ] ],
     [ "<tt>src/protocols/srr/</tt> — WLCG Storage Resource Reporting (SRR) endpoint", "md_src_2protocols_2srr_2README.html", [
-      [ "Why this instead of the XRootD UDP monitoring stack", "md_src_2protocols_2srr_2README.html#autotoc_md442", null ],
-      [ "Files", "md_src_2protocols_2srr_2README.html#autotoc_md443", null ],
-      [ "Configuration", "md_src_2protocols_2srr_2README.html#autotoc_md444", null ],
-      [ "Semantics & caveats", "md_src_2protocols_2srr_2README.html#autotoc_md445", null ],
-      [ "Schema conformance", "md_src_2protocols_2srr_2README.html#autotoc_md446", null ]
+      [ "Why this instead of the XRootD UDP monitoring stack", "md_src_2protocols_2srr_2README.html#autotoc_md443", null ],
+      [ "Files", "md_src_2protocols_2srr_2README.html#autotoc_md444", null ],
+      [ "Configuration", "md_src_2protocols_2srr_2README.html#autotoc_md445", null ],
+      [ "Semantics & caveats", "md_src_2protocols_2srr_2README.html#autotoc_md446", null ],
+      [ "Schema conformance", "md_src_2protocols_2srr_2README.html#autotoc_md447", null ]
     ] ],
     [ "<tt>src/protocols/ssi/</tt> — XrdSsi request/response service over <tt>root://</tt>", "md_src_2protocols_2ssi_2README.html", [
-      [ "Overview", "md_src_2protocols_2ssi_2README.html#autotoc_md448", null ],
-      [ "Phase 1: session multiplexing (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md449", null ],
-      [ "Phase 2: async server-push via <tt>kXR_attn</tt> (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md450", null ],
-      [ "Phase 3: streamed responses + delivered alerts (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md451", null ],
-      [ "Phases 4–5: CTA flagship service (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md452", null ],
-      [ "Phase 6: config, metrics, conformance (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md453", [
-        [ "Directives (<tt>NGX_STREAM_SRV_CONF</tt>)", "md_src_2protocols_2ssi_2README.html#autotoc_md454", null ],
-        [ "Metrics (low-cardinality — <tt>{port,auth}</tt> only)", "md_src_2protocols_2ssi_2README.html#autotoc_md455", null ],
-        [ "Conformance", "md_src_2protocols_2ssi_2README.html#autotoc_md456", null ]
+      [ "Overview", "md_src_2protocols_2ssi_2README.html#autotoc_md449", null ],
+      [ "Phase 1: session multiplexing (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md450", null ],
+      [ "Phase 2: async server-push via <tt>kXR_attn</tt> (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md451", null ],
+      [ "Phase 3: streamed responses + delivered alerts (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md452", null ],
+      [ "Phases 4–5: CTA flagship service (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md453", null ],
+      [ "Phase 6: config, metrics, conformance (implemented)", "md_src_2protocols_2ssi_2README.html#autotoc_md454", [
+        [ "Directives (<tt>NGX_STREAM_SRV_CONF</tt>)", "md_src_2protocols_2ssi_2README.html#autotoc_md455", null ],
+        [ "Metrics (low-cardinality — <tt>{port,auth}</tt> only)", "md_src_2protocols_2ssi_2README.html#autotoc_md456", null ],
+        [ "Conformance", "md_src_2protocols_2ssi_2README.html#autotoc_md457", null ]
       ] ],
-      [ "RRInfo wire layout", "md_src_2protocols_2ssi_2README.html#autotoc_md457", null ],
-      [ "Files", "md_src_2protocols_2ssi_2README.html#autotoc_md458", null ],
-      [ "See also", "md_src_2protocols_2ssi_2README.html#autotoc_md459", null ]
+      [ "RRInfo wire layout", "md_src_2protocols_2ssi_2README.html#autotoc_md458", null ],
+      [ "Files", "md_src_2protocols_2ssi_2README.html#autotoc_md459", null ],
+      [ "See also", "md_src_2protocols_2ssi_2README.html#autotoc_md460", null ]
     ] ],
     [ "<tt>src/protocols/ssi/svc_cta/</tt> — flagship CTA tape service", "md_src_2protocols_2ssi_2svc__cta_2README.html", [
-      [ "Layers", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md461", null ],
-      [ "Request lifecycle", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md462", [
-        [ "State machine", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md463", null ],
-        [ "Executor", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md464", null ],
-        [ "Security", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md465", null ],
-        [ "Journal (restart recovery)", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md466", null ]
+      [ "Layers", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md462", null ],
+      [ "Request lifecycle", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md463", [
+        [ "State machine", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md464", null ],
+        [ "Executor", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md465", null ],
+        [ "Security", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md466", null ],
+        [ "Journal (restart recovery)", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md467", null ]
       ] ],
-      [ "External contract — the pinned field table", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md467", null ],
-      [ "Golden-vector provenance", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md468", null ],
-      [ "Scope notes", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md469", null ]
+      [ "External contract — the pinned field table", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md468", null ],
+      [ "Golden-vector provenance", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md469", null ],
+      [ "Scope notes", "md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md470", null ]
     ] ],
     [ "webdav/fs — Confined local-filesystem copy engine for WebDAV COPY/MOVE", "md_src_2protocols_2webdav_2fs_2README.html", [
-      [ "Overview", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md471", null ],
-      [ "Files", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md472", null ],
-      [ "Key types & data structures", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md473", null ],
-      [ "Control & data flow", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md474", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md475", null ],
-      [ "Entry points / extending", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md476", null ],
-      [ "See also", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md477", null ]
+      [ "Overview", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md472", null ],
+      [ "Files", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md473", null ],
+      [ "Key types & data structures", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md474", null ],
+      [ "Control & data flow", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md475", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md476", null ],
+      [ "Entry points / extending", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md477", null ],
+      [ "See also", "md_src_2protocols_2webdav_2fs_2README.html#autotoc_md478", null ]
     ] ],
     [ "webdav/locks — WebDAV LOCK request-header & body parsers", "md_src_2protocols_2webdav_2locks_2README.html", [
-      [ "Overview", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md479", null ],
-      [ "Files", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md480", null ],
-      [ "Key types & data structures", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md481", null ],
-      [ "Control & data flow", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md482", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md483", null ],
-      [ "Entry points / extending", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md484", null ],
-      [ "See also", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md485", null ]
+      [ "Overview", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md480", null ],
+      [ "Files", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md481", null ],
+      [ "Key types & data structures", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md482", null ],
+      [ "Control & data flow", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md483", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md484", null ],
+      [ "Entry points / extending", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md485", null ],
+      [ "See also", "md_src_2protocols_2webdav_2locks_2README.html#autotoc_md486", null ]
     ] ],
     [ "webdav/methods — Per-method WebDAV precondition helpers", "md_src_2protocols_2webdav_2methods_2README.html", [
-      [ "Overview", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md487", null ],
-      [ "Files", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md488", null ],
-      [ "Key types & data structures", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md489", null ],
-      [ "Control & data flow", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md490", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md491", null ],
-      [ "Entry points / extending", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md492", null ],
-      [ "See also", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md493", null ]
+      [ "Overview", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md488", null ],
+      [ "Files", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md489", null ],
+      [ "Key types & data structures", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md490", null ],
+      [ "Control & data flow", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md491", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md492", null ],
+      [ "Entry points / extending", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md493", null ],
+      [ "See also", "md_src_2protocols_2webdav_2methods_2README.html#autotoc_md494", null ]
     ] ],
     [ "webdav — HTTP/WebDAV/HTTPS gateway (<tt>davs://</tt>, <tt>http://</tt>) over the export root", "md_src_2protocols_2webdav_2README.html", [
-      [ "Overview", "md_src_2protocols_2webdav_2README.html#autotoc_md495", null ],
-      [ "Files", "md_src_2protocols_2webdav_2README.html#autotoc_md496", [
-        [ "Module wiring & configuration", "md_src_2protocols_2webdav_2README.html#autotoc_md497", null ],
-        [ "Dispatch & generic helpers", "md_src_2protocols_2webdav_2README.html#autotoc_md498", null ],
-        [ "HTTP method handlers", "md_src_2protocols_2webdav_2README.html#autotoc_md499", null ],
-        [ "Authentication", "md_src_2protocols_2webdav_2README.html#autotoc_md500", null ],
-        [ "HTTP-TPC (third-party copy)", "md_src_2protocols_2webdav_2README.html#autotoc_md501", null ],
-        [ "Upstream proxy mode", "md_src_2protocols_2webdav_2README.html#autotoc_md502", null ],
-        [ "XrdHttp protocol extension", "md_src_2protocols_2webdav_2README.html#autotoc_md503", null ]
+      [ "Overview", "md_src_2protocols_2webdav_2README.html#autotoc_md496", null ],
+      [ "Files", "md_src_2protocols_2webdav_2README.html#autotoc_md497", [
+        [ "Module wiring & configuration", "md_src_2protocols_2webdav_2README.html#autotoc_md498", null ],
+        [ "Dispatch & generic helpers", "md_src_2protocols_2webdav_2README.html#autotoc_md499", null ],
+        [ "HTTP method handlers", "md_src_2protocols_2webdav_2README.html#autotoc_md500", null ],
+        [ "Authentication", "md_src_2protocols_2webdav_2README.html#autotoc_md501", null ],
+        [ "HTTP-TPC (third-party copy)", "md_src_2protocols_2webdav_2README.html#autotoc_md502", null ],
+        [ "Upstream proxy mode", "md_src_2protocols_2webdav_2README.html#autotoc_md503", null ],
+        [ "XrdHttp protocol extension", "md_src_2protocols_2webdav_2README.html#autotoc_md504", null ]
       ] ],
-      [ "Key types & data structures", "md_src_2protocols_2webdav_2README.html#autotoc_md504", null ],
-      [ "Control & data flow", "md_src_2protocols_2webdav_2README.html#autotoc_md505", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2README.html#autotoc_md506", null ],
-      [ "Entry points / extending", "md_src_2protocols_2webdav_2README.html#autotoc_md507", null ],
-      [ "See also", "md_src_2protocols_2webdav_2README.html#autotoc_md508", null ]
+      [ "Key types & data structures", "md_src_2protocols_2webdav_2README.html#autotoc_md505", null ],
+      [ "Control & data flow", "md_src_2protocols_2webdav_2README.html#autotoc_md506", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2README.html#autotoc_md507", null ],
+      [ "Entry points / extending", "md_src_2protocols_2webdav_2README.html#autotoc_md508", null ],
+      [ "See also", "md_src_2protocols_2webdav_2README.html#autotoc_md509", null ]
     ] ],
     [ "webdav/util — WebDAV URI decoding and XML escaping helpers", "md_src_2protocols_2webdav_2util_2README.html", [
-      [ "Overview", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md510", null ],
-      [ "Files", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md511", null ],
-      [ "Key types & data structures", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md512", null ],
-      [ "Control & data flow", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md513", null ],
-      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md514", null ],
-      [ "Entry points / extending", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md515", null ],
-      [ "See also", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md516", null ]
+      [ "Overview", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md511", null ],
+      [ "Files", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md512", null ],
+      [ "Key types & data structures", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md513", null ],
+      [ "Control & data flow", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md514", null ],
+      [ "Invariants, security & gotchas", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md515", null ],
+      [ "Entry points / extending", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md516", null ],
+      [ "See also", "md_src_2protocols_2webdav_2util_2README.html#autotoc_md517", null ]
     ] ],
     [ "src — nginx-xrootd Source Tree", "md_src_2README.html", [
-      [ "Source map", "md_src_2README.html#autotoc_md519", [
-        [ "Top-level files (now under <tt>core/</tt>)", "md_src_2README.html#autotoc_md520", null ],
-        [ "Entry & dispatch", "md_src_2README.html#autotoc_md521", null ],
-        [ "Protocol handlers", "md_src_2README.html#autotoc_md522", null ],
-        [ "Data plane", "md_src_2README.html#autotoc_md523", null ],
-        [ "Path & confinement", "md_src_2README.html#autotoc_md524", null ],
-        [ "Authentication", "md_src_2README.html#autotoc_md525", null ],
-        [ "Cluster & federation", "md_src_2README.html#autotoc_md526", null ],
-        [ "Cross-cutting", "md_src_2README.html#autotoc_md527", null ],
-        [ "WebDAV sub-helpers", "md_src_2README.html#autotoc_md528", null ]
+      [ "Source map", "md_src_2README.html#autotoc_md520", [
+        [ "Top-level files (now under <tt>core/</tt>)", "md_src_2README.html#autotoc_md521", null ],
+        [ "Entry & dispatch", "md_src_2README.html#autotoc_md522", null ],
+        [ "Protocol handlers", "md_src_2README.html#autotoc_md523", null ],
+        [ "Data plane", "md_src_2README.html#autotoc_md524", null ],
+        [ "Path & confinement", "md_src_2README.html#autotoc_md525", null ],
+        [ "Authentication", "md_src_2README.html#autotoc_md526", null ],
+        [ "Cluster & federation", "md_src_2README.html#autotoc_md527", null ],
+        [ "Cross-cutting", "md_src_2README.html#autotoc_md528", null ],
+        [ "WebDAV sub-helpers", "md_src_2README.html#autotoc_md529", null ]
       ] ],
-      [ "The four request lifecycles", "md_src_2README.html#autotoc_md530", [
-        [ "<tt>root://</tt> stream", "md_src_2README.html#autotoc_md531", null ],
-        [ "<tt>davs://</tt> WebDAV", "md_src_2README.html#autotoc_md532", null ],
-        [ "S3 REST", "md_src_2README.html#autotoc_md533", null ],
-        [ "CMS cluster redirect", "md_src_2README.html#autotoc_md534", null ]
+      [ "The four request lifecycles", "md_src_2README.html#autotoc_md531", [
+        [ "<tt>root://</tt> stream", "md_src_2README.html#autotoc_md532", null ],
+        [ "<tt>davs://</tt> WebDAV", "md_src_2README.html#autotoc_md533", null ],
+        [ "S3 REST", "md_src_2README.html#autotoc_md534", null ],
+        [ "CMS cluster redirect", "md_src_2README.html#autotoc_md535", null ]
       ] ],
-      [ "Cross-cutting invariants", "md_src_2README.html#autotoc_md536", null ],
-      [ "How to navigate / where to start reading", "md_src_2README.html#autotoc_md538", null ]
+      [ "Cross-cutting invariants", "md_src_2README.html#autotoc_md537", null ],
+      [ "How to navigate / where to start reading", "md_src_2README.html#autotoc_md539", null ]
     ] ],
     [ "tpc/common — Protocol-neutral third-party-copy (TPC) core", "md_src_2tpc_2common_2README.html", [
-      [ "Overview", "md_src_2tpc_2common_2README.html#autotoc_md540", null ],
-      [ "Files", "md_src_2tpc_2common_2README.html#autotoc_md541", null ],
-      [ "Key types & data structures", "md_src_2tpc_2common_2README.html#autotoc_md542", null ],
-      [ "Control & data flow", "md_src_2tpc_2common_2README.html#autotoc_md543", null ],
-      [ "Invariants, security & gotchas", "md_src_2tpc_2common_2README.html#autotoc_md544", null ],
-      [ "Entry points / extending", "md_src_2tpc_2common_2README.html#autotoc_md545", null ],
-      [ "See also", "md_src_2tpc_2common_2README.html#autotoc_md546", null ]
+      [ "Overview", "md_src_2tpc_2common_2README.html#autotoc_md541", null ],
+      [ "Files", "md_src_2tpc_2common_2README.html#autotoc_md542", null ],
+      [ "Key types & data structures", "md_src_2tpc_2common_2README.html#autotoc_md543", null ],
+      [ "Control & data flow", "md_src_2tpc_2common_2README.html#autotoc_md544", null ],
+      [ "Invariants, security & gotchas", "md_src_2tpc_2common_2README.html#autotoc_md545", null ],
+      [ "Entry points / extending", "md_src_2tpc_2common_2README.html#autotoc_md546", null ],
+      [ "See also", "md_src_2tpc_2common_2README.html#autotoc_md547", null ]
     ] ],
     [ "engine — native-TPC control plane (destination side)", "md_src_2tpc_2engine_2README.html", [
-      [ "Overview", "md_src_2tpc_2engine_2README.html#autotoc_md548", null ],
-      [ "Files", "md_src_2tpc_2engine_2README.html#autotoc_md549", null ],
-      [ "Invariants, security & gotchas", "md_src_2tpc_2engine_2README.html#autotoc_md550", null ],
-      [ "See also", "md_src_2tpc_2engine_2README.html#autotoc_md551", null ]
+      [ "Overview", "md_src_2tpc_2engine_2README.html#autotoc_md549", null ],
+      [ "Files", "md_src_2tpc_2engine_2README.html#autotoc_md550", null ],
+      [ "Invariants, security & gotchas", "md_src_2tpc_2engine_2README.html#autotoc_md551", null ],
+      [ "See also", "md_src_2tpc_2engine_2README.html#autotoc_md552", null ]
     ] ],
     [ "gsi — outbound GSI authentication for the TPC pull socket", "md_src_2tpc_2gsi_2README.html", [
-      [ "Overview", "md_src_2tpc_2gsi_2README.html#autotoc_md553", null ],
-      [ "Files", "md_src_2tpc_2gsi_2README.html#autotoc_md554", null ],
-      [ "Invariants, security & gotchas", "md_src_2tpc_2gsi_2README.html#autotoc_md555", null ],
-      [ "See also", "md_src_2tpc_2gsi_2README.html#autotoc_md556", null ]
+      [ "Overview", "md_src_2tpc_2gsi_2README.html#autotoc_md554", null ],
+      [ "Files", "md_src_2tpc_2gsi_2README.html#autotoc_md555", null ],
+      [ "Invariants, security & gotchas", "md_src_2tpc_2gsi_2README.html#autotoc_md556", null ],
+      [ "See also", "md_src_2tpc_2gsi_2README.html#autotoc_md557", null ]
     ] ],
     [ "outbound — the blocking source-session client for native TPC pulls", "md_src_2tpc_2outbound_2README.html", [
-      [ "Overview", "md_src_2tpc_2outbound_2README.html#autotoc_md558", null ],
-      [ "Files", "md_src_2tpc_2outbound_2README.html#autotoc_md559", null ],
-      [ "Invariants, security & gotchas", "md_src_2tpc_2outbound_2README.html#autotoc_md560", null ],
-      [ "See also", "md_src_2tpc_2outbound_2README.html#autotoc_md561", null ]
+      [ "Overview", "md_src_2tpc_2outbound_2README.html#autotoc_md559", null ],
+      [ "Files", "md_src_2tpc_2outbound_2README.html#autotoc_md560", null ],
+      [ "Invariants, security & gotchas", "md_src_2tpc_2outbound_2README.html#autotoc_md561", null ],
+      [ "See also", "md_src_2tpc_2outbound_2README.html#autotoc_md562", null ]
     ] ],
     [ "tpc — Native XRootD third-party-copy (destination-side pull)", "md_src_2tpc_2README.html", [
-      [ "Overview", "md_src_2tpc_2README.html#autotoc_md563", null ],
-      [ "Files", "md_src_2tpc_2README.html#autotoc_md564", null ],
-      [ "Key types & data structures", "md_src_2tpc_2README.html#autotoc_md565", null ],
-      [ "Control & data flow", "md_src_2tpc_2README.html#autotoc_md566", null ],
-      [ "Invariants, security & gotchas", "md_src_2tpc_2README.html#autotoc_md567", null ],
-      [ "Entry points / extending", "md_src_2tpc_2README.html#autotoc_md568", null ],
-      [ "See also", "md_src_2tpc_2README.html#autotoc_md569", null ]
+      [ "Overview", "md_src_2tpc_2README.html#autotoc_md564", null ],
+      [ "Files", "md_src_2tpc_2README.html#autotoc_md565", null ],
+      [ "Key types & data structures", "md_src_2tpc_2README.html#autotoc_md566", null ],
+      [ "Control & data flow", "md_src_2tpc_2README.html#autotoc_md567", null ],
+      [ "Invariants, security & gotchas", "md_src_2tpc_2README.html#autotoc_md568", null ],
+      [ "Entry points / extending", "md_src_2tpc_2README.html#autotoc_md569", null ],
+      [ "See also", "md_src_2tpc_2README.html#autotoc_md570", null ]
     ] ],
     [ "<tt>client/apps/</tt> — native client CLI tools", "md_client_2apps_2README.html", [
-      [ "Data movement", "md_client_2apps_2README.html#autotoc_md571", null ],
-      [ "Checksums & verification", "md_client_2apps_2README.html#autotoc_md572", null ],
-      [ "Diagnostics & monitoring", "md_client_2apps_2README.html#autotoc_md573", null ],
-      [ "Auth & security", "md_client_2apps_2README.html#autotoc_md574", null ],
-      [ "Namespace / staging", "md_client_2apps_2README.html#autotoc_md575", null ],
-      [ "Optional (built only when <tt>libfuse3</tt> is present — not in <tt>BINS</tt>)", "md_client_2apps_2README.html#autotoc_md576", null ],
-      [ "Ceph operator tools (<tt>apps/ceph/</tt> — built only when the Ceph dev headers are present)", "md_client_2apps_2README.html#autotoc_md577", null ],
-      [ "Configuration — <tt>~/.xrdrc</tt>", "md_client_2apps_2README.html#autotoc_md578", null ],
-      [ "Man pages & bash completion", "md_client_2apps_2README.html#autotoc_md579", null ],
-      [ "CLI compatibility contract (binding for all flag/env/output work)", "md_client_2apps_2README.html#autotoc_md580", null ],
-      [ "See also", "md_client_2apps_2README.html#autotoc_md581", null ]
+      [ "Data movement", "md_client_2apps_2README.html#autotoc_md572", null ],
+      [ "Checksums & verification", "md_client_2apps_2README.html#autotoc_md573", null ],
+      [ "Diagnostics & monitoring", "md_client_2apps_2README.html#autotoc_md574", null ],
+      [ "Auth & security", "md_client_2apps_2README.html#autotoc_md575", null ],
+      [ "Namespace / staging", "md_client_2apps_2README.html#autotoc_md576", null ],
+      [ "Optional (built only when <tt>libfuse3</tt> is present — not in <tt>BINS</tt>)", "md_client_2apps_2README.html#autotoc_md577", null ],
+      [ "Ceph operator tools (<tt>apps/ceph/</tt> — built only when the Ceph dev headers are present)", "md_client_2apps_2README.html#autotoc_md578", null ],
+      [ "Configuration — <tt>~/.xrdrc</tt>", "md_client_2apps_2README.html#autotoc_md579", null ],
+      [ "Man pages & bash completion", "md_client_2apps_2README.html#autotoc_md580", null ],
+      [ "CLI compatibility contract (binding for all flag/env/output work)", "md_client_2apps_2README.html#autotoc_md581", null ],
+      [ "See also", "md_client_2apps_2README.html#autotoc_md582", null ]
     ] ],
     [ "<tt>client/lib/sec/</tt> — native client authentication modules", "md_client_2lib_2auth_2sec_2README.html", [
-      [ "Overview", "md_client_2lib_2auth_2sec_2README.html#autotoc_md583", null ],
-      [ "Files", "md_client_2lib_2auth_2sec_2README.html#autotoc_md584", null ],
-      [ "Invariants", "md_client_2lib_2auth_2sec_2README.html#autotoc_md585", null ],
-      [ "See also", "md_client_2lib_2auth_2sec_2README.html#autotoc_md586", null ]
+      [ "Overview", "md_client_2lib_2auth_2sec_2README.html#autotoc_md584", null ],
+      [ "Files", "md_client_2lib_2auth_2sec_2README.html#autotoc_md585", null ],
+      [ "Invariants", "md_client_2lib_2auth_2sec_2README.html#autotoc_md586", null ],
+      [ "See also", "md_client_2lib_2auth_2sec_2README.html#autotoc_md587", null ]
     ] ],
     [ "<tt>client/lib/</tt> — native XRootD client library (<tt>libbrix</tt>)", "md_client_2lib_2README.html", [
-      [ "Concept buckets (phase-69)", "md_client_2lib_2README.html#autotoc_md588", null ],
-      [ "File responsibilities (Phase-38 split groups)", "md_client_2lib_2README.html#autotoc_md589", null ]
+      [ "Concept buckets (phase-69)", "md_client_2lib_2README.html#autotoc_md589", null ],
+      [ "File responsibilities (Phase-38 split groups)", "md_client_2lib_2README.html#autotoc_md590", null ]
     ] ],
     [ "<tt>client/preload/</tt> — LD_PRELOAD POSIX → XRootD shim", "md_client_2preload_2README.html", [
-      [ "Overview", "md_client_2preload_2README.html#autotoc_md591", null ],
-      [ "How it works", "md_client_2preload_2README.html#autotoc_md592", null ],
-      [ "Scope", "md_client_2preload_2README.html#autotoc_md593", null ],
-      [ "Files", "md_client_2preload_2README.html#autotoc_md594", null ],
-      [ "See also", "md_client_2preload_2README.html#autotoc_md595", null ]
+      [ "Overview", "md_client_2preload_2README.html#autotoc_md592", null ],
+      [ "How it works", "md_client_2preload_2README.html#autotoc_md593", null ],
+      [ "Scope", "md_client_2preload_2README.html#autotoc_md594", null ],
+      [ "Files", "md_client_2preload_2README.html#autotoc_md595", null ],
+      [ "See also", "md_client_2preload_2README.html#autotoc_md596", null ]
     ] ],
     [ "<tt>client/</tt> — native BriX client tools", "md_client_2README.html", [
-      [ "Directory layout", "md_client_2README.html#autotoc_md597", null ],
-      [ "Build", "md_client_2README.html#autotoc_md598", null ],
-      [ "Feature summary (2026-07-05)", "md_client_2README.html#autotoc_md599", [
-        [ "xrdcp", "md_client_2README.html#autotoc_md600", null ],
-        [ "xrdfs", "md_client_2README.html#autotoc_md601", null ],
-        [ "xrdcksum", "md_client_2README.html#autotoc_md602", null ],
-        [ "xrddiag", "md_client_2README.html#autotoc_md603", null ],
-        [ "Ceph operator tools", "md_client_2README.html#autotoc_md604", null ]
+      [ "Directory layout", "md_client_2README.html#autotoc_md598", null ],
+      [ "Build", "md_client_2README.html#autotoc_md599", null ],
+      [ "Feature summary (2026-07-05)", "md_client_2README.html#autotoc_md600", [
+        [ "xrdcp", "md_client_2README.html#autotoc_md601", null ],
+        [ "xrdfs", "md_client_2README.html#autotoc_md602", null ],
+        [ "xrdcksum", "md_client_2README.html#autotoc_md603", null ],
+        [ "xrddiag", "md_client_2README.html#autotoc_md604", null ],
+        [ "Ceph operator tools", "md_client_2README.html#autotoc_md605", null ]
       ] ],
-      [ "Configuration — <tt>~/.xrdrc</tt>", "md_client_2README.html#autotoc_md605", null ],
-      [ "Man pages & bash completion", "md_client_2README.html#autotoc_md606", null ],
-      [ "See also", "md_client_2README.html#autotoc_md607", null ]
+      [ "Configuration — <tt>~/.xrdrc</tt>", "md_client_2README.html#autotoc_md606", null ],
+      [ "Man pages & bash completion", "md_client_2README.html#autotoc_md607", null ],
+      [ "See also", "md_client_2README.html#autotoc_md608", null ]
     ] ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
@@ -753,88 +755,111 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "acc_8h.html",
-"api__admin_8h.html#ae59fc3f158e5c3703c77ab9e21a1500e",
-"auth__crypto__helpers_8c.html#a6556b1b0d5f99f98b563aa4f5ea72ff1",
-"brix__auth_8h.html#a11e482f72cda66e2cdf23509b8062e82",
-"brixcvmfs_8c.html#a3c04138a5bfe5d72780bb7e82a18e627",
-"buffers_8c.html",
-"chain__helpers_8h_source.html",
-"cli__hint_8h.html#ab229d8583af77de87a43b94d804d6d05",
-"cms__internal_8h.html#a434efb4c03b93d6d3adbeaa653e22765",
-"config__download_8c.html#a986c8e5b914bfc615b655fd3a7126f5e",
-"core_2compat_2xml_8c.html#a2d0c0bc5b13e421ca9329cd196f0a114",
-"csi__tagstore_8h.html#a5b418098a3c5678c5ed6d4698522fa25",
-"cvmfs_8h.html#a0dc058ee430b1e805daaec390a3746c7aea678cd3bccaecb23a66afbba11a8852",
-"del_8c_source.html",
-"dir_467860735a4a74398db4a8c79362a6a2.html",
-"evict__policy_8c.html#a05ffba65b38843a84500ce9268ac2658",
-"flowlabel_8c_source.html",
-"fs__walk_8h.html#a84e68c23a5a599986a31f399b3a72c7f",
-"group__policy_8c.html#a27821a7b9be1499ebb0d9698b88ee735",
-"guard_8h.html#a984af347685fbe23d386014847eaea69aa77295b99daa58458f99a4f00f63184d",
-"http__conditionals_8c.html#a2efc36359eb0a613207724f97c63108f",
-"identity_8h.html#ac0abf7cb8084f3d2c5265933f6f2e5a8",
-"jsonout_8c.html#a113311d523971fd7331dc2e4b3022944",
-"macaroon_8c.html#a33cea43ff70d578bce7d182f2dca1f3f",
-"md_src_2core_2types_2README.html#autotoc_md133",
-"md_src_2protocols_2root_2relay_2README.html",
-"metadata_8c.html#a9507f4ab92a1b8e5c17d0ab3cc66a8c9",
-"module__acc__directives_8c.html#ad2a0bdfbf81cdaa50fb9aa156c05790c",
-"net_2manager_2registry_8h.html#af8ba6c820f5011754b69aafc262fc7c5",
-"node__ops_8h.html#aac5b828a1171150b2c14ac459c58b9dfa0bea32b1d8e4cad122c3f9b303928dbc",
-"observability_2metrics_2unified_8h.html#a3a3309c28f2a7f9b32e5716348af9831",
-"open__request_8c.html#abb229f5468890a3e3bad16b19479c289",
-"overlay__unittest_8c.html#a018b6a74538785ad73db6990b66e4518",
-"pki__load_8c.html",
-"propfind__internal_8h.html#a58f319945f1f17c213e155b6d5130ea2",
-"protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5",
-"proxy__response_8c.html#af4dda5f2ea34f1728994086e468551af",
-"redir__cache_8h.html#aca3bcbfafe534887ac9e8382fb0094ef",
-"root_2query_2dispatch_8c_source.html",
-"s3__auth__internal_8h.html#a305a2fa63cce1bfb4322b4fe2a76fde8",
-"scan__unittest_8c_source.html",
-"sd__frm__mss_8h.html#a17d355ea352dd3b98613642f825bcaa7",
-"sd__s3_8c.html#a3aa582c6006af3da3ae830c8532cb4f2",
-"server_8h.html#a2b993910d7f982032d51fa57710798fe",
-"sesslog__ngx_8h.html",
-"src_2fs_2vfs_2vfs_8h.html#a32e419ed64ddb082fdf62652f5ffe7a1",
-"ssi__rrinfo_8h.html#a926fb980690f2fec06e68437ed0f7a9b",
-"stage__request__registry_8h.html#a7e5a649e9e9226a5beb0525d7fe1d455aaaf54ba31d4fcea1fcd1071c2a2c0507",
-"stream__mirror_8c.html#afedbcf0bd515c5324ef2dae870471946",
-"structClientSetRequest.html#ac62583da3cc0068c9ab6e54626604d09",
-"structbrix__acc__tables__t.html#a6de9f9400c91e5fd133b31387ac8d41c",
-"structbrix__cache__sink__t.html",
-"structbrix__credential__field__t.html",
-"structbrix__dashboard__event__t.html#a0a68149dc1778be20699d36b13a3959d",
-"structbrix__gbuf.html#acd6797d620e93eacfdf8ae3c236e2056",
-"structbrix__mfile.html#a2af349134f22e2560ed1284fc914a32a",
-"structbrix__pmark__dest__t.html#a6009d5df2a597ed4e3143c5d0ce1abbf",
-"structbrix__redir__cache__t.html#a830716a053754bd2ae8d201d0b558d10",
-"structbrix__sd__stat__t.html#ab2279e75b065455107707c4aeb4c78c5",
-"structbrix__staged__file__t.html#a11dba6339bf01ccf05b19dca69caf4b9",
-"structbrix__tpc__pull__t.html#aef37bfa03f327a6ea1b00bee60b0daf9",
-"structbrix__vfs__ops.html#ae944644f7046ffdd8e73e3b428b78107",
-"structbrix__xmeta__t.html#a40b1aec3abb10b5043824c5811ad4b85",
-"structcta__request__t.html#a3712afbe9acd4465db821228c83a300a",
-"structimp__req__t.html#a706e0863bd6208fa123b4c5ee4370729",
-"structngx__brix__s3__metrics__t.html#a2a418e49b8cd578e46ef060a05166f81",
-"structngx__http__brix__webdav__loc__conf__t.html#a301620d810b2098c5348db6090029dd2",
-"structngx__stream__brix__srv__conf__t.html#a883e2a5b72eadaf9df91fb6d1ba552fb",
-"structs3__entry__t.html#aef31cbfcd455052a2f84498e8bc93fe3",
-"structsigv4__components__t.html#a4e11b483d039b8d009f6182e07727332",
-"structweb__upload__ctx.html#ad62f781bc1556227171150be3e3cb610",
-"structxrdw__protocol__req__t.html#a8051b4f1614f3f8492b0c0ce62016a31",
-"tier__config_8c_source.html",
-"tpc__internal_8h.html#a33b7a18f47dac31f8b995de29280aa58",
-"uring__admin_8c.html#a756b05147ac10e6d22fa3eb136501e00",
-"vfs__internal_8h.html#ae8608819198cf7fc8368388d05f5b36b",
-"webdav_2get_8c.html#a8cd13da3f13214252124130b76418107",
-"wire__codec_8h.html#a0766ef8bc8ee40102cfce7bc8e1c5bb0",
-"writethrough__metrics_8h.html#a467dd948f7cbd3d0c0d0ad3471d6e17f",
-"xrd__battery_8c_source.html",
-"xrdfs_8c.html#a01105391b12421cbb023143e4005e6e9",
-"xrdhttp__stats_8c.html#a33552c7aadc6be5473b04f7ab17edff4",
-"xrootdfs__legacy_8c.html#a7feb256f07d7b3cba9fd019684024e54"
+"api__admin_8c.html#a166197a7899a0d33631e20796bddbb7e",
+"auth_2krb5_2config_8c_source.html",
+"authfile__internal_8h.html#a696af52ab3811b12daba35bc89b21685",
+"brix__net_8h.html#a9aef7ed10b3d5b7ed01e2af806e4606b",
+"brixcvmfs__rw_8c.html#a402165799cfaa4cb151c466f6705dde1",
+"buffers__internal_8h.html#aa053ef1efef8909f691a067bb5d2e01b",
+"cephfs__layout_8h.html",
+"cinfo__l1_8c.html#adbdd09646b5200cf3e5771a444210439",
+"client_8c.html#a1583ff660afb481526fa3fc5b8bcc5a1",
+"codec__lz4_8c.html",
+"copy__internal_8h.html#a08fc786ed54e4f4a0caa02e637c56cdd",
+"core_2config_2policy_8c.html#abcefa95fc39e67a159d6907090facbde",
+"crypto_8h_source.html",
+"cta__service_8h_source.html",
+"dashboard__http_8h.html#a8f418326c7d525c5f1a438634b2440a3",
+"diag__internal_8h.html#a66fbe8fcb6c98ecd1a9f4552856b4e12",
+"dirlist_8c.html",
+"ext__ops_8h.html#ae3f7d5979afb94f753fde8acd209f86a",
+"flags_8h.html#af1e52e7a5bc07ab7cb307185c5868c59",
+"fs_2path_2path_8h.html#abcbfa58a543ee47700c33cc88c03beee",
+"globals_defs_j.html",
+"gsi__core__cresp_8c.html#a504985d9b0a54ea72ed2bc6174e1ad9c",
+"handshake_8h.html#a0b41c1c3a730ceea98a83b1100e18f56",
+"http__file__response_8h.html#ab97f902d76728d415c895e3e65276dbb",
+"identity_8h.html#a969d73f2e7d975ccacff0052ec73a41d",
+"issuer__registry_8c.html#a67350f002015de73679ae61d53ac2a04",
+"lifecycle__broker_8c.html#a6e40e908e08683c7e3551beb67cc3a4f",
+"macaroon__issue_8c.html#a08a9fa1b84190e338d0fa39bcbc079ee",
+"md_src_2fs_2README.html#autotoc_md185",
+"md_src_2protocols_2root_2response_2README.html#autotoc_md391",
+"metadata_8c.html#afada799ea666bb97b3ccbe3a646ef00d",
+"module__acc__directives_8c.html#a641a7f34c170391489f20507b9ca006c",
+"net_2cms_2connect_8c.html#a90ce1ed8b63e053286a655f7c286dd6b",
+"netconnect_8h.html#adb0a148a8187f41e65bcef03d9834ef0ad9bde46458b4359ba9e314110891302b",
+"observability_2dashboard_2noop_8c.html#a4e9fbc4f6d996396b56e5249b314a80a",
+"op__path_8c.html#a8e80ad16299eac221abaff6a04bda92d",
+"open__tpc_8c.html#a2a8fcafd62179eb06357d746d629c3cd",
+"overlay_8h.html#a899c302da8c704cfb1b6751bdfa78d88",
+"pgio_8h.html#aebfa7de39e896caf9d0abefe52a6e787",
+"prepare_8c.html#aae38f70db65c3bc083d02eb8fab735ed",
+"protocol__caps_8h_source.html",
+"protocols_2s3_2module_8c.html#acea91af943c62ace1cb2bec12d94dab9",
+"proxy__pool_8c_source.html",
+"range__vector_8c.html#adcab9fc0d17fb62edc5f7ddaa83095bb",
+"refresh_8c.html#a5fb3b244d3965a2035e9d72e5ec7761e",
+"root_2fattr_2dispatch_8c.html#a96f5d1bc80a0ec5e57fe67a3d4481b69",
+"s3_8h.html#a942cdb2e7943b0680d3183f43fd513d5",
+"scan__engine__catalog_8c.html#ae0dfab515f501699fd91ca42b9c2f8ef",
+"sd__cache__forward_8c.html#a5baf07f412c5350db587a7a71b39fe10",
+"sd__http__internal_8h.html#a93110c9d0c55ad0f6af6a13ed43edb07",
+"sd__posix__io_8c.html#ac516fb2dc5ed1106d59a59e53b21da3b",
+"sd__xroot__internal_8h.html#a8f52a65bb59c6ef5115c4485474189b1",
+"server__handler_8c.html#acc8f9bca4574fa8ac152c4abc13739a4",
+"sesslog__ngx_8h.html#a33d3cff15ddb8b93d133df5527d5eb18",
+"src_2core_2aio_2uring_8h.html",
+"ssi__dispatch_8c.html#ac1c57d7a88949574a0d2970633a56b9c",
+"stage__engine__scheduler_8c.html#ab0c65aad58f37fd81b6b2f5a229223e9",
+"storascan__core_8c.html#a1fbd0afea59d9ca4e0aadce580a085d1",
+"stream__wmirror__state_8c.html#a41350a5053de15c6c1a35c28a44f4fdb",
+"structClientSyncRequest.html#aa7728c86067e80e8c07acb50a7696889",
+"structbrix__acc__http__t.html#a09566e791b15c9403fe7459d50595029",
+"structbrix__cache__dirlist__t.html#a0595374e0ea28258fbd6155f30485da0",
+"structbrix__cms__srv__ctx__t.html#ae94ea08c41bc6b69417e1b335586c971",
+"structbrix__ctx__rd__t.html#a89e1801ba51172930ba20b0c0bb0a541",
+"structbrix__dirlist__walk__t.html#addfe088700275181445faf9646ee3423",
+"structbrix__http__cache__fill__ctx__t.html#a127652ced750d67a89512ebe2c5665e8",
+"structbrix__mgr.html#ac1e84053952004d219a962d01f903cf7",
+"structbrix__pgread__run__t.html#a35528bb4510b638d2e81338421ddb06d",
+"structbrix__qcksum__req__t.html",
+"structbrix__scan__tb__t.html#aca7364f607c6b8350bd04fdecb68971a",
+"structbrix__shared__handle__entry__t.html#aec676faf766ac2f4b8e7fb3461978045",
+"structbrix__stream__mirror__t.html#a4ca781b3700d54ee9f5a5a5dc3889cb6",
+"structbrix__tpc__registry__entry__t.html#acf65abd7606c8c65f4766cd63985cfbf",
+"structbrix__vfs__job__t.html#aca3ef6464ab909997bb129b3c4decc11",
+"structbrix__xfer__audit__t.html#a0f4f50b17d96a6938d8f539a9eeed612",
+"structckscan__walk__ctx__t.html#a3803ffcb2f364a4b7bc73b57fe7c0827",
+"structcvmfs__probe__ctx__t.html#ac6225475c2a80da6db8b492d69e93d34",
+"structfix__t.html#a1dd524ebd74245926bfeb92352b2fffa",
+"structkxr__name__entry__t.html#a9b7b0bee9a59a5cc35211f0df4c265f6",
+"structngx__brix__frm__metrics__t.html#a8b5e4f9d2fbb15c5ea2fb2cca045ae75",
+"structngx__http__brix__dashboard__loc__conf__t.html#aea19401376d9449ecc7dbe08e7c5808b",
+"structngx__http__s3__req__ctx__t.html#aad5efe1e62d5a2112185602ea0334e08",
+"structreap__ctx__t.html#ae59f6bc89ad96650f72bfdcfd2db96c8",
+"structs3__upcp__req__t.html#a841dcf568ed64e8e2fbed86fe2da6661",
+"structsd__s3__meta__buf.html",
+"structstorascan__bench__result.html#acfc9081cbad36ba379b28c9cd6b712c8",
+"structvfs__copy__ctx__t.html#a9b6e8ddeec420228ae85b4d616ba9170",
+"structwebdav__tpc__curl__ctx__t.html",
+"structxrdcp__lists__t.html#a2f513f7abe5fe1ddd6ccbd8fff9324aa",
+"structzw__entry.html#a5991b72c6c287cf39317becb8aeffd55",
+"tier_8h.html#ae91c616eaa52d1722aa891a5d82bcc0a",
+"tpc__cred_8h.html#a60b3cd37ef95e1b184ff6ae6c1867ba5a200076e08d0587df69abaccb0b962cfd",
+"tracking_8c.html#a684f308c4b22da5c661a8abf716404ac",
+"upstream__internal_8h.html#af75c2d80dc459083e9c83b3d84b19239",
+"vfs__backend__registry__source_8c.html",
+"vfs__ops_8h.html#a2f5aba8e586f9329840a080e48023449",
+"webdav_8c.html#a2182f5192f6915f630c01c1aaa2714f8",
+"wire__codec_8h.html#a104744206f046f65952e735441237b17",
+"writethrough__decision_8h.html#a1a3d5ce6e9eee946d1bce6241b3ffe38a96595d35011be16084cbea1f94c49bbe",
+"xmeta__internal_8h.html#a578c95b4691f9e6ea07c160adc2973e5",
+"xrdcksum_8c.html#a520225720ba4e6b9f31c3d78bda00729",
+"xrdfs__data_8c.html#a7986f5ec35a7af689ac6fa7eb1fedb12",
+"xrdhttp__filter_8c.html#a4fd8b60b870caa27fd92cf153044f04f",
+"xrootdfs__internal_8h.html#a3acaaba7612baa1ae598aa151884c9b4",
+"zip__dir__unittest_8c_source.html"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

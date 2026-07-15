@@ -125,6 +125,16 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a14c0644e0737212023abd3347d74ca77" id="r_a14c0644e0737212023abd3347d74ca77"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rate__limit_8c.html#a14c0644e0737212023abd3347d74ca77">brix_rate_limit_check</a> (const <a class="el" href="structbrix__rate__limit__conf__t.html">brix_rate_limit_conf_t</a> *rl, const char *id, size_t id_len)</td></tr>
 <tr class="separator:a14c0644e0737212023abd3347d74ca77"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adf06cb392ed891bf4d03ebe0c480997a" id="r_adf06cb392ed891bf4d03ebe0c480997a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rate__limit_8c.html#adf06cb392ed891bf4d03ebe0c480997a">brix_rl_parse_rate</a> (ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *rate)</td></tr>
+<tr class="separator:adf06cb392ed891bf4d03ebe0c480997a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa1c6d64552d01a49974f59b8bb5966f4" id="r_aa1c6d64552d01a49974f59b8bb5966f4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rate__limit_8c.html#aa1c6d64552d01a49974f59b8bb5966f4">brix_rl_parse_burst</a> (ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *burst)</td></tr>
+<tr class="separator:aa1c6d64552d01a49974f59b8bb5966f4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b93cde2a0fe8762fb5273abf46e5e55" id="r_a2b93cde2a0fe8762fb5273abf46e5e55"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rate__limit_8c.html#a2b93cde2a0fe8762fb5273abf46e5e55">brix_rl_parse_key</a> (ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *key_ip)</td></tr>
+<tr class="separator:a2b93cde2a0fe8762fb5273abf46e5e55"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afbcb931f77c9b22e68e8814dfe92a0e1" id="r_afbcb931f77c9b22e68e8814dfe92a0e1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rate__limit_8c.html#afbcb931f77c9b22e68e8814dfe92a0e1">brix_rl_parse_arg</a> (ngx_conf_t *cf, ngx_str_t *arg, ngx_str_t *zone, ngx_uint_t *rate, ngx_uint_t *burst, ngx_uint_t *key_ip)</td></tr>
+<tr class="separator:afbcb931f77c9b22e68e8814dfe92a0e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6c205aed83eceea4d63c8248db21781c" id="r_a6c205aed83eceea4d63c8248db21781c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rate__limit_8c.html#a6c205aed83eceea4d63c8248db21781c">brix_rl_resolve_zone</a> (ngx_conf_t *cf, ngx_str_t *zone, <a class="el" href="structbrix__kv__t.html">brix_kv_t</a> **out)</td></tr>
+<tr class="separator:a6c205aed83eceea4d63c8248db21781c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3baa12dc292d69b7e00327f8ea491179" id="r_a3baa12dc292d69b7e00327f8ea491179"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rate__limit_8c.html#a3baa12dc292d69b7e00327f8ea491179">brix_rate_limit_directive</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:a3baa12dc292d69b7e00327f8ea491179"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -196,9 +206,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="rate__limit_8c_source.html#l00047">47</a> of file <a class="el" href="rate__limit_8c_source.html">rate_limit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00253">brix_kv_get()</a>, <a class="el" href="kv_8c_source.html#l00311">brix_kv_set()</a>, <a class="el" href="rate__limit_8c_source.html#l00028">BRIX_RL_ID_MAX</a>, <a class="el" href="rate__limit_8c_source.html#l00027">BRIX_RL_KEY_PREFIX_LEN</a>, <a class="el" href="rate__limit_8h_source.html#l00022">brix_rate_limit_conf_t::burst</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="rate__limit_8h_source.html#l00020">brix_rate_limit_conf_t::kv</a>, <a class="el" href="rate__limit_8c_source.html#l00022">brix_rl_val_t::last_refill</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="rate__limit_8h_source.html#l00021">brix_rate_limit_conf_t::rate</a>, and <a class="el" href="rate__limit_8c_source.html#l00021">brix_rl_val_t::tokens</a>.</p>
+<p class="reference">References <a class="el" href="kv_8c_source.html#l00164">brix_kv_get()</a>, <a class="el" href="kv_8c_source.html#l00215">brix_kv_set()</a>, <a class="el" href="rate__limit_8c_source.html#l00028">BRIX_RL_ID_MAX</a>, <a class="el" href="rate__limit_8c_source.html#l00027">BRIX_RL_KEY_PREFIX_LEN</a>, <a class="el" href="rate__limit_8h_source.html#l00022">brix_rate_limit_conf_t::burst</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="rate__limit_8h_source.html#l00020">brix_rate_limit_conf_t::kv</a>, <a class="el" href="rate__limit_8c_source.html#l00022">brix_rl_val_t::last_refill</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="rate__limit_8h_source.html#l00021">brix_rate_limit_conf_t::rate</a>, and <a class="el" href="rate__limit_8c_source.html#l00021">brix_rl_val_t::tokens</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00054">brix_gsi_complete_auth()</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00127">ngx_http_brix_webdav_access_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00186">access_rate_limit()</a>, and <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00157">brix_gsi_complete_auth()</a>.</p>
 
 </div>
 </div>
@@ -234,9 +244,261 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="rate__limit_8c_source.html#l00150">150</a> of file <a class="el" href="rate__limit_8c_source.html">rate_limit.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="rate__limit_8c_source.html#l00316">316</a> of file <a class="el" href="rate__limit_8c_source.html">rate_limit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="kv_8c_source.html#l00440">brix_kv_find()</a>, <a class="el" href="rate__limit_8h_source.html#l00022">brix_rate_limit_conf_t::burst</a>, <a class="el" href="rate__limit_8h_source.html#l00023">brix_rate_limit_conf_t::key_ip</a>, <a class="el" href="rate__limit_8h_source.html#l00020">brix_rate_limit_conf_t::kv</a>, and <a class="el" href="rate__limit_8h_source.html#l00021">brix_rate_limit_conf_t::rate</a>.</p>
+<p class="reference">References <a class="el" href="rate__limit_8c_source.html#l00241">brix_rl_parse_arg()</a>, <a class="el" href="rate__limit_8c_source.html#l00278">brix_rl_resolve_zone()</a>, <a class="el" href="rate__limit_8h_source.html#l00022">brix_rate_limit_conf_t::burst</a>, <a class="el" href="rate__limit_8h_source.html#l00023">brix_rate_limit_conf_t::key_ip</a>, <a class="el" href="rate__limit_8h_source.html#l00020">brix_rate_limit_conf_t::kv</a>, and <a class="el" href="rate__limit_8h_source.html#l00021">brix_rate_limit_conf_t::rate</a>.</p>
+
+</div>
+</div>
+<a id="afbcb931f77c9b22e68e8814dfe92a0e1" name="afbcb931f77c9b22e68e8814dfe92a0e1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afbcb931f77c9b22e68e8814dfe92a0e1">&#9670;&#160;</a></span>brix_rl_parse_arg()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_rl_parse_arg </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>zone</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>rate</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>burst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>key_ip</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="rate__limit_8c_source.html#l00241">241</a> of file <a class="el" href="rate__limit_8c_source.html">rate_limit.c</a>.</p>
+
+<p class="reference">References <a class="el" href="rate__limit_8c_source.html#l00184">brix_rl_parse_burst()</a>, <a class="el" href="rate__limit_8c_source.html#l00209">brix_rl_parse_key()</a>, and <a class="el" href="rate__limit_8c_source.html#l00152">brix_rl_parse_rate()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="rate__limit_8c_source.html#l00316">brix_rate_limit_directive()</a>.</p>
+
+</div>
+</div>
+<a id="aa1c6d64552d01a49974f59b8bb5966f4" name="aa1c6d64552d01a49974f59b8bb5966f4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa1c6d64552d01a49974f59b8bb5966f4">&#9670;&#160;</a></span>brix_rl_parse_burst()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_rl_parse_burst </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>burst</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="rate__limit_8c_source.html#l00184">184</a> of file <a class="el" href="rate__limit_8c_source.html">rate_limit.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="rate__limit_8c_source.html#l00241">brix_rl_parse_arg()</a>.</p>
+
+</div>
+</div>
+<a id="a2b93cde2a0fe8762fb5273abf46e5e55" name="a2b93cde2a0fe8762fb5273abf46e5e55"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b93cde2a0fe8762fb5273abf46e5e55">&#9670;&#160;</a></span>brix_rl_parse_key()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_rl_parse_key </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>key_ip</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="rate__limit_8c_source.html#l00209">209</a> of file <a class="el" href="rate__limit_8c_source.html">rate_limit.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="rate__limit_8c_source.html#l00241">brix_rl_parse_arg()</a>.</p>
+
+</div>
+</div>
+<a id="adf06cb392ed891bf4d03ebe0c480997a" name="adf06cb392ed891bf4d03ebe0c480997a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adf06cb392ed891bf4d03ebe0c480997a">&#9670;&#160;</a></span>brix_rl_parse_rate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_rl_parse_rate </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>rate</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="rate__limit_8c_source.html#l00152">152</a> of file <a class="el" href="rate__limit_8c_source.html">rate_limit.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="rate__limit_8c_source.html#l00241">brix_rl_parse_arg()</a>.</p>
+
+</div>
+</div>
+<a id="a6c205aed83eceea4d63c8248db21781c" name="a6c205aed83eceea4d63c8248db21781c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6c205aed83eceea4d63c8248db21781c">&#9670;&#160;</a></span>brix_rl_resolve_zone()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_rl_resolve_zone </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>zone</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__kv__t.html">brix_kv_t</a> **&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="rate__limit_8c_source.html#l00278">278</a> of file <a class="el" href="rate__limit_8c_source.html">rate_limit.c</a>.</p>
+
+<p class="reference">References <a class="el" href="kv__config_8c_source.html#l00213">brix_kv_find()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="rate__limit_8c_source.html#l00316">brix_rate_limit_directive()</a>.</p>
 
 </div>
 </div>

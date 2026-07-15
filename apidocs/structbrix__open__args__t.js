@@ -1,0 +1,25 @@
+var structbrix__open__args__t =
+[
+    [ "c", "structbrix__open__args__t.html#a6d11012b5648ee79cb9a435246beb55e", null ],
+    [ "codec", "structbrix__open__args__t.html#a0a563b4fd1f17fe3c449046b38997072", null ],
+    [ "conf", "structbrix__open__args__t.html#a352548e1bd374d8dbb6bd04644121e30", null ],
+    [ "create_mode", "structbrix__open__args__t.html#a779254a8df24f502be1a25f6ba5cba80", null ],
+    [ "ctx", "structbrix__open__args__t.html#ae2c178f8feb3f362bbd5e82135e9443b", null ],
+    [ "driver_backed", "structbrix__open__args__t.html#a72fc629414518a9cfc1c01e6862039fd", null ],
+    [ "fd", "structbrix__open__args__t.html#a349fd2d851e24ba4e4b2c7efa9451845", null ],
+    [ "from_cache", "structbrix__open__args__t.html#a34b44a7ab5619249ca635e9f89b946bf", null ],
+    [ "idx", "structbrix__open__args__t.html#a7d3f4ca7b2a520786f11f5182e55896a", null ],
+    [ "is_readable", "structbrix__open__args__t.html#a5f74008c2bf7ee85a581250d6410b40c", null ],
+    [ "is_write", "structbrix__open__args__t.html#a744356ee329fb313c3d87aff65213700", null ],
+    [ "oflags", "structbrix__open__args__t.html#a7e8bd97e84b270ebc1eb0dc15b5bf6af", null ],
+    [ "options", "structbrix__open__args__t.html#a3e681543c36559e62bb382e6ce0aa0ab", null ],
+    [ "posc_temp_path", "structbrix__open__args__t.html#aa356eb2622e65b6fcc8e1bbdf8d1bdf6", null ],
+    [ "resolved", "structbrix__open__args__t.html#acff92bb7f657c9c015ba17ab723d010e", null ],
+    [ "st", "structbrix__open__args__t.html#a23b788fa9542a255a79700c85e4d7e02", null ],
+    [ "stage", "structbrix__open__args__t.html#a719cfeaaafbb5999ecc79574adf0d561", null ],
+    [ "statbuf", "structbrix__open__args__t.html#af938a98cc1279226b2f4a811a8e4f235", null ],
+    [ "use_posc", "structbrix__open__args__t.html#a9b0467af628ec78e84b00e71aea2a75f", null ],
+    [ "use_resume", "structbrix__open__args__t.html#a367fa3fac6ce2b2074cfceb9a52eeeef", null ],
+    [ "want_stat", "structbrix__open__args__t.html#adc6e4aa215fc443dda0df973af3b8909", null ],
+    [ "wt_via_stage", "structbrix__open__args__t.html#aa3fcf807acb0e6c86121a200f6be5853", null ]
+];

@@ -7,6 +7,7 @@ var structbrix__vfs__file__s =
     [ "ino", "structbrix__vfs__file__s.html#a2d641ac372f752b4b9944b2254ee27fc", null ],
     [ "is_tls", "structbrix__vfs__file__s.html#a2595d8810e35de90a8fc52dd1e03f73d", null ],
     [ "log", "structbrix__vfs__file__s.html#a0fef001403936201e255690e09bd784c", null ],
+    [ "memfd", "structbrix__vfs__file__s.html#abd6ee66df0ac12c8850914228f7d6a93", null ],
     [ "mode", "structbrix__vfs__file__s.html#a1eaf188331af4748dd44109ea3945b4a", null ],
     [ "mtime", "structbrix__vfs__file__s.html#a5a6f927d914254497a41f7f5f2258e54", null ],
     [ "obj", "structbrix__vfs__file__s.html#aca95b46bf986931cd53728adc5a5614c", null ],

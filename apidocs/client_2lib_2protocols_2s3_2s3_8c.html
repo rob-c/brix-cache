@@ -117,9 +117,15 @@ $(document).ready(function(){initNavTree('client_2lib_2protocols_2s3_2s3_8c.html
 Functions</h2></td></tr>
 <tr class="memitem:a7c8cedbf729919d8c7207a46d1dc07d3" id="r_a7c8cedbf729919d8c7207a46d1dc07d3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2protocols_2s3_2s3_8c.html#a7c8cedbf729919d8c7207a46d1dc07d3">brix_s3_sha256_hex</a> (const void *data, size_t len, char *out)</td></tr>
 <tr class="separator:a7c8cedbf729919d8c7207a46d1dc07d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abc79e684e42276b95062b0fcc5e787f1" id="r_abc79e684e42276b95062b0fcc5e787f1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2protocols_2s3_2s3_8c.html#abc79e684e42276b95062b0fcc5e787f1">brix_s3_sign_v4_q</a> (const char *method, const char *host, const char *uri, const char *canon_qs, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, const char *payload_hex, char *hdrs, size_t hdrsz)</td></tr>
+<tr class="memitem:ac860b9990fd7da7cf0e76b2c0c17a7f3" id="r_ac860b9990fd7da7cf0e76b2c0c17a7f3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2protocols_2s3_2s3_8c.html#ac860b9990fd7da7cf0e76b2c0c17a7f3">brix_s3_sigv4_build_canon_hash</a> (const char *method, const char *host, const char *uri, const char *canon_qs, const char *payload_hex, const char *amzdate, char *canon_hex)</td></tr>
+<tr class="separator:ac860b9990fd7da7cf0e76b2c0c17a7f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0ab11ec8826f7435d25a951037888905" id="r_a0ab11ec8826f7435d25a951037888905"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2protocols_2s3_2s3_8c.html#a0ab11ec8826f7435d25a951037888905">brix_s3_sigv4_build_sts</a> (const char *amzdate, const char *datestamp, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, const char *canon_hex, char *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, size_t scopesz, char *sts, size_t stssz)</td></tr>
+<tr class="separator:a0ab11ec8826f7435d25a951037888905"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af59f78ac103356421f231f9dc8dc72b0" id="r_af59f78ac103356421f231f9dc8dc72b0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2protocols_2s3_2s3_8c.html#af59f78ac103356421f231f9dc8dc72b0">brix_s3_sigv4_sign_and_emit</a> (const char *sk, const char *datestamp, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, const char *sts, const char *ak, const char *payload_hex, const char *amzdate, const char *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, char *hdrs, size_t hdrsz)</td></tr>
+<tr class="separator:af59f78ac103356421f231f9dc8dc72b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abc79e684e42276b95062b0fcc5e787f1" id="r_abc79e684e42276b95062b0fcc5e787f1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2protocols_2s3_2s3_8c.html#abc79e684e42276b95062b0fcc5e787f1">brix_s3_sign_v4_q</a> (const char *method, const char *host, const char *uri, const char *canon_qs, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, const char *payload_hex, char *hdrs, size_t hdrsz)</td></tr>
 <tr class="separator:abc79e684e42276b95062b0fcc5e787f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2b118b91229880391ddbbf85dd2b8406" id="r_a2b118b91229880391ddbbf85dd2b8406"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2protocols_2s3_2s3_8c.html#a2b118b91229880391ddbbf85dd2b8406">brix_s3_sign_v4</a> (const char *method, const char *host, const char *uri, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, const char *payload_hex, char *hdrs, size_t hdrsz)</td></tr>
+<tr class="memitem:a2b118b91229880391ddbbf85dd2b8406" id="r_a2b118b91229880391ddbbf85dd2b8406"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2protocols_2s3_2s3_8c.html#a2b118b91229880391ddbbf85dd2b8406">brix_s3_sign_v4</a> (const char *method, const char *host, const char *uri, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, const char *payload_hex, char *hdrs, size_t hdrsz)</td></tr>
 <tr class="separator:a2b118b91229880391ddbbf85dd2b8406"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -159,7 +165,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, and <a class="el" href="crypto_8c_source.html#l00067">brix_sha256()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00413">battery_s3()</a>, and <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00036">brix_s3_sign_v4_q()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00055">brix_s3_sigv4_build_canon_hash()</a>, <a class="el" href="xrd__battery_8c_source.html#l00566">s3_delete()</a>, <a class="el" href="xrd__battery_8c_source.html#l00536">s3_get_verify()</a>, and <a class="el" href="xrd__battery_8c_source.html#l00510">s3_put()</a>.</p>
 
 </div>
 </div>
@@ -231,11 +237,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00114">114</a> of file <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html">s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00204">204</a> of file <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html">s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00036">brix_s3_sign_v4_q()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">brix_s3_sign_v4_q()</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00413">battery_s3()</a>, <a class="el" href="xrddiag_8c_source.html#l00397">s3_sign()</a>, and <a class="el" href="copy__recursive_8c_source.html#l00645">web_auth_headers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__recursive_8c_source.html#l00816">auth_hdr_s3()</a>, <a class="el" href="xrd__battery_8c_source.html#l00566">s3_delete()</a>, <a class="el" href="xrd__battery_8c_source.html#l00536">s3_get_verify()</a>, <a class="el" href="xrd__battery_8c_source.html#l00510">s3_put()</a>, and <a class="el" href="xrddiag_8c_source.html#l00485">s3_sign()</a>.</p>
 
 </div>
 </div>
@@ -313,11 +319,251 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00036">36</a> of file <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html">s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">170</a> of file <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html">s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00028">brix_s3_sha256_hex()</a>, <a class="el" href="sigv4_8c_source.html#l00014">brix_sigv4_signing_key()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00055">brix_s3_sigv4_build_canon_hash()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00103">brix_s3_sigv4_build_sts()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00140">brix_s3_sigv4_sign_and_emit()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00112">brix_s3_list()</a>, and <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00114">brix_s3_sign_v4()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00204">brix_s3_sign_v4()</a>, and <a class="el" href="weblist_8c_source.html#l00215">s3_list_build_request()</a>.</p>
+
+</div>
+</div>
+<a id="ac860b9990fd7da7cf0e76b2c0c17a7f3" name="ac860b9990fd7da7cf0e76b2c0c17a7f3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac860b9990fd7da7cf0e76b2c0c17a7f3">&#9670;&#160;</a></span>brix_s3_sigv4_build_canon_hash()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_s3_sigv4_build_canon_hash </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>method</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>host</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>uri</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>canon_qs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>payload_hex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>amzdate</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>canon_hex</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00055">55</a> of file <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html">s3.c</a>.</p>
+
+<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, and <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00028">brix_s3_sha256_hex()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">brix_s3_sign_v4_q()</a>.</p>
+
+</div>
+</div>
+<a id="a0ab11ec8826f7435d25a951037888905" name="a0ab11ec8826f7435d25a951037888905"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0ab11ec8826f7435d25a951037888905">&#9670;&#160;</a></span>brix_s3_sigv4_build_sts()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_s3_sigv4_build_sts </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>amzdate</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>datestamp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>region</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>canon_hex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>scope</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>scopesz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>sts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>stssz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00103">103</a> of file <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html">s3.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">brix_s3_sign_v4_q()</a>.</p>
+
+</div>
+</div>
+<a id="af59f78ac103356421f231f9dc8dc72b0" name="af59f78ac103356421f231f9dc8dc72b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af59f78ac103356421f231f9dc8dc72b0">&#9670;&#160;</a></span>brix_s3_sigv4_sign_and_emit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_s3_sigv4_sign_and_emit </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sk</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>datestamp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>region</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>ak</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>payload_hex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>amzdate</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>scope</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>hdrs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>hdrsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00140">140</a> of file <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html">s3.c</a>.</p>
+
+<p class="reference">References <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="sigv4_8c_source.html#l00014">brix_sigv4_signing_key()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">brix_s3_sign_v4_q()</a>.</p>
 
 </div>
 </div>

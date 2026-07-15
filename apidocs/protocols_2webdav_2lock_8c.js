@@ -1,20 +1,16 @@
 var protocols_2webdav_2lock_8c =
 [
-    [ "webdav_lock_sweep_ctx_t", "structwebdav__lock__sweep__ctx__t.html", "structwebdav__lock__sweep__ctx__t" ],
+    [ "webdav_lock_new_t", "structwebdav__lock__new__t.html", "structwebdav__lock__new__t" ],
     [ "NGX_HTTP_LOCKED", "protocols_2webdav_2lock_8c.html#a9a41e577f8150deef4aa5e4f705db324", null ],
-    [ "check_locks_descendants", "protocols_2webdav_2lock_8c.html#a8960411536d23477deeaa9da05a62389", null ],
-    [ "webdav_check_locks", "protocols_2webdav_2lock_8c.html#aa3e3a619f4000469da46470424ebcdfe", null ],
-    [ "webdav_check_locks_tree", "protocols_2webdav_2lock_8c.html#ae6c17f720233a95f3ada0eeaf952c8aa", null ],
     [ "webdav_generate_uuid", "protocols_2webdav_2lock_8c.html#a919483a4efc457b87efd435e5e0ae075", null ],
     [ "webdav_handle_lock", "protocols_2webdav_2lock_8c.html#a0f3b69ecff25b9432ccb57d52a5b00ef", null ],
     [ "webdav_handle_lock_inner", "protocols_2webdav_2lock_8c.html#a4a803f5a644a0addec7799b4bb7aa840", null ],
-    [ "webdav_handle_unlock", "protocols_2webdav_2lock_8c.html#aa3294773cf93dd2e1bd0dd485e1f4cd0", null ],
-    [ "webdav_lock_append_discovery", "protocols_2webdav_2lock_8c.html#a62eb72c5f78b99a1279379000249e852", null ],
-    [ "webdav_lock_append_supported", "protocols_2webdav_2lock_8c.html#a99bccf215fe5bb1060e8a544db0b7fc9", null ],
-    [ "webdav_lock_reap_null", "protocols_2webdav_2lock_8c.html#afb635d4f6399af0abbce13e8e4e9d9fb", null ],
-    [ "webdav_lock_startup_sweep", "protocols_2webdav_2lock_8c.html#a8440e365e42399d72c2381c1bed73705", null ],
-    [ "webdav_lock_sweep_cb", "protocols_2webdav_2lock_8c.html#aee035ba99bcaf1c250bd6471d9ef27c5", null ],
-    [ "webdav_lock_sweep_remove", "protocols_2webdav_2lock_8c.html#ae7de75af030001061a32afe57fb34793", null ],
-    [ "webdav_lock_vfs_ctx", "protocols_2webdav_2lock_8c.html#a4888875f85bc42da2b58206e2e0c7de9", null ],
+    [ "webdav_lock_create", "protocols_2webdav_2lock_8c.html#a94906364be02328a797db2ca32c041ce", null ],
+    [ "webdav_lock_create_null", "protocols_2webdav_2lock_8c.html#a9a53f46e614aa1b32f10f6ce5e4beaaf", null ],
+    [ "webdav_lock_owner_set", "protocols_2webdav_2lock_8c.html#a34afa31253e4368138e0b53be245397c", null ],
+    [ "webdav_lock_reap_null", "protocols_2webdav_2lock_8c.html#a2d44beee9c0cee8af19556d045f99f57", null ],
+    [ "webdav_lock_refresh", "protocols_2webdav_2lock_8c.html#a4cfb52b8f40abfdea71bc3de464000a3", null ],
+    [ "webdav_lock_vfs_ctx", "protocols_2webdav_2lock_8c.html#a6bc95aaeb156693953c39156824d5eca", null ],
+    [ "webdav_lock_write_status", "protocols_2webdav_2lock_8c.html#ad2d3b62936103b4f4b8b98ba4646a901", null ],
     [ "webdav_lock_xml_response", "protocols_2webdav_2lock_8c.html#a51cec383d7c171b7772cf25c410bb311", null ]
 ];

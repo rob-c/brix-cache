@@ -178,195 +178,196 @@ $(document).ready(function(){initNavTree('xrdhttp__stats_8c_source.html',''); in
 <div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        <span class="keyword">struct </span>sockaddr_storage  ss;</div>
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        socklen_t                sslen = <span class="keyword">sizeof</span>(ss);</div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        <span class="keywordflow">if</span> (getsockname(r-&gt;connection-&gt;fd, (<span class="keyword">struct</span> sockaddr *)(<span class="keywordtype">void</span> *) &amp;ss,</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>                        &amp;sslen) == 0) {</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>            <span class="keywordflow">if</span> (ss.ss_family == AF_INET) {</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>                listen_port = ntohs(((<span class="keyword">struct</span> sockaddr_in *)(<span class="keywordtype">void</span> *) &amp;ss)-&gt;sin_port);</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>            } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (ss.ss_family == AF_INET6) {</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>                listen_port = ntohs(((<span class="keyword">struct</span> sockaddr_in6 *)(<span class="keywordtype">void</span> *) &amp;ss)-&gt;sin6_port);</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>            } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>                listen_port = 8443;</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>            }</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>            listen_port = 8443;</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>        }</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>    }</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span> </div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    gets    = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#ab885424e455f3d1c096f30c83163a3b0">BRIX_WEBDAV_METHOD_GET</a>]</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>            + m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a788a6c5bbe6a72d68bbfb7dc228a3c31">BRIX_WEBDAV_METHOD_HEAD</a>];</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    puts    = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a2ac0025523ffcf442ba994c111ae9836">BRIX_WEBDAV_METHOD_PUT</a>];</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    deletes = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a4708bf325b71ebb16d2fc2bc44fb73eb">BRIX_WEBDAV_METHOD_DELETE</a>];</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span> </div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    total_req = 0;</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <span class="keywordflow">for</span> (ngx_uint_t i = 0; i &lt; <a class="code hl_define" href="metrics__webdav_8h.html#aed6387b020958910dbbb6c007cd3207d">BRIX_WEBDAV_NMETHODS</a>; i++) {</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>        total_req += m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[i];</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    }</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    bytes_in  = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#acbf97ed1b482e349560de785c0d5c8d3">bytes_rx_total</a>;</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    bytes_out = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ac6be16401a355f328e80b2f43cdda89f">bytes_tx_total</a>;</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span> </div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    auth_ok   = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a3ec4443636e8d46145e7032baeebd86c">BRIX_WEBDAV_AUTH_RESULT_CERT_OK</a>]</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>              + m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a416b1fc9dbd357fe8fdb60f61cf04221">BRIX_WEBDAV_AUTH_RESULT_TOKEN_OK</a>]</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>              + m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#aefca7126ba093a8a7c93fa3a81798e0c">BRIX_WEBDAV_AUTH_RESULT_ANONYMOUS</a>];</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    auth_fail = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a0ee99256a54b7c7f9879addfc7f495be">BRIX_WEBDAV_AUTH_RESULT_REJECTED</a>];</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span> </div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    len = snprintf(buf, bufsz,</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>        <span class="stringliteral">&quot;&lt;?xml version=\&quot;1.0\&quot; encoding=\&quot;utf-8\&quot;?&gt;\n&quot;</span></div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>        <span class="stringliteral">&quot;&lt;statistics tod=\&quot;%ld\&quot; ver=\&quot;&quot;</span> <a class="code hl_define" href="ident_8h.html#acc225daf468908bca44074e9258cc8e9">BRIX_SERVER_VERSION</a> <span class="stringliteral">&quot;\&quot; src=\&quot;%s:%d\&quot;&quot;</span></div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>        <span class="stringliteral">&quot; ins=\&quot;anon\&quot; pid=\&quot;%d\&quot; pgm=\&quot;&quot;</span> <a class="code hl_define" href="ident_8h.html#a948a3a6ad1de802025d1fc683a1c9c8c">BRIX_SERVER_NAME</a> <span class="stringliteral">&quot;\&quot;&gt;\n&quot;</span></div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span> </div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;info\&quot;&gt;\n&quot;</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>        <span class="stringliteral">&quot;    &lt;host&gt;%s&lt;/host&gt;\n&quot;</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>        <span class="stringliteral">&quot;    &lt;port&gt;%d&lt;/port&gt;\n&quot;</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>        <span class="stringliteral">&quot;    &lt;name&gt;&quot;</span> <a class="code hl_define" href="ident_8h.html#a948a3a6ad1de802025d1fc683a1c9c8c">BRIX_SERVER_NAME</a> <span class="stringliteral">&quot;&lt;/name&gt;\n&quot;</span></div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>        <span class="stringliteral">&quot;    &lt;role&gt;server&lt;/role&gt;\n&quot;</span></div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span> </div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;sched\&quot;&gt;\n&quot;</span></div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        <span class="stringliteral">&quot;    &lt;jobs&gt;0&lt;/jobs&gt;&lt;inq&gt;0&lt;/inq&gt;&lt;maxinq&gt;0&lt;/maxinq&gt;\n&quot;</span></div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        <span class="stringliteral">&quot;    &lt;threads&gt;0&lt;/threads&gt;&lt;idle&gt;0&lt;/idle&gt;\n&quot;</span></div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        <span class="stringliteral">&quot;    &lt;tcr&gt;0&lt;/tcr&gt;&lt;tde&gt;0&lt;/tde&gt;&lt;tlimr&gt;0&lt;/tlimr&gt;\n&quot;</span></div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span> </div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;link\&quot;&gt;\n&quot;</span></div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        <span class="stringliteral">&quot;    &lt;num&gt;%lld&lt;/num&gt;&lt;maxn&gt;0&lt;/maxn&gt;\n&quot;</span></div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        <span class="stringliteral">&quot;    &lt;tot&gt;%lld&lt;/tot&gt;\n&quot;</span></div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        <span class="stringliteral">&quot;    &lt;in&gt;%lld&lt;/in&gt;&lt;out&gt;%lld&lt;/out&gt;\n&quot;</span></div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        <span class="stringliteral">&quot;    &lt;ctime&gt;0&lt;/ctime&gt;&lt;tmo&gt;0&lt;/tmo&gt;&lt;stall&gt;0&lt;/stall&gt;&lt;sfps&gt;0&lt;/sfps&gt;\n&quot;</span></div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span> </div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;poll\&quot;&gt;\n&quot;</span></div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>        <span class="stringliteral">&quot;    &lt;att&gt;0&lt;/att&gt;&lt;en&gt;0&lt;/en&gt;&lt;ev&gt;0&lt;/ev&gt;&lt;int&gt;0&lt;/int&gt;\n&quot;</span></div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span> </div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;buff\&quot;&gt;\n&quot;</span></div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <span class="stringliteral">&quot;    &lt;reqs&gt;0&lt;/reqs&gt;&lt;mem&gt;0&lt;/mem&gt;&lt;buffs&gt;0&lt;/buffs&gt;\n&quot;</span></div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        <span class="stringliteral">&quot;    &lt;adj&gt;0&lt;/adj&gt;&lt;xlreqs&gt;0&lt;/xlreqs&gt;\n&quot;</span></div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span> </div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;xrootd\&quot;&gt;\n&quot;</span></div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>        <span class="stringliteral">&quot;    &lt;ops&gt;\n&quot;</span></div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>        <span class="stringliteral">&quot;      &lt;open&gt;%lld&lt;/open&gt;\n&quot;</span></div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        <span class="stringliteral">&quot;      &lt;getf&gt;%lld&lt;/getf&gt;\n&quot;</span></div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        <span class="stringliteral">&quot;      &lt;put&gt;%lld&lt;/put&gt;\n&quot;</span></div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>        <span class="stringliteral">&quot;      &lt;rf&gt;%lld&lt;/rf&gt;\n&quot;</span></div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        <span class="stringliteral">&quot;      &lt;rd&gt;%lld&lt;/rd&gt;\n&quot;</span></div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>        <span class="stringliteral">&quot;      &lt;pr&gt;0&lt;/pr&gt;&lt;rv&gt;0&lt;/rv&gt;\n&quot;</span></div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        <span class="stringliteral">&quot;    &lt;/ops&gt;\n&quot;</span></div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>        <span class="stringliteral">&quot;    &lt;aio&gt;&lt;num&gt;0&lt;/num&gt;&lt;max&gt;0&lt;/max&gt;&lt;rej&gt;0&lt;/rej&gt;&lt;/aio&gt;\n&quot;</span></div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>        <span class="stringliteral">&quot;    &lt;err&gt;%lld&lt;/err&gt;&lt;dly&gt;0&lt;/dly&gt;&lt;rdr&gt;0&lt;/rdr&gt;\n&quot;</span></div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        <span class="stringliteral">&quot;    &lt;lgn&gt;\n&quot;</span></div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>        <span class="stringliteral">&quot;      &lt;num&gt;%lld&lt;/num&gt;\n&quot;</span></div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>        <span class="stringliteral">&quot;      &lt;af&gt;%lld&lt;/af&gt;&lt;ua&gt;0&lt;/ua&gt;&lt;ur&gt;0&lt;/ur&gt;\n&quot;</span></div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>        <span class="stringliteral">&quot;    &lt;/lgn&gt;\n&quot;</span></div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span> </div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;http\&quot;&gt;\n&quot;</span></div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        <span class="stringliteral">&quot;    &lt;requests&gt;%lld&lt;/requests&gt;\n&quot;</span></div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>        <span class="stringliteral">&quot;    &lt;bytes_in&gt;%lld&lt;/bytes_in&gt;\n&quot;</span></div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>        <span class="stringliteral">&quot;    &lt;bytes_out&gt;%lld&lt;/bytes_out&gt;\n&quot;</span></div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>        <span class="stringliteral">&quot;    &lt;tpc_pull&gt;%lld&lt;/tpc_pull&gt;\n&quot;</span></div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>        <span class="stringliteral">&quot;    &lt;tpc_push&gt;%lld&lt;/tpc_push&gt;\n&quot;</span></div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>        <span class="stringliteral">&quot;    &lt;range_partial&gt;%lld&lt;/range_partial&gt;\n&quot;</span></div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span> </div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        <span class="stringliteral">&quot;&lt;/statistics&gt;\n&quot;</span>,</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span> </div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <span class="comment">/* header */</span></div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        (<span class="keywordtype">long</span>) now, hostname, listen_port, (<span class="keywordtype">int</span>) ngx_getpid(),</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>        <span class="comment">/* info */</span></div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        hostname, listen_port,</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>        <span class="comment">/* link */</span></div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) total_req,         <span class="comment">/* num — approximated as total requests */</span></div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) total_req,         <span class="comment">/* tot */</span></div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) bytes_in,          <span class="comment">/* in */</span></div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) bytes_out,         <span class="comment">/* out */</span></div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        <span class="comment">/* xrootd ops */</span></div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) (gets + puts),     <span class="comment">/* open */</span></div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) gets,              <span class="comment">/* getf */</span></div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) puts,              <span class="comment">/* put */</span></div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) deletes,           <span class="comment">/* rf (remove file) */</span></div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#ab885424e455f3d1c096f30c83163a3b0">BRIX_WEBDAV_METHOD_GET</a>], <span class="comment">/* rd */</span></div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>        <span class="comment">/* err */</span></div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) (m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a0ee99256a54b7c7f9879addfc7f495be">BRIX_WEBDAV_AUTH_RESULT_REJECTED</a>]</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>                   + m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#aacf42429e064f6be2cf9a3445f977b45">responses_total</a>[0][<a class="code hl_define" href="metrics__http__labels_8h.html#a140f3d21957d3306059396d7a35030e5">BRIX_HTTP_STATUS_5XX</a>]),</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>        <span class="comment">/* lgn */</span></div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) auth_ok,</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) auth_fail,</div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>        <span class="comment">/* http */</span></div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) total_req,</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) bytes_in,</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) bytes_out,</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a69f47b414adbc0c5c3681745cb0dac1d">tpc_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#aa9905171afc48a9daf879057effd5514">BRIX_WEBDAV_TPC_PULL_STARTED</a>],</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a69f47b414adbc0c5c3681745cb0dac1d">tpc_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#ad1e99c77d86bde93c0242a0390667a2d">BRIX_WEBDAV_TPC_PUSH_STARTED</a>],</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a58e2688de1e286303a9c6ad2b81a25aa">range_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a3bbc48e4efa208a06d59099e64e0401b">BRIX_WEBDAV_RANGE_PARTIAL</a>]</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    );</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span> </div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    <span class="keywordflow">if</span> (len &lt; 0 || (<span class="keywordtype">size_t</span>) len &gt;= bufsz) {</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    }</div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span> </div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <span class="keywordflow">return</span> len;</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>}</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        ngx_memzero(&amp;ss, <span class="keyword">sizeof</span>(ss));   <span class="comment">/* getsockname may not set ss_family on error */</span></div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        <span class="keywordflow">if</span> (getsockname(r-&gt;connection-&gt;fd, (<span class="keyword">struct</span> sockaddr *)(<span class="keywordtype">void</span> *) &amp;ss,</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>                        &amp;sslen) == 0) {</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>            <span class="keywordflow">if</span> (ss.ss_family == AF_INET) {</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>                listen_port = ntohs(((<span class="keyword">struct</span> sockaddr_in *)(<span class="keywordtype">void</span> *) &amp;ss)-&gt;sin_port);</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>            } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (ss.ss_family == AF_INET6) {</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>                listen_port = ntohs(((<span class="keyword">struct</span> sockaddr_in6 *)(<span class="keywordtype">void</span> *) &amp;ss)-&gt;sin6_port);</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>            } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>                listen_port = 8443;</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>            }</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>        } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>            listen_port = 8443;</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        }</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    }</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span> </div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    gets    = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#ab885424e455f3d1c096f30c83163a3b0">BRIX_WEBDAV_METHOD_GET</a>]</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>            + m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a788a6c5bbe6a72d68bbfb7dc228a3c31">BRIX_WEBDAV_METHOD_HEAD</a>];</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    puts    = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a2ac0025523ffcf442ba994c111ae9836">BRIX_WEBDAV_METHOD_PUT</a>];</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    deletes = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a4708bf325b71ebb16d2fc2bc44fb73eb">BRIX_WEBDAV_METHOD_DELETE</a>];</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span> </div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    total_req = 0;</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <span class="keywordflow">for</span> (ngx_uint_t i = 0; i &lt; <a class="code hl_define" href="metrics__webdav_8h.html#aed6387b020958910dbbb6c007cd3207d">BRIX_WEBDAV_NMETHODS</a>; i++) {</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>        total_req += m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[i];</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    }</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    bytes_in  = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#acbf97ed1b482e349560de785c0d5c8d3">bytes_rx_total</a>;</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    bytes_out = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ac6be16401a355f328e80b2f43cdda89f">bytes_tx_total</a>;</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span> </div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    auth_ok   = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a3ec4443636e8d46145e7032baeebd86c">BRIX_WEBDAV_AUTH_RESULT_CERT_OK</a>]</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>              + m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a416b1fc9dbd357fe8fdb60f61cf04221">BRIX_WEBDAV_AUTH_RESULT_TOKEN_OK</a>]</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>              + m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#aefca7126ba093a8a7c93fa3a81798e0c">BRIX_WEBDAV_AUTH_RESULT_ANONYMOUS</a>];</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    auth_fail = m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a0ee99256a54b7c7f9879addfc7f495be">BRIX_WEBDAV_AUTH_RESULT_REJECTED</a>];</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span> </div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    len = snprintf(buf, bufsz,</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>        <span class="stringliteral">&quot;&lt;?xml version=\&quot;1.0\&quot; encoding=\&quot;utf-8\&quot;?&gt;\n&quot;</span></div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>        <span class="stringliteral">&quot;&lt;statistics tod=\&quot;%ld\&quot; ver=\&quot;&quot;</span> <a class="code hl_define" href="ident_8h.html#acc225daf468908bca44074e9258cc8e9">BRIX_SERVER_VERSION</a> <span class="stringliteral">&quot;\&quot; src=\&quot;%s:%d\&quot;&quot;</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>        <span class="stringliteral">&quot; ins=\&quot;anon\&quot; pid=\&quot;%d\&quot; pgm=\&quot;&quot;</span> <a class="code hl_define" href="ident_8h.html#a948a3a6ad1de802025d1fc683a1c9c8c">BRIX_SERVER_NAME</a> <span class="stringliteral">&quot;\&quot;&gt;\n&quot;</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span> </div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;info\&quot;&gt;\n&quot;</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>        <span class="stringliteral">&quot;    &lt;host&gt;%s&lt;/host&gt;\n&quot;</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>        <span class="stringliteral">&quot;    &lt;port&gt;%d&lt;/port&gt;\n&quot;</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>        <span class="stringliteral">&quot;    &lt;name&gt;&quot;</span> <a class="code hl_define" href="ident_8h.html#a948a3a6ad1de802025d1fc683a1c9c8c">BRIX_SERVER_NAME</a> <span class="stringliteral">&quot;&lt;/name&gt;\n&quot;</span></div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>        <span class="stringliteral">&quot;    &lt;role&gt;server&lt;/role&gt;\n&quot;</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span> </div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;sched\&quot;&gt;\n&quot;</span></div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        <span class="stringliteral">&quot;    &lt;jobs&gt;0&lt;/jobs&gt;&lt;inq&gt;0&lt;/inq&gt;&lt;maxinq&gt;0&lt;/maxinq&gt;\n&quot;</span></div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        <span class="stringliteral">&quot;    &lt;threads&gt;0&lt;/threads&gt;&lt;idle&gt;0&lt;/idle&gt;\n&quot;</span></div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        <span class="stringliteral">&quot;    &lt;tcr&gt;0&lt;/tcr&gt;&lt;tde&gt;0&lt;/tde&gt;&lt;tlimr&gt;0&lt;/tlimr&gt;\n&quot;</span></div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span> </div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;link\&quot;&gt;\n&quot;</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        <span class="stringliteral">&quot;    &lt;num&gt;%lld&lt;/num&gt;&lt;maxn&gt;0&lt;/maxn&gt;\n&quot;</span></div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        <span class="stringliteral">&quot;    &lt;tot&gt;%lld&lt;/tot&gt;\n&quot;</span></div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        <span class="stringliteral">&quot;    &lt;in&gt;%lld&lt;/in&gt;&lt;out&gt;%lld&lt;/out&gt;\n&quot;</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <span class="stringliteral">&quot;    &lt;ctime&gt;0&lt;/ctime&gt;&lt;tmo&gt;0&lt;/tmo&gt;&lt;stall&gt;0&lt;/stall&gt;&lt;sfps&gt;0&lt;/sfps&gt;\n&quot;</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;poll\&quot;&gt;\n&quot;</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        <span class="stringliteral">&quot;    &lt;att&gt;0&lt;/att&gt;&lt;en&gt;0&lt;/en&gt;&lt;ev&gt;0&lt;/ev&gt;&lt;int&gt;0&lt;/int&gt;\n&quot;</span></div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span> </div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;buff\&quot;&gt;\n&quot;</span></div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        <span class="stringliteral">&quot;    &lt;reqs&gt;0&lt;/reqs&gt;&lt;mem&gt;0&lt;/mem&gt;&lt;buffs&gt;0&lt;/buffs&gt;\n&quot;</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>        <span class="stringliteral">&quot;    &lt;adj&gt;0&lt;/adj&gt;&lt;xlreqs&gt;0&lt;/xlreqs&gt;\n&quot;</span></div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span> </div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;xrootd\&quot;&gt;\n&quot;</span></div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>        <span class="stringliteral">&quot;    &lt;ops&gt;\n&quot;</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        <span class="stringliteral">&quot;      &lt;open&gt;%lld&lt;/open&gt;\n&quot;</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        <span class="stringliteral">&quot;      &lt;getf&gt;%lld&lt;/getf&gt;\n&quot;</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>        <span class="stringliteral">&quot;      &lt;put&gt;%lld&lt;/put&gt;\n&quot;</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        <span class="stringliteral">&quot;      &lt;rf&gt;%lld&lt;/rf&gt;\n&quot;</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>        <span class="stringliteral">&quot;      &lt;rd&gt;%lld&lt;/rd&gt;\n&quot;</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        <span class="stringliteral">&quot;      &lt;pr&gt;0&lt;/pr&gt;&lt;rv&gt;0&lt;/rv&gt;\n&quot;</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>        <span class="stringliteral">&quot;    &lt;/ops&gt;\n&quot;</span></div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>        <span class="stringliteral">&quot;    &lt;aio&gt;&lt;num&gt;0&lt;/num&gt;&lt;max&gt;0&lt;/max&gt;&lt;rej&gt;0&lt;/rej&gt;&lt;/aio&gt;\n&quot;</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        <span class="stringliteral">&quot;    &lt;err&gt;%lld&lt;/err&gt;&lt;dly&gt;0&lt;/dly&gt;&lt;rdr&gt;0&lt;/rdr&gt;\n&quot;</span></div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>        <span class="stringliteral">&quot;    &lt;lgn&gt;\n&quot;</span></div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>        <span class="stringliteral">&quot;      &lt;num&gt;%lld&lt;/num&gt;\n&quot;</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>        <span class="stringliteral">&quot;      &lt;af&gt;%lld&lt;/af&gt;&lt;ua&gt;0&lt;/ua&gt;&lt;ur&gt;0&lt;/ur&gt;\n&quot;</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        <span class="stringliteral">&quot;    &lt;/lgn&gt;\n&quot;</span></div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span> </div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        <span class="stringliteral">&quot;  &lt;stats id=\&quot;http\&quot;&gt;\n&quot;</span></div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>        <span class="stringliteral">&quot;    &lt;requests&gt;%lld&lt;/requests&gt;\n&quot;</span></div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>        <span class="stringliteral">&quot;    &lt;bytes_in&gt;%lld&lt;/bytes_in&gt;\n&quot;</span></div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>        <span class="stringliteral">&quot;    &lt;bytes_out&gt;%lld&lt;/bytes_out&gt;\n&quot;</span></div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>        <span class="stringliteral">&quot;    &lt;tpc_pull&gt;%lld&lt;/tpc_pull&gt;\n&quot;</span></div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>        <span class="stringliteral">&quot;    &lt;tpc_push&gt;%lld&lt;/tpc_push&gt;\n&quot;</span></div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>        <span class="stringliteral">&quot;    &lt;range_partial&gt;%lld&lt;/range_partial&gt;\n&quot;</span></div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>        <span class="stringliteral">&quot;  &lt;/stats&gt;\n&quot;</span></div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span> </div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>        <span class="stringliteral">&quot;&lt;/statistics&gt;\n&quot;</span>,</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span> </div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        <span class="comment">/* header */</span></div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>        (<span class="keywordtype">long</span>) now, hostname, listen_port, (<span class="keywordtype">int</span>) ngx_getpid(),</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        <span class="comment">/* info */</span></div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>        hostname, listen_port,</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>        <span class="comment">/* link */</span></div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) total_req,         <span class="comment">/* num — approximated as total requests */</span></div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) total_req,         <span class="comment">/* tot */</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) bytes_in,          <span class="comment">/* in */</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) bytes_out,         <span class="comment">/* out */</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        <span class="comment">/* xrootd ops */</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) (gets + puts),     <span class="comment">/* open */</span></div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) gets,              <span class="comment">/* getf */</span></div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) puts,              <span class="comment">/* put */</span></div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) deletes,           <span class="comment">/* rf (remove file) */</span></div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">requests_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#ab885424e455f3d1c096f30c83163a3b0">BRIX_WEBDAV_METHOD_GET</a>], <span class="comment">/* rd */</span></div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>        <span class="comment">/* err */</span></div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) (m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72">auth_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a0ee99256a54b7c7f9879addfc7f495be">BRIX_WEBDAV_AUTH_RESULT_REJECTED</a>]</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>                   + m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#aacf42429e064f6be2cf9a3445f977b45">responses_total</a>[0][<a class="code hl_define" href="metrics__http__labels_8h.html#a140f3d21957d3306059396d7a35030e5">BRIX_HTTP_STATUS_5XX</a>]),</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>        <span class="comment">/* lgn */</span></div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) auth_ok,</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) auth_fail,</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <span class="comment">/* http */</span></div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) total_req,</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) bytes_in,</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) bytes_out,</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a69f47b414adbc0c5c3681745cb0dac1d">tpc_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#aa9905171afc48a9daf879057effd5514">BRIX_WEBDAV_TPC_PULL_STARTED</a>],</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a69f47b414adbc0c5c3681745cb0dac1d">tpc_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#ad1e99c77d86bde93c0242a0390667a2d">BRIX_WEBDAV_TPC_PUSH_STARTED</a>],</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        (<span class="keywordtype">long</span> <span class="keywordtype">long</span>) m-&gt;<a class="code hl_variable" href="structngx__brix__webdav__metrics__t.html#a58e2688de1e286303a9c6ad2b81a25aa">range_total</a>[<a class="code hl_define" href="metrics__webdav_8h.html#a3bbc48e4efa208a06d59099e64e0401b">BRIX_WEBDAV_RANGE_PARTIAL</a>]</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    );</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span> </div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    <span class="keywordflow">if</span> (len &lt; 0 || (<span class="keywordtype">size_t</span>) len &gt;= bufsz) {</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    }</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span> </div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    <span class="keywordflow">return</span> len;</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>}</div>
 </div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span> </div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00212" data-start="{" data-end="}">
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno"><a class="line" href="xrdhttp_8h.html#aa520339d97552a8c5986b5ab42fef37a">  212</a></span><a class="code hl_function" href="xrdhttp__stats_8c.html#aa520339d97552a8c5986b5ab42fef37a">xrdhttp_handle_stats_query</a>(ngx_http_request_t *r)</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>{</div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    <span class="keywordtype">char</span>             buf[<a class="code hl_define" href="xrdhttp__stats_8c.html#aa7e78fc862287a2f7b90dea2c6a25ce9">XRDHTTP_STATS_BUF_MAX</a>];</div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    <span class="keywordtype">int</span>              len;</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    ngx_buf_t       *b;</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    ngx_chain_t      out;</div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    ngx_table_elt_t *h;</div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span> </div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>    len = <a class="code hl_function" href="xrdhttp__stats_8c.html#a33552c7aadc6be5473b04f7ab17edff4">build_stats_xml</a>(buf, <span class="keyword">sizeof</span>(buf), r);</div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>    <span class="keywordflow">if</span> (len &lt; 0) {</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    }</div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span> </div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    r-&gt;headers_out.status           = NGX_HTTP_OK;</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    r-&gt;headers_out.content_length_n = len;</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    r-&gt;allow_ranges = 0;</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span> </div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>    h = ngx_list_push(&amp;r-&gt;headers_out.headers);</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    <span class="keywordflow">if</span> (h == NULL) {</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    }</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    h-&gt;hash = 1;</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    ngx_str_set(&amp;h-&gt;key, <span class="stringliteral">&quot;Content-Type&quot;</span>);</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    ngx_str_set(&amp;h-&gt;value, <span class="stringliteral">&quot;text/xml; charset=utf-8&quot;</span>);</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span> </div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    <span class="comment">/* Cache-Control: no-store — stats are always current. */</span></div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    h = ngx_list_push(&amp;r-&gt;headers_out.headers);</div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    <span class="keywordflow">if</span> (h == NULL) {</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    }</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    h-&gt;hash = 1;</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    ngx_str_set(&amp;h-&gt;key, <span class="stringliteral">&quot;Cache-Control&quot;</span>);</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    ngx_str_set(&amp;h-&gt;value, <span class="stringliteral">&quot;no-store&quot;</span>);</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span> </div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    (void) <a class="code hl_function" href="xrdhttp_8c.html#a958cf5161033199955a8a93eaa803d29">xrdhttp_add_response_headers</a>(r, NGX_HTTP_OK);</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span> </div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    ngx_int_t rc = ngx_http_send_header(r);</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="keywordflow">if</span> (rc == NGX_ERROR || r-&gt;header_only) {</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>        <span class="keywordflow">return</span> rc;</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    }</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    b = ngx_create_temp_buf(r-&gt;pool, (<span class="keywordtype">size_t</span>) len);</div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    <span class="keywordflow">if</span> (b == NULL) {</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    }</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(b-&gt;pos, buf, (<span class="keywordtype">size_t</span>) len);</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    b-&gt;last         = b-&gt;pos + len;</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    b-&gt;last_buf     = 1;</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    b-&gt;last_in_chain = 1;</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span> </div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    out.buf  = b;</div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    out.next = NULL;</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span> </div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    <span class="keywordflow">return</span> ngx_http_output_filter(r, &amp;out);</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>}</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00213" data-start="{" data-end="}">
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno"><a class="line" href="xrdhttp_8h.html#aa520339d97552a8c5986b5ab42fef37a">  213</a></span><a class="code hl_function" href="xrdhttp__stats_8c.html#aa520339d97552a8c5986b5ab42fef37a">xrdhttp_handle_stats_query</a>(ngx_http_request_t *r)</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>{</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    <span class="keywordtype">char</span>             buf[<a class="code hl_define" href="xrdhttp__stats_8c.html#aa7e78fc862287a2f7b90dea2c6a25ce9">XRDHTTP_STATS_BUF_MAX</a>];</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    <span class="keywordtype">int</span>              len;</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    ngx_buf_t       *b;</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    ngx_chain_t      out;</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    ngx_table_elt_t *h;</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span> </div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>    len = <a class="code hl_function" href="xrdhttp__stats_8c.html#a33552c7aadc6be5473b04f7ab17edff4">build_stats_xml</a>(buf, <span class="keyword">sizeof</span>(buf), r);</div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>    <span class="keywordflow">if</span> (len &lt; 0) {</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    }</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span> </div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    r-&gt;headers_out.status           = NGX_HTTP_OK;</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    r-&gt;headers_out.content_length_n = len;</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    r-&gt;allow_ranges = 0;</div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span> </div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    h = ngx_list_push(&amp;r-&gt;headers_out.headers);</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    <span class="keywordflow">if</span> (h == NULL) {</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    }</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    h-&gt;hash = 1;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    ngx_str_set(&amp;h-&gt;key, <span class="stringliteral">&quot;Content-Type&quot;</span>);</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    ngx_str_set(&amp;h-&gt;value, <span class="stringliteral">&quot;text/xml; charset=utf-8&quot;</span>);</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span> </div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <span class="comment">/* Cache-Control: no-store — stats are always current. */</span></div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    h = ngx_list_push(&amp;r-&gt;headers_out.headers);</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <span class="keywordflow">if</span> (h == NULL) {</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    }</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    h-&gt;hash = 1;</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    ngx_str_set(&amp;h-&gt;key, <span class="stringliteral">&quot;Cache-Control&quot;</span>);</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    ngx_str_set(&amp;h-&gt;value, <span class="stringliteral">&quot;no-store&quot;</span>);</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span> </div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    (void) <a class="code hl_function" href="xrdhttp_8h.html#a958cf5161033199955a8a93eaa803d29">xrdhttp_add_response_headers</a>(r, NGX_HTTP_OK);</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span> </div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    ngx_int_t rc = ngx_http_send_header(r);</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    <span class="keywordflow">if</span> (rc == NGX_ERROR || r-&gt;header_only) {</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>        <span class="keywordflow">return</span> rc;</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    }</div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span> </div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    b = ngx_create_temp_buf(r-&gt;pool, (<span class="keywordtype">size_t</span>) len);</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    <span class="keywordflow">if</span> (b == NULL) {</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    }</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(b-&gt;pos, buf, (<span class="keywordtype">size_t</span>) len);</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    b-&gt;last         = b-&gt;pos + len;</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    b-&gt;last_buf     = 1;</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    b-&gt;last_in_chain = 1;</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span> </div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    out.buf  = b;</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>    out.next = NULL;</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span> </div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    <span class="keywordflow">return</span> ngx_http_output_filter(r, &amp;out);</div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>}</div>
 </div>
 <div class="ttc" id="aident_8h_html"><div class="ttname"><a href="ident_8h.html">ident.h</a></div></div>
 <div class="ttc" id="aident_8h_html_a948a3a6ad1de802025d1fc683a1c9c8c"><div class="ttname"><a href="ident_8h.html#a948a3a6ad1de802025d1fc683a1c9c8c">BRIX_SERVER_NAME</a></div><div class="ttdeci">#define BRIX_SERVER_NAME</div><div class="ttdef"><b>Definition</b> <a href="ident_8h_source.html#l00023">ident.h:23</a></div></div>
@@ -386,8 +387,8 @@ $(document).ready(function(){initNavTree('xrdhttp__stats_8c_source.html',''); in
 <div class="ttc" id="ametrics__webdav_8h_html_aed6387b020958910dbbb6c007cd3207d"><div class="ttname"><a href="metrics__webdav_8h.html#aed6387b020958910dbbb6c007cd3207d">BRIX_WEBDAV_NMETHODS</a></div><div class="ttdeci">#define BRIX_WEBDAV_NMETHODS</div><div class="ttdef"><b>Definition</b> <a href="metrics__webdav_8h_source.html#l00032">metrics_webdav.h:32</a></div></div>
 <div class="ttc" id="ametrics__webdav_8h_html_aefca7126ba093a8a7c93fa3a81798e0c"><div class="ttname"><a href="metrics__webdav_8h.html#aefca7126ba093a8a7c93fa3a81798e0c">BRIX_WEBDAV_AUTH_RESULT_ANONYMOUS</a></div><div class="ttdeci">#define BRIX_WEBDAV_AUTH_RESULT_ANONYMOUS</div><div class="ttdef"><b>Definition</b> <a href="metrics__webdav_8h_source.html#l00037">metrics_webdav.h:37</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
-<div class="ttc" id="astructngx__brix__metrics__t_html"><div class="ttname"><a href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a></div><div class="ttdef"><b>Definition</b> <a href="observability_2metrics_2metrics_8h_source.html#l00365">metrics.h:365</a></div></div>
-<div class="ttc" id="astructngx__brix__metrics__t_html_af7509812d7a4557bdd35dc30d390d036"><div class="ttname"><a href="structngx__brix__metrics__t.html#af7509812d7a4557bdd35dc30d390d036">ngx_brix_metrics_t::webdav</a></div><div class="ttdeci">ngx_brix_webdav_metrics_t webdav</div><div class="ttdef"><b>Definition</b> <a href="observability_2metrics_2metrics_8h_source.html#l00367">metrics.h:367</a></div></div>
+<div class="ttc" id="astructngx__brix__metrics__t_html"><div class="ttname"><a href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a></div><div class="ttdef"><b>Definition</b> <a href="observability_2metrics_2metrics_8h_source.html#l00382">metrics.h:382</a></div></div>
+<div class="ttc" id="astructngx__brix__metrics__t_html_af7509812d7a4557bdd35dc30d390d036"><div class="ttname"><a href="structngx__brix__metrics__t.html#af7509812d7a4557bdd35dc30d390d036">ngx_brix_metrics_t::webdav</a></div><div class="ttdeci">ngx_brix_webdav_metrics_t webdav</div><div class="ttdef"><b>Definition</b> <a href="observability_2metrics_2metrics_8h_source.html#l00384">metrics.h:384</a></div></div>
 <div class="ttc" id="astructngx__brix__webdav__metrics__t_html"><div class="ttname"><a href="structngx__brix__webdav__metrics__t.html">ngx_brix_webdav_metrics_t</a></div><div class="ttdef"><b>Definition</b> <a href="metrics__webdav_8h_source.html#l00087">metrics_webdav.h:87</a></div></div>
 <div class="ttc" id="astructngx__brix__webdav__metrics__t_html_a58e2688de1e286303a9c6ad2b81a25aa"><div class="ttname"><a href="structngx__brix__webdav__metrics__t.html#a58e2688de1e286303a9c6ad2b81a25aa">ngx_brix_webdav_metrics_t::range_total</a></div><div class="ttdeci">ngx_atomic_t range_total[3]</div><div class="ttdef"><b>Definition</b> <a href="metrics__webdav_8h_source.html#l00101">metrics_webdav.h:101</a></div></div>
 <div class="ttc" id="astructngx__brix__webdav__metrics__t_html_a69f47b414adbc0c5c3681745cb0dac1d"><div class="ttname"><a href="structngx__brix__webdav__metrics__t.html#a69f47b414adbc0c5c3681745cb0dac1d">ngx_brix_webdav_metrics_t::tpc_total</a></div><div class="ttdeci">ngx_atomic_t tpc_total[9]</div><div class="ttdef"><b>Definition</b> <a href="metrics__webdav_8h_source.html#l00105">metrics_webdav.h:105</a></div></div>
@@ -398,10 +399,10 @@ $(document).ready(function(){initNavTree('xrdhttp__stats_8c_source.html',''); in
 <div class="ttc" id="astructngx__brix__webdav__metrics__t_html_ad12724727d7e8de0c7f46907dc370618"><div class="ttname"><a href="structngx__brix__webdav__metrics__t.html#ad12724727d7e8de0c7f46907dc370618">ngx_brix_webdav_metrics_t::requests_total</a></div><div class="ttdeci">ngx_atomic_t requests_total[9]</div><div class="ttdef"><b>Definition</b> <a href="metrics__webdav_8h_source.html#l00088">metrics_webdav.h:88</a></div></div>
 <div class="ttc" id="atime_8h_html"><div class="ttname"><a href="time_8h.html">time.h</a></div></div>
 <div class="ttc" id="awebdav_8h_html"><div class="ttname"><a href="webdav_8h.html">webdav.h</a></div></div>
-<div class="ttc" id="axrdhttp_8c_html_a958cf5161033199955a8a93eaa803d29"><div class="ttname"><a href="xrdhttp_8c.html#a958cf5161033199955a8a93eaa803d29">xrdhttp_add_response_headers</a></div><div class="ttdeci">ngx_int_t xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)</div><div class="ttdef"><b>Definition</b> <a href="xrdhttp_8c_source.html#l00300">xrdhttp.c:300</a></div></div>
 <div class="ttc" id="axrdhttp_8h_html"><div class="ttname"><a href="xrdhttp_8h.html">xrdhttp.h</a></div></div>
+<div class="ttc" id="axrdhttp_8h_html_a958cf5161033199955a8a93eaa803d29"><div class="ttname"><a href="xrdhttp_8h.html#a958cf5161033199955a8a93eaa803d29">xrdhttp_add_response_headers</a></div><div class="ttdeci">ngx_int_t xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)</div><div class="ttdef"><b>Definition</b> <a href="xrdhttp__response_8c_source.html#l00116">xrdhttp_response.c:116</a></div></div>
 <div class="ttc" id="axrdhttp__stats_8c_html_a33552c7aadc6be5473b04f7ab17edff4"><div class="ttname"><a href="xrdhttp__stats_8c.html#a33552c7aadc6be5473b04f7ab17edff4">build_stats_xml</a></div><div class="ttdeci">static int build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)</div><div class="ttdef"><b>Definition</b> <a href="xrdhttp__stats_8c_source.html#l00046">xrdhttp_stats.c:46</a></div></div>
-<div class="ttc" id="axrdhttp__stats_8c_html_aa520339d97552a8c5986b5ab42fef37a"><div class="ttname"><a href="xrdhttp__stats_8c.html#aa520339d97552a8c5986b5ab42fef37a">xrdhttp_handle_stats_query</a></div><div class="ttdeci">ngx_int_t xrdhttp_handle_stats_query(ngx_http_request_t *r)</div><div class="ttdef"><b>Definition</b> <a href="xrdhttp__stats_8c_source.html#l00212">xrdhttp_stats.c:212</a></div></div>
+<div class="ttc" id="axrdhttp__stats_8c_html_aa520339d97552a8c5986b5ab42fef37a"><div class="ttname"><a href="xrdhttp__stats_8c.html#aa520339d97552a8c5986b5ab42fef37a">xrdhttp_handle_stats_query</a></div><div class="ttdeci">ngx_int_t xrdhttp_handle_stats_query(ngx_http_request_t *r)</div><div class="ttdef"><b>Definition</b> <a href="xrdhttp__stats_8c_source.html#l00213">xrdhttp_stats.c:213</a></div></div>
 <div class="ttc" id="axrdhttp__stats_8c_html_aa7e78fc862287a2f7b90dea2c6a25ce9"><div class="ttname"><a href="xrdhttp__stats_8c.html#aa7e78fc862287a2f7b90dea2c6a25ce9">XRDHTTP_STATS_BUF_MAX</a></div><div class="ttdeci">#define XRDHTTP_STATS_BUF_MAX</div><div class="ttdef"><b>Definition</b> <a href="xrdhttp__stats_8c_source.html#l00038">xrdhttp_stats.c:38</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

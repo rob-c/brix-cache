@@ -1,11 +1,19 @@
 var xrdrc_8c =
 [
     [ "xrdrc_alias", "structxrdrc__alias.html", "structxrdrc__alias" ],
+    [ "rc_alias_field", "structrc__alias__field.html", "structrc__alias__field" ],
+    [ "rc_default_field", "structrc__default__field.html", "structrc__default__field" ],
     [ "XRDRC_MAX_ALIASES", "xrdrc_8c.html#a00038cdeeaf4a371b68b0302f335d2e6", null ],
     [ "XRDRC_NAME_MAX", "xrdrc_8c.html#a9e1dd8b03a787300f6461f9a7c38db2d", null ],
     [ "brix_alias_lookup", "xrdrc_8c.html#a0ca0211996e3311ec6e6bd0f707a3e98", null ],
     [ "brix_alias_resolve", "xrdrc_8c.html#a75ad4f3adbaa451abe22dc2c573bc4c9", null ],
     [ "brix_xrdrc_default_ms", "xrdrc_8c.html#a5f40488d4f111b9e9dbd47c78c243c54", null ],
+    [ "rc_apply_alias", "xrdrc_8c.html#a7e19b92b0dae2f1997fcd12c51b8ba6e", null ],
+    [ "rc_apply_default", "xrdrc_8c.html#af7b279c1c5a84fe5f30341e3dd921efb", null ],
+    [ "rc_apply_setting", "xrdrc_8c.html#a2839598ee9e4b6ab59b19199fe2b785e", null ],
+    [ "rc_next_line", "xrdrc_8c.html#aab4b1ab47842aef403dfa693eb022558", null ],
+    [ "rc_open_section", "xrdrc_8c.html#a1fdb7a8800a8f283da458bc668c235af", null ],
+    [ "rc_parse_kv", "xrdrc_8c.html#a1a9895a10a98663454fa52a0c19b2681", null ],
     [ "read_first_line", "xrdrc_8c.html#a9da1f995dd5e212b2ec76c0eb5ae48dd", null ],
     [ "rstrip", "xrdrc_8c.html#a59286cda46e69b1b89119ccdc7294908", null ],
     [ "xrdrc_load", "xrdrc_8c.html#a149627a004fd47e1798d29294e4dd967", null ],
@@ -15,5 +23,7 @@ var xrdrc_8c =
     [ "g_def_io_ms", "xrdrc_8c.html#adca4cc3abe2f43f20915dc8168f00c33", null ],
     [ "g_def_stall_ms", "xrdrc_8c.html#acefac7f23ff0e5ff982eca4bb123dd64", null ],
     [ "g_loaded", "xrdrc_8c.html#a6a14470be89d941359806209f20bdd01", null ],
-    [ "g_nalias", "xrdrc_8c.html#a4485e55add5abcfd358934759fcb499a", null ]
+    [ "g_nalias", "xrdrc_8c.html#a4485e55add5abcfd358934759fcb499a", null ],
+    [ "rc_alias_fields", "xrdrc_8c.html#a544928550eefb239f1c547f65b7a69ea", null ],
+    [ "rc_default_fields", "xrdrc_8c.html#a9f5b7eac447130ad384568850195aa4a", null ]
 ];

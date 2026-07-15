@@ -2,7 +2,7 @@
 <area shape="rect" id="Node000001" title=" " alt="" coords="837,5,959,31"/>
 <area shape="rect" id="Node000002" href="$pelican__register_8c.html" title=" " alt="" coords="5,79,145,119"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="823,25,531,41,345,58,158,81,146,83,145,78,158,76,344,52,530,36,822,19"/>
-<area shape="rect" id="Node000003" href="$src_2observability_2dashboard_2auth_8c.html" title=" " alt="" coords="170,79,373,119"/>
+<area shape="rect" id="Node000003" href="$dashboard__auth__login_8c.html" title=" " alt="" coords="170,79,373,119"/>
 <area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="823,30,625,51,385,81,374,83,373,78,384,76,624,46,823,24"/>
 <area shape="rect" id="Node000004" href="$page_8c.html" title=" " alt="" coords="397,79,599,119"/>
 <area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="827,36,594,81,593,76,826,31"/>

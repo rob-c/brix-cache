@@ -1,0 +1,7 @@
+<map id="vfs_walk_ctx_t" name="vfs_walk_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="107,93,225,119"/>
+<area shape="rect" id="Node000002" href="$structbrix__vfs__walk__opts__t.html" title=" " alt="" coords="5,5,164,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="107,39,157,91,153,95,103,43"/>
+<area shape="rect" id="Node000003" href="$structbrix__vfs__stat__t.html" title=" " alt="" coords="188,5,307,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="229,43,179,95,175,91,225,39"/>
+</map>

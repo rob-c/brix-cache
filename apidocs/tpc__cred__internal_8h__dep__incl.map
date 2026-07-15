@@ -1,7 +1,11 @@
 <map id="src/protocols/webdav/tpc_cred_internal.h" name="src/protocols/webdav/tpc_cred_internal.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="97,5,257,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="283,5,443,45"/>
 <area shape="rect" id="Node000002" href="$tpc__cred_8c.html" title=" " alt="" coords="5,93,165,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="149,57,108,95,104,91,145,53"/>
-<area shape="rect" id="Node000003" href="$tpc__cred__parse_8c.html" title=" " alt="" coords="189,93,349,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="209,53,251,91,247,95,206,57"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="290,52,147,96,145,91,288,47"/>
+<area shape="rect" id="Node000003" href="$tpc__cred__exchange_8c.html" title=" " alt="" coords="189,93,352,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="334,57,293,95,289,91,331,53"/>
+<area shape="rect" id="Node000004" href="$tpc__cred__oidc_8c.html" title=" " alt="" coords="376,93,536,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="395,53,437,91,434,95,392,57"/>
+<area shape="rect" id="Node000005" href="$tpc__cred__parse_8c.html" title=" " alt="" coords="560,93,720,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="437,47,580,91,578,96,436,52"/>
 </map>

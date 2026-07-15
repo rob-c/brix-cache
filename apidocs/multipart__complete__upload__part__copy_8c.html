@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('multipart__complete__upload__part__cop
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">multipart_complete_upload_part_copy.c File Reference</div></div>
 </div><!--header-->
@@ -112,14 +113,113 @@ $(document).ready(function(){initNavTree('multipart__complete__upload__part__cop
 </div>
 <p><a href="multipart__complete__upload__part__copy_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__upcp__req__t.html">s3_upcp_req_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:acfd16400be5df8ad896479b4788a3419" id="r_acfd16400be5df8ad896479b4788a3419"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__upload__part__copy_8c.html#acfd16400be5df8ad896479b4788a3419">s3_find_request_header_value</a> (ngx_http_request_t *r, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t name_len)</td></tr>
 <tr class="separator:acfd16400be5df8ad896479b4788a3419"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afc73e3d97763f54b01aa593a88d4da94" id="r_afc73e3d97763f54b01aa593a88d4da94"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__upload__part__copy_8c.html#afc73e3d97763f54b01aa593a88d4da94">s3_copy_source_key</a> (const char *copy_src_hdr)</td></tr>
+<tr class="separator:afc73e3d97763f54b01aa593a88d4da94"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1db01b3ee71b989e6bece54c818341e3" id="r_a1db01b3ee71b989e6bece54c818341e3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__upload__part__copy_8c.html#a1db01b3ee71b989e6bece54c818341e3">s3_resolve_copy_source</a> (const <a class="el" href="structs3__upcp__req__t.html">s3_upcp_req_t</a> *req, const char *src_key, char *src_fs_path, size_t src_fs_path_sz, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *sctx)</td></tr>
+<tr class="separator:a1db01b3ee71b989e6bece54c818341e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a661369d8ce578ed8ff195bc8d550012e" id="r_a661369d8ce578ed8ff195bc8d550012e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__upload__part__copy_8c.html#a661369d8ce578ed8ff195bc8d550012e">s3_resolve_part_target</a> (const <a class="el" href="structs3__upcp__req__t.html">s3_upcp_req_t</a> *req, char *part_path, size_t part_path_sz)</td></tr>
+<tr class="separator:a661369d8ce578ed8ff195bc8d550012e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1def71e857e932ce3c9afa767310b458" id="r_a1def71e857e932ce3c9afa767310b458"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__upload__part__copy_8c.html#a1def71e857e932ce3c9afa767310b458">s3_copy_bytes</a> (int src_fd, int dst_fd, char *iobuf, size_t iobuf_sz)</td></tr>
+<tr class="separator:a1def71e857e932ce3c9afa767310b458"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a64f710af480387026a1227ad3c3789b8" id="r_a64f710af480387026a1227ad3c3789b8"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__upload__part__copy_8c.html#a64f710af480387026a1227ad3c3789b8">s3_send_copy_part_result</a> (ngx_http_request_t *r, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *part_sb)</td></tr>
+<tr class="separator:a64f710af480387026a1227ad3c3789b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac6c405d4b3ba9a0e26317e11da6449b4" id="r_ac6c405d4b3ba9a0e26317e11da6449b4"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="multipart__complete__upload__part__copy_8c.html#ac6c405d4b3ba9a0e26317e11da6449b4">s3_handle_upload_part_copy</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const char *upload_id, int part_num)</td></tr>
 <tr class="separator:ac6c405d4b3ba9a0e26317e11da6449b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a1def71e857e932ce3c9afa767310b458" name="a1def71e857e932ce3c9afa767310b458"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1def71e857e932ce3c9afa767310b458">&#9670;&#160;</a></span>s3_copy_bytes()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int s3_copy_bytes </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>src_fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>dst_fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>iobuf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>iobuf_sz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00218">218</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00957">brix_sd_posix_wrap()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>.</p>
+
+</div>
+</div>
+<a id="afc73e3d97763f54b01aa593a88d4da94" name="afc73e3d97763f54b01aa593a88d4da94"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc73e3d97763f54b01aa593a88d4da94">&#9670;&#160;</a></span>s3_copy_source_key()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const char * s3_copy_source_key </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>copy_src_hdr</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00084">84</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>.</p>
+
+</div>
+</div>
 <a id="acfd16400be5df8ad896479b4788a3419" name="acfd16400be5df8ad896479b4788a3419"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#acfd16400be5df8ad896479b4788a3419">&#9670;&#160;</a></span>s3_find_request_header_value()</h2>
 
@@ -160,11 +260,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00034">34</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00053">53</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>, <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00054">s3_handle_upload_part_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>.</p>
 
 </div>
 </div>
@@ -212,11 +312,161 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00054">54</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">296</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="time_8c_source.html#l00029">brix_format_iso8601()</a>, <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="sd_8h_source.html#l00457">brix_sd_posix_wrap()</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="vfs__walk_8c_source.html#l00229">brix_vfs_open_fd()</a>, <a class="el" href="vfs__stat_8c_source.html#l00172">brix_vfs_probe()</a>, <a class="el" href="vfs__walk_8c_source.html#l00246">brix_vfs_unlink_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00073">brix_vfs_stat_t::is_regular</a>, <a class="el" href="multipart__helpers_8c_source.html#l00112">mpu_validate_upload_id()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>, <a class="el" href="s3_2util_8c_source.html#l00106">s3_etag()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00034">s3_find_request_header_value()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00087">s3_get_mpu_dir()</a>, <a class="el" href="s3_2util_8c_source.html#l00122">s3_send_xml_error()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="vfs__walk_8c_source.html#l00305">brix_vfs_open_fd()</a>, <a class="el" href="vfs__walk_8c_source.html#l00322">brix_vfs_unlink_path()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00046">s3_upcp_req_t::cf</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00047">s3_upcp_req_t::fs_path</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00049">s3_upcp_req_t::part_num</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00045">s3_upcp_req_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00218">s3_copy_bytes()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00084">s3_copy_source_key()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00053">s3_find_request_header_value()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00116">s3_resolve_copy_source()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00167">s3_resolve_part_target()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00262">s3_send_copy_part_result()</a>, <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00048">s3_upcp_req_t::upload_id</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00080">s3_prepare_upload_part()</a>.</p>
+
+</div>
+</div>
+<a id="a1db01b3ee71b989e6bece54c818341e3" name="a1db01b3ee71b989e6bece54c818341e3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1db01b3ee71b989e6bece54c818341e3">&#9670;&#160;</a></span>s3_resolve_copy_source()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_resolve_copy_source </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structs3__upcp__req__t.html">s3_upcp_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src_key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>src_fs_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>src_fs_path_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>sctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00116">116</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00046">s3_upcp_req_t::cf</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::is_regular</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00045">s3_upcp_req_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>, and <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>.</p>
+
+</div>
+</div>
+<a id="a661369d8ce578ed8ff195bc8d550012e" name="a661369d8ce578ed8ff195bc8d550012e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a661369d8ce578ed8ff195bc8d550012e">&#9670;&#160;</a></span>s3_resolve_part_target()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_resolve_part_target </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structs3__upcp__req__t.html">s3_upcp_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>part_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>part_path_sz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00167">167</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00046">s3_upcp_req_t::cf</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00047">s3_upcp_req_t::fs_path</a>, <a class="el" href="multipart__helpers_8c_source.html#l00112">mpu_validate_upload_id()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00049">s3_upcp_req_t::part_num</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00045">s3_upcp_req_t::r</a>, <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00087">s3_get_mpu_dir()</a>, <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>, and <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00048">s3_upcp_req_t::upload_id</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>.</p>
+
+</div>
+</div>
+<a id="a64f710af480387026a1227ad3c3789b8" name="a64f710af480387026a1227ad3c3789b8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a64f710af480387026a1227ad3c3789b8">&#9670;&#160;</a></span>s3_send_copy_part_result()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_send_copy_part_result </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>part_sb</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00262">262</a> of file <a class="el" href="multipart__complete__upload__part__copy_8c_source.html">multipart_complete_upload_part_copy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="time_8c_source.html#l00029">brix_format_iso8601()</a>, <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="s3_2util_8c_source.html#l00150">s3_etag()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>.</p>
 
 </div>
 </div>

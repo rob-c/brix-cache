@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2s3_2README.html',''
   <div class="headertitle"><div class="title">s3 — S3-compatible REST endpoint over the local export root</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md425"></a> </p>
-<h1><a class="anchor" id="autotoc_md426"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md426"></a> </p>
+<h1><a class="anchor" id="autotoc_md427"></a>
 Overview</h1>
 <p>This subsystem implements the subset of the AWS S3 REST API that <code>XrdClS3</code> (the XRootD S3 client plugin), the <code>aws s3</code> CLI, and browser POST forms actually use, projecting the <b>same on-disk export root</b> that <code>root://</code> and <code>davs://</code> already serve. It is a self-contained nginx HTTP module (<code>ngx_http_brix_s3_module</code>, <code>module.c</code>): a location with <code>brix_s3 on;</code> installs <code>ngx_http_s3_handler</code> (<code>handler.c</code>) as its content handler, and every S3 request — GetObject, HeadObject, PutObject, DeleteObject, ListObjectsV2, the full multipart-upload lifecycle, CopyObject, UploadPartCopy, DeleteObjects, browser POST Object, and CORS preflight — flows through that one entry point. Objects carry <b>user metadata</b> (<code>x-amz-meta-*</code>, <code><a class="el" href="usermeta_8c.html">usermeta.c</a></code>) and <b>tags</b> (<code><a class="el" href="tagging_8c.html">tagging.c</a></code>) round-tripped through xattrs beside the data.</p>
 <p>S3 is a <b>distinct auth domain</b> from the rest of the gateway: it authenticates with AWS Signature Version 4 (HMAC-SHA256), in both header and presigned-URL form, and never with WLCG tokens or GSI — the SigV4 code shares no logic with <code>../token/</code> or <code>../gsi/</code>. When no access key is configured the endpoint is anonymous (read-only public buckets). The handler is fail-closed on writes: <code>cf-&gt;common.allow_write</code> is checked <em>before</em> any request body is read, so a write to a read-only endpoint is rejected without consuming client bandwidth.</p>
 <p>In the request lifecycle this subsystem sits entirely inside nginx's HTTP content phase, parallel to <code>../webdav/</code>. It owns URI parsing, SigV4 verification, and method dispatch, then delegates the heavy lifting downward: path confinement to <code>../path/</code> (via <code>../compat/</code>), object reads to the cache-aware VFS in <code>../fs/</code> and the shared range-serving pipeline in <code>../shared/</code>, atomic writes to the staged-file helper in <code>../compat/</code>, and namespace mutations (delete, copy) to the Layer-3 <code>brix_ns_*</code> API. It records its own low-cardinality Prometheus counters through <code>../metrics/</code> and reports live transfers to <code>../dashboard/</code>.</p>
 <p>Path-style addressing only (<code>/&lt;bucket&gt;/&lt;key&gt;</code>). Directories are represented the way <code>XrdClS3</code> expects: a zero-byte sentinel object <code>.xrdcls3.dirsentinel</code> whose PUT creates the real parent directory on disk; sentinels are then hidden from all listings. Object ETags are <b>synthetic</b> (<code>"mtime-size"</code>), not content MD5 — stable and cheap, matching <code>XrdClS3</code> expectations.</p>
-<h1><a class="anchor" id="autotoc_md427"></a>
+<h1><a class="anchor" id="autotoc_md428"></a>
 Files</h1>
 <blockquote class="doxtable">
 <p>&zwj;Build note: the source list is governed by the top-level <code>config</code> (<code>ngx_module_srcs</code>), not by any in-tree aggregator. The four <code>multipart_complete_*.c</code> fragments are each compiled standalone. </p>
@@ -187,7 +187,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="multipart__internal_8h.html">multipart_internal.h</a></code>   </td><td class="markdownTableBodyNone"><code>MPU_MAX_PART_NUMBER</code> (10000) and the <code>mpu_validate_upload_id</code> / <code>mpu_rmdir_recursive</code> prototypes shared across the multipart files.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md428"></a>
+<h1><a class="anchor" id="autotoc_md429"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a></code>** (<code><a class="el" href="s3_8h.html">s3.h</a></code>) — per-location config. Embeds the shared <code><a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> common</code> (enable, <code>root</code>, <code>root_canon</code>, <code>allow_write</code>, thread-pool) and adds S3-specifics: <code>bucket</code> (prefix to strip), <code>access_key</code>/<code>secret_key</code>/<code>region</code> (SigV4 credentials; empty key ⇒ anonymous), <code>allow_unsigned_session_token</code>, <code>max_keys</code>, and an optional read-through <code>cache_root</code>/<code>cache_root_canon</code>.</li>
@@ -198,7 +198,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structs3__post__form__t.html">s3_post_form_t</a></code>** / **<code><a class="el" href="structs3__post__field__t.html">s3_post_field_t</a></code>** (<code><a class="el" href="post__object_8c.html">post_object.c</a></code>) — accumulated browser-form fields, policy, signature, and the file part for POST Object.</li>
 <li><b>Metric slot enums</b> (<code>../metrics/metrics.h</code>) — <code>BRIX_S3_METHOD_*</code>, <code>BRIX_S3_AUTH_*</code>, <code>BRIX_S3_RANGE_*</code>, <code>BRIX_S3_PUT_*</code>, <code>BRIX_S3_EVENT_*</code>: all low-cardinality (no bucket names, keys, or DNs).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md429"></a>
+<h1><a class="anchor" id="autotoc_md430"></a>
 Control &amp; data flow</h1>
 <p><b>Entry.</b> A location with <code>brix_s3 on;</code> routes its requests to <code>ngx_http_s3_handler</code> (<code>handler.c</code>), installed by <code>ngx_http_s3_set</code> in <code>module.c</code>. The handler allocates <code><a class="el" href="structngx__http__s3__req__ctx__t.html">ngx_http_s3_req_ctx_t</a></code> (with an <code><a class="el" href="structbrix__identity__t.html">brix_identity_t</a></code>), classifies the method into a metric slot, and runs (in order): OPTIONS/CORS preflight → <code>s3_verify_sigv4</code> (skipped for POST-Object forms, which carry policy auth) → <code>s3_parse_uri</code> → list / <code>?uploads</code> / <code>?delete</code> / POST-form flag checks → empty-key rejection → <code>s3_resolve_key</code> → per-method dispatch. Async write paths (<code>PUT</code>, <code>POST</code> body, <code>DeleteObjects</code>) call <code>brix_http_read_body</code> and return <code>NGX_DONE</code>; the body callback finalizes the response and metrics later via <code>s3_metrics_finalize_request_method</code>.</p>
 <p><b>Calls out to:</b></p>
@@ -213,7 +213,7 @@ Control &amp; data flow</h1>
 <li><code>../dashboard/</code> — live transfer tracking on writes (<code>brix_dashboard_http_*</code>).</li>
 <li><code>../token/b64url.h</code> — base64url codec for ListObjectsV2 continuation tokens.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md430"></a>
+<h1><a class="anchor" id="autotoc_md431"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Confinement is non-negotiable.</b> Every client key reaches the filesystem only through <code>s3_resolve_key</code> (returns 0 on escape → <code>AccessDenied</code> 403) or a <code>brix_*_confined_canon</code> wrapper anchored at the per-worker <code>RESOLVE_BENEATH</code> rootfd. Bare <code>lstat</code>/<code>stat</code> appear only on paths <em>derived from</em> an already-confined <code>fs_path</code> plus a hex-validated <code>upload_id</code> (<code><a class="el" href="multipart__abort_8c.html">multipart_abort.c</a>:40</code>, <code><a class="el" href="multipart__complete__body_8c.html">multipart_complete_body.c</a></code>) — the comments at those sites spell out why they are safe; do not add raw syscalls on raw client input.</li>
@@ -229,7 +229,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>List bounds.</b> <code>s3_walk</code> is capped at <code>S3_LIST_MAX_ENTRIES</code> (65536); the XML buffer sizing in <code><a class="el" href="list__objects__v2_8c.html">list_objects_v2.c</a></code> assumes a 6× worst-case entity expansion — keep that multiplier if you add escaped fields. Pagination is a b64url continuation token encoding the last key; a malformed token degrades gracefully to "from the beginning". A client <code>max-keys</code> only narrows below <code>cf-&gt;max_keys</code>.</li>
 <li>**<code>ngx_snprintf</code> quirk.** It does not support the <code>l</code> length modifier; the upload ID and part paths use <code>z</code>/plain <code>snprintf</code> instead (see <code>handler.c:516-521</code> and the <code><a class="el" href="multipart__initiate_8c.html">multipart_initiate.c</a></code> comment). Honor this when formatting widths.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md431"></a>
+<h1><a class="anchor" id="autotoc_md432"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add an S3 operation / sub-handler:</b> declare it in <code><a class="el" href="s3_8h.html">s3.h</a></code>, implement the handler, and wire a dispatch arm in <code>ngx_http_s3_handler</code> (<code>handler.c</code>) at the correct point in the method/flag order (flag checks like <code>?uploads</code>/<code>?delete</code> must precede the empty-key rejection). Write operations must check <code>cf-&gt;common.allow_write</code> before reading any body. New <code>.c</code> files must be added to <code>ngx_module_srcs</code> in the top-level <code>config</code>.</li>
@@ -237,7 +237,7 @@ Entry points / extending</h1>
 <li><b>Add a metric:</b> define the slot in <code>../metrics/metrics.h</code>, then increment with <code>BRIX_S3_METRIC_INC</code>/<code>_ADD</code> at the callsite. Keep labels low-cardinality (no paths, bucket names, or keys).</li>
 <li><b>Touch SigV4:</b> changes go in the <code>auth_sigv4_*.c</code> trio behind <code><a class="el" href="s3__auth__internal_8h.html">s3_auth_internal.h</a></code>; never break the constant-time single-decision compare in <code><a class="el" href="auth__sigv4__verify_8c.html">auth_sigv4_verify.c</a></code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md432"></a>
+<h1><a class="anchor" id="autotoc_md433"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2README.html">`../README.md`</a> — master subsystem index</li>

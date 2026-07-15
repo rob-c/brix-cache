@@ -1,5 +1,7 @@
 <map id="src/fs/backend/rados/cephfs_layout.h" name="src/fs/backend/rados/cephfs_layout.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,160,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="101,5,256,45"/>
 <area shape="rect" id="Node000002" href="$cephfs__layout_8c.html" title=" " alt="" coords="5,93,160,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="85,59,85,93,80,93,80,59"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="149,57,106,95,102,91,145,53"/>
+<area shape="rect" id="Node000003" href="$sd__cephfs__ro__internal_8h.html" title=" " alt="" coords="185,93,365,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="212,53,255,91,252,95,209,57"/>
 </map>

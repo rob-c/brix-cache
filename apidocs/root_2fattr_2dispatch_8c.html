@@ -91,12 +91,14 @@ $(document).ready(function(){initNavTree('root_2fattr_2dispatch_8c.html',''); in
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">dispatch.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="ngx__brix__fattr_8h_source.html">ngx_brix_fattr.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2fs_2vfs_2vfs_8h_source.html">fs/vfs/vfs.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="op__path_8h_source.html">protocols/root/path/op_path.h</a>&quot;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="alloc__guard_8h_source.html">core/compat/alloc_guard.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
@@ -109,9 +111,32 @@ $(document).ready(function(){initNavTree('root_2fattr_2dispatch_8c.html',''); in
 </div>
 <p><a href="root_2fattr_2dispatch_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfattr__state__t.html">fattr_state_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfattr__names__t.html">fattr_names_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a6e13afbff60d2de8950936a274da7b40" id="r_a6e13afbff60d2de8950936a274da7b40"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#a6e13afbff60d2de8950936a274da7b40">brix_handle_fattr</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="memitem:a8e4e358fea8548db9836f9c9e6e24b54" id="r_a8e4e358fea8548db9836f9c9e6e24b54"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#a8e4e358fea8548db9836f9c9e6e24b54">fattr_fail</a> (<a class="el" href="structfattr__state__t.html">fattr_state_t</a> *st, ngx_int_t rc)</td></tr>
+<tr class="separator:a8e4e358fea8548db9836f9c9e6e24b54"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adb01b915e8bdb9917d009b5e3f414756" id="r_adb01b915e8bdb9917d009b5e3f414756"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#adb01b915e8bdb9917d009b5e3f414756">fattr_check_request</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <a class="el" href="structfattr__state__t.html">fattr_state_t</a> *st)</td></tr>
+<tr class="separator:adb01b915e8bdb9917d009b5e3f414756"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8718e97cc1ed1f21c1a2953a54b682b0" id="r_a8718e97cc1ed1f21c1a2953a54b682b0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#a8718e97cc1ed1f21c1a2953a54b682b0">fattr_bind_vctx</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <a class="el" href="structfattr__state__t.html">fattr_state_t</a> *st)</td></tr>
+<tr class="separator:a8718e97cc1ed1f21c1a2953a54b682b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a96f5d1bc80a0ec5e57fe67a3d4481b69" id="r_a96f5d1bc80a0ec5e57fe67a3d4481b69"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#a96f5d1bc80a0ec5e57fe67a3d4481b69">fattr_fhandle_target</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structfattr__state__t.html">fattr_state_t</a> *st, unsigned char fh0)</td></tr>
+<tr class="separator:a96f5d1bc80a0ec5e57fe67a3d4481b69"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6886540b75871e5899f9ea86b1b962eb" id="r_a6886540b75871e5899f9ea86b1b962eb"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#a6886540b75871e5899f9ea86b1b962eb">fattr_path_target</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <a class="el" href="structfattr__state__t.html">fattr_state_t</a> *st)</td></tr>
+<tr class="separator:a6886540b75871e5899f9ea86b1b962eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b9b7f541c03afa3508f1831596b3874" id="r_a8b9b7f541c03afa3508f1831596b3874"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#a8b9b7f541c03afa3508f1831596b3874">fattr_select_target</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <a class="el" href="structfattr__state__t.html">fattr_state_t</a> *st, const <a class="el" href="structxrdw__fattr__req__t.html">xrdw_fattr_req_t</a> *req)</td></tr>
+<tr class="separator:a8b9b7f541c03afa3508f1831596b3874"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac88ebd4ca71ec8ba098d49ce6695670f" id="r_ac88ebd4ca71ec8ba098d49ce6695670f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#ac88ebd4ca71ec8ba098d49ce6695670f">fattr_decode_names</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structfattr__state__t.html">fattr_state_t</a> *st, <a class="el" href="structbrix__fattr__entry__t.html">brix_fattr_entry_t</a> *attrs, <a class="el" href="structfattr__names__t.html">fattr_names_t</a> *names)</td></tr>
+<tr class="separator:ac88ebd4ca71ec8ba098d49ce6695670f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a35394671c6015b21ce50e2424fb92a67" id="r_a35394671c6015b21ce50e2424fb92a67"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#a35394671c6015b21ce50e2424fb92a67">fattr_dispatch_named</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structfattr__state__t.html">fattr_state_t</a> *st)</td></tr>
+<tr class="separator:a35394671c6015b21ce50e2424fb92a67"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6e13afbff60d2de8950936a274da7b40" id="r_a6e13afbff60d2de8950936a274da7b40"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2dispatch_8c.html#a6e13afbff60d2de8950936a274da7b40">brix_handle_fattr</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:a6e13afbff60d2de8950936a274da7b40"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -147,11 +172,437 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00034">34</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00432">432</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="auth__gate_8c_source.html#l00331">brix_auth_gate()</a>, <a class="el" href="types_2config_8h_source.html#l00052">BRIX_AUTH_READ</a>, <a class="el" href="types_2config_8h_source.html#l00054">BRIX_AUTH_UPDATE</a>, <a class="el" href="beneath_8h_source.html#l00114">brix_beneath_full_path()</a>, <a class="el" href="protocols_2root_2path_2extract_8c_source.html#l00012">brix_extract_path()</a>, <a class="el" href="error__mapping_8c_source.html#l00034">brix_kxr_from_errno()</a>, <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00055">BRIX_OP_FATTR</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="ctx__structs_8h_source.html#l00178">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="del_8c_source.html#l00013">fattr_del()</a>, <a class="el" href="root_2fattr_2get_8c_source.html#l00081">fattr_get()</a>, <a class="el" href="list_8c_source.html#l00227">fattr_list()</a>, <a class="el" href="protocols_2root_2fattr_2helpers_8c_source.html#l00044">fattr_parse_nvec()</a>, <a class="el" href="fattr_2set_8c_source.html#l00014">fattr_set()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="wire__codec_8h_source.html#l00141">xrdw_fattr_req_t::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="ctx__structs_8h_source.html#l00173">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="flags_8h_source.html#l00254">kXR_faMaxVars</a>, <a class="el" href="opcodes_8h_source.html#l00216">kXR_fattrDel</a>, <a class="el" href="opcodes_8h_source.html#l00217">kXR_fattrGet</a>, <a class="el" href="opcodes_8h_source.html#l00218">kXR_fattrList</a>, <a class="el" href="opcodes_8h_source.html#l00220">kXR_fattrMaxSC</a>, <a class="el" href="opcodes_8h_source.html#l00219">kXR_fattrSet</a>, <a class="el" href="opcodes_8h_source.html#l00150">kXR_FileNotOpen</a>, <a class="el" href="opcodes_8h_source.html#l00169">kXR_fsReadOnly</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00159">kXR_Unsupported</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__codec_8h_source.html#l00143">xrdw_fattr_req_t::numattr</a>, <a class="el" href="wire__codec_8h_source.html#l00144">xrdw_fattr_req_t::options</a>, <a class="el" href="core_2types_2file_8h_source.html#l00058">brix_file_t::path</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::payload</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="core_2types_2file_8h_source.html#l00257">brix_file_t::sd_obj</a>, <a class="el" href="wire__codec_8h_source.html#l00142">xrdw_fattr_req_t::subcode</a>, <a class="el" href="context_8h_source.html#l00292">brix_ctx_t::write_rc</a>, and <a class="el" href="wire__codec__meta_8c_source.html#l00152">xrdw_fattr_req_unpack()</a>.</p>
+<p class="reference">References <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00037">fattr_state_t::args_buf</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00038">fattr_state_t::args_len</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00036">fattr_state_t::close_fd</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00039">fattr_state_t::err_rc</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00098">fattr_check_request()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00377">fattr_dispatch_named()</a>, <a class="el" href="list_8c_source.html#l00522">fattr_list()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00288">fattr_select_target()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00035">fattr_state_t::fd</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="opcodes_8h_source.html#l00218">kXR_fattrList</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00032">fattr_state_t::numattr</a>, <a class="el" href="wire__codec_8h_source.html#l00143">xrdw_fattr_req_t::numattr</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00033">fattr_state_t::options</a>, <a class="el" href="wire__codec_8h_source.html#l00144">xrdw_fattr_req_t::options</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00034">fattr_state_t::path</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00031">fattr_state_t::subcode</a>, <a class="el" href="wire__codec_8h_source.html#l00142">xrdw_fattr_req_t::subcode</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00046">fattr_state_t::vctx</a>, and <a class="el" href="wire__codec__meta_8c_source.html#l00152">xrdw_fattr_req_unpack()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="dispatch__read_8c_source.html#l00044">brix_dispatch_read_opcode()</a>.</p>
+
+</div>
+</div>
+<a id="a8718e97cc1ed1f21c1a2953a54b682b0" name="a8718e97cc1ed1f21c1a2953a54b682b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8718e97cc1ed1f21c1a2953a54b682b0">&#9670;&#160;</a></span>fattr_bind_vctx()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void fattr_bind_vctx </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfattr__state__t.html">fattr_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00141">141</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="op__path_8c_source.html#l00412">brix_root_vfs_bind_deleg()</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00034">fattr_state_t::path</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, and <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00046">fattr_state_t::vctx</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00209">fattr_path_target()</a>, and <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00288">fattr_select_target()</a>.</p>
+
+</div>
+</div>
+<a id="adb01b915e8bdb9917d009b5e3f414756" name="adb01b915e8bdb9917d009b5e3f414756"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adb01b915e8bdb9917d009b5e3f414756">&#9670;&#160;</a></span>fattr_check_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t fattr_check_request </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfattr__state__t.html">fattr_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00098">98</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00055">BRIX_OP_FATTR</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00079">fattr_fail()</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="flags_8h_source.html#l00254">kXR_faMaxVars</a>, <a class="el" href="opcodes_8h_source.html#l00216">kXR_fattrDel</a>, <a class="el" href="opcodes_8h_source.html#l00218">kXR_fattrList</a>, <a class="el" href="opcodes_8h_source.html#l00220">kXR_fattrMaxSC</a>, <a class="el" href="opcodes_8h_source.html#l00219">kXR_fattrSet</a>, <a class="el" href="opcodes_8h_source.html#l00169">kXR_fsReadOnly</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00032">fattr_state_t::numattr</a>, and <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00031">fattr_state_t::subcode</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00432">brix_handle_fattr()</a>.</p>
+
+</div>
+</div>
+<a id="ac88ebd4ca71ec8ba098d49ce6695670f" name="ac88ebd4ca71ec8ba098d49ce6695670f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac88ebd4ca71ec8ba098d49ce6695670f">&#9670;&#160;</a></span>fattr_decode_names()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t fattr_decode_names </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfattr__state__t.html">fattr_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__fattr__entry__t.html">brix_fattr_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>attrs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfattr__names__t.html">fattr_names_t</a> *&#160;</td>
+          <td class="paramname"><em>names</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00339">339</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00037">fattr_state_t::args_buf</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00038">fattr_state_t::args_len</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00079">fattr_fail()</a>, <a class="el" href="protocols_2root_2fattr_2helpers_8c_source.html#l00044">fattr_parse_nvec()</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00032">fattr_state_t::numattr</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00061">fattr_names_t::nvec_copy</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00062">fattr_names_t::nvec_len</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00063">fattr_names_t::vvec_buf</a>, and <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00064">fattr_names_t::vvec_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00377">fattr_dispatch_named()</a>.</p>
+
+</div>
+</div>
+<a id="a35394671c6015b21ce50e2424fb92a67" name="a35394671c6015b21ce50e2424fb92a67"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a35394671c6015b21ce50e2424fb92a67">&#9670;&#160;</a></span>fattr_dispatch_named()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t fattr_dispatch_named </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfattr__state__t.html">fattr_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00377">377</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00036">fattr_state_t::close_fd</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00039">fattr_state_t::err_rc</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00339">fattr_decode_names()</a>, <a class="el" href="del_8c_source.html#l00013">fattr_del()</a>, <a class="el" href="root_2fattr_2get_8c_source.html#l00081">fattr_get()</a>, <a class="el" href="fattr_2set_8c_source.html#l00014">fattr_set()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00035">fattr_state_t::fd</a>, <a class="el" href="flags_8h_source.html#l00254">kXR_faMaxVars</a>, <a class="el" href="opcodes_8h_source.html#l00216">kXR_fattrDel</a>, <a class="el" href="opcodes_8h_source.html#l00217">kXR_fattrGet</a>, <a class="el" href="opcodes_8h_source.html#l00219">kXR_fattrSet</a>, <a class="el" href="opcodes_8h_source.html#l00159">kXR_Unsupported</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00032">fattr_state_t::numattr</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00061">fattr_names_t::nvec_copy</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00062">fattr_names_t::nvec_len</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00033">fattr_state_t::options</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00034">fattr_state_t::path</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00031">fattr_state_t::subcode</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00046">fattr_state_t::vctx</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00063">fattr_names_t::vvec_buf</a>, and <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00064">fattr_names_t::vvec_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00432">brix_handle_fattr()</a>.</p>
+
+</div>
+</div>
+<a id="a8e4e358fea8548db9836f9c9e6e24b54" name="a8e4e358fea8548db9836f9c9e6e24b54"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8e4e358fea8548db9836f9c9e6e24b54">&#9670;&#160;</a></span>fattr_fail()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t fattr_fail </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structfattr__state__t.html">fattr_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_int_t&#160;</td>
+          <td class="paramname"><em>rc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00079">79</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00039">fattr_state_t::err_rc</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00098">fattr_check_request()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00339">fattr_decode_names()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00168">fattr_fhandle_target()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00209">fattr_path_target()</a>, and <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00288">fattr_select_target()</a>.</p>
+
+</div>
+</div>
+<a id="a96f5d1bc80a0ec5e57fe67a3d4481b69" name="a96f5d1bc80a0ec5e57fe67a3d4481b69"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96f5d1bc80a0ec5e57fe67a3d4481b69">&#9670;&#160;</a></span>fattr_fhandle_target()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t fattr_fhandle_target </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfattr__state__t.html">fattr_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned char&#160;</td>
+          <td class="paramname"><em>fh0</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00168">168</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00055">BRIX_OP_FATTR</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00079">fattr_fail()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00035">fattr_state_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="opcodes_8h_source.html#l00150">kXR_FileNotOpen</a>, <a class="el" href="core_2types_2file_8h_source.html#l00066">brix_file_t::path</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00034">fattr_state_t::path</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00265">brix_file_t::sd_obj</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00288">fattr_select_target()</a>.</p>
+
+</div>
+</div>
+<a id="a6886540b75871e5899f9ea86b1b962eb" name="a6886540b75871e5899f9ea86b1b962eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6886540b75871e5899f9ea86b1b962eb">&#9670;&#160;</a></span>fattr_path_target()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t fattr_path_target </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfattr__state__t.html">fattr_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00209">209</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00037">fattr_state_t::args_buf</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00038">fattr_state_t::args_len</a>, <a class="el" href="auth__gate_8c_source.html#l00482">brix_auth_gate()</a>, <a class="el" href="types_2config_8h_source.html#l00052">BRIX_AUTH_READ</a>, <a class="el" href="types_2config_8h_source.html#l00054">BRIX_AUTH_UPDATE</a>, <a class="el" href="beneath_8h_source.html#l00114">brix_beneath_full_path()</a>, <a class="el" href="protocols_2root_2path_2extract_8c_source.html#l00012">brix_extract_path()</a>, <a class="el" href="error__mapping_8c_source.html#l00035">brix_kxr_from_errno()</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00055">BRIX_OP_FATTR</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00141">fattr_bind_vctx()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00079">fattr_fail()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00040">fattr_state_t::full_path</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="opcodes_8h_source.html#l00216">kXR_fattrDel</a>, <a class="el" href="opcodes_8h_source.html#l00219">kXR_fattrSet</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00034">fattr_state_t::path</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00041">fattr_state_t::pathbuf</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00031">fattr_state_t::subcode</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00046">fattr_state_t::vctx</a>, and <a class="el" href="context_8h_source.html#l00304">brix_ctx_t::write_rc</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00288">fattr_select_target()</a>.</p>
+
+</div>
+</div>
+<a id="a8b9b7f541c03afa3508f1831596b3874" name="a8b9b7f541c03afa3508f1831596b3874"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b9b7f541c03afa3508f1831596b3874">&#9670;&#160;</a></span>fattr_select_target()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t fattr_select_target </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfattr__state__t.html">fattr_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structxrdw__fattr__req__t.html">xrdw_fattr_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00288">288</a> of file <a class="el" href="root_2fattr_2dispatch_8c_source.html">dispatch.c</a>.</p>
+
+<p class="reference">References <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00037">fattr_state_t::args_buf</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00038">fattr_state_t::args_len</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00141">fattr_bind_vctx()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00079">fattr_fail()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00168">fattr_fhandle_target()</a>, <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00209">fattr_path_target()</a>, <a class="el" href="wire__codec_8h_source.html#l00141">xrdw_fattr_req_t::fhandle</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="opcodes_8h_source.html#l00218">kXR_fattrList</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00031">fattr_state_t::subcode</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00432">brix_handle_fattr()</a>.</p>
 
 </div>
 </div>

@@ -2,6 +2,7 @@ var issuer__registry_8h =
 [
     [ "brix_token_issuer_t", "structbrix__token__issuer__t.html", "structbrix__token__issuer__t" ],
     [ "brix_token_registry_t", "structbrix__token__registry__t.html", "structbrix__token__registry__t" ],
+    [ "brix_token_registry_args_t", "structbrix__token__registry__args__t.html", "structbrix__token__registry__args__t" ],
     [ "BRIX_AUTHZ_CAPABILITY", "issuer__registry_8h.html#a085b7249f82b1d32d60760ad12463f05", null ],
     [ "BRIX_AUTHZ_GROUP", "issuer__registry_8h.html#aedc2a48460ed8f377ba9c0ed19c28fbe", null ],
     [ "BRIX_AUTHZ_MAPPING", "issuer__registry_8h.html#a65f54370de6c1d644a8d5fad3f735d32", null ],
@@ -14,6 +15,6 @@ var issuer__registry_8h =
     [ "brix_token_registry_find", "issuer__registry_8h.html#a22426451e314699797511b00eb2a7ea2", null ],
     [ "brix_token_registry_load", "issuer__registry_8h.html#a06485a623c4b0461a754044246919cc4", null ],
     [ "brix_token_strategy_parse", "issuer__registry_8h.html#a45379c4c4a4c1ac6e67ecfbea4bdd174", null ],
-    [ "brix_token_validate_registry", "issuer__registry_8h.html#a7c1835c21f3abac14ade3493bf808bd7", null ],
-    [ "brix_token_validate_registry_authn", "issuer__registry_8h.html#a0d8c4a11136c6c1767734a610efb4af3", null ]
+    [ "brix_token_validate_registry", "issuer__registry_8h.html#a468c7f1b8f81ea9462e79ce135e2b311", null ],
+    [ "brix_token_validate_registry_authn", "issuer__registry_8h.html#a47d2d3fd80fa717a8c07430223e9ad89", null ]
 ];

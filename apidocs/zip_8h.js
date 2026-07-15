@@ -2,6 +2,7 @@ var zip_8h =
 [
     [ "brix_zip_entry", "structbrix__zip__entry.html", "structbrix__zip__entry" ],
     [ "brix_zip_dir", "structbrix__zip__dir.html", "structbrix__zip__dir" ],
+    [ "brix_zip_seed", "structbrix__zip__seed.html", "structbrix__zip__seed" ],
     [ "XRDC_ZIP_EBADF", "zip_8h.html#a7ce297555230fc03f42e4d34efb8a39e", null ],
     [ "XRDC_ZIP_EBOMB", "zip_8h.html#aa3d4a2853de156dd47dc0de5c9294296", null ],
     [ "XRDC_ZIP_ECRC", "zip_8h.html#a30450d75edf016b9b68c4d2c7c352444", null ],
@@ -28,5 +29,5 @@ var zip_8h =
     [ "brix_zip_writer_finish", "zip_8h.html#a7835cbd1191c5986e0e8e921f079948e", null ],
     [ "brix_zip_writer_free", "zip_8h.html#a3efd2c00db272f9ded3ba19018e5f708", null ],
     [ "brix_zip_writer_new", "zip_8h.html#a6b00e6df64a48936f00a5b7163b8b0d2", null ],
-    [ "brix_zip_writer_new_append", "zip_8h.html#a0be926eeb40873cb831da69c3847a8aa", null ]
+    [ "brix_zip_writer_new_append", "zip_8h.html#a747430e7d92368b14d461741d0afe64a", null ]
 ];

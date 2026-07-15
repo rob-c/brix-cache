@@ -108,14 +108,6 @@ $(document).ready(function(){initNavTree('aio__engine_8c.html',''); initResizabl
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a66b3e227c93c3bdb50c57eb52b2bf7e7" id="r_a66b3e227c93c3bdb50c57eb52b2bf7e7"><td class="memItemLeft" align="right" valign="top">unsigned&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__engine_8c.html#a66b3e227c93c3bdb50c57eb52b2bf7e7">uring_pollmask</a> (int want)</td></tr>
-<tr class="separator:a66b3e227c93c3bdb50c57eb52b2bf7e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a34936fa5507512db0832f8221c1f2708" id="r_a34936fa5507512db0832f8221c1f2708"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__engine_8c.html#a34936fa5507512db0832f8221c1f2708">uring_slot_alloc</a> (<a class="el" href="structbrix__loop.html">brix_loop</a> *l, <a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac)</td></tr>
-<tr class="separator:a34936fa5507512db0832f8221c1f2708"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af26cb1982a973833d4c2ff0fb13c04d6" id="r_af26cb1982a973833d4c2ff0fb13c04d6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__engine_8c.html#af26cb1982a973833d4c2ff0fb13c04d6">uring_poll_submit</a> (<a class="el" href="structbrix__loop.html">brix_loop</a> *l, <a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac, int want)</td></tr>
-<tr class="separator:af26cb1982a973833d4c2ff0fb13c04d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a77985cb781fbad18f1735e7dddd01739" id="r_a77985cb781fbad18f1735e7dddd01739"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__engine_8c.html#a77985cb781fbad18f1735e7dddd01739">uring_poll_cancel</a> (<a class="el" href="structbrix__loop.html">brix_loop</a> *l, <a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac, int freeing)</td></tr>
-<tr class="separator:a77985cb781fbad18f1735e7dddd01739"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a05ec4c91d130c186b935ad597de8e18a" id="r_a05ec4c91d130c186b935ad597de8e18a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__engine_8c.html#a05ec4c91d130c186b935ad597de8e18a">io_engine_setup</a> (<a class="el" href="structbrix__loop.html">brix_loop</a> *l, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a05ec4c91d130c186b935ad597de8e18a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6e197546a6a232ab3a9ce08a354cef40" id="r_a6e197546a6a232ab3a9ce08a354cef40"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__engine_8c.html#a6e197546a6a232ab3a9ce08a354cef40">io_engine_teardown</a> (<a class="el" href="structbrix__loop.html">brix_loop</a> *l)</td></tr>
@@ -160,9 +152,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00176">176</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00180">180</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00154">brix_loop::epfd</a>, <a class="el" href="aio__internal_8h_source.html#l00089">brix_aconn::epoll_events</a>, <a class="el" href="aio__internal_8h_source.html#l00081">brix_aconn::fd</a>, <a class="el" href="aio__internal_8h_source.html#l00091">brix_aconn::fd_gen</a>, <a class="el" href="aio__engine_8c_source.html#l00075">uring_poll_cancel()</a>, <a class="el" href="aio__engine_8c_source.html#l00057">uring_poll_submit()</a>, <a class="el" href="aio__internal_8h_source.html#l00090">brix_aconn::uring_slot</a>, <a class="el" href="aio__engine_8c_source.html#l00040">uring_slot_alloc()</a>, and <a class="el" href="aio__internal_8h_source.html#l00166">brix_loop::use_uring</a>.</p>
+<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00154">brix_loop::epfd</a>, <a class="el" href="aio__internal_8h_source.html#l00089">brix_aconn::epoll_events</a>, <a class="el" href="aio__internal_8h_source.html#l00081">brix_aconn::fd</a>, <a class="el" href="aio__internal_8h_source.html#l00091">brix_aconn::fd_gen</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="aio__internal_8h_source.html#l00090">brix_aconn::uring_slot</a>, and <a class="el" href="aio__internal_8h_source.html#l00166">brix_loop::use_uring</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="aio__conn_8c_source.html#l00121">aconn_reconnect_succeeded()</a>, <a class="el" href="aio__conn_8c_source.html#l00010">aconn_update_epoll()</a>, and <a class="el" href="aio_8c_source.html#l00120">loop_drain_commands()</a>.</p>
 
@@ -194,9 +186,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00207">207</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00211">211</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00154">brix_loop::epfd</a>, <a class="el" href="aio__internal_8h_source.html#l00089">brix_aconn::epoll_events</a>, <a class="el" href="aio__internal_8h_source.html#l00081">brix_aconn::fd</a>, <a class="el" href="aio__engine_8c_source.html#l00075">uring_poll_cancel()</a>, and <a class="el" href="aio__internal_8h_source.html#l00166">brix_loop::use_uring</a>.</p>
+<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00154">brix_loop::epfd</a>, <a class="el" href="aio__internal_8h_source.html#l00089">brix_aconn::epoll_events</a>, <a class="el" href="aio__internal_8h_source.html#l00081">brix_aconn::fd</a>, and <a class="el" href="aio__internal_8h_source.html#l00166">brix_loop::use_uring</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="aio__conn_8c_source.html#l00232">aconn_destroy()</a>, and <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>.</p>
 
@@ -228,11 +220,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00103">103</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00107">107</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00154">brix_loop::epfd</a>, <a class="el" href="aio__internal_8h_source.html#l00155">brix_loop::evfd</a>, <a class="el" href="aio__internal_8h_source.html#l00166">brix_loop::use_uring</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio_8c_source.html#l00325">brix_loop_create()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio_8c_source.html#l00396">brix_loop_create()</a>.</p>
 
 </div>
 </div>
@@ -252,11 +244,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00156">156</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00160">160</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="aio__internal_8h_source.html#l00154">brix_loop::epfd</a>, <a class="el" href="aio__internal_8h_source.html#l00155">brix_loop::evfd</a>, and <a class="el" href="aio__internal_8h_source.html#l00166">brix_loop::use_uring</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio_8c_source.html#l00296">brix_loop_create_fail()</a>, and <a class="el" href="aio_8c_source.html#l00350">brix_loop_destroy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio_8c_source.html#l00367">brix_loop_create_fail()</a>, and <a class="el" href="aio_8c_source.html#l00421">brix_loop_destroy()</a>.</p>
 
 </div>
 </div>
@@ -298,147 +290,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00227">227</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00366">366</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00154">brix_loop::epfd</a>, <a class="el" href="aio__internal_8h_source.html#l00089">brix_aconn::epoll_events</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00017">in_use</a>, <a class="el" href="aio__engine_8c_source.html#l00057">uring_poll_submit()</a>, and <a class="el" href="aio__internal_8h_source.html#l00166">brix_loop::use_uring</a>.</p>
+<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00154">brix_loop::epfd</a>, and <a class="el" href="aio__internal_8h_source.html#l00166">brix_loop::use_uring</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio_8c_source.html#l00244">loop_thread()</a>.</p>
-
-</div>
-</div>
-<a id="a77985cb781fbad18f1735e7dddd01739" name="a77985cb781fbad18f1735e7dddd01739"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a77985cb781fbad18f1735e7dddd01739">&#9670;&#160;</a></span>uring_poll_cancel()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void uring_poll_cancel </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__loop.html">brix_loop</a> *&#160;</td>
-          <td class="paramname"><em>l</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__aconn.html">brix_aconn</a> *&#160;</td>
-          <td class="paramname"><em>ac</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>freeing</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00075">75</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
-
-<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00090">brix_aconn::uring_slot</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="aio__engine_8c_source.html#l00176">io_engine_arm()</a>, and <a class="el" href="aio__engine_8c_source.html#l00207">io_engine_del()</a>.</p>
-
-</div>
-</div>
-<a id="af26cb1982a973833d4c2ff0fb13c04d6" name="af26cb1982a973833d4c2ff0fb13c04d6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af26cb1982a973833d4c2ff0fb13c04d6">&#9670;&#160;</a></span>uring_poll_submit()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int uring_poll_submit </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__loop.html">brix_loop</a> *&#160;</td>
-          <td class="paramname"><em>l</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__aconn.html">brix_aconn</a> *&#160;</td>
-          <td class="paramname"><em>ac</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>want</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00057">57</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
-
-<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00081">brix_aconn::fd</a>, <a class="el" href="aio__engine_8c_source.html#l00029">uring_pollmask()</a>, and <a class="el" href="aio__internal_8h_source.html#l00090">brix_aconn::uring_slot</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="aio__engine_8c_source.html#l00176">io_engine_arm()</a>, and <a class="el" href="aio__engine_8c_source.html#l00227">io_engine_wait()</a>.</p>
-
-</div>
-</div>
-<a id="a66b3e227c93c3bdb50c57eb52b2bf7e7" name="a66b3e227c93c3bdb50c57eb52b2bf7e7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a66b3e227c93c3bdb50c57eb52b2bf7e7">&#9670;&#160;</a></span>uring_pollmask()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">unsigned uring_pollmask </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>want</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00029">29</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="aio__engine_8c_source.html#l00057">uring_poll_submit()</a>.</p>
-
-</div>
-</div>
-<a id="a34936fa5507512db0832f8221c1f2708" name="a34936fa5507512db0832f8221c1f2708"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a34936fa5507512db0832f8221c1f2708">&#9670;&#160;</a></span>uring_slot_alloc()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int uring_slot_alloc </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__loop.html">brix_loop</a> *&#160;</td>
-          <td class="paramname"><em>l</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__aconn.html">brix_aconn</a> *&#160;</td>
-          <td class="paramname"><em>ac</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="aio__engine_8c_source.html#l00040">40</a> of file <a class="el" href="aio__engine_8c_source.html">aio_engine.c</a>.</p>
-
-<p class="reference">References <a class="el" href="aio__internal_8h_source.html#l00029">AIO_URING_SLOTS</a>, and <a class="el" href="aio__internal_8h_source.html#l00090">brix_aconn::uring_slot</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="aio__engine_8c_source.html#l00176">io_engine_arm()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio_8c_source.html#l00315">loop_thread()</a>.</p>
 
 </div>
 </div>

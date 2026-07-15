@@ -119,7 +119,7 @@ $(document).ready(function(){initNavTree('forward__relay__audit_8c_source.html',
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    u_char       buf[256 + <a class="code hl_define" href="net_2proxy_2proxy__internal_8h.html#a84dbc64ef577fbf5209d779971c79e3a">BRIX_PROXY_PATH_MAX</a> * 2];</div>
 <div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    u_char      *p;</div>
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span> </div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    <span class="keywordflow">if</span> (conf == NULL || conf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a1d0c8bad6b6857cb9022f41eab6bc90b">proxy</a>.<a class="code hl_variable" href="structbrix__proxy__conf__t.html#a037c09452db4824a3d40695ae3eb4b53">audit_log_fd</a> == NGX_INVALID_FILE) {</div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    <span class="keywordflow">if</span> (conf == NULL || conf-&gt;proxy.audit_log_fd == NGX_INVALID_FILE) {</div>
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>    }</div>
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
@@ -152,7 +152,7 @@ $(document).ready(function(){initNavTree('forward__relay__audit_8c_source.html',
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>            op_str, proxy-&gt;fwd_path, status_str, user);</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    }</div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span> </div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    ngx_write_fd(conf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#a1d0c8bad6b6857cb9022f41eab6bc90b">proxy</a>.<a class="code hl_variable" href="structbrix__proxy__conf__t.html#a037c09452db4824a3d40695ae3eb4b53">audit_log_fd</a>, buf, (<span class="keywordtype">size_t</span>)(p - buf));</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    ngx_write_fd(conf-&gt;proxy.audit_log_fd, buf, (<span class="keywordtype">size_t</span>)(p - buf));</div>
 <div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>}</div>
 </div>
 <div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span> </div>
@@ -167,9 +167,7 @@ $(document).ready(function(){initNavTree('forward__relay__audit_8c_source.html',
 <div class="ttc" id="aopcodes_8h_html_a94ae095749b7f0a01c1564d95e8244f7"><div class="ttname"><a href="opcodes_8h.html#a94ae095749b7f0a01c1564d95e8244f7">kXR_chmod</a></div><div class="ttdeci">#define kXR_chmod</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00047">opcodes.h:47</a></div></div>
 <div class="ttc" id="aprotocols_2root_2session_2registry_8h_html"><div class="ttname"><a href="protocols_2root_2session_2registry_8h.html">registry.h</a></div></div>
 <div class="ttc" id="aprotocols_2webdav_2proxy__internal_8h_html"><div class="ttname"><a href="protocols_2webdav_2proxy__internal_8h.html">proxy_internal.h</a></div></div>
-<div class="ttc" id="astructbrix__proxy__conf__t_html_a037c09452db4824a3d40695ae3eb4b53"><div class="ttname"><a href="structbrix__proxy__conf__t.html#a037c09452db4824a3d40695ae3eb4b53">brix_proxy_conf_t::audit_log_fd</a></div><div class="ttdeci">ngx_fd_t audit_log_fd</div><div class="ttdef"><b>Definition</b> <a href="conf__structs_8h_source.html#l00153">conf_structs.h:153</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00112">config.h:112</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_a1d0c8bad6b6857cb9022f41eab6bc90b"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#a1d0c8bad6b6857cb9022f41eab6bc90b">ngx_stream_brix_srv_conf_t::proxy</a></div><div class="ttdeci">brix_proxy_conf_t proxy</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00668">config.h:668</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

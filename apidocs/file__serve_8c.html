@@ -91,7 +91,9 @@ $(document).ready(function(){initNavTree('file__serve_8c.html',''); initResizabl
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
+<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">file_serve.c File Reference</div></div>
 </div><!--header-->
@@ -116,15 +118,39 @@ $(document).ready(function(){initNavTree('file__serve_8c.html',''); initResizabl
 </div>
 <p><a href="file__serve_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structserve__ctx__t.html">serve_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:ad02a3f1df95de30602ca0d96051161dc" id="r_ad02a3f1df95de30602ca0d96051161dc"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#ad02a3f1df95de30602ca0d96051161dc">BRIX_SERVE_MEM_CHUNK</a>&#160;&#160;&#160;(256 * 1024)</td></tr>
 <tr class="separator:ad02a3f1df95de30602ca0d96051161dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:a672b522092738e7d30d5d247b4e6f058" id="r_a672b522092738e7d30d5d247b4e6f058"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a672b522092738e7d30d5d247b4e6f058">serve_disposition_t</a> { <a class="el" href="file__serve_8c.html#a672b522092738e7d30d5d247b4e6f058a6234160cb797ff31d2cef5452cbe500b">SERVE_CONTINUE</a> = 0
+, <a class="el" href="file__serve_8c.html#a672b522092738e7d30d5d247b4e6f058af9bb4ddc2609b208e221bde3491ee3c6">SERVE_DONE</a>
+ }</td></tr>
+<tr class="separator:a672b522092738e7d30d5d247b4e6f058"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a4ac4e40f7d232e3af1f5d5cac9b40c40" id="r_a4ac4e40f7d232e3af1f5d5cac9b40c40"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a4ac4e40f7d232e3af1f5d5cac9b40c40">brix_serve_memory_backed</a> (ngx_http_request_t *r, brix_vfs_file_t *fh, off_t start, off_t len)</td></tr>
 <tr class="separator:a4ac4e40f7d232e3af1f5d5cac9b40c40"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7580f2aa926c217199c866f65036b97b" id="r_a7580f2aa926c217199c866f65036b97b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a7580f2aa926c217199c866f65036b97b">serve_apply_tcp_congestion</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:a7580f2aa926c217199c866f65036b97b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a945c7181f9375d9c59d8758f46571de3" id="r_a945c7181f9375d9c59d8758f46571de3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a945c7181f9375d9c59d8758f46571de3">serve_range_unsatisfiable</a> (ngx_http_request_t *r, brix_vfs_file_t *fh, <a class="el" href="structbrix__http__serve__result__t.html">brix_http_serve_result_t</a> *result)</td></tr>
+<tr class="separator:a945c7181f9375d9c59d8758f46571de3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0a0cdc3c64985febd48958a6d631b85e" id="r_a0a0cdc3c64985febd48958a6d631b85e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a0a0cdc3c64985febd48958a6d631b85e">serve_record_body_accounting</a> (const <a class="el" href="structserve__ctx__t.html">serve_ctx_t</a> *sc, off_t bytes, ngx_uint_t from_cache, const char *cache_path)</td></tr>
+<tr class="separator:a0a0cdc3c64985febd48958a6d631b85e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a22e1fa9c456ca44390da99389ed3c21a" id="r_a22e1fa9c456ca44390da99389ed3c21a"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="file__serve_8c.html#a672b522092738e7d30d5d247b4e6f058">serve_disposition_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a22e1fa9c456ca44390da99389ed3c21a">serve_try_compressed</a> (const <a class="el" href="structserve__ctx__t.html">serve_ctx_t</a> *sc, ngx_uint_t range_present, ngx_int_t *rc)</td></tr>
+<tr class="separator:a22e1fa9c456ca44390da99389ed3c21a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a231f06d1104f040c9ed224ab87eb385e" id="r_a231f06d1104f040c9ed224ab87eb385e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a231f06d1104f040c9ed224ab87eb385e">serve_send_memory_backed</a> (const <a class="el" href="structserve__ctx__t.html">serve_ctx_t</a> *sc)</td></tr>
+<tr class="separator:a231f06d1104f040c9ed224ab87eb385e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a27aecadac9a947d6d7911be7791c5888" id="r_a27aecadac9a947d6d7911be7791c5888"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a27aecadac9a947d6d7911be7791c5888">serve_send_sendfile</a> (const <a class="el" href="structserve__ctx__t.html">serve_ctx_t</a> *sc, ngx_fd_t fd)</td></tr>
+<tr class="separator:a27aecadac9a947d6d7911be7791c5888"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6f541a3097eda1fbe34fb5a7576ebf70" id="r_a6f541a3097eda1fbe34fb5a7576ebf70"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="file__serve_8c.html#a6f541a3097eda1fbe34fb5a7576ebf70">brix_http_serve_file_ranged</a> (ngx_http_request_t *r, brix_vfs_file_t *fh, const <a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *vst, const char *fs_path, const <a class="el" href="structbrix__http__serve__opts__t.html">brix_http_serve_opts_t</a> *opts, <a class="el" href="structbrix__http__serve__result__t.html">brix_http_serve_result_t</a> *result)</td></tr>
 <tr class="separator:a6f541a3097eda1fbe34fb5a7576ebf70"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -141,7 +167,28 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00059">59</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00108">108</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="a672b522092738e7d30d5d247b4e6f058" name="a672b522092738e7d30d5d247b4e6f058"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a672b522092738e7d30d5d247b4e6f058">&#9670;&#160;</a></span>serve_disposition_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="file__serve_8c.html#a672b522092738e7d30d5d247b4e6f058">serve_disposition_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a672b522092738e7d30d5d247b4e6f058a6234160cb797ff31d2cef5452cbe500b" name="a672b522092738e7d30d5d247b4e6f058a6234160cb797ff31d2cef5452cbe500b"></a>SERVE_CONTINUE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a672b522092738e7d30d5d247b4e6f058af9bb4ddc2609b208e221bde3491ee3c6" name="a672b522092738e7d30d5d247b4e6f058af9bb4ddc2609b208e221bde3491ee3c6"></a>SERVE_DONE&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00065">65</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
 
 </div>
 </div>
@@ -196,11 +243,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00131">131</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00419">419</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
 
-<p class="reference">References <a class="el" href="netopt_8h_source.html#l00083">brix_apply_tcp_congestion()</a>, <a class="el" href="open_8c_source.html#l00252">brix_cache_record_access()</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__tracking_8c_source.html#l00162">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00188">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00314">brix_dashboard_http_finish()</a>, <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__compress_8c_source.html#l00112">brix_http_compress_negotiate()</a>, <a class="el" href="range_8c_source.html#l00040">brix_http_parse_range()</a>, <a class="el" href="http__compress_8c_source.html#l00170">brix_http_send_file_compressed()</a>, <a class="el" href="http__file__response_8c_source.html#l00210">brix_http_send_file_range()</a>, <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00266">brix_metric_backend_bytes()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00040">BRIX_METRIC_OP_READ</a>, <a class="el" href="file__serve_8c_source.html#l00062">brix_serve_memory_backed()</a>, <a class="el" href="file__serve_8h_source.html#l00010">BRIX_SERVE_RANGE_FULL</a>, <a class="el" href="file__serve_8h_source.html#l00011">BRIX_SERVE_RANGE_PARTIAL</a>, <a class="el" href="file__serve_8h_source.html#l00012">BRIX_SERVE_RANGE_UNSATISFIED</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00632">brix_vfs_file_backend_name()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="vfs__open_8c_source.html#l00659">brix_vfs_file_from_cache()</a>, <a class="el" href="vfs__open_8c_source.html#l00641">brix_vfs_file_path()</a>, <a class="el" href="vfs__open_8c_source.html#l00612">brix_vfs_file_sendfile_fd()</a>, <a class="el" href="dashboard_8h_source.html#l00061">BRIX_XFER_DIR_READ</a>, <a class="el" href="file__serve_8h_source.html#l00034">brix_http_serve_result_t::bytes_sent</a>, <a class="el" href="file__serve_8h_source.html#l00027">brix_http_serve_opts_t::compress</a>, <a class="el" href="range_8h_source.html#l00015">brix_http_range_t::end</a>, <a class="el" href="file__serve_8h_source.html#l00026">brix_http_serve_opts_t::etag_flags</a>, <a class="el" href="file__serve_8h_source.html#l00025">brix_http_serve_opts_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="file__serve_8h_source.html#l00024">brix_http_serve_opts_t::op_name</a>, <a class="el" href="file__serve_8h_source.html#l00028">brix_http_serve_opts_t::pre_header_send</a>, <a class="el" href="file__serve_8h_source.html#l00029">brix_http_serve_opts_t::pre_header_ud</a>, <a class="el" href="range_8h_source.html#l00016">brix_http_range_t::present</a>, <a class="el" href="file__serve_8h_source.html#l00033">brix_http_serve_result_t::range_result</a>, <a class="el" href="range_8h_source.html#l00017">brix_http_range_t::satisfiable</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00062">brix_vfs_stat_t::size</a>, <a class="el" href="range_8h_source.html#l00014">brix_http_range_t::start</a>, <a class="el" href="webdav_8h_source.html#l00318">ngx_http_brix_webdav_loc_conf_t::tcp_congestion</a>, and <a class="el" href="file__serve_8h_source.html#l00023">brix_http_serve_opts_t::xfer_proto</a>.</p>
+<p class="reference">References <a class="el" href="file__serve_8c_source.html#l00092">serve_ctx_t::backend_name</a>, <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>, <a class="el" href="range_8c_source.html#l00040">brix_http_parse_range()</a>, <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, <a class="el" href="file__serve_8h_source.html#l00010">BRIX_SERVE_RANGE_FULL</a>, <a class="el" href="file__serve_8h_source.html#l00011">BRIX_SERVE_RANGE_PARTIAL</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00187">brix_vfs_file_backend_name()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00214">brix_vfs_file_from_cache()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00196">brix_vfs_file_path()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00159">brix_vfs_file_sendfile_fd()</a>, <a class="el" href="dashboard_8h_source.html#l00061">BRIX_XFER_DIR_READ</a>, <a class="el" href="file__serve_8c_source.html#l00096">serve_ctx_t::cache_path</a>, <a class="el" href="range_8h_source.html#l00015">brix_http_range_t::end</a>, <a class="el" href="file__serve_8h_source.html#l00026">brix_http_serve_opts_t::etag_flags</a>, <a class="el" href="file__serve_8c_source.html#l00087">serve_ctx_t::fh</a>, <a class="el" href="file__serve_8c_source.html#l00095">serve_ctx_t::from_cache</a>, <a class="el" href="file__serve_8c_source.html#l00089">serve_ctx_t::fs_path</a>, <a class="el" href="file__serve_8h_source.html#l00025">brix_http_serve_opts_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="file__serve_8h_source.html#l00024">brix_http_serve_opts_t::op_name</a>, <a class="el" href="file__serve_8c_source.html#l00090">serve_ctx_t::opts</a>, <a class="el" href="file__serve_8h_source.html#l00028">brix_http_serve_opts_t::pre_header_send</a>, <a class="el" href="file__serve_8h_source.html#l00029">brix_http_serve_opts_t::pre_header_ud</a>, <a class="el" href="range_8h_source.html#l00016">brix_http_range_t::present</a>, <a class="el" href="file__serve_8c_source.html#l00086">serve_ctx_t::r</a>, <a class="el" href="file__serve_8h_source.html#l00033">brix_http_serve_result_t::range_result</a>, <a class="el" href="file__serve_8c_source.html#l00093">serve_ctx_t::range_start</a>, <a class="el" href="file__serve_8c_source.html#l00091">serve_ctx_t::result</a>, <a class="el" href="range_8h_source.html#l00017">brix_http_range_t::satisfiable</a>, <a class="el" href="file__serve_8c_source.html#l00094">serve_ctx_t::send_len</a>, <a class="el" href="file__serve_8c_source.html#l00195">serve_apply_tcp_congestion()</a>, <a class="el" href="file__serve_8c_source.html#l00067">SERVE_DONE</a>, <a class="el" href="file__serve_8c_source.html#l00220">serve_range_unsatisfiable()</a>, <a class="el" href="file__serve_8c_source.html#l00346">serve_send_memory_backed()</a>, <a class="el" href="file__serve_8c_source.html#l00383">serve_send_sendfile()</a>, <a class="el" href="file__serve_8c_source.html#l00274">serve_try_compressed()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>, <a class="el" href="range_8h_source.html#l00014">brix_http_range_t::start</a>, <a class="el" href="file__serve_8c_source.html#l00088">serve_ctx_t::vst</a>, and <a class="el" href="file__serve_8h_source.html#l00023">brix_http_serve_opts_t::xfer_proto</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00082">cvmfs_tier_get()</a>, <a class="el" href="vfs__browse_8c_source.html#l00369">ngx_http_brix_dashboard_vfs_download_handler()</a>, <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00186">cvmfs_tier_open_respond()</a>, <a class="el" href="webdav_2get_8c_source.html#l00439">get_serve_full()</a>, <a class="el" href="vfs__browse_8c_source.html#l00399">ngx_http_brix_dashboard_vfs_download_handler()</a>, and <a class="el" href="object_8c_source.html#l00380">s3_get_serve()</a>.</p>
 
 </div>
 </div>
@@ -250,11 +297,267 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00062">62</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00111">111</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
 
-<p class="reference">References <a class="el" href="file__serve_8c_source.html#l00059">BRIX_SERVE_MEM_CHUNK</a>, and <a class="el" href="vfs__open_8c_source.html#l00595">brix_vfs_file_pread()</a>.</p>
+<p class="reference">References <a class="el" href="file__serve_8c_source.html#l00108">BRIX_SERVE_MEM_CHUNK</a>, and <a class="el" href="vfs__open__handle_8c_source.html#l00080">brix_vfs_file_pread()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00346">serve_send_memory_backed()</a>.</p>
+
+</div>
+</div>
+<a id="a7580f2aa926c217199c866f65036b97b" name="a7580f2aa926c217199c866f65036b97b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7580f2aa926c217199c866f65036b97b">&#9670;&#160;</a></span>serve_apply_tcp_congestion()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void serve_apply_tcp_congestion </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00195">195</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+
+<p class="reference">References <a class="el" href="netopt_8h_source.html#l00083">brix_apply_tcp_congestion()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00216">ngx_http_brix_webdav_loc_conf_t::tcp_congestion</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>.</p>
+
+</div>
+</div>
+<a id="a945c7181f9375d9c59d8758f46571de3" name="a945c7181f9375d9c59d8758f46571de3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a945c7181f9375d9c59d8758f46571de3">&#9670;&#160;</a></span>serve_range_unsatisfiable()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t serve_range_unsatisfiable </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_vfs_file_t *&#160;</td>
+          <td class="paramname"><em>fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__http__serve__result__t.html">brix_http_serve_result_t</a> *&#160;</td>
+          <td class="paramname"><em>result</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00220">220</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+
+<p class="reference">References <a class="el" href="file__serve_8h_source.html#l00012">BRIX_SERVE_RANGE_UNSATISFIED</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, and <a class="el" href="file__serve_8h_source.html#l00033">brix_http_serve_result_t::range_result</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>.</p>
+
+</div>
+</div>
+<a id="a0a0cdc3c64985febd48958a6d631b85e" name="a0a0cdc3c64985febd48958a6d631b85e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0a0cdc3c64985febd48958a6d631b85e">&#9670;&#160;</a></span>serve_record_body_accounting()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void serve_record_body_accounting </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structserve__ctx__t.html">serve_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>sc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>bytes</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>from_cache</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>cache_path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00244">244</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+
+<p class="reference">References <a class="el" href="file__serve_8c_source.html#l00092">serve_ctx_t::backend_name</a>, <a class="el" href="open_8c_source.html#l00347">brix_cache_record_access()</a>, <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="unified__record_8c_source.html#l00085">brix_metric_backend_bytes()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00040">BRIX_METRIC_OP_READ</a>, <a class="el" href="file__serve_8h_source.html#l00034">brix_http_serve_result_t::bytes_sent</a>, <a class="el" href="file__serve_8c_source.html#l00086">serve_ctx_t::r</a>, and <a class="el" href="file__serve_8c_source.html#l00091">serve_ctx_t::result</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00346">serve_send_memory_backed()</a>, <a class="el" href="file__serve_8c_source.html#l00383">serve_send_sendfile()</a>, and <a class="el" href="file__serve_8c_source.html#l00274">serve_try_compressed()</a>.</p>
+
+</div>
+</div>
+<a id="a231f06d1104f040c9ed224ab87eb385e" name="a231f06d1104f040c9ed224ab87eb385e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a231f06d1104f040c9ed224ab87eb385e">&#9670;&#160;</a></span>serve_send_memory_backed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t serve_send_memory_backed </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structserve__ctx__t.html">serve_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>sc</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00346">346</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="file__serve_8c_source.html#l00111">brix_serve_memory_backed()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="file__serve_8c_source.html#l00096">serve_ctx_t::cache_path</a>, <a class="el" href="file__serve_8c_source.html#l00087">serve_ctx_t::fh</a>, <a class="el" href="file__serve_8c_source.html#l00095">serve_ctx_t::from_cache</a>, <a class="el" href="file__serve_8c_source.html#l00086">serve_ctx_t::r</a>, <a class="el" href="file__serve_8c_source.html#l00093">serve_ctx_t::range_start</a>, <a class="el" href="file__serve_8c_source.html#l00094">serve_ctx_t::send_len</a>, and <a class="el" href="file__serve_8c_source.html#l00244">serve_record_body_accounting()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>.</p>
+
+</div>
+</div>
+<a id="a27aecadac9a947d6d7911be7791c5888" name="a27aecadac9a947d6d7911be7791c5888"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a27aecadac9a947d6d7911be7791c5888">&#9670;&#160;</a></span>serve_send_sendfile()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t serve_send_sendfile </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structserve__ctx__t.html">serve_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>sc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_fd_t&#160;</td>
+          <td class="paramname"><em>fd</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00383">383</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="http__file__response_8c_source.html#l00345">brix_http_send_file_range()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="file__serve_8c_source.html#l00096">serve_ctx_t::cache_path</a>, <a class="el" href="file__serve_8c_source.html#l00087">serve_ctx_t::fh</a>, <a class="el" href="file__serve_8c_source.html#l00095">serve_ctx_t::from_cache</a>, <a class="el" href="file__serve_8c_source.html#l00089">serve_ctx_t::fs_path</a>, <a class="el" href="file__serve_8c_source.html#l00086">serve_ctx_t::r</a>, <a class="el" href="file__serve_8c_source.html#l00093">serve_ctx_t::range_start</a>, <a class="el" href="file__serve_8c_source.html#l00094">serve_ctx_t::send_len</a>, and <a class="el" href="file__serve_8c_source.html#l00244">serve_record_body_accounting()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>.</p>
+
+</div>
+</div>
+<a id="a22e1fa9c456ca44390da99389ed3c21a" name="a22e1fa9c456ca44390da99389ed3c21a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a22e1fa9c456ca44390da99389ed3c21a">&#9670;&#160;</a></span>serve_try_compressed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="file__serve_8c.html#a672b522092738e7d30d5d247b4e6f058">serve_disposition_t</a> serve_try_compressed </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structserve__ctx__t.html">serve_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>sc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>range_present</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_int_t *&#160;</td>
+          <td class="paramname"><em>rc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="file__serve_8c_source.html#l00274">274</a> of file <a class="el" href="file__serve_8c_source.html">file_serve.c</a>.</p>
+
+<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__compress_8c_source.html#l00138">brix_http_compress_negotiate()</a>, <a class="el" href="http__compress_8c_source.html#l00338">brix_http_send_file_compressed()</a>, <a class="el" href="file__serve_8h_source.html#l00010">BRIX_SERVE_RANGE_FULL</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00214">brix_vfs_file_from_cache()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00196">brix_vfs_file_path()</a>, <a class="el" href="dashboard_8h_source.html#l00061">BRIX_XFER_DIR_READ</a>, <a class="el" href="file__serve_8h_source.html#l00027">brix_http_serve_opts_t::compress</a>, <a class="el" href="file__serve_8h_source.html#l00026">brix_http_serve_opts_t::etag_flags</a>, <a class="el" href="file__serve_8c_source.html#l00087">serve_ctx_t::fh</a>, <a class="el" href="file__serve_8c_source.html#l00089">serve_ctx_t::fs_path</a>, <a class="el" href="file__serve_8h_source.html#l00025">brix_http_serve_opts_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="file__serve_8h_source.html#l00024">brix_http_serve_opts_t::op_name</a>, <a class="el" href="file__serve_8c_source.html#l00090">serve_ctx_t::opts</a>, <a class="el" href="file__serve_8c_source.html#l00086">serve_ctx_t::r</a>, <a class="el" href="file__serve_8h_source.html#l00033">brix_http_serve_result_t::range_result</a>, <a class="el" href="file__serve_8c_source.html#l00091">serve_ctx_t::result</a>, <a class="el" href="file__serve_8c_source.html#l00066">SERVE_CONTINUE</a>, <a class="el" href="file__serve_8c_source.html#l00067">SERVE_DONE</a>, <a class="el" href="file__serve_8c_source.html#l00244">serve_record_body_accounting()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>, <a class="el" href="file__serve_8c_source.html#l00088">serve_ctx_t::vst</a>, and <a class="el" href="file__serve_8h_source.html#l00023">brix_http_serve_opts_t::xfer_proto</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>.</p>
 
 </div>
 </div>

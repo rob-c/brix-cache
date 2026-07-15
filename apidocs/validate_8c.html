@@ -96,12 +96,11 @@ $(document).ready(function(){initNavTree('validate_8c.html',''); initResizable()
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="token__internal_8h_source.html">token_internal.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="validate__internal_8h_source.html">validate_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="b64url_8h_source.html">b64url.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="json_8h_source.html">json.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="scopes_8h_source.html">scopes.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="macaroon_8h_source.html">macaroon.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="issuer__registry_8h_source.html">issuer_registry.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="subject__map_8h_source.html">subject_map.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="tunables_8h_source.html">core/types/tunables.h</a>&quot;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
@@ -111,79 +110,33 @@ $(document).ready(function(){initNavTree('validate_8c.html',''); initResizable()
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="validate_8c__incl.svg" width="100%" height="492"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="validate_8c__incl.svg" width="100%" height="547"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="validate_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a635d69d7e018e6dd6199e435c5937ecd" id="r_a635d69d7e018e6dd6199e435c5937ecd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a635d69d7e018e6dd6199e435c5937ecd">token_sanitize_for_log</a> (const char *in, char *out, size_t outsz)</td></tr>
-<tr class="separator:a635d69d7e018e6dd6199e435c5937ecd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa117d56a7c303f68ac9b4a17bcfede51" id="r_aa117d56a7c303f68ac9b4a17bcfede51"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#aa117d56a7c303f68ac9b4a17bcfede51">brix_token_malformed</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:aa117d56a7c303f68ac9b4a17bcfede51"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5fd66fdf922456273823ee70947fb942" id="r_a5fd66fdf922456273823ee70947fb942"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a5fd66fdf922456273823ee70947fb942">token_sanitize_for_log</a> (const char *in, char *out, size_t outsz)</td></tr>
+<tr class="separator:a5fd66fdf922456273823ee70947fb942"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a492a9a761c503df119ada7b5781af2d9" id="r_a492a9a761c503df119ada7b5781af2d9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a492a9a761c503df119ada7b5781af2d9">brix_token_malformed</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:a492a9a761c503df119ada7b5781af2d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a71d92c8816c7a2d5c63209461e0ca8c4" id="r_a71d92c8816c7a2d5c63209461e0ca8c4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a71d92c8816c7a2d5c63209461e0ca8c4">brix_token_extract_groups</a> (const char *pay_json, size_t pay_len, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims)</td></tr>
 <tr class="separator:a71d92c8816c7a2d5c63209461e0ca8c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4be1ea4bce1c802f17bf4bf5b991f097" id="r_a4be1ea4bce1c802f17bf4bf5b991f097"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a4be1ea4bce1c802f17bf4bf5b991f097">token_sig_ok</a> (const char *alg, const u_char *token, size_t signed_len, const u_char *sig_bin, size_t sig_len, EVP_PKEY *pkey)</td></tr>
-<tr class="separator:a4be1ea4bce1c802f17bf4bf5b991f097"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0ef070c215d5c2b25595d843173f75f1" id="r_a0ef070c215d5c2b25595d843173f75f1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a0ef070c215d5c2b25595d843173f75f1">brix_token_validate</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *token, size_t token_len, const <a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *keys, int key_count, const char *expected_issuer, const char *expected_audience, const u_char *macaroon_secret, size_t secret_len, int clock_skew, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims)</td></tr>
-<tr class="separator:a0ef070c215d5c2b25595d843173f75f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af159a6b17916694aba8d1d4bcccf0799" id="r_af159a6b17916694aba8d1d4bcccf0799"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#af159a6b17916694aba8d1d4bcccf0799">brix_token_peek_iss</a> (const char *token, size_t token_len, char *out, size_t outsz)</td></tr>
-<tr class="separator:af159a6b17916694aba8d1d4bcccf0799"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0d8c4a11136c6c1767734a610efb4af3" id="r_a0d8c4a11136c6c1767734a610efb4af3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a0d8c4a11136c6c1767734a610efb4af3">brix_token_validate_registry_authn</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *token, size_t token_len, const <a class="el" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *reg, const u_char *macaroon_secret, size_t secret_len, int clock_skew, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims, const <a class="el" href="structbrix__token__issuer__t.html">brix_token_issuer_t</a> **out_issuer)</td></tr>
-<tr class="separator:a0d8c4a11136c6c1767734a610efb4af3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a95485db580978c049cbd9c86437e9ab4" id="r_a95485db580978c049cbd9c86437e9ab4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a95485db580978c049cbd9c86437e9ab4">brix_token_authz_strategy</a> (const <a class="el" href="structbrix__token__issuer__t.html">brix_token_issuer_t</a> *is, const <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims, const char *req_path, <a class="el" href="token_8h.html#a17163e9e5755575b252e26a5a870667e">brix_token_op_e</a> op)</td></tr>
-<tr class="separator:a95485db580978c049cbd9c86437e9ab4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7c1835c21f3abac14ade3493bf808bd7" id="r_a7c1835c21f3abac14ade3493bf808bd7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a7c1835c21f3abac14ade3493bf808bd7">brix_token_validate_registry</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *token, size_t token_len, const <a class="el" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *reg, const char *req_path, <a class="el" href="token_8h.html#a17163e9e5755575b252e26a5a870667e">brix_token_op_e</a> op, const u_char *macaroon_secret, size_t secret_len, int clock_skew, <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims, int *out_issuer_bucket)</td></tr>
-<tr class="separator:a7c1835c21f3abac14ade3493bf808bd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8abc271e4e3ad66447f27476de9d07c7" id="r_a8abc271e4e3ad66447f27476de9d07c7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a8abc271e4e3ad66447f27476de9d07c7">token_validate_macaroon</a> (const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *a)</td></tr>
+<tr class="separator:a8abc271e4e3ad66447f27476de9d07c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a61c0f28064b33a6f300a4c9e094e58b0" id="r_a61c0f28064b33a6f300a4c9e094e58b0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#a61c0f28064b33a6f300a4c9e094e58b0">token_extract_claims</a> (const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *a, const char *pay_json, size_t pay_len)</td></tr>
+<tr class="separator:a61c0f28064b33a6f300a4c9e094e58b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acc544f4dfdba833fcd4ae963d5edd0c1" id="r_acc544f4dfdba833fcd4ae963d5edd0c1"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#acc544f4dfdba833fcd4ae963d5edd0c1">token_check_issuer_audience</a> (const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *a, const char *pay_json, size_t pay_len)</td></tr>
+<tr class="separator:acc544f4dfdba833fcd4ae963d5edd0c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae0a7d4acb27eb3b05b75f93d36450181" id="r_ae0a7d4acb27eb3b05b75f93d36450181"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#ae0a7d4acb27eb3b05b75f93d36450181">token_check_time_window</a> (const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *a)</td></tr>
+<tr class="separator:ae0a7d4acb27eb3b05b75f93d36450181"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad43dab32967050dc95a428380b8c36ea" id="r_ad43dab32967050dc95a428380b8c36ea"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#ad43dab32967050dc95a428380b8c36ea">token_log_valid</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *claims)</td></tr>
+<tr class="separator:ad43dab32967050dc95a428380b8c36ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa4ce634e3faf3a376258e9c080df1fbc" id="r_aa4ce634e3faf3a376258e9c080df1fbc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="validate_8c.html#aa4ce634e3faf3a376258e9c080df1fbc">brix_token_validate</a> (const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *a)</td></tr>
+<tr class="separator:aa4ce634e3faf3a376258e9c080df1fbc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a95485db580978c049cbd9c86437e9ab4" name="a95485db580978c049cbd9c86437e9ab4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a95485db580978c049cbd9c86437e9ab4">&#9670;&#160;</a></span>brix_token_authz_strategy()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_token_authz_strategy </td>
-          <td>(</td>
-          <td class="paramtype">const <a class="el" href="structbrix__token__issuer__t.html">brix_token_issuer_t</a> *&#160;</td>
-          <td class="paramname"><em>is</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
-          <td class="paramname"><em>claims</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>req_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="token_8h.html#a17163e9e5755575b252e26a5a870667e">brix_token_op_e</a>&#160;</td>
-          <td class="paramname"><em>op</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00581">581</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
-
-<p class="reference">References <a class="el" href="issuer__registry_8h_source.html#l00025">BRIX_AUTHZ_CAPABILITY</a>, <a class="el" href="issuer__registry_8h_source.html#l00026">BRIX_AUTHZ_GROUP</a>, <a class="el" href="issuer__registry_8h_source.html#l00027">BRIX_AUTHZ_MAPPING</a>, <a class="el" href="subject__map_8c_source.html#l00023">brix_subject_mapfile_lookup()</a>, <a class="el" href="scopes_8c_source.html#l00238">brix_token_check_read()</a>, <a class="el" href="scopes_8c_source.html#l00265">brix_token_check_write()</a>, <a class="el" href="issuer__registry_8c_source.html#l00287">brix_token_issuer_path_ok()</a>, <a class="el" href="token_8h_source.html#l00107">BRIX_TOKEN_OP_WRITE</a>, <a class="el" href="issuer__registry_8h_source.html#l00040">brix_token_issuer_t::default_user</a>, <a class="el" href="token_8h_source.html#l00070">brix_token_claims_t::groups</a>, <a class="el" href="issuer__registry_8h_source.html#l00042">brix_token_issuer_t::map_subject</a>, <a class="el" href="issuer__registry_8h_source.html#l00041">brix_token_issuer_t::name_mapfile</a>, <a class="el" href="issuer__registry_8h_source.html#l00043">brix_token_issuer_t::onmissing_fail</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, <a class="el" href="token_8h_source.html#l00072">brix_token_claims_t::scopes</a>, <a class="el" href="issuer__registry_8h_source.html#l00045">brix_token_issuer_t::strategy</a>, and <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="identity_8c_source.html#l00482">brix_identity_check_token_scope()</a>, and <a class="el" href="validate_8c_source.html#l00637">brix_token_validate_registry()</a>.</p>
-
-</div>
-</div>
 <a id="a71d92c8816c7a2d5c63209461e0ca8c4" name="a71d92c8816c7a2d5c63209461e0ca8c4"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a71d92c8816c7a2d5c63209461e0ca8c4">&#9670;&#160;</a></span>brix_token_extract_groups()</h2>
 
@@ -224,16 +177,64 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00094">94</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00093">93</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
 
 <p class="reference">References <a class="el" href="token_8h_source.html#l00070">brix_token_claims_t::groups</a>, <a class="el" href="json_8c_source.html#l00067">json_get_string_array()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00190">brix_token_validate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00189">token_extract_claims()</a>.</p>
 
 </div>
 </div>
-<a id="aa117d56a7c303f68ac9b4a17bcfede51" name="aa117d56a7c303f68ac9b4a17bcfede51"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa117d56a7c303f68ac9b4a17bcfede51">&#9670;&#160;</a></span>brix_token_malformed()</h2>
+<a id="a492a9a761c503df119ada7b5781af2d9" name="a492a9a761c503df119ada7b5781af2d9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a492a9a761c503df119ada7b5781af2d9">&#9670;&#160;</a></span>brix_token_malformed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_token_malformed </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00079">79</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00400">brix_token_validate()</a>, and <a class="el" href="validate__sig_8c_source.html#l00093">token_check_header()</a>.</p>
+
+</div>
+</div>
+<a id="aa4ce634e3faf3a376258e9c080df1fbc" name="aa4ce634e3faf3a376258e9c080df1fbc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa4ce634e3faf3a376258e9c080df1fbc">&#9670;&#160;</a></span>brix_token_validate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_token_validate </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *&#160;</td>
+          <td class="paramname"><em>a</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00400">400</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+
+<p class="reference">References <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, <a class="el" href="token_8h_source.html#l00028">BRIX_MAX_TOKEN_SCOPES</a>, <a class="el" href="macaroon_8c_source.html#l00041">brix_token_is_macaroon()</a>, <a class="el" href="validate_8c_source.html#l00079">brix_token_malformed()</a>, <a class="el" href="scopes_8c_source.html#l00126">brix_token_parse_scopes()</a>, <a class="el" href="token_8h_source.html#l00148">brix_token_validate_args_t::claims</a>, <a class="el" href="token_8h_source.html#l00138">brix_token_validate_args_t::log</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, <a class="el" href="token_8h_source.html#l00072">brix_token_claims_t::scopes</a>, <a class="el" href="token_8h_source.html#l00139">brix_token_validate_args_t::token</a>, <a class="el" href="validate__sig_8c_source.html#l00093">token_check_header()</a>, <a class="el" href="validate_8c_source.html#l00245">token_check_issuer_audience()</a>, <a class="el" href="validate_8c_source.html#l00303">token_check_time_window()</a>, <a class="el" href="validate_8c_source.html#l00189">token_extract_claims()</a>, <a class="el" href="token_8h_source.html#l00140">brix_token_validate_args_t::token_len</a>, <a class="el" href="validate_8c_source.html#l00345">token_log_valid()</a>, <a class="el" href="validate_8c_source.html#l00148">token_validate_macaroon()</a>, <a class="el" href="validate__sig_8c_source.html#l00186">token_verify_signature()</a>, and <a class="el" href="b64url_8c_source.html#l00020">xrdjwt_split()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="validate__registry_8c_source.html#l00076">brix_token_validate_registry_authn()</a>, <a class="el" href="auth__bearer_8c_source.html#l00088">s3_verify_bearer()</a>, <a class="el" href="token_8c_source.html#l00281">tokenauth_grace_retry()</a>, <a class="el" href="token_8c_source.html#l00208">tokenauth_verify_or_cache()</a>, and <a class="el" href="auth__token_8c_source.html#l00321">wt_validate_jwks()</a>.</p>
+
+</div>
+</div>
+<a id="acc544f4dfdba833fcd4ae963d5edd0c1" name="acc544f4dfdba833fcd4ae963d5edd0c1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acc544f4dfdba833fcd4ae963d5edd0c1">&#9670;&#160;</a></span>token_check_issuer_audience()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -242,10 +243,58 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int brix_token_malformed </td>
+          <td class="memname">static int token_check_issuer_audience </td>
           <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em></td><td>)</td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *&#160;</td>
+          <td class="paramname"><em>a</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>pay_json</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>pay_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00245">245</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+
+<p class="reference">References <a class="el" href="token_8h_source.html#l00065">brix_token_claims_t::aud</a>, <a class="el" href="token_8h_source.html#l00148">brix_token_validate_args_t::claims</a>, <a class="el" href="token_8h_source.html#l00144">brix_token_validate_args_t::expected_audience</a>, <a class="el" href="token_8h_source.html#l00143">brix_token_validate_args_t::expected_issuer</a>, <a class="el" href="token_8h_source.html#l00064">brix_token_claims_t::iss</a>, <a class="el" href="json_8c_source.html#l00196">json_string_or_array_contains()</a>, <a class="el" href="token_8h_source.html#l00138">brix_token_validate_args_t::log</a>, and <a class="el" href="validate_8c_source.html#l00040">token_sanitize_for_log()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00400">brix_token_validate()</a>.</p>
+
+</div>
+</div>
+<a id="ae0a7d4acb27eb3b05b75f93d36450181" name="ae0a7d4acb27eb3b05b75f93d36450181"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae0a7d4acb27eb3b05b75f93d36450181">&#9670;&#160;</a></span>token_check_time_window()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int token_check_time_window </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *&#160;</td>
+          <td class="paramname"><em>a</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -256,314 +305,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00080">80</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00303">303</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="token_8h_source.html#l00148">brix_token_validate_args_t::claims</a>, <a class="el" href="token_8h_source.html#l00147">brix_token_validate_args_t::clock_skew</a>, <a class="el" href="token_8h_source.html#l00066">brix_token_claims_t::exp</a>, <a class="el" href="token_8h_source.html#l00138">brix_token_validate_args_t::log</a>, and <a class="el" href="token_8h_source.html#l00067">brix_token_claims_t::nbf</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00190">brix_token_validate()</a>.</p>
-
-</div>
-</div>
-<a id="af159a6b17916694aba8d1d4bcccf0799" name="af159a6b17916694aba8d1d4bcccf0799"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af159a6b17916694aba8d1d4bcccf0799">&#9670;&#160;</a></span>brix_token_peek_iss()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_token_peek_iss </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>token</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>token_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>outsz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00486">486</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
-
-<p class="reference">References <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, <a class="el" href="json_8c_source.html#l00020">json_get_string()</a>, and <a class="el" href="b64url_8c_source.html#l00020">xrdjwt_split()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00515">brix_token_validate_registry_authn()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00400">brix_token_validate()</a>.</p>
 
 </div>
 </div>
-<a id="a0ef070c215d5c2b25595d843173f75f1" name="a0ef070c215d5c2b25595d843173f75f1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0ef070c215d5c2b25595d843173f75f1">&#9670;&#160;</a></span>brix_token_validate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_token_validate </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>token</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>token_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__jwks__key__t.html">brix_jwks_key_t</a> *&#160;</td>
-          <td class="paramname"><em>keys</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>key_count</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>expected_issuer</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>expected_audience</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>macaroon_secret</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>secret_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>clock_skew</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
-          <td class="paramname"><em>claims</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00190">190</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
-
-<p class="reference">References <a class="el" href="token_8h_source.html#l00065">brix_token_claims_t::aud</a>, <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, <a class="el" href="macaroon_8c_source.html#l00814">brix_macaroon_validate()</a>, <a class="el" href="token_8h_source.html#l00028">BRIX_MAX_TOKEN_SCOPES</a>, <a class="el" href="validate_8c_source.html#l00094">brix_token_extract_groups()</a>, <a class="el" href="macaroon_8c_source.html#l00078">brix_token_is_macaroon()</a>, <a class="el" href="validate_8c_source.html#l00080">brix_token_malformed()</a>, <a class="el" href="scopes_8c_source.html#l00126">brix_token_parse_scopes()</a>, <a class="el" href="token_8h_source.html#l00066">brix_token_claims_t::exp</a>, <a class="el" href="token_8h_source.html#l00070">brix_token_claims_t::groups</a>, <a class="el" href="token_8h_source.html#l00068">brix_token_claims_t::iat</a>, <a class="el" href="token_8h_source.html#l00064">brix_token_claims_t::iss</a>, <a class="el" href="json_8c_source.html#l00129">json_get_int64()</a>, <a class="el" href="json_8c_source.html#l00020">json_get_string()</a>, <a class="el" href="json_8c_source.html#l00067">json_get_string_array()</a>, <a class="el" href="json_8c_source.html#l00244">json_has_member()</a>, <a class="el" href="json_8c_source.html#l00196">json_string_or_array_contains()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="b64url_8h_source.html#l00020">xrdjwt_seg::n</a>, <a class="el" href="token_8h_source.html#l00067">brix_token_claims_t::nbf</a>, <a class="el" href="token_8h_source.html#l00046">brix_jwks_key_t::pkey</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, <a class="el" href="token_8h_source.html#l00072">brix_token_claims_t::scopes</a>, <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>, <a class="el" href="validate_8c_source.html#l00041">token_sanitize_for_log()</a>, <a class="el" href="validate_8c_source.html#l00142">token_sig_ok()</a>, and <a class="el" href="b64url_8c_source.html#l00020">xrdjwt_split()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="token_8c_source.html#l00044">brix_handle_token_auth()</a>, <a class="el" href="validate_8c_source.html#l00515">brix_token_validate_registry_authn()</a>, <a class="el" href="auth__bearer_8c_source.html#l00088">s3_verify_bearer()</a>, and <a class="el" href="auth__token_8c_source.html#l00160">webdav_verify_bearer_token()</a>.</p>
-
-</div>
-</div>
-<a id="a7c1835c21f3abac14ade3493bf808bd7" name="a7c1835c21f3abac14ade3493bf808bd7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7c1835c21f3abac14ade3493bf808bd7">&#9670;&#160;</a></span>brix_token_validate_registry()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_token_validate_registry </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>token</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>token_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *&#160;</td>
-          <td class="paramname"><em>reg</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>req_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="token_8h.html#a17163e9e5755575b252e26a5a870667e">brix_token_op_e</a>&#160;</td>
-          <td class="paramname"><em>op</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>macaroon_secret</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>secret_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>clock_skew</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
-          <td class="paramname"><em>claims</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>out_issuer_bucket</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00637">637</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
-
-<p class="reference">References <a class="el" href="validate_8c_source.html#l00581">brix_token_authz_strategy()</a>, <a class="el" href="validate_8c_source.html#l00515">brix_token_validate_registry_authn()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="issuer__registry_8h_source.html#l00050">brix_token_issuer_t::metric_bucket</a>, and <a class="el" href="issuer__registry_8h_source.html#l00030">brix_token_issuer_t::name</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="secure_8c_source.html#l00056">scvmfs_check_bearer()</a>, and <a class="el" href="auth__token_8c_source.html#l00160">webdav_verify_bearer_token()</a>.</p>
-
-</div>
-</div>
-<a id="a0d8c4a11136c6c1767734a610efb4af3" name="a0d8c4a11136c6c1767734a610efb4af3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0d8c4a11136c6c1767734a610efb4af3">&#9670;&#160;</a></span>brix_token_validate_registry_authn()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_token_validate_registry_authn </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>token</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>token_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *&#160;</td>
-          <td class="paramname"><em>reg</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>macaroon_secret</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>secret_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>clock_skew</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
-          <td class="paramname"><em>claims</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__token__issuer__t.html">brix_token_issuer_t</a> **&#160;</td>
-          <td class="paramname"><em>out_issuer</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00515">515</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
-
-<p class="reference">References <a class="el" href="token_8h_source.html#l00065">brix_token_claims_t::aud</a>, <a class="el" href="issuer__registry_8h_source.html#l00033">brix_token_issuer_t::audience_count</a>, <a class="el" href="issuer__registry_8h_source.html#l00032">brix_token_issuer_t::audiences</a>, <a class="el" href="validate_8c_source.html#l00486">brix_token_peek_iss()</a>, <a class="el" href="issuer__registry_8c_source.html#l00272">brix_token_registry_find()</a>, <a class="el" href="validate_8c_source.html#l00190">brix_token_validate()</a>, <a class="el" href="issuer__registry_8h_source.html#l00058">brix_token_registry_t::global_audience_count</a>, <a class="el" href="issuer__registry_8h_source.html#l00057">brix_token_registry_t::global_audiences</a>, <a class="el" href="issuer__registry_8h_source.html#l00031">brix_token_issuer_t::issuer</a>, <a class="el" href="issuer__registry_8h_source.html#l00048">brix_token_issuer_t::jwks_key_count</a>, <a class="el" href="issuer__registry_8h_source.html#l00047">brix_token_issuer_t::jwks_keys</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="issuer__registry_8h_source.html#l00030">brix_token_issuer_t::name</a>, and <a class="el" href="validate_8c_source.html#l00041">token_sanitize_for_log()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="token_8c_source.html#l00044">brix_handle_token_auth()</a>, and <a class="el" href="validate_8c_source.html#l00637">brix_token_validate_registry()</a>.</p>
-
-</div>
-</div>
-<a id="a635d69d7e018e6dd6199e435c5937ecd" name="a635d69d7e018e6dd6199e435c5937ecd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a635d69d7e018e6dd6199e435c5937ecd">&#9670;&#160;</a></span>token_sanitize_for_log()</h2>
+<a id="a61c0f28064b33a6f300a4c9e094e58b0" name="a61c0f28064b33a6f300a4c9e094e58b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a61c0f28064b33a6f300a4c9e094e58b0">&#9670;&#160;</a></span>token_extract_claims()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -572,7 +323,94 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void token_sanitize_for_log </td>
+          <td class="memname">static int token_extract_claims </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *&#160;</td>
+          <td class="paramname"><em>a</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>pay_json</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>pay_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00189">189</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+
+<p class="reference">References <a class="el" href="token_8h_source.html#l00065">brix_token_claims_t::aud</a>, <a class="el" href="validate_8c_source.html#l00093">brix_token_extract_groups()</a>, <a class="el" href="token_8h_source.html#l00148">brix_token_validate_args_t::claims</a>, <a class="el" href="token_8h_source.html#l00066">brix_token_claims_t::exp</a>, <a class="el" href="token_8h_source.html#l00068">brix_token_claims_t::iat</a>, <a class="el" href="token_8h_source.html#l00064">brix_token_claims_t::iss</a>, <a class="el" href="json_8c_source.html#l00129">json_get_int64()</a>, <a class="el" href="json_8c_source.html#l00020">json_get_string()</a>, <a class="el" href="json_8c_source.html#l00067">json_get_string_array()</a>, <a class="el" href="token_8h_source.html#l00138">brix_token_validate_args_t::log</a>, <a class="el" href="token_8h_source.html#l00067">brix_token_claims_t::nbf</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, and <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00400">brix_token_validate()</a>.</p>
+
+</div>
+</div>
+<a id="ad43dab32967050dc95a428380b8c36ea" name="ad43dab32967050dc95a428380b8c36ea"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad43dab32967050dc95a428380b8c36ea">&#9670;&#160;</a></span>token_log_valid()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void token_log_valid </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a> *&#160;</td>
+          <td class="paramname"><em>claims</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00345">345</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+
+<p class="reference">References <a class="el" href="token_8h_source.html#l00070">brix_token_claims_t::groups</a>, <a class="el" href="token_8h_source.html#l00064">brix_token_claims_t::iss</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="token_8h_source.html#l00071">brix_token_claims_t::scope_count</a>, <a class="el" href="token_8h_source.html#l00069">brix_token_claims_t::scope_raw</a>, <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>, and <a class="el" href="validate_8c_source.html#l00040">token_sanitize_for_log()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00400">brix_token_validate()</a>.</p>
+
+</div>
+</div>
+<a id="a5fd66fdf922456273823ee70947fb942" name="a5fd66fdf922456273823ee70947fb942"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5fd66fdf922456273823ee70947fb942">&#9670;&#160;</a></span>token_sanitize_for_log()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void token_sanitize_for_log </td>
           <td>(</td>
           <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>in</em>, </td>
@@ -595,23 +433,18 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00041">41</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00040">40</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00190">brix_token_validate()</a>, and <a class="el" href="validate_8c_source.html#l00515">brix_token_validate_registry_authn()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="validate__registry_8c_source.html#l00076">brix_token_validate_registry_authn()</a>, <a class="el" href="validate__sig_8c_source.html#l00093">token_check_header()</a>, <a class="el" href="validate_8c_source.html#l00245">token_check_issuer_audience()</a>, <a class="el" href="validate_8c_source.html#l00345">token_log_valid()</a>, <a class="el" href="validate__sig_8c_source.html#l00148">token_select_key_by_kid()</a>, and <a class="el" href="validate_8c_source.html#l00148">token_validate_macaroon()</a>.</p>
 
 </div>
 </div>
-<a id="a4be1ea4bce1c802f17bf4bf5b991f097" name="a4be1ea4bce1c802f17bf4bf5b991f097"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4be1ea4bce1c802f17bf4bf5b991f097">&#9670;&#160;</a></span>token_sig_ok()</h2>
+<a id="a8abc271e4e3ad66447f27476de9d07c7" name="a8abc271e4e3ad66447f27476de9d07c7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8abc271e4e3ad66447f27476de9d07c7">&#9670;&#160;</a></span>token_validate_macaroon()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -620,45 +453,11 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int token_sig_ok </td>
+          <td class="memname">static int token_validate_macaroon </td>
           <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>alg</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__validate__args__t.html">brix_token_validate_args_t</a> *&#160;</td>
+          <td class="paramname"><em>a</em></td><td>)</td>
           <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>token</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>signed_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>sig_bin</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>sig_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">EVP_PKEY *&#160;</td>
-          <td class="paramname"><em>pkey</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -668,11 +467,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00142">142</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="validate_8c_source.html#l00148">148</a> of file <a class="el" href="validate_8c_source.html">validate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="signature_8c_source.html#l00043">brix_token_verify_es256()</a>, and <a class="el" href="signature_8c_source.html#l00012">brix_token_verify_rs256()</a>.</p>
+<p class="reference">References <a class="el" href="macaroon_8c_source.html#l00386">brix_macaroon_validate()</a>, <a class="el" href="token_8h_source.html#l00148">brix_token_validate_args_t::claims</a>, <a class="el" href="token_8h_source.html#l00143">brix_token_validate_args_t::expected_issuer</a>, <a class="el" href="token_8h_source.html#l00064">brix_token_claims_t::iss</a>, <a class="el" href="token_8h_source.html#l00138">brix_token_validate_args_t::log</a>, <a class="el" href="token_8h_source.html#l00145">brix_token_validate_args_t::macaroon_secret</a>, <a class="el" href="token_8h_source.html#l00146">brix_token_validate_args_t::secret_len</a>, <a class="el" href="token_8h_source.html#l00139">brix_token_validate_args_t::token</a>, <a class="el" href="token_8h_source.html#l00140">brix_token_validate_args_t::token_len</a>, and <a class="el" href="validate_8c_source.html#l00040">token_sanitize_for_log()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00190">brix_token_validate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="validate_8c_source.html#l00400">brix_token_validate()</a>.</p>
 
 </div>
 </div>

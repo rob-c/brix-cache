@@ -113,7 +113,7 @@ Functions</h2></td></tr>
 <tr class="separator:a5d0a0c97febf9ee231a1811b5e0d5b04"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abf873b6bd1507d6c2b7bd644c8e85144" id="r_abf873b6bd1507d6c2b7bd644c8e85144"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="guard__classify_8c.html#abf873b6bd1507d6c2b7bd644c8e85144">guard_signature_match</a> (const <a class="el" href="structguard__ruleset__t.html">guard_ruleset_t</a> *rs, const char *path, size_t len)</td></tr>
 <tr class="separator:abf873b6bd1507d6c2b7bd644c8e85144"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aeacbb94a587d9865a10b3cba1e4b5e22" id="r_aeacbb94a587d9865a10b3cba1e4b5e22"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="guard__classify_8c.html#aeacbb94a587d9865a10b3cba1e4b5e22">guard_grammar_ok</a> (const <a class="el" href="structguard__ruleset__t.html">guard_ruleset_t</a> *rs, <a class="el" href="guard_8h.html#a0f89a0e2fe6eabea9293becbffddab5c">guard_op_class_t</a> op, const char *path, size_t len)</td></tr>
+<tr class="memitem:aeacbb94a587d9865a10b3cba1e4b5e22" id="r_aeacbb94a587d9865a10b3cba1e4b5e22"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="guard__classify_8c.html#aeacbb94a587d9865a10b3cba1e4b5e22">guard_grammar_ok</a> (const <a class="el" href="structguard__ruleset__t.html">guard_ruleset_t</a> *rs, <a class="el" href="guard_8h.html#a0f89a0e2fe6eabea9293becbffddab5c">guard_op_class_t</a> <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *path, size_t len)</td></tr>
 <tr class="separator:aeacbb94a587d9865a10b3cba1e4b5e22"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a24713c70cb2f2ecd8a3573f67d7c472b" id="r_a24713c70cb2f2ecd8a3573f67d7c472b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="guard_8h.html#a90ebdfbd648e6aa9d7719f604a1056c6">guard_verdict_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="guard__classify_8c.html#a24713c70cb2f2ecd8a3573f67d7c472b">guard_classify_pre</a> (const <a class="el" href="structguard__ruleset__t.html">guard_ruleset_t</a> *rs, const <a class="el" href="structguard__request__t.html">guard_request_t</a> *req, <a class="el" href="guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46">guard_reason_t</a> *why)</td></tr>
 <tr class="separator:a24713c70cb2f2ecd8a3573f67d7c472b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -151,7 +151,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="guard_8h_source.html#l00074">guard_ruleset_t::flag_authfail</a>, <a class="el" href="guard_8h_source.html#l00073">guard_ruleset_t::flag_notfound</a>, <a class="el" href="guard_8h_source.html#l00035">GUARD_R_AUTHFAIL</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_NONE</a>, <a class="el" href="guard_8h_source.html#l00035">GUARD_R_NOTFOUND</a>, <a class="el" href="guard_8h_source.html#l00045">guard_request_t::outcome</a>, <a class="el" href="guard_8h_source.html#l00028">OUTCOME_AUTHFAIL</a>, and <a class="el" href="guard_8h_source.html#l00027">OUTCOME_NOTFOUND</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00185">brix_relay_guard_sink()</a>, <a class="el" href="guard__test_8c_source.html#l00020">main()</a>, and <a class="el" href="audit__handler_8c_source.html#l00055">ngx_http_brix_guard_log_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00198">brix_relay_guard_sink()</a>, <a class="el" href="guard__test_8c_source.html#l00020">main()</a>, and <a class="el" href="audit__handler_8c_source.html#l00055">ngx_http_brix_guard_log_handler()</a>.</p>
 
 </div>
 </div>
@@ -191,7 +191,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="guard_8h_source.html#l00071">guard_ruleset_t::enforce_grammar</a>, <a class="el" href="guard_8h_source.html#l00031">GUARD_ALLOW</a>, <a class="el" href="guard_8h_source.html#l00031">GUARD_BOUNCE</a>, <a class="el" href="guard__classify_8c_source.html#l00095">guard_grammar_ok()</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_GRAMMAR</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_NONE</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_SIGNATURE</a>, <a class="el" href="guard__classify_8c_source.html#l00068">guard_signature_match()</a>, <a class="el" href="guard_8h_source.html#l00041">guard_request_t::op</a>, <a class="el" href="guard_8h_source.html#l00042">guard_request_t::path</a>, and <a class="el" href="guard_8h_source.html#l00043">guard_request_t::path_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00185">brix_relay_guard_sink()</a>, <a class="el" href="guard__test_8c_source.html#l00020">main()</a>, and <a class="el" href="classify__handler_8c_source.html#l00034">ngx_http_brix_guard_access_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00198">brix_relay_guard_sink()</a>, <a class="el" href="guard__test_8c_source.html#l00020">main()</a>, and <a class="el" href="classify__handler_8c_source.html#l00034">ngx_http_brix_guard_access_handler()</a>.</p>
 
 </div>
 </div>
@@ -235,7 +235,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="guard__classify_8c_source.html#l00095">95</a> of file <a class="el" href="guard__classify_8c_source.html">guard_classify.c</a>.</p>
 
-<p class="reference">References <a class="el" href="guard_8h_source.html#l00069">guard_ruleset_t::n_prefixes</a>, <a class="el" href="guard_8h_source.html#l00070">guard_ruleset_t::op_allowed</a>, <a class="el" href="guard_8h_source.html#l00068">guard_ruleset_t::prefix_len</a>, and <a class="el" href="guard_8h_source.html#l00067">guard_ruleset_t::prefixes</a>.</p>
+<p class="reference">References <a class="el" href="guard_8h_source.html#l00069">guard_ruleset_t::n_prefixes</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="guard_8h_source.html#l00070">guard_ruleset_t::op_allowed</a>, <a class="el" href="guard_8h_source.html#l00068">guard_ruleset_t::prefix_len</a>, and <a class="el" href="guard_8h_source.html#l00067">guard_ruleset_t::prefixes</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="guard__classify_8c_source.html#l00133">guard_classify_pre()</a>.</p>
 

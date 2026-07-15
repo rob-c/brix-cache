@@ -109,7 +109,7 @@ $(document).ready(function(){initNavTree('server__send_8c.html',''); initResizab
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a7be717ab805efcfe9390612f8569d43b" id="r_a7be717ab805efcfe9390612f8569d43b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__send_8c.html#a7be717ab805efcfe9390612f8569d43b">brix_cms_srv_send_frame</a> (<a class="el" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> *ctx, uint32_t streamid, u_char code, u_char modifier, const u_char *payload, size_t payload_len)</td></tr>
+<tr class="memitem:a7be717ab805efcfe9390612f8569d43b" id="r_a7be717ab805efcfe9390612f8569d43b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__send_8c.html#a7be717ab805efcfe9390612f8569d43b">brix_cms_srv_send_frame</a> (<a class="el" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> *ctx, uint32_t streamid, u_char <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, u_char modifier, const u_char *payload, size_t payload_len)</td></tr>
 <tr class="separator:a7be717ab805efcfe9390612f8569d43b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3e6794c1b031140ee2557e6bb55bb063" id="r_a3e6794c1b031140ee2557e6bb55bb063"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__send_8c.html#a3e6794c1b031140ee2557e6bb55bb063">brix_cms_srv_send_ping</a> (<a class="el" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> *ctx)</td></tr>
 <tr class="separator:a3e6794c1b031140ee2557e6bb55bb063"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -165,9 +165,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00072">72</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00078">CMS_RSP_DATA</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00083">CMS_RSP_DATA</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00266">cms_srv_frame_statfs()</a>.</p>
 
 </div>
 </div>
@@ -189,9 +189,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00054">54</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00067">CMS_RR_DISC</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00072">CMS_RR_DISC</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00234">cms_srv_frame_disc()</a>.</p>
 
 </div>
 </div>
@@ -255,7 +255,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00014">14</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="frame__io_8c_source.html#l00064">brix_cms_send_frame()</a>, and <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>.</p>
+<p class="reference">References <a class="el" href="frame__io_8c_source.html#l00064">brix_cms_send_frame()</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, and <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__send_8c_source.html#l00072">brix_cms_srv_send_data()</a>, <a class="el" href="server__send_8c_source.html#l00054">brix_cms_srv_send_disc()</a>, <a class="el" href="server__send_8c_source.html#l00027">brix_cms_srv_send_ping()</a>, <a class="el" href="server__send_8c_source.html#l00046">brix_cms_srv_send_pong()</a>, <a class="el" href="server__send_8c_source.html#l00063">brix_cms_srv_send_status()</a>, and <a class="el" href="server__send_8c_source.html#l00037">brix_cms_srv_send_xauth()</a>.</p>
 
@@ -279,9 +279,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00027">27</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00094">CMS_RR_PING</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00099">CMS_RR_PING</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00384">brix_cms_srv_ping_timer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00033">brix_cms_srv_ping_timer()</a>.</p>
 
 </div>
 </div>
@@ -303,9 +303,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00046">46</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00095">CMS_RR_PONG</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00100">CMS_RR_PONG</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00219">cms_srv_frame_ping()</a>.</p>
 
 </div>
 </div>
@@ -337,9 +337,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00063">63</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00098">CMS_RR_STATUS</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00103">CMS_RR_STATUS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00248">cms_srv_frame_update()</a>.</p>
 
 </div>
 </div>
@@ -377,9 +377,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__send_8c_source.html#l00037">37</a> of file <a class="el" href="server__send_8c_source.html">server_send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00100">CMS_RR_XAUTH</a>.</p>
+<p class="reference">References <a class="el" href="server__send_8c_source.html#l00014">brix_cms_srv_send_frame()</a>, and <a class="el" href="cms__internal_8h_source.html#l00105">CMS_RR_XAUTH</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00111">cms_srv_frame_login()</a>.</p>
 
 </div>
 </div>

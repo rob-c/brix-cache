@@ -110,7 +110,7 @@ $(document).ready(function(){initNavTree('range_8h.html',''); initResizable(); }
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="range_8h__dep__incl.svg" width="100%" height="591"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="range_8h__dep__incl.svg" width="100%" height="525"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="range_8h_source.html">Go to the source code of this file.</a></p>
@@ -162,11 +162,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="range_8c_source.html#l00102">102</a> of file <a class="el" href="range_8c_source.html">range.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="range_8c_source.html#l00223">223</a> of file <a class="el" href="range_8c_source.html">range.c</a>.</p>
 
-<p class="reference">References <a class="el" href="range_8c_source.html#l00082">cr_parse_u64()</a>, <a class="el" href="range_8h_source.html#l00041">brix_http_content_range_t::end</a>, <a class="el" href="range_8h_source.html#l00043">brix_http_content_range_t::present</a>, <a class="el" href="range_8h_source.html#l00040">brix_http_content_range_t::start</a>, and <a class="el" href="range_8h_source.html#l00042">brix_http_content_range_t::total</a>.</p>
+<p class="reference">References <a class="el" href="range_8c_source.html#l00198">cr_only_trailing_ws()</a>, <a class="el" href="range_8c_source.html#l00139">cr_parse_span()</a>, <a class="el" href="range_8c_source.html#l00170">cr_parse_total()</a>, <a class="el" href="range_8c_source.html#l00115">cr_skip_unit_prefix()</a>, <a class="el" href="range_8h_source.html#l00041">brix_http_content_range_t::end</a>, <a class="el" href="range_8h_source.html#l00043">brix_http_content_range_t::present</a>, <a class="el" href="range_8h_source.html#l00040">brix_http_content_range_t::start</a>, and <a class="el" href="range_8h_source.html#l00042">brix_http_content_range_t::total</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__setup_8c_source.html#l00219">webdav_put_precheck()</a>.</p>
 
 </div>
 </div>
@@ -210,9 +210,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="range_8c_source.html#l00040">40</a> of file <a class="el" href="range_8c_source.html">range.c</a>.</p>
 
-<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00049">brix_range_vector_opts_t::allow_open_ended</a>, <a class="el" href="range__vector_8h_source.html#l00048">brix_range_vector_opts_t::allow_suffix</a>, <a class="el" href="range__vector_8c_source.html#l00105">brix_http_parse_range_vector()</a>, <a class="el" href="range__vector_8h_source.html#l00050">brix_range_vector_opts_t::drop_unsatisfiable</a>, <a class="el" href="range_8h_source.html#l00015">brix_http_range_t::end</a>, <a class="el" href="range__vector_8h_source.html#l00031">brix_byte_range_t::end</a>, <a class="el" href="range__vector_8h_source.html#l00046">brix_range_vector_opts_t::max_ranges</a>, <a class="el" href="range_8h_source.html#l00016">brix_http_range_t::present</a>, <a class="el" href="range_8h_source.html#l00017">brix_http_range_t::satisfiable</a>, <a class="el" href="range_8h_source.html#l00014">brix_http_range_t::start</a>, and <a class="el" href="range__vector_8h_source.html#l00030">brix_byte_range_t::start</a>.</p>
+<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00049">brix_range_vector_opts_t::allow_open_ended</a>, <a class="el" href="range__vector_8h_source.html#l00048">brix_range_vector_opts_t::allow_suffix</a>, <a class="el" href="range__vector_8c_source.html#l00203">brix_http_parse_range_vector()</a>, <a class="el" href="range__vector_8h_source.html#l00050">brix_range_vector_opts_t::drop_unsatisfiable</a>, <a class="el" href="range_8h_source.html#l00015">brix_http_range_t::end</a>, <a class="el" href="range__vector_8h_source.html#l00031">brix_byte_range_t::end</a>, <a class="el" href="range__vector_8h_source.html#l00046">brix_range_vector_opts_t::max_ranges</a>, <a class="el" href="range_8h_source.html#l00016">brix_http_range_t::present</a>, <a class="el" href="range_8h_source.html#l00017">brix_http_range_t::satisfiable</a>, <a class="el" href="range_8h_source.html#l00014">brix_http_range_t::start</a>, and <a class="el" href="range__vector_8h_source.html#l00030">brix_byte_range_t::start</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>.</p>
 
 </div>
 </div>

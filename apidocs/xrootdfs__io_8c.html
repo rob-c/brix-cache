@@ -122,7 +122,7 @@ Functions</h2></td></tr>
 <tr class="separator:a36ce673cd10b89fc3c8eacfe459ebf12"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a97d8976aeabd7f771eb731f9b1b7b174" id="r_a97d8976aeabd7f771eb731f9b1b7b174"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__io_8c.html#a97d8976aeabd7f771eb731f9b1b7b174">xfs_open</a> (const char *path, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a97d8976aeabd7f771eb731f9b1b7b174"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a47126d1f0c3c0f8b1b0d83b8f9c233d5" id="r_a47126d1f0c3c0f8b1b0d83b8f9c233d5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__io_8c.html#a47126d1f0c3c0f8b1b0d83b8f9c233d5">xfs_create</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, struct fuse_file_info *fi)</td></tr>
+<tr class="memitem:a47126d1f0c3c0f8b1b0d83b8f9c233d5" id="r_a47126d1f0c3c0f8b1b0d83b8f9c233d5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__io_8c.html#a47126d1f0c3c0f8b1b0d83b8f9c233d5">xfs_create</a> (const char *path, mode_t mode, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a47126d1f0c3c0f8b1b0d83b8f9c233d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a899b1320586b83cc420cdfd27ef72f26" id="r_a899b1320586b83cc420cdfd27ef72f26"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__io_8c.html#a899b1320586b83cc420cdfd27ef72f26">xfs_read</a> (const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a899b1320586b83cc420cdfd27ef72f26"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -188,7 +188,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00046">46</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="iobuf_8c_source.html#l00127">brix_iobuf_dispose()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00038">afh::io</a>, and <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>.</p>
+<p class="reference">References <a class="el" href="iobuf_8c_source.html#l00194">brix_iobuf_dispose()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00038">afh::io</a>, and <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrootdfs__io_8c_source.html#l00056">afh_open()</a>, and <a class="el" href="xrootdfs__io_8c_source.html#l00217">xfs_release()</a>.</p>
 
@@ -292,7 +292,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00031">31</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aio__mgr_8c_source.html#l00557">brix_mfile_pwrite()</a>.</p>
+<p class="reference">References <a class="el" href="aio__mgr_8c_source.html#l00668">brix_mfile_pwrite()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrootdfs__io_8c_source.html#l00056">afh_open()</a>.</p>
 
@@ -338,7 +338,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00056">56</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrootdfs__io_8c_source.html#l00046">afh_free()</a>, <a class="el" href="xrootdfs__io_8c_source.html#l00025">afh_io_pread()</a>, <a class="el" href="xrootdfs__io_8c_source.html#l00031">afh_io_pwrite()</a>, <a class="el" href="iobuf_8c_source.html#l00014">brix_iobuf_init()</a>, <a class="el" href="aio__mgr_8c_source.html#l00411">brix_mfile_open()</a>, <a class="el" href="aio__mgr_8c_source.html#l00246">brix_mgr_pick()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="webfile__io_8c_source.html#l00239">brix_webfile_open()</a>, <a class="el" href="xrootdfs_8c_source.html#l00082">g_bearer</a>, <a class="el" href="xrootdfs_8c_source.html#l00037">g_compress</a>, <a class="el" href="xrootdfs_8c_source.html#l00026">g_max_retries</a>, <a class="el" href="xrootdfs_8c_source.html#l00024">g_max_stall</a>, <a class="el" href="xrootdfs_8c_source.html#l00020">g_mgr</a>, <a class="el" href="xrootdfs_8c_source.html#l00047">g_readahead</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs_8c_source.html#l00084">g_web_ca</a>, <a class="el" href="xrootdfs_8c_source.html#l00083">g_web_verify</a>, <a class="el" href="xrootdfs_8c_source.html#l00018">g_weburl</a>, <a class="el" href="xrootdfs_8c_source.html#l00049">g_writeback</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00038">afh::io</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00030">afh::mf</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00031">afh::wf</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00033">afh::writable</a>, <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrootdfs__io_8c_source.html#l00046">afh_free()</a>, <a class="el" href="xrootdfs__io_8c_source.html#l00025">afh_io_pread()</a>, <a class="el" href="xrootdfs__io_8c_source.html#l00031">afh_io_pwrite()</a>, <a class="el" href="iobuf_8c_source.html#l00014">brix_iobuf_init()</a>, <a class="el" href="aio__mgr_8c_source.html#l00522">brix_mfile_open()</a>, <a class="el" href="aio__mgr_8c_source.html#l00320">brix_mgr_pick()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="webfile__io_8c_source.html#l00334">brix_webfile_open()</a>, <a class="el" href="xrootdfs_8c_source.html#l00082">g_bearer</a>, <a class="el" href="xrootdfs_8c_source.html#l00037">g_compress</a>, <a class="el" href="xrootdfs_8c_source.html#l00026">g_max_retries</a>, <a class="el" href="xrootdfs_8c_source.html#l00024">g_max_stall</a>, <a class="el" href="xrootdfs_8c_source.html#l00020">g_mgr</a>, <a class="el" href="xrootdfs_8c_source.html#l00047">g_readahead</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs_8c_source.html#l00084">g_web_ca</a>, <a class="el" href="xrootdfs_8c_source.html#l00083">g_web_verify</a>, <a class="el" href="xrootdfs_8c_source.html#l00018">g_weburl</a>, <a class="el" href="xrootdfs_8c_source.html#l00049">g_writeback</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00038">afh::io</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00030">afh::mf</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00031">afh::wf</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00033">afh::writable</a>, <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrootdfs__io_8c_source.html#l00123">xfs_create()</a>, and <a class="el" href="xrootdfs__io_8c_source.html#l00111">xfs_open()</a>.</p>
 
@@ -390,7 +390,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00013">13</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aio__mgr_8c_source.html#l00493">brix_mfile_pread()</a>, <a class="el" href="webfile__io_8c_source.html#l00305">brix_webfile_pread()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00030">afh::mf</a>, and <a class="el" href="xrootdfs__internal_8h_source.html#l00031">afh::wf</a>.</p>
+<p class="reference">References <a class="el" href="aio__mgr_8c_source.html#l00604">brix_mfile_pread()</a>, <a class="el" href="webfile__io_8c_source.html#l00400">brix_webfile_pread()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00030">afh::mf</a>, and <a class="el" href="xrootdfs__internal_8h_source.html#l00031">afh::wf</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrootdfs__io_8c_source.html#l00025">afh_io_pread()</a>.</p>
 
@@ -430,7 +430,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00123">123</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrootdfs__io_8c_source.html#l00056">afh_open()</a>, <a class="el" href="open__flags_8h_source.html#l00152">brix_open_force_for_create()</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="reference">References <a class="el" href="xrootdfs__io_8c_source.html#l00056">afh_open()</a>, and <a class="el" href="open__flags_8h_source.html#l00152">brix_open_force_for_create()</a>.</p>
 
 </div>
 </div>
@@ -500,7 +500,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00195">195</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrootdfs__io_8c_source.html#l00039">afh_flush_wbuf()</a>, <a class="el" href="aio__mgr_8c_source.html#l00620">brix_mfile_sync()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00030">afh::mf</a>, and <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>.</p>
+<p class="reference">References <a class="el" href="xrootdfs__io_8c_source.html#l00039">afh_flush_wbuf()</a>, <a class="el" href="aio__mgr_8c_source.html#l00731">brix_mfile_sync()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00030">afh::mf</a>, and <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>.</p>
 
 </div>
 </div>
@@ -582,7 +582,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00132">132</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="iobuf_8c_source.html#l00041">brix_iobuf_read()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00038">afh::io</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, and <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>.</p>
+<p class="reference">References <a class="el" href="iobuf_8c_source.html#l00123">brix_iobuf_read()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00038">afh::io</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, and <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>.</p>
 
 </div>
 </div>
@@ -614,7 +614,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00217">217</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrootdfs__io_8c_source.html#l00039">afh_flush_wbuf()</a>, <a class="el" href="xrootdfs__io_8c_source.html#l00046">afh_free()</a>, <a class="el" href="aio__mgr_8c_source.html#l00646">brix_mfile_close()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="webfile__io_8c_source.html#l00368">brix_webfile_close()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00030">afh::mf</a>, and <a class="el" href="xrootdfs__internal_8h_source.html#l00031">afh::wf</a>.</p>
+<p class="reference">References <a class="el" href="xrootdfs__io_8c_source.html#l00039">afh_flush_wbuf()</a>, <a class="el" href="xrootdfs__io_8c_source.html#l00046">afh_free()</a>, <a class="el" href="aio__mgr_8c_source.html#l00757">brix_mfile_close()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="webfile__io_8c_source.html#l00463">brix_webfile_close()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00030">afh::mf</a>, and <a class="el" href="xrootdfs__internal_8h_source.html#l00031">afh::wf</a>.</p>
 
 </div>
 </div>
@@ -664,7 +664,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__io_8c_source.html#l00152">152</a> of file <a class="el" href="xrootdfs__io_8c_source.html">xrootdfs_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="iobuf_8c_source.html#l00090">brix_iobuf_write()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00038">afh::io</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00033">afh::writable</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00034">afh::wsize</a>, and <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>.</p>
+<p class="reference">References <a class="el" href="iobuf_8c_source.html#l00157">brix_iobuf_write()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00038">afh::io</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00032">afh::lock</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00033">afh::writable</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00034">afh::wsize</a>, and <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>.</p>
 
 </div>
 </div>

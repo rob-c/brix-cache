@@ -118,6 +118,7 @@ $(document).ready(function(){initNavTree('protocols_2webdav_2config_8c.html','')
 <code>#include &lt;unistd.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="alloc__guard_8h_source.html">core/compat/alloc_guard.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="credential__block_8h_source.html">core/config/credential_block.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="config__internal_8h_source.html">config_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for config.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -141,20 +142,22 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a220553ef121e9bbefc6daccedc0d5c6a" id="r_a220553ef121e9bbefc6daccedc0d5c6a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a220553ef121e9bbefc6daccedc0d5c6a">webdav_x509_store_cleanup</a> (void *data)</td></tr>
-<tr class="separator:a220553ef121e9bbefc6daccedc0d5c6a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a93e05bd7d04062c63c9e25322c26f399" id="r_a93e05bd7d04062c63c9e25322c26f399"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a93e05bd7d04062c63c9e25322c26f399">webdav_validate_cors_origins</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf)</td></tr>
-<tr class="separator:a93e05bd7d04062c63c9e25322c26f399"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a917c2fba58b81fc9f52db4506e91fcf1" id="r_a917c2fba58b81fc9f52db4506e91fcf1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a917c2fba58b81fc9f52db4506e91fcf1">webdav_x509_store_cleanup</a> (void *data)</td></tr>
+<tr class="separator:a917c2fba58b81fc9f52db4506e91fcf1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b7608fa4a1328652df2253b1f8dd4d5" id="r_a8b7608fa4a1328652df2253b1f8dd4d5"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a8b7608fa4a1328652df2253b1f8dd4d5">webdav_validate_cors_origins</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf)</td></tr>
+<tr class="separator:a8b7608fa4a1328652df2253b1f8dd4d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a221b5a93b07534609671dbac0f0d19c7" id="r_a221b5a93b07534609671dbac0f0d19c7"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a221b5a93b07534609671dbac0f0d19c7">brix_webdav_backend_instance</a> (<a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a221b5a93b07534609671dbac0f0d19c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a27a1babfc440ffaebb9f26dff7aa497f" id="r_a27a1babfc440ffaebb9f26dff7aa497f"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a27a1babfc440ffaebb9f26dff7aa497f">ngx_http_brix_webdav_create_loc_conf</a> (ngx_conf_t *cf)</td></tr>
 <tr class="separator:a27a1babfc440ffaebb9f26dff7aa497f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a95610e6dca25cc91998799245d6f4fcb" id="r_a95610e6dca25cc91998799245d6f4fcb"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a95610e6dca25cc91998799245d6f4fcb">webdav_auth_name</a> (ngx_uint_t auth)</td></tr>
 <tr class="separator:a95610e6dca25cc91998799245d6f4fcb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a35c96c90ed34c55de0d50f31298f19b7" id="r_a35c96c90ed34c55de0d50f31298f19b7"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a35c96c90ed34c55de0d50f31298f19b7">webdav_summary_is_new</a> (<a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *prev)</td></tr>
-<tr class="separator:a35c96c90ed34c55de0d50f31298f19b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a65e0d7d05e1d6c1f8b7ca7f6b75cf9d0" id="r_a65e0d7d05e1d6c1f8b7ca7f6b75cf9d0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a65e0d7d05e1d6c1f8b7ca7f6b75cf9d0">webdav_log_endpoint_summary</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf)</td></tr>
-<tr class="separator:a65e0d7d05e1d6c1f8b7ca7f6b75cf9d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7de78a7fba4e1d2b653a41945b8bfc77" id="r_a7de78a7fba4e1d2b653a41945b8bfc77"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a7de78a7fba4e1d2b653a41945b8bfc77">webdav_summary_is_new</a> (<a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *prev)</td></tr>
+<tr class="separator:a7de78a7fba4e1d2b653a41945b8bfc77"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb0b4e31c30477389ecfb910e737000f" id="r_afb0b4e31c30477389ecfb910e737000f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#afb0b4e31c30477389ecfb910e737000f">webdav_log_endpoint_warnings</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, ngx_uint_t has_x509, ngx_uint_t has_token)</td></tr>
+<tr class="separator:afb0b4e31c30477389ecfb910e737000f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac72096bee40ee3338307c32a0a56e297" id="r_ac72096bee40ee3338307c32a0a56e297"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#ac72096bee40ee3338307c32a0a56e297">webdav_log_endpoint_summary</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf)</td></tr>
+<tr class="separator:ac72096bee40ee3338307c32a0a56e297"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a88f7b304ebfacd2556299c811fc15f62" id="r_a88f7b304ebfacd2556299c811fc15f62"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2config_8c.html#a88f7b304ebfacd2556299c811fc15f62">ngx_http_brix_webdav_merge_loc_conf</a> (ngx_conf_t *cf, void *parent, void *child)</td></tr>
 <tr class="separator:a88f7b304ebfacd2556299c811fc15f62"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -171,7 +174,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00038">38</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00040">40</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
 </div>
 </div>
@@ -187,7 +190,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00039">39</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00041">41</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
 </div>
 </div>
@@ -203,7 +206,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00037">37</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00039">39</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
 </div>
 </div>
@@ -219,7 +222,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00036">36</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00038">38</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
 </div>
 </div>
@@ -250,11 +253,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00105">105</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00107">107</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00458">brix_vfs_backend_resolve()</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00248">brix_vfs_backend_resolve()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>, <a class="el" href="move_8c_source.html#l00241">webdav_handle_move()</a>, <a class="el" href="move_8c_source.html#l00154">webdav_move_collection_post_task()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00045">webdav_put_vfs_ctx_init()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00166">get_init_vfs_ctx()</a>, <a class="el" href="move_8c_source.html#l00460">webdav_handle_move()</a>, <a class="el" href="prop__xattr_8c_source.html#l00037">webdav_lock_vfs_ctx_init()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00303">webdav_lock_write_status()</a>, and <a class="el" href="put__setup_8c_source.html#l00035">webdav_put_vfs_ctx_init()</a>.</p>
 
 </div>
 </div>
@@ -274,9 +277,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00115">115</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00117">117</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00306">ngx_http_brix_webdav_loc_conf_t::acc</a>, <a class="el" href="webdav_8h_source.html#l00154">ngx_http_brix_webdav_loc_conf_t::auth</a>, <a class="el" href="webdav_8h_source.html#l00311">ngx_http_brix_webdav_loc_conf_t::authdb_rules</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00163">brix_acc_http_init_conf()</a>, <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, <a class="el" href="rate__limit_8h_source.html#l00022">brix_rate_limit_conf_t::burst</a>, <a class="el" href="webdav_8h_source.html#l00156">ngx_http_brix_webdav_loc_conf_t::ca_store</a>, <a class="el" href="webdav_8h_source.html#l00219">ngx_http_brix_webdav_loc_conf_t::checksum_xattr_format</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00226">ngx_http_brix_webdav_loc_conf_t::cors_credentials</a>, <a class="el" href="webdav_8h_source.html#l00227">ngx_http_brix_webdav_loc_conf_t::cors_max_age</a>, <a class="el" href="webdav_8h_source.html#l00225">ngx_http_brix_webdav_loc_conf_t::cors_origins</a>, <a class="el" href="webdav_8h_source.html#l00151">ngx_http_brix_webdav_loc_conf_t::crl_mode</a>, <a class="el" href="webdav_8h_source.html#l00220">ngx_http_brix_webdav_loc_conf_t::dig_enable</a>, <a class="el" href="webdav_8h_source.html#l00221">ngx_http_brix_webdav_loc_conf_t::dig_exports</a>, <a class="el" href="mirror_8h_source.html#l00122">brix_mirror_conf_t::enabled</a>, <a class="el" href="webdav_8h_source.html#l00215">ngx_http_brix_webdav_loc_conf_t::http_query_token</a>, <a class="el" href="webdav_8h_source.html#l00290">ngx_http_brix_webdav_loc_conf_t::introspect_fail_open</a>, <a class="el" href="webdav_8h_source.html#l00289">ngx_http_brix_webdav_loc_conf_t::introspect_ttl</a>, <a class="el" href="rate__limit_8h_source.html#l00023">brix_rate_limit_conf_t::key_ip</a>, <a class="el" href="rate__limit_8h_source.html#l00020">brix_rate_limit_conf_t::kv</a>, <a class="el" href="webdav_8h_source.html#l00240">ngx_http_brix_webdav_loc_conf_t::lock_startup_sweep</a>, <a class="el" href="webdav_8h_source.html#l00239">ngx_http_brix_webdav_loc_conf_t::lock_timeout</a>, <a class="el" href="mirror_8h_source.html#l00131">brix_mirror_conf_t::log_diverge</a>, <a class="el" href="webdav_8h_source.html#l00216">ngx_http_brix_webdav_loc_conf_t::macaroon_max_validity</a>, <a class="el" href="mirror_8h_source.html#l00125">brix_mirror_conf_t::method_mask</a>, <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="webdav_8h_source.html#l00295">ngx_http_brix_webdav_loc_conf_t::mirror_upstream_conf</a>, <a class="el" href="mirror_8h_source.html#l00134">brix_mirror_conf_t::mirror_writes</a>, <a class="el" href="shared__conf_8h_source.html#l00139">ngx_http_brix_shared_init()</a>, <a class="el" href="tpc__config_8c_source.html#l00009">ngx_http_brix_webdav_tpc_create_loc_conf()</a>, <a class="el" href="mirror_8h_source.html#l00126">brix_mirror_conf_t::opcode_mask</a>, <a class="el" href="webdav_8h_source.html#l00247">ngx_http_brix_webdav_loc_conf_t::open_file_cache</a>, <a class="el" href="webdav_8h_source.html#l00250">ngx_http_brix_webdav_loc_conf_t::open_file_cache_errors</a>, <a class="el" href="webdav_8h_source.html#l00251">ngx_http_brix_webdav_loc_conf_t::open_file_cache_events</a>, <a class="el" href="webdav_8h_source.html#l00249">ngx_http_brix_webdav_loc_conf_t::open_file_cache_min_uses</a>, <a class="el" href="webdav_8h_source.html#l00248">ngx_http_brix_webdav_loc_conf_t::open_file_cache_valid</a>, <a class="el" href="webdav_8h_source.html#l00155">ngx_http_brix_webdav_loc_conf_t::proxy_certs</a>, <a class="el" href="webdav_8h_source.html#l00275">ngx_http_brix_webdav_loc_conf_t::proxy_pool_enabled</a>, <a class="el" href="rate__limit_8h_source.html#l00021">brix_rate_limit_conf_t::rate</a>, <a class="el" href="webdav_8h_source.html#l00283">ngx_http_brix_webdav_loc_conf_t::rate_limit</a>, <a class="el" href="webdav_8h_source.html#l00291">ngx_http_brix_webdav_loc_conf_t::revoke_kv</a>, <a class="el" href="mirror_8h_source.html#l00124">brix_mirror_conf_t::sample_pct</a>, <a class="el" href="webdav_8h_source.html#l00150">ngx_http_brix_webdav_loc_conf_t::signing_policy_mode</a>, <a class="el" href="mirror_8h_source.html#l00130">brix_mirror_conf_t::strip_auth</a>, <a class="el" href="webdav_8h_source.html#l00161">ngx_http_brix_webdav_loc_conf_t::tape_rest</a>, <a class="el" href="mirror_8h_source.html#l00123">brix_mirror_conf_t::targets</a>, <a class="el" href="mirror_8h_source.html#l00132">brix_mirror_conf_t::timeout_ms</a>, <a class="el" href="webdav_8h_source.html#l00278">ngx_http_brix_webdav_loc_conf_t::token_cache_kv</a>, <a class="el" href="webdav_8h_source.html#l00203">ngx_http_brix_webdav_loc_conf_t::token_clock_skew</a>, <a class="el" href="webdav_8h_source.html#l00162">ngx_http_brix_webdav_loc_conf_t::upload_resume</a>, <a class="el" href="webdav_8h_source.html#l00258">ngx_http_brix_webdav_loc_conf_t::upstream_auth</a>, <a class="el" href="webdav_8h_source.html#l00269">ngx_http_brix_webdav_loc_conf_t::upstream_backends</a>, <a class="el" href="webdav_8h_source.html#l00261">ngx_http_brix_webdav_loc_conf_t::upstream_conf</a>, <a class="el" href="webdav_8h_source.html#l00272">ngx_http_brix_webdav_loc_conf_t::upstream_fail_timeout</a>, <a class="el" href="webdav_8h_source.html#l00271">ngx_http_brix_webdav_loc_conf_t::upstream_max_fails</a>, <a class="el" href="webdav_8h_source.html#l00254">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>, <a class="el" href="webdav_8h_source.html#l00262">ngx_http_brix_webdav_loc_conf_t::upstream_resolved</a>, <a class="el" href="webdav_8h_source.html#l00268">ngx_http_brix_webdav_loc_conf_t::upstream_urls</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_loc_conf_t::verify_depth</a>, <a class="el" href="webdav_8h_source.html#l00312">ngx_http_brix_webdav_loc_conf_t::vo_rules</a>, <a class="el" href="webdav_8h_source.html#l00235">ngx_http_brix_webdav_loc_conf_t::zip_access</a>, and <a class="el" href="webdav_8h_source.html#l00236">ngx_http_brix_webdav_loc_conf_t::zip_cd_max_bytes</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00204">ngx_http_brix_webdav_loc_conf_t::acc</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00034">ngx_http_brix_webdav_loc_conf_t::auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00209">ngx_http_brix_webdav_loc_conf_t::authdb_rules</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00163">brix_acc_http_init_conf()</a>, <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, <a class="el" href="rate__limit_8h_source.html#l00022">brix_rate_limit_conf_t::burst</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00036">ngx_http_brix_webdav_loc_conf_t::ca_store</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00110">ngx_http_brix_webdav_loc_conf_t::checksum_xattr_format</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00124">ngx_http_brix_webdav_loc_conf_t::cors_credentials</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00125">ngx_http_brix_webdav_loc_conf_t::cors_max_age</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00123">ngx_http_brix_webdav_loc_conf_t::cors_origins</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00031">ngx_http_brix_webdav_loc_conf_t::crl_mode</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00120">ngx_http_brix_webdav_loc_conf_t::delegation_endpoint</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00111">ngx_http_brix_webdav_loc_conf_t::dig_enable</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00112">ngx_http_brix_webdav_loc_conf_t::dig_exports</a>, <a class="el" href="mirror_8h_source.html#l00127">brix_mirror_conf_t::enabled</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00106">ngx_http_brix_webdav_loc_conf_t::http_query_token</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00188">ngx_http_brix_webdav_loc_conf_t::introspect_fail_open</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00187">ngx_http_brix_webdav_loc_conf_t::introspect_ttl</a>, <a class="el" href="rate__limit_8h_source.html#l00023">brix_rate_limit_conf_t::key_ip</a>, <a class="el" href="rate__limit_8h_source.html#l00020">brix_rate_limit_conf_t::kv</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00138">ngx_http_brix_webdav_loc_conf_t::lock_startup_sweep</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00137">ngx_http_brix_webdav_loc_conf_t::lock_timeout</a>, <a class="el" href="mirror_8h_source.html#l00136">brix_mirror_conf_t::log_diverge</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00107">ngx_http_brix_webdav_loc_conf_t::macaroon_max_validity</a>, <a class="el" href="mirror_8h_source.html#l00130">brix_mirror_conf_t::method_mask</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00192">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00193">ngx_http_brix_webdav_loc_conf_t::mirror_upstream_conf</a>, <a class="el" href="mirror_8h_source.html#l00139">brix_mirror_conf_t::mirror_writes</a>, <a class="el" href="shared__conf_8h_source.html#l00205">ngx_http_brix_shared_init()</a>, <a class="el" href="tpc__config_8c_source.html#l00009">ngx_http_brix_webdav_tpc_create_loc_conf()</a>, <a class="el" href="mirror_8h_source.html#l00131">brix_mirror_conf_t::opcode_mask</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00145">ngx_http_brix_webdav_loc_conf_t::open_file_cache</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00148">ngx_http_brix_webdav_loc_conf_t::open_file_cache_errors</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00149">ngx_http_brix_webdav_loc_conf_t::open_file_cache_events</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00147">ngx_http_brix_webdav_loc_conf_t::open_file_cache_min_uses</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00146">ngx_http_brix_webdav_loc_conf_t::open_file_cache_valid</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00035">ngx_http_brix_webdav_loc_conf_t::proxy_certs</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00173">ngx_http_brix_webdav_loc_conf_t::proxy_pool_enabled</a>, <a class="el" href="rate__limit_8h_source.html#l00021">brix_rate_limit_conf_t::rate</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00181">ngx_http_brix_webdav_loc_conf_t::rate_limit</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00189">ngx_http_brix_webdav_loc_conf_t::revoke_kv</a>, <a class="el" href="mirror_8h_source.html#l00129">brix_mirror_conf_t::sample_pct</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00030">ngx_http_brix_webdav_loc_conf_t::signing_policy_mode</a>, <a class="el" href="mirror_8h_source.html#l00135">brix_mirror_conf_t::strip_auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00041">ngx_http_brix_webdav_loc_conf_t::tape_rest</a>, <a class="el" href="mirror_8h_source.html#l00128">brix_mirror_conf_t::targets</a>, <a class="el" href="mirror_8h_source.html#l00137">brix_mirror_conf_t::timeout_ms</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00176">ngx_http_brix_webdav_loc_conf_t::token_cache_kv</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00094">ngx_http_brix_webdav_loc_conf_t::token_clock_skew</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00042">ngx_http_brix_webdav_loc_conf_t::upload_resume</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00156">ngx_http_brix_webdav_loc_conf_t::upstream_auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00167">ngx_http_brix_webdav_loc_conf_t::upstream_backends</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00159">ngx_http_brix_webdav_loc_conf_t::upstream_conf</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00170">ngx_http_brix_webdav_loc_conf_t::upstream_fail_timeout</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00169">ngx_http_brix_webdav_loc_conf_t::upstream_max_fails</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00152">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00160">ngx_http_brix_webdav_loc_conf_t::upstream_resolved</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00166">ngx_http_brix_webdav_loc_conf_t::upstream_urls</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00032">ngx_http_brix_webdav_loc_conf_t::verify_depth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00210">ngx_http_brix_webdav_loc_conf_t::vo_rules</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00133">ngx_http_brix_webdav_loc_conf_t::zip_access</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00134">ngx_http_brix_webdav_loc_conf_t::zip_cd_max_bytes</a>.</p>
 
 </div>
 </div>
@@ -312,9 +315,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">308</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00326">326</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00306">ngx_http_brix_webdav_loc_conf_t::acc</a>, <a class="el" href="root__prepare_8h_source.html#l00016">brix_export_root_opts_t::allow_write</a>, <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="webdav_8h_source.html#l00154">ngx_http_brix_webdav_loc_conf_t::auth</a>, <a class="el" href="webdav_8h_source.html#l00311">ngx_http_brix_webdav_loc_conf_t::authdb_rules</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00075">brix_vfs_backend_cred_t::bearer</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00177">brix_acc_http_merge_conf()</a>, <a class="el" href="af__policy_8h_source.html#l00022">BRIX_AF_AUTO</a>, <a class="el" href="export__guard_8h_source.html#l00035">brix_assert_dir_outside_export()</a>, <a class="el" href="issuer__registry_8h_source.html#l00025">BRIX_AUTHZ_CAPABILITY</a>, <a class="el" href="integrity__info_8h_source.html#l00122">BRIX_CKS_FMT_TEXT</a>, <a class="el" href="credential__block_8c_source.html#l00170">brix_credential_bearer()</a>, <a class="el" href="credential__block_8c_source.html#l00020">brix_credential_lookup()</a>, <a class="el" href="store__policy_8h_source.html#l00027">BRIX_CRL_MODE_TRY</a>, <a class="el" href="authdb_8c_source.html#l00015">brix_finalize_authdb_rules()</a>, <a class="el" href="auth_2authz_2acl_8c_source.html#l00011">brix_finalize_vo_rules()</a>, <a class="el" href="http__common_8c_source.html#l00197">brix_http_common_adopt()</a>, <a class="el" href="http__mirror_8c_source.html#l00634">brix_http_mirror_setup()</a>, <a class="el" href="http__rootfd_8c_source.html#l00029">brix_http_open_rootfd()</a>, <a class="el" href="integrity__info_8c_source.html#l00211">brix_integrity_set_xattr_format()</a>, <a class="el" href="jwks_8c_source.html#l00138">brix_jwks_load()</a>, <a class="el" href="jwks_8c_source.html#l00225">brix_jwks_register_cleanup()</a>, <a class="el" href="token_8h_source.html#l00020">BRIX_MAX_JWKS_KEYS</a>, <a class="el" href="merge__macros_8h_source.html#l00018">BRIX_MERGE_PTR</a>, <a class="el" href="mirror_8h_source.html#l00050">BRIX_MIRROR_M_DEFAULT</a>, <a class="el" href="root__prepare_8c_source.html#l00023">brix_prepare_export_root()</a>, <a class="el" href="signing__policy_8h_source.html#l00022">BRIX_SP_MODE_ON</a>, <a class="el" href="staged__file_8c_source.html#l00476">brix_stage_dir_register()</a>, <a class="el" href="runtime__server_8c_source.html#l00112">brix_storage_backend_is_remote()</a>, <a class="el" href="runtime__server_8c_source.html#l00060">brix_storage_backend_posix_root()</a>, <a class="el" href="runtime__server_8c_source.html#l00137">brix_tier_register_stores()</a>, <a class="el" href="tmp__path_8c_source.html#l00147">brix_tmp_reap_register()</a>, <a class="el" href="tunables_8h_source.html#l00226">BRIX_TOKEN_CLOCK_SKEW_SECS</a>, <a class="el" href="issuer__registry_8c_source.html#l00234">brix_token_registry_build()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00401">brix_vfs_backend_config_str()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00232">brix_vfs_backend_set_credential()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00741">brix_vfs_backend_set_staging()</a>, <a class="el" href="loader_8c_source.html#l00032">brix_voms_init()</a>, <a class="el" href="credential__block_8h_source.html#l00038">brix_credential_t::ca_dir</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00077">brix_vfs_backend_cred_t::ca_dir</a>, <a class="el" href="webdav_8h_source.html#l00156">ngx_http_brix_webdav_loc_conf_t::ca_store</a>, <a class="el" href="webdav_8h_source.html#l00139">ngx_http_brix_webdav_loc_conf_t::cache_root</a>, <a class="el" href="webdav_8h_source.html#l00140">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_loc_conf_t::cadir</a>, <a class="el" href="webdav_8h_source.html#l00148">ngx_http_brix_webdav_loc_conf_t::cafile</a>, <a class="el" href="root__prepare_8h_source.html#l00018">brix_export_root_opts_t::canon_size</a>, <a class="el" href="webdav_8h_source.html#l00218">ngx_http_brix_webdav_loc_conf_t::checksum_on_write</a>, <a class="el" href="webdav_8h_source.html#l00219">ngx_http_brix_webdav_loc_conf_t::checksum_xattr_format</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00226">ngx_http_brix_webdav_loc_conf_t::cors_credentials</a>, <a class="el" href="webdav_8h_source.html#l00227">ngx_http_brix_webdav_loc_conf_t::cors_max_age</a>, <a class="el" href="webdav_8h_source.html#l00149">ngx_http_brix_webdav_loc_conf_t::crl</a>, <a class="el" href="webdav_8h_source.html#l00151">ngx_http_brix_webdav_loc_conf_t::crl_mode</a>, <a class="el" href="webdav_8h_source.html#l00222">ngx_http_brix_webdav_loc_conf_t::dig_auth_file</a>, <a class="el" href="webdav_8h_source.html#l00220">ngx_http_brix_webdav_loc_conf_t::dig_enable</a>, <a class="el" href="webdav_8h_source.html#l00221">ngx_http_brix_webdav_loc_conf_t::dig_exports</a>, <a class="el" href="root__prepare_8h_source.html#l00015">brix_export_root_opts_t::directive_name</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="mirror_8h_source.html#l00122">brix_mirror_conf_t::enabled</a>, <a class="el" href="webdav_8h_source.html#l00215">ngx_http_brix_webdav_loc_conf_t::http_query_token</a>, <a class="el" href="webdav_8h_source.html#l00290">ngx_http_brix_webdav_loc_conf_t::introspect_fail_open</a>, <a class="el" href="webdav_8h_source.html#l00288">ngx_http_brix_webdav_loc_conf_t::introspect_loc</a>, <a class="el" href="webdav_8h_source.html#l00289">ngx_http_brix_webdav_loc_conf_t::introspect_ttl</a>, <a class="el" href="webdav_8h_source.html#l00287">ngx_http_brix_webdav_loc_conf_t::introspect_url</a>, <a class="el" href="webdav_8h_source.html#l00214">ngx_http_brix_webdav_loc_conf_t::jwks_key_count</a>, <a class="el" href="webdav_8h_source.html#l00213">ngx_http_brix_webdav_loc_conf_t::jwks_keys</a>, <a class="el" href="rate__limit_8h_source.html#l00020">brix_rate_limit_conf_t::kv</a>, <a class="el" href="webdav_8h_source.html#l00240">ngx_http_brix_webdav_loc_conf_t::lock_startup_sweep</a>, <a class="el" href="webdav_8h_source.html#l00239">ngx_http_brix_webdav_loc_conf_t::lock_timeout</a>, <a class="el" href="mirror_8h_source.html#l00131">brix_mirror_conf_t::log_diverge</a>, <a class="el" href="webdav_8h_source.html#l00217">ngx_http_brix_webdav_loc_conf_t::macaroon_location</a>, <a class="el" href="webdav_8h_source.html#l00216">ngx_http_brix_webdav_loc_conf_t::macaroon_max_validity</a>, <a class="el" href="mirror_8h_source.html#l00125">brix_mirror_conf_t::method_mask</a>, <a class="el" href="webdav_8h_source.html#l00294">ngx_http_brix_webdav_loc_conf_t::mirror</a>, <a class="el" href="webdav_8h_source.html#l00295">ngx_http_brix_webdav_loc_conf_t::mirror_upstream_conf</a>, <a class="el" href="mirror_8h_source.html#l00134">brix_mirror_conf_t::mirror_writes</a>, <a class="el" href="shared__conf_8h_source.html#l00224">ngx_http_brix_shared_merge()</a>, <a class="el" href="tpc__config_8c_source.html#l00023">ngx_http_brix_webdav_tpc_merge_loc_conf()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c.html#ae739c8bb4d3557c4ebd848d4d0c8eba0">ngx_test_config</a>, <a class="el" href="webdav_8h_source.html#l00247">ngx_http_brix_webdav_loc_conf_t::open_file_cache</a>, <a class="el" href="webdav_8h_source.html#l00250">ngx_http_brix_webdav_loc_conf_t::open_file_cache_errors</a>, <a class="el" href="webdav_8h_source.html#l00251">ngx_http_brix_webdav_loc_conf_t::open_file_cache_events</a>, <a class="el" href="webdav_8h_source.html#l00249">ngx_http_brix_webdav_loc_conf_t::open_file_cache_min_uses</a>, <a class="el" href="webdav_8h_source.html#l00248">ngx_http_brix_webdav_loc_conf_t::open_file_cache_valid</a>, <a class="el" href="shared__conf_8h_source.html#l00039">ngx_http_brix_shared_conf_t::pblock_block_size</a>, <a class="el" href="webdav_8h_source.html#l00155">ngx_http_brix_webdav_loc_conf_t::proxy_certs</a>, <a class="el" href="webdav_8h_source.html#l00275">ngx_http_brix_webdav_loc_conf_t::proxy_pool_enabled</a>, <a class="el" href="webdav_8h_source.html#l00283">ngx_http_brix_webdav_loc_conf_t::rate_limit</a>, <a class="el" href="root__prepare_8h_source.html#l00017">brix_export_root_opts_t::required</a>, <a class="el" href="webdav_8h_source.html#l00291">ngx_http_brix_webdav_loc_conf_t::revoke_kv</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="credential__block_8h_source.html#l00044">brix_credential_t::s3_access_key</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00078">brix_vfs_backend_cred_t::s3_access_key</a>, <a class="el" href="credential__block_8h_source.html#l00046">brix_credential_t::s3_region</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00080">brix_vfs_backend_cred_t::s3_region</a>, <a class="el" href="credential__block_8h_source.html#l00045">brix_credential_t::s3_secret_key</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00079">brix_vfs_backend_cred_t::s3_secret_key</a>, <a class="el" href="mirror_8h_source.html#l00124">brix_mirror_conf_t::sample_pct</a>, <a class="el" href="webdav_8h_source.html#l00150">ngx_http_brix_webdav_loc_conf_t::signing_policy_mode</a>, <a class="el" href="credential__block_8h_source.html#l00047">brix_credential_t::sss_keytab</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00081">brix_vfs_backend_cred_t::sss_keytab</a>, <a class="el" href="shared__conf_8h_source.html#l00036">ngx_http_brix_shared_conf_t::storage_backend</a>, <a class="el" href="shared__conf_8h_source.html#l00045">ngx_http_brix_shared_conf_t::storage_credential</a>, <a class="el" href="shared__conf_8h_source.html#l00041">ngx_http_brix_shared_conf_t::storage_staging</a>, <a class="el" href="mirror_8h_source.html#l00130">brix_mirror_conf_t::strip_auth</a>, <a class="el" href="webdav_8h_source.html#l00161">ngx_http_brix_webdav_loc_conf_t::tape_rest</a>, <a class="el" href="mirror_8h_source.html#l00123">brix_mirror_conf_t::targets</a>, <a class="el" href="webdav_8h_source.html#l00318">ngx_http_brix_webdav_loc_conf_t::tcp_congestion</a>, <a class="el" href="mirror_8h_source.html#l00132">brix_mirror_conf_t::timeout_ms</a>, <a class="el" href="mirror_8h_source.html#l00133">brix_mirror_conf_t::token</a>, <a class="el" href="webdav_8h_source.html#l00202">ngx_http_brix_webdav_loc_conf_t::token_audience</a>, <a class="el" href="webdav_8h_source.html#l00278">ngx_http_brix_webdav_loc_conf_t::token_cache_kv</a>, <a class="el" href="webdav_8h_source.html#l00203">ngx_http_brix_webdav_loc_conf_t::token_clock_skew</a>, <a class="el" href="webdav_8h_source.html#l00206">ngx_http_brix_webdav_loc_conf_t::token_config</a>, <a class="el" href="webdav_8h_source.html#l00201">ngx_http_brix_webdav_loc_conf_t::token_issuer</a>, <a class="el" href="webdav_8h_source.html#l00200">ngx_http_brix_webdav_loc_conf_t::token_jwks</a>, <a class="el" href="webdav_8h_source.html#l00209">ngx_http_brix_webdav_loc_conf_t::token_macaroon_secret</a>, <a class="el" href="webdav_8h_source.html#l00210">ngx_http_brix_webdav_loc_conf_t::token_macaroon_secret_old</a>, <a class="el" href="webdav_8h_source.html#l00208">ngx_http_brix_webdav_loc_conf_t::token_registry</a>, <a class="el" href="webdav_8h_source.html#l00160">ngx_http_brix_webdav_loc_conf_t::tpc</a>, <a class="el" href="webdav_8h_source.html#l00182">ngx_http_brix_webdav_loc_conf_t::tpc_cadir</a>, <a class="el" href="webdav_8h_source.html#l00183">ngx_http_brix_webdav_loc_conf_t::tpc_cafile</a>, <a class="el" href="webdav_8h_source.html#l00180">ngx_http_brix_webdav_loc_conf_t::tpc_cert</a>, <a class="el" href="webdav_8h_source.html#l00179">ngx_http_brix_webdav_loc_conf_t::tpc_curl</a>, <a class="el" href="webdav_8h_source.html#l00181">ngx_http_brix_webdav_loc_conf_t::tpc_key</a>, <a class="el" href="webdav_8h_source.html#l00162">ngx_http_brix_webdav_loc_conf_t::upload_resume</a>, <a class="el" href="webdav_8h_source.html#l00169">ngx_http_brix_webdav_loc_conf_t::upload_stage_dir</a>, <a class="el" href="webdav_8h_source.html#l00172">ngx_http_brix_webdav_loc_conf_t::upload_stage_dir_canon</a>, <a class="el" href="webdav_8h_source.html#l00258">ngx_http_brix_webdav_loc_conf_t::upstream_auth</a>, <a class="el" href="webdav_8h_source.html#l00259">ngx_http_brix_webdav_loc_conf_t::upstream_auth_token</a>, <a class="el" href="webdav_8h_source.html#l00269">ngx_http_brix_webdav_loc_conf_t::upstream_backends</a>, <a class="el" href="webdav_8h_source.html#l00261">ngx_http_brix_webdav_loc_conf_t::upstream_conf</a>, <a class="el" href="webdav_8h_source.html#l00272">ngx_http_brix_webdav_loc_conf_t::upstream_fail_timeout</a>, <a class="el" href="webdav_8h_source.html#l00256">ngx_http_brix_webdav_loc_conf_t::upstream_host</a>, <a class="el" href="webdav_8h_source.html#l00271">ngx_http_brix_webdav_loc_conf_t::upstream_max_fails</a>, <a class="el" href="webdav_8h_source.html#l00254">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>, <a class="el" href="webdav_8h_source.html#l00262">ngx_http_brix_webdav_loc_conf_t::upstream_resolved</a>, <a class="el" href="webdav_8h_source.html#l00260">ngx_http_brix_webdav_loc_conf_t::upstream_ssl</a>, <a class="el" href="webdav_8h_source.html#l00255">ngx_http_brix_webdav_loc_conf_t::upstream_url</a>, <a class="el" href="webdav_8h_source.html#l00257">ngx_http_brix_webdav_loc_conf_t::upstream_url_base</a>, <a class="el" href="webdav_8h_source.html#l00268">ngx_http_brix_webdav_loc_conf_t::upstream_urls</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_loc_conf_t::verify_depth</a>, <a class="el" href="webdav_8h_source.html#l00312">ngx_http_brix_webdav_loc_conf_t::vo_rules</a>, <a class="el" href="webdav_8h_source.html#l00144">ngx_http_brix_webdav_loc_conf_t::voms_cert_dir</a>, <a class="el" href="webdav_8h_source.html#l00143">ngx_http_brix_webdav_loc_conf_t::vomsdir</a>, <a class="el" href="webdav_8h_source.html#l00091">WEBDAV_AUTH_OPTIONAL</a>, <a class="el" href="webdav_8h_source.html#l00092">WEBDAV_AUTH_REQUIRED</a>, <a class="el" href="auth__store_8c_source.html#l00019">webdav_build_ca_store()</a>, <a class="el" href="protocols_2webdav_2pki_8c_source.html#l00015">webdav_check_pki_consistency()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00101">webdav_lock_startup_sweep()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00252">webdav_log_endpoint_summary()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00038">WEBDAV_PATH_DIRECTORY</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00039">WEBDAV_PATH_FILE_OR_DIRECTORY</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00037">WEBDAV_PATH_REGULAR_FILE</a>, <a class="el" href="webdav_8h_source.html#l00096">WEBDAV_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="webdav_8h_source.html#l00098">WEBDAV_PROXY_AUTH_TOKEN</a>, <a class="el" href="proxy__config_8c_source.html#l00151">webdav_proxy_build_backends()</a>, <a class="el" href="proxy__config_8c_source.html#l00246">webdav_proxy_pool_setup()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00230">webdav_summary_is_new()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00063">webdav_validate_cors_origins()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00036">webdav_validate_path</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00047">webdav_x509_store_cleanup()</a>, <a class="el" href="credential__block_8h_source.html#l00035">brix_credential_t::x509_proxy</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00076">brix_vfs_backend_cred_t::x509_proxy</a>, <a class="el" href="webdav_8h_source.html#l00235">ngx_http_brix_webdav_loc_conf_t::zip_access</a>, and <a class="el" href="webdav_8h_source.html#l00236">ngx_http_brix_webdav_loc_conf_t::zip_cd_max_bytes</a>.</p>
+<p class="reference">References <a class="el" href="config__proxy_8c_source.html#l00051">webdav_merge_auth_token_conf()</a>, <a class="el" href="config__merge_8c_source.html#l00049">webdav_merge_base_conf()</a>, <a class="el" href="config__proxy_8c_source.html#l00218">webdav_merge_mirror_and_summary()</a>, <a class="el" href="config__proxy_8c_source.html#l00184">webdav_merge_upstream_conf()</a>, and <a class="el" href="config__merge_8c_source.html#l00434">webdav_validate_webdav_enabled()</a>.</p>
 
 </div>
 </div>
@@ -342,25 +345,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00214">214</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00217">217</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
 <p class="reference">References <a class="el" href="webdav_8h_source.html#l00091">WEBDAV_AUTH_OPTIONAL</a>, and <a class="el" href="webdav_8h_source.html#l00092">WEBDAV_AUTH_REQUIRED</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00252">webdav_log_endpoint_summary()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00259">webdav_log_endpoint_summary()</a>.</p>
 
 </div>
 </div>
-<a id="a65e0d7d05e1d6c1f8b7ca7f6b75cf9d0" name="a65e0d7d05e1d6c1f8b7ca7f6b75cf9d0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a65e0d7d05e1d6c1f8b7ca7f6b75cf9d0">&#9670;&#160;</a></span>webdav_log_endpoint_summary()</h2>
+<a id="ac72096bee40ee3338307c32a0a56e297" name="ac72096bee40ee3338307c32a0a56e297"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac72096bee40ee3338307c32a0a56e297">&#9670;&#160;</a></span>webdav_log_endpoint_summary()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void webdav_log_endpoint_summary </td>
+          <td class="memname">void webdav_log_endpoint_summary </td>
           <td>(</td>
           <td class="paramtype">ngx_conf_t *&#160;</td>
           <td class="paramname"><em>cf</em>, </td>
@@ -377,23 +377,18 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00252">252</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00259">259</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="webdav_8h_source.html#l00154">ngx_http_brix_webdav_loc_conf_t::auth</a>, <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_loc_conf_t::cadir</a>, <a class="el" href="webdav_8h_source.html#l00148">ngx_http_brix_webdav_loc_conf_t::cafile</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00149">ngx_http_brix_webdav_loc_conf_t::crl</a>, <a class="el" href="webdav_8h_source.html#l00214">ngx_http_brix_webdav_loc_conf_t::jwks_key_count</a>, <a class="el" href="webdav_8h_source.html#l00155">ngx_http_brix_webdav_loc_conf_t::proxy_certs</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="webdav_8h_source.html#l00160">ngx_http_brix_webdav_loc_conf_t::tpc</a>, <a class="el" href="webdav_8h_source.html#l00254">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>, <a class="el" href="webdav_8h_source.html#l00255">ngx_http_brix_webdav_loc_conf_t::upstream_url</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00214">webdav_auth_name()</a>, and <a class="el" href="webdav_8h_source.html#l00092">WEBDAV_AUTH_REQUIRED</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00034">ngx_http_brix_webdav_loc_conf_t::auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00027">ngx_http_brix_webdav_loc_conf_t::cadir</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00028">ngx_http_brix_webdav_loc_conf_t::cafile</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00029">ngx_http_brix_webdav_loc_conf_t::crl</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00105">ngx_http_brix_webdav_loc_conf_t::jwks_key_count</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00035">ngx_http_brix_webdav_loc_conf_t::proxy_certs</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00040">ngx_http_brix_webdav_loc_conf_t::tpc</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00152">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00153">ngx_http_brix_webdav_loc_conf_t::upstream_url</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00217">webdav_auth_name()</a>, and <a class="el" href="protocols_2webdav_2config_8c_source.html#l00300">webdav_log_endpoint_warnings()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__proxy_8c_source.html#l00218">webdav_merge_mirror_and_summary()</a>.</p>
 
 </div>
 </div>
-<a id="a35c96c90ed34c55de0d50f31298f19b7" name="a35c96c90ed34c55de0d50f31298f19b7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a35c96c90ed34c55de0d50f31298f19b7">&#9670;&#160;</a></span>webdav_summary_is_new()</h2>
+<a id="afb0b4e31c30477389ecfb910e737000f" name="afb0b4e31c30477389ecfb910e737000f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afb0b4e31c30477389ecfb910e737000f">&#9670;&#160;</a></span>webdav_log_endpoint_warnings()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -402,7 +397,58 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_uint_t webdav_summary_is_new </td>
+          <td class="memname">static void webdav_log_endpoint_warnings </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>has_x509</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>has_token</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00300">300</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00034">ngx_http_brix_webdav_loc_conf_t::auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00029">ngx_http_brix_webdav_loc_conf_t::crl</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00152">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>, and <a class="el" href="webdav_8h_source.html#l00092">WEBDAV_AUTH_REQUIRED</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00259">webdav_log_endpoint_summary()</a>.</p>
+
+</div>
+</div>
+<a id="a7de78a7fba4e1d2b653a41945b8bfc77" name="a7de78a7fba4e1d2b653a41945b8bfc77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7de78a7fba4e1d2b653a41945b8bfc77">&#9670;&#160;</a></span>webdav_summary_is_new()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_uint_t webdav_summary_is_new </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
           <td class="paramname"><em>conf</em>, </td>
@@ -419,32 +465,24 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00230">230</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00233">233</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="webdav_8h_source.html#l00154">ngx_http_brix_webdav_loc_conf_t::auth</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00034">ngx_http_brix_webdav_loc_conf_t::auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__proxy_8c_source.html#l00218">webdav_merge_mirror_and_summary()</a>.</p>
 
 </div>
 </div>
-<a id="a93e05bd7d04062c63c9e25322c26f399" name="a93e05bd7d04062c63c9e25322c26f399"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a93e05bd7d04062c63c9e25322c26f399">&#9670;&#160;</a></span>webdav_validate_cors_origins()</h2>
+<a id="a8b7608fa4a1328652df2253b1f8dd4d5" name="a8b7608fa4a1328652df2253b1f8dd4d5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b7608fa4a1328652df2253b1f8dd4d5">&#9670;&#160;</a></span>webdav_validate_cors_origins()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t webdav_validate_cors_origins </td>
+          <td class="memname">ngx_int_t webdav_validate_cors_origins </td>
           <td>(</td>
           <td class="paramtype">ngx_conf_t *&#160;</td>
           <td class="paramname"><em>cf</em>, </td>
@@ -461,48 +499,35 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00063">63</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00065">65</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00225">ngx_http_brix_webdav_loc_conf_t::cors_origins</a>, and <a class="el" href="webdav__tpc_8h_source.html#l00048">webdav_tpc_str_has_ctl</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00123">ngx_http_brix_webdav_loc_conf_t::cors_origins</a>, and <a class="el" href="webdav__tpc_8h_source.html#l00072">webdav_tpc_str_has_ctl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__merge_8c_source.html#l00330">webdav_validate_auth_paths()</a>.</p>
 
 </div>
 </div>
-<a id="a220553ef121e9bbefc6daccedc0d5c6a" name="a220553ef121e9bbefc6daccedc0d5c6a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a220553ef121e9bbefc6daccedc0d5c6a">&#9670;&#160;</a></span>webdav_x509_store_cleanup()</h2>
+<a id="a917c2fba58b81fc9f52db4506e91fcf1" name="a917c2fba58b81fc9f52db4506e91fcf1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a917c2fba58b81fc9f52db4506e91fcf1">&#9670;&#160;</a></span>webdav_x509_store_cleanup()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void webdav_x509_store_cleanup </td>
+          <td class="memname">void webdav_x509_store_cleanup </td>
           <td>(</td>
           <td class="paramtype">void *&#160;</td>
           <td class="paramname"><em>data</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00047">47</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2config_8c_source.html#l00049">49</a> of file <a class="el" href="protocols_2webdav_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__merge_8c_source.html#l00357">webdav_build_ca_store_once()</a>.</p>
 
 </div>
 </div>

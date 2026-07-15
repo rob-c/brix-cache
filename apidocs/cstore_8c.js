@@ -12,11 +12,8 @@ var cstore_8c =
     [ "brix_cstore_init", "cstore_8c.html#a84d1629a0a4b38d5d74d70e6cf59f5ed", null ],
     [ "brix_cstore_local_root", "cstore_8c.html#ab3216586928939c8563c1d835562d25d", null ],
     [ "brix_cstore_partial_open", "cstore_8c.html#a9900d06afe776606553a11d8a0fa192e", null ],
-    [ "brix_cstore_scan", "cstore_8c.html#abf03f3a3924b8fe91d8718ba229c35a5", null ],
     [ "brix_cstore_serve_open", "cstore_8c.html#a626bd22b2a12db35dcef06fbacafa8a4", null ],
     [ "brix_cstore_serve_pread", "cstore_8c.html#a46809638ded5b6e1f4935b48977e8bb9", null ],
-    [ "cstore_is_sidecar", "cstore_8c.html#aaeaa1b31a380a734fb68b9836ec509a9", null ],
     [ "cstore_local_path", "cstore_8c.html#a6b5cd303b9080f53c1e7a7150583d7a7", null ],
-    [ "cstore_make_parents", "cstore_8c.html#ac332192653a18a3b6b0f50ecebe8ab1b", null ],
-    [ "cstore_scan_dir", "cstore_8c.html#af643d022648477a7f04ff4d66f9e1bb0", null ]
+    [ "cstore_make_parents", "cstore_8c.html#ac332192653a18a3b6b0f50ecebe8ab1b", null ]
 ];

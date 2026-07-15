@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('aio__io_8c.html',''); initResizable();
 
 <div class="header">
   <div class="summary">
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">aio_io.c File Reference</div></div>
 </div><!--header-->
@@ -106,6 +107,15 @@ $(document).ready(function(){initNavTree('aio__io_8c.html',''); initResizable();
 </div>
 <p><a href="aio__io_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:ad02f8ac6b8bf248b97749b1ea01fddcd" id="r_ad02f8ac6b8bf248b97749b1ea01fddcd"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#ad02f8ac6b8bf248b97749b1ea01fddcd">AIO_RD_CONTINUE</a>&#160;&#160;&#160;0   /* bytes appended (or benign EINTR): keep pulling */</td></tr>
+<tr class="separator:ad02f8ac6b8bf248b97749b1ea01fddcd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8aa0dc56e94bd080788d5eb62c6ab9ca" id="r_a8aa0dc56e94bd080788d5eb62c6ab9ca"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#a8aa0dc56e94bd080788d5eb62c6ab9ca">AIO_RD_BREAK</a>&#160;&#160;&#160;1   /* would-block: stop the loop and parse what we <a class="el" href="cephfs__denc_8c.html#a73467512e6777b03dabf674a871580b4">have</a> */</td></tr>
+<tr class="separator:a8aa0dc56e94bd080788d5eb62c6ab9ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a63e36f6b61fd8a33de764c52fc3d2e07" id="r_a63e36f6b61fd8a33de764c52fc3d2e07"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#a63e36f6b61fd8a33de764c52fc3d2e07">AIO_RD_RETURN</a>&#160;&#160;&#160;2   /* terminal (peer <a class="el" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a> / error): fully handled, return */</td></tr>
+<tr class="separator:a63e36f6b61fd8a33de764c52fc3d2e07"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a209235a325f5ea55c02ff88b934fd886" id="r_a209235a325f5ea55c02ff88b934fd886"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#a209235a325f5ea55c02ff88b934fd886">aconn_do_write</a> (<a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac)</td></tr>
@@ -124,11 +134,64 @@ Functions</h2></td></tr>
 <tr class="separator:aff964f94ce6a93fc952d687f27838889"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab62b195fc4a9115108b370798c2cfba4" id="r_ab62b195fc4a9115108b370798c2cfba4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#ab62b195fc4a9115108b370798c2cfba4">aconn_parse</a> (<a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac)</td></tr>
 <tr class="separator:ab62b195fc4a9115108b370798c2cfba4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7656ef6b33e5d21f117790ef0a9d373a" id="r_a7656ef6b33e5d21f117790ef0a9d373a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#a7656ef6b33e5d21f117790ef0a9d373a">aconn_read_tls</a> (<a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac, uint8_t *dst, size_t room)</td></tr>
+<tr class="separator:a7656ef6b33e5d21f117790ef0a9d373a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab7aea64ed48cff7235f52a2e037ebd29" id="r_ab7aea64ed48cff7235f52a2e037ebd29"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#ab7aea64ed48cff7235f52a2e037ebd29">aconn_read_plain</a> (<a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac, uint8_t *dst, size_t room)</td></tr>
+<tr class="separator:ab7aea64ed48cff7235f52a2e037ebd29"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab0a942f5ca5d43bbee0ed18bf1d430a6" id="r_ab0a942f5ca5d43bbee0ed18bf1d430a6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#ab0a942f5ca5d43bbee0ed18bf1d430a6">aconn_do_read</a> (<a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac)</td></tr>
 <tr class="separator:ab0a942f5ca5d43bbee0ed18bf1d430a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9a25395c92334030c9e189baa08f9dde" id="r_a9a25395c92334030c9e189baa08f9dde"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aio__io_8c.html#a9a25395c92334030c9e189baa08f9dde">aconn_handle_io</a> (<a class="el" href="structbrix__aconn.html">brix_aconn</a> *ac, uint32_t events)</td></tr>
 <tr class="separator:a9a25395c92334030c9e189baa08f9dde"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a8aa0dc56e94bd080788d5eb62c6ab9ca" name="a8aa0dc56e94bd080788d5eb62c6ab9ca"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8aa0dc56e94bd080788d5eb62c6ab9ca">&#9670;&#160;</a></span>AIO_RD_BREAK</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define AIO_RD_BREAK&#160;&#160;&#160;1   /* would-block: stop the loop and parse what we <a class="el" href="cephfs__denc_8c.html#a73467512e6777b03dabf674a871580b4">have</a> */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00296">296</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
+
+</div>
+</div>
+<a id="ad02f8ac6b8bf248b97749b1ea01fddcd" name="ad02f8ac6b8bf248b97749b1ea01fddcd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad02f8ac6b8bf248b97749b1ea01fddcd">&#9670;&#160;</a></span>AIO_RD_CONTINUE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define AIO_RD_CONTINUE&#160;&#160;&#160;0   /* bytes appended (or benign EINTR): keep pulling */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00295">295</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
+
+</div>
+</div>
+<a id="a63e36f6b61fd8a33de764c52fc3d2e07" name="a63e36f6b61fd8a33de764c52fc3d2e07"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a63e36f6b61fd8a33de764c52fc3d2e07">&#9670;&#160;</a></span>AIO_RD_RETURN</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define AIO_RD_RETURN&#160;&#160;&#160;2   /* terminal (peer <a class="el" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a> / error): fully handled, return */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00297">297</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="aff964f94ce6a93fc952d687f27838889" name="aff964f94ce6a93fc952d687f27838889"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aff964f94ce6a93fc952d687f27838889">&#9670;&#160;</a></span>aconn_dispatch_frame()</h2>
@@ -258,11 +321,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00294">294</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00404">404</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>, <a class="el" href="aio__io_8c_source.html#l00261">aconn_parse()</a>, <a class="el" href="aio__internal_8h_source.html#l00030">AIO_READ_CHUNK</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00033">xbuf::buf</a>, <a class="el" href="aio__internal_8h_source.html#l00034">xbuf::cap</a>, <a class="el" href="aio__internal_8h_source.html#l00092">brix_aconn::dead</a>, <a class="el" href="aio__internal_8h_source.html#l00081">brix_aconn::fd</a>, <a class="el" href="aio__internal_8h_source.html#l00036">xbuf::len</a>, <a class="el" href="aio__internal_8h_source.html#l00086">brix_aconn::rbuf</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, <a class="el" href="aio__internal_8h_source.html#l00082">brix_aconn::ssl</a>, <a class="el" href="aio__internal_8h_source.html#l00093">brix_aconn::tls_want_write_on_read</a>, <a class="el" href="aio__buffers_8c_source.html#l00008">xbuf_reserve()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>, <a class="el" href="aio__io_8c_source.html#l00261">aconn_parse()</a>, <a class="el" href="aio__io_8c_source.html#l00372">aconn_read_plain()</a>, <a class="el" href="aio__io_8c_source.html#l00321">aconn_read_tls()</a>, <a class="el" href="aio__io_8c_source.html#l00295">AIO_RD_CONTINUE</a>, <a class="el" href="aio__io_8c_source.html#l00297">AIO_RD_RETURN</a>, <a class="el" href="aio__internal_8h_source.html#l00030">AIO_READ_CHUNK</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00033">xbuf::buf</a>, <a class="el" href="aio__internal_8h_source.html#l00034">xbuf::cap</a>, <a class="el" href="aio__internal_8h_source.html#l00036">xbuf::len</a>, <a class="el" href="aio__internal_8h_source.html#l00086">brix_aconn::rbuf</a>, <a class="el" href="aio__internal_8h_source.html#l00082">brix_aconn::ssl</a>, <a class="el" href="aio__internal_8h_source.html#l00093">brix_aconn::tls_want_write_on_read</a>, <a class="el" href="aio__buffers_8c_source.html#l00008">xbuf_reserve()</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio__io_8c_source.html#l00372">aconn_handle_io()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio__io_8c_source.html#l00435">aconn_handle_io()</a>.</p>
 
 </div>
 </div>
@@ -286,7 +349,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00033">xbuf::buf</a>, <a class="el" href="aio__internal_8h_source.html#l00081">brix_aconn::fd</a>, <a class="el" href="aio__internal_8h_source.html#l00036">xbuf::len</a>, <a class="el" href="aio__internal_8h_source.html#l00082">brix_aconn::ssl</a>, <a class="el" href="aio__internal_8h_source.html#l00035">xbuf::start</a>, <a class="el" href="aio__internal_8h_source.html#l00094">brix_aconn::tls_want_read_on_write</a>, <a class="el" href="aio__internal_8h_source.html#l00085">brix_aconn::wbuf</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio__io_8c_source.html#l00372">aconn_handle_io()</a>, and <a class="el" href="aio__conn_8c_source.html#l00287">aconn_issue_areq()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio__io_8c_source.html#l00435">aconn_handle_io()</a>, and <a class="el" href="aio__conn_8c_source.html#l00287">aconn_issue_areq()</a>.</p>
 
 </div>
 </div>
@@ -364,11 +427,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00372">372</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00435">435</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aio__io_8c_source.html#l00294">aconn_do_read()</a>, <a class="el" href="aio__io_8c_source.html#l00025">aconn_do_write()</a>, <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>, <a class="el" href="aio__conn_8c_source.html#l00010">aconn_update_epoll()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00092">brix_aconn::dead</a>, <a class="el" href="aio__internal_8h_source.html#l00094">brix_aconn::tls_want_read_on_write</a>, <a class="el" href="aio__internal_8h_source.html#l00093">brix_aconn::tls_want_write_on_read</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="aio__io_8c_source.html#l00404">aconn_do_read()</a>, <a class="el" href="aio__io_8c_source.html#l00025">aconn_do_write()</a>, <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>, <a class="el" href="aio__conn_8c_source.html#l00010">aconn_update_epoll()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00092">brix_aconn::dead</a>, <a class="el" href="aio__internal_8h_source.html#l00094">brix_aconn::tls_want_read_on_write</a>, <a class="el" href="aio__internal_8h_source.html#l00093">brix_aconn::tls_want_write_on_read</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio_8c_source.html#l00244">loop_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio_8c_source.html#l00315">loop_thread()</a>.</p>
 
 </div>
 </div>
@@ -426,7 +489,103 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="aio__io_8c_source.html#l00246">aconn_dispatch_frame()</a>, <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00033">xbuf::buf</a>, <a class="el" href="aio__internal_8h_source.html#l00092">brix_aconn::dead</a>, <a class="el" href="aio__internal_8h_source.html#l00036">xbuf::len</a>, <a class="el" href="aio__internal_8h_source.html#l00086">brix_aconn::rbuf</a>, <a class="el" href="aio__internal_8h_source.html#l00035">xbuf::start</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="aio__buffers_8c_source.html#l00044">xbuf_compact()</a>, <a class="el" href="frame__hdr_8h_source.html#l00083">xrd_resp_hdr_unpack()</a>, <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>, <a class="el" href="brix_8h_source.html#l00044">XRDC_DLEN_MAX</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio__io_8c_source.html#l00294">aconn_do_read()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio__io_8c_source.html#l00404">aconn_do_read()</a>, <a class="el" href="aio__io_8c_source.html#l00372">aconn_read_plain()</a>, and <a class="el" href="aio__io_8c_source.html#l00321">aconn_read_tls()</a>.</p>
+
+</div>
+</div>
+<a id="ab7aea64ed48cff7235f52a2e037ebd29" name="ab7aea64ed48cff7235f52a2e037ebd29"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab7aea64ed48cff7235f52a2e037ebd29">&#9670;&#160;</a></span>aconn_read_plain()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int aconn_read_plain </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__aconn.html">brix_aconn</a> *&#160;</td>
+          <td class="paramname"><em>ac</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>room</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00372">372</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
+
+<p class="reference">References <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>, <a class="el" href="aio__io_8c_source.html#l00261">aconn_parse()</a>, <a class="el" href="aio__io_8c_source.html#l00296">AIO_RD_BREAK</a>, <a class="el" href="aio__io_8c_source.html#l00295">AIO_RD_CONTINUE</a>, <a class="el" href="aio__io_8c_source.html#l00297">AIO_RD_RETURN</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00092">brix_aconn::dead</a>, <a class="el" href="aio__internal_8h_source.html#l00081">brix_aconn::fd</a>, <a class="el" href="aio__internal_8h_source.html#l00036">xbuf::len</a>, <a class="el" href="aio__internal_8h_source.html#l00086">brix_aconn::rbuf</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="aio__io_8c_source.html#l00404">aconn_do_read()</a>.</p>
+
+</div>
+</div>
+<a id="a7656ef6b33e5d21f117790ef0a9d373a" name="a7656ef6b33e5d21f117790ef0a9d373a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7656ef6b33e5d21f117790ef0a9d373a">&#9670;&#160;</a></span>aconn_read_tls()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int aconn_read_tls </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__aconn.html">brix_aconn</a> *&#160;</td>
+          <td class="paramname"><em>ac</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>room</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="aio__io_8c_source.html#l00321">321</a> of file <a class="el" href="aio__io_8c_source.html">aio_io.c</a>.</p>
+
+<p class="reference">References <a class="el" href="aio__conn_8c_source.html#l00068">aconn_on_transport_error()</a>, <a class="el" href="aio__io_8c_source.html#l00261">aconn_parse()</a>, <a class="el" href="aio__io_8c_source.html#l00296">AIO_RD_BREAK</a>, <a class="el" href="aio__io_8c_source.html#l00295">AIO_RD_CONTINUE</a>, <a class="el" href="aio__io_8c_source.html#l00297">AIO_RD_RETURN</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="aio__internal_8h_source.html#l00092">brix_aconn::dead</a>, <a class="el" href="aio__internal_8h_source.html#l00036">xbuf::len</a>, <a class="el" href="aio__internal_8h_source.html#l00086">brix_aconn::rbuf</a>, <a class="el" href="aio__internal_8h_source.html#l00082">brix_aconn::ssl</a>, <a class="el" href="aio__internal_8h_source.html#l00093">brix_aconn::tls_want_write_on_read</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="aio__io_8c_source.html#l00404">aconn_do_read()</a>.</p>
 
 </div>
 </div>

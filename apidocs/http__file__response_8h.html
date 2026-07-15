@@ -120,7 +120,7 @@ $(document).ready(function(){initNavTree('http__file__response_8h.html',''); ini
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a003b84cfa9137bcdf3b77927381f59c1" id="r_a003b84cfa9137bcdf3b77927381f59c1"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__file__response_8h.html#a003b84cfa9137bcdf3b77927381f59c1">brix_http_set_header</a> (ngx_http_request_t *r, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *value, ngx_table_elt_t **out)</td></tr>
+<tr class="memitem:a003b84cfa9137bcdf3b77927381f59c1" id="r_a003b84cfa9137bcdf3b77927381f59c1"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__file__response_8h.html#a003b84cfa9137bcdf3b77927381f59c1">brix_http_set_header</a> (ngx_http_request_t *r, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *value, ngx_table_elt_t **out)</td></tr>
 <tr class="separator:a003b84cfa9137bcdf3b77927381f59c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af05cbb556d4695670939f753f9e92388" id="r_af05cbb556d4695670939f753f9e92388"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__file__response_8h.html#af05cbb556d4695670939f753f9e92388">brix_http_add_etag_header</a> (ngx_http_request_t *r, time_t mtime, off_t size, unsigned etag_flags, ngx_flag_t register_not_modified)</td></tr>
 <tr class="separator:af05cbb556d4695670939f753f9e92388"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -174,7 +174,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__file__response_8c_source.html#l00135">135</a> of file <a class="el" href="http__file__response_8c_source.html">http_file_response.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00344">brix_http_set_header()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers__set_8c_source.html#l00129">brix_http_set_header()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>.</p>
 
@@ -226,9 +226,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__file__response_8c_source.html#l00100">100</a> of file <a class="el" href="http__file__response_8c_source.html">http_file_response.c</a>.</p>
 
-<p class="reference">References <a class="el" href="etag_8c_source.html#l00035">brix_http_etag_str()</a>, and <a class="el" href="http__headers_8c_source.html#l00344">brix_http_set_header()</a>.</p>
+<p class="reference">References <a class="el" href="etag_8c_source.html#l00035">brix_http_etag_str()</a>, and <a class="el" href="http__headers__set_8c_source.html#l00129">brix_http_set_header()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, and <a class="el" href="methods__basic_8c_source.html#l00099">webdav_handle_head()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, and <a class="el" href="methods__basic_8c_source.html#l00193">webdav_handle_head()</a>.</p>
 
 </div>
 </div>
@@ -292,7 +292,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00088">xrdhttp_handle_multipart_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00177">mp_append_part()</a>.</p>
 
 </div>
 </div>
@@ -346,11 +346,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__file__response_8c_source.html#l00210">210</a> of file <a class="el" href="http__file__response_8c_source.html">http_file_response.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__file__response_8c_source.html#l00345">345</a> of file <a class="el" href="http__file__response_8c_source.html">http_file_response.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+<p class="reference">References <a class="el" href="http__file__response_8c_source.html#l00299">brix_http_prepare_file_send()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>, and <a class="el" href="files_8c_source.html#l00280">ngx_http_brix_dashboard_download_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="files_8c_source.html#l00455">dashboard_download_body()</a>, and <a class="el" href="file__serve_8c_source.html#l00383">serve_send_sendfile()</a>.</p>
 
 </div>
 </div>
@@ -424,9 +424,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__file__response_8c_source.html#l00151">151</a> of file <a class="el" href="http__file__response_8c_source.html">http_file_response.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__file__response_8c_source.html#l00135">brix_http_add_content_range_header()</a>, <a class="el" href="http__file__response_8c_source.html#l00100">brix_http_add_etag_header()</a>, and <a class="el" href="http__headers_8c_source.html#l00344">brix_http_set_header()</a>.</p>
+<p class="reference">References <a class="el" href="http__file__response_8c_source.html#l00135">brix_http_add_content_range_header()</a>, <a class="el" href="http__file__response_8c_source.html#l00100">brix_http_add_etag_header()</a>, and <a class="el" href="http__headers__set_8c_source.html#l00129">brix_http_set_header()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00170">brix_http_send_file_compressed()</a>, <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>, and <a class="el" href="object_8c_source.html#l00318">s3_handle_head()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>, <a class="el" href="http__compress_8c_source.html#l00224">compress_set_headers()</a>, and <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>.</p>
 
 </div>
 </div>
@@ -468,11 +468,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00344">344</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers__set_8c_source.html#l00129">129</a> of file <a class="el" href="http__headers__set_8c_source.html">http_headers_set.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00289">brix_http_set_header_str()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="http__headers__set_8c_source.html#l00074">brix_http_set_header_str()</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__file__response_8c_source.html#l00135">brix_http_add_content_range_header()</a>, <a class="el" href="cors_8c_source.html#l00058">brix_http_add_cors_headers()</a>, <a class="el" href="http__file__response_8c_source.html#l00100">brix_http_add_etag_header()</a>, <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00024">rl_reject()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00243">s3_add_preflight_headers()</a>, <a class="el" href="object_8c_source.html#l00318">s3_handle_head()</a>, <a class="el" href="conditional_8c_source.html#l00213">s3_override_header()</a>, <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>, <a class="el" href="tape__rest_8c_source.html#l00269">tape_stage_post()</a>, <a class="el" href="xrdhttp_8c_source.html#l00573">xrdhttp_add_checksum_header()</a>, <a class="el" href="xrdhttp_8c_source.html#l00300">xrdhttp_add_response_headers()</a>, and <a class="el" href="xrdhttp_8c_source.html#l00357">xrdhttp_send_redirect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__file__response_8c_source.html#l00135">brix_http_add_content_range_header()</a>, <a class="el" href="http__file__response_8c_source.html#l00100">brix_http_add_etag_header()</a>, <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, <a class="el" href="cors_8c_source.html#l00153">cors_emit_allow_headers()</a>, <a class="el" href="cors_8c_source.html#l00069">cors_emit_allow_origin()</a>, <a class="el" href="cors_8c_source.html#l00109">cors_emit_methods_and_flags()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00028">rl_reject()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00178">s3_add_preflight_headers()</a>, <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>, <a class="el" href="conditional_8c_source.html#l00213">s3_override_header()</a>, <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>, <a class="el" href="tape__rest__ops_8c_source.html#l00170">tape_stage_post()</a>, <a class="el" href="xrdhttp__tpc_8c_source.html#l00142">xrdhttp_add_checksum_header()</a>, <a class="el" href="xrdhttp__response_8c_source.html#l00116">xrdhttp_add_response_headers()</a>, and <a class="el" href="xrdhttp__response_8c_source.html#l00257">xrdhttp_set_redir_target_headers()</a>.</p>
 
 </div>
 </div>

@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('http__req_8c.html',''); initResizable(
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">http_req.c File Reference</div></div>
 </div><!--header-->
@@ -106,12 +107,27 @@ $(document).ready(function(){initNavTree('http__req_8c.html',''); initResizable(
 </div>
 <p><a href="http__req_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structhttpx__exchange__t.html">httpx_exchange_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structhttpx__frame__t.html">httpx_frame_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a311a5418b54f5cb47590bf009fc5f839" id="r_a311a5418b54f5cb47590bf009fc5f839"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__req_8c.html#a311a5418b54f5cb47590bf009fc5f839">httpx_read_some</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, void *buf, size_t n, int timeout_ms, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a311a5418b54f5cb47590bf009fc5f839"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac317d62b1bb9a8009e1069b946f90993" id="r_ac317d62b1bb9a8009e1069b946f90993"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__req_8c.html#ac317d62b1bb9a8009e1069b946f90993">httpx_body_complete</a> (const char *buf, size_t total, size_t body_off, long long clen, int chunked)</td></tr>
 <tr class="separator:ac317d62b1bb9a8009e1069b946f90993"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa3cd82dbef7b239daf617991b077a4c9" id="r_aa3cd82dbef7b239daf617991b077a4c9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__req_8c.html#aa3cd82dbef7b239daf617991b077a4c9">httpx_build_request</a> (const <a class="el" href="structhttpx__exchange__t.html">httpx_exchange_t</a> *ex, char *req, size_t cap, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:aa3cd82dbef7b239daf617991b077a4c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acb16c1f0f8d5851a61d3b828fc8f3f6f" id="r_acb16c1f0f8d5851a61d3b828fc8f3f6f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__req_8c.html#acb16c1f0f8d5851a61d3b828fc8f3f6f">httpx_send_request</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const <a class="el" href="structhttpx__exchange__t.html">httpx_exchange_t</a> *ex, const char *req, size_t rlen, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:acb16c1f0f8d5851a61d3b828fc8f3f6f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ace86d66632483c632d0b1a372d5247ff" id="r_ace86d66632483c632d0b1a372d5247ff"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__req_8c.html#ace86d66632483c632d0b1a372d5247ff">httpx_read_frame_headers</a> (char *buf, size_t total, <a class="el" href="structhttpx__frame__t.html">httpx_frame_t</a> *fr)</td></tr>
+<tr class="separator:ace86d66632483c632d0b1a372d5247ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53b1af3f46577ef59b329641de4910ab" id="r_a53b1af3f46577ef59b329641de4910ab"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__req_8c.html#a53b1af3f46577ef59b329641de4910ab">httpx_read_response</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const <a class="el" href="structhttpx__exchange__t.html">httpx_exchange_t</a> *ex, <a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *resp, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a53b1af3f46577ef59b329641de4910ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5883fdc7e316e1c2cd365446ea682d8f" id="r_a5883fdc7e316e1c2cd365446ea682d8f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__req_8c.html#a5883fdc7e316e1c2cd365446ea682d8f">httpx_exchange</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const char *host, int port, const char *method, const char *path, const char *extra_headers, const void *body, size_t blen, int timeout_ms, <a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *resp, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a5883fdc7e316e1c2cd365446ea682d8f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a453e9bbbfc02a5c7a4e02fb451aaab7c" id="r_a453e9bbbfc02a5c7a4e02fb451aaab7c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__req_8c.html#a453e9bbbfc02a5c7a4e02fb451aaab7c">brix_http_req</a> (const char *host, int port, int <a class="el" href="tier__config_8c.html#a39888985bf98dd26251c28fbf14cb82f">tls</a>, const char *method, const char *path, const char *extra_headers, const void *body, size_t blen, int timeout_ms, int verify, const char *ca_dir, <a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *resp, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
@@ -210,11 +226,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00177">177</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00316">316</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http_8c_source.html#l00165">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00387">brix_tls_client_free()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00401">brix_tls_client_info()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="http_8c_source.html#l00232">httpx_connect()</a>, <a class="el" href="http__req_8c_source.html#l00076">httpx_exchange()</a>, <a class="el" href="brix__net_8h_source.html#l00280">brix_http_resp::tls</a>, <a class="el" href="tier__config_8c_source.html#l00028">tls</a>, <a class="el" href="brix__net_8h_source.html#l00282">brix_http_resp::tls_cipher</a>, and <a class="el" href="brix__net_8h_source.html#l00281">brix_http_resp::tls_ver</a>.</p>
+<p class="reference">References <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00387">brix_tls_client_free()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00401">brix_tls_client_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__req_8c_source.html#l00295">httpx_exchange()</a>, <a class="el" href="brix__net_8h_source.html#l00280">brix_http_resp::tls</a>, <a class="el" href="tier__config_8c_source.html#l00028">tls</a>, <a class="el" href="brix__net_8h_source.html#l00282">brix_http_resp::tls_cipher</a>, and <a class="el" href="brix__net_8h_source.html#l00281">brix_http_resp::tls_ver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00413">battery_s3()</a>, <a class="el" href="xrd__battery_8c_source.html#l00293">battery_web()</a>, <a class="el" href="weblist_8c_source.html#l00112">brix_s3_list()</a>, <a class="el" href="webfile_8c_source.html#l00308">brix_web_readdir()</a>, <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>, <a class="el" href="weblist_8c_source.html#l00279">brix_webdav_list()</a>, <a class="el" href="weblist_8c_source.html#l00251">brix_webdav_mkcol()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00855">cmd_scan()</a>, <a class="el" href="diag__misc_8c_source.html#l00200">do_srr()</a>, <a class="el" href="diag__misc_8c_source.html#l00254">do_tape()</a>, <a class="el" href="diag__doctor_8c_source.html#l00293">doctor_http()</a>, <a class="el" href="diag__doctor_8c_source.html#l00410">doctor_s3()</a>, <a class="el" href="vfs__s3__transport_8c_source.html#l00018">s3t_request()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00669">scan_login()</a>, and <a class="el" href="xrd__clockskew_8c_source.html#l00050">xrd_clockskew_http()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00313">brix_s3_list()</a>, <a class="el" href="webfile_8c_source.html#l00352">brix_web_readdir()</a>, <a class="el" href="webfile_8c_source.html#l00121">brix_web_stat()</a>, <a class="el" href="weblist_8c_source.html#l00523">brix_webdav_list()</a>, <a class="el" href="weblist_8c_source.html#l00391">brix_webdav_mkcol()</a>, <a class="el" href="diag__misc_8c_source.html#l00323">do_srr()</a>, <a class="el" href="diag__misc_8c_source.html#l00415">do_tape()</a>, <a class="el" href="diag__doctor_8c_source.html#l00456">doctor_http()</a>, <a class="el" href="diag__doctor_8c_source.html#l00618">doctor_s3()</a>, <a class="el" href="diag__doctor_8c_source.html#l00401">http_davs_extras()</a>, <a class="el" href="xrd__battery_8c_source.html#l00566">s3_delete()</a>, <a class="el" href="diag__doctor_8c_source.html#l00575">s3_sigv4_probe()</a>, <a class="el" href="vfs__s3__transport_8c_source.html#l00018">s3t_request()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01248">scan_fetch()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00937">scan_login()</a>, <a class="el" href="diag__misc_8c_source.html#l00388">tape_poll_status()</a>, <a class="el" href="xrd__battery_8c_source.html#l00425">web_move_delete()</a>, <a class="el" href="xrd__battery_8c_source.html#l00349">web_read_suite()</a>, <a class="el" href="xrd__battery_8c_source.html#l00458">web_write_suite()</a>, and <a class="el" href="xrd__clockskew_8c_source.html#l00050">xrd_clockskew_http()</a>.</p>
 
 </div>
 </div>
@@ -264,7 +280,61 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00052">52</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__req_8c_source.html#l00076">httpx_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__req_8c_source.html#l00241">httpx_read_response()</a>.</p>
+
+</div>
+</div>
+<a id="aa3cd82dbef7b239daf617991b077a4c9" name="aa3cd82dbef7b239daf617991b077a4c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa3cd82dbef7b239daf617991b077a4c9">&#9670;&#160;</a></span>httpx_build_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_build_request </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structhttpx__exchange__t.html">httpx_exchange_t</a> *&#160;</td>
+          <td class="paramname"><em>ex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00130">130</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__req_8c_source.html#l00091">httpx_exchange_t::blen</a>, <a class="el" href="http__req_8c_source.html#l00090">httpx_exchange_t::body</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="http__req_8c_source.html#l00089">httpx_exchange_t::extra_headers</a>, <a class="el" href="http__req_8c_source.html#l00085">httpx_exchange_t::host</a>, <a class="el" href="http__req_8c_source.html#l00087">httpx_exchange_t::method</a>, <a class="el" href="http__req_8c_source.html#l00088">httpx_exchange_t::path</a>, <a class="el" href="http__req_8c_source.html#l00086">httpx_exchange_t::port</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__req_8c_source.html#l00295">httpx_exchange()</a>.</p>
 
 </div>
 </div>
@@ -348,11 +418,113 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00076">76</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00295">295</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
 
-<p class="reference">References <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="http_8c_source.html#l00131">ci_contains()</a>, <a class="el" href="http__req_8c_source.html#l00052">httpx_body_complete()</a>, <a class="el" href="http_8c_source.html#l00186">httpx_parse()</a>, <a class="el" href="http__req_8c_source.html#l00014">httpx_read_some()</a>, <a class="el" href="http__download_8c_source.html#l00119">raw_header()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="http__internal_8h_source.html#l00019">XRDC_HTTPX_MAX</a>.</p>
+<p class="reference">References <a class="el" href="http__req_8c_source.html#l00130">httpx_build_request()</a>, <a class="el" href="http__req_8c_source.html#l00241">httpx_read_response()</a>, and <a class="el" href="http__req_8c_source.html#l00172">httpx_send_request()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__req_8c_source.html#l00177">brix_http_req()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>.</p>
+
+</div>
+</div>
+<a id="ace86d66632483c632d0b1a372d5247ff" name="ace86d66632483c632d0b1a372d5247ff"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ace86d66632483c632d0b1a372d5247ff">&#9670;&#160;</a></span>httpx_read_frame_headers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void httpx_read_frame_headers </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>total</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structhttpx__frame__t.html">httpx_frame_t</a> *&#160;</td>
+          <td class="paramname"><em>fr</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00201">201</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__req_8c_source.html#l00110">httpx_frame_t::body_off</a>, <a class="el" href="http__req_8c_source.html#l00109">httpx_frame_t::chunked</a>, <a class="el" href="http_8c_source.html#l00202">ci_contains()</a>, <a class="el" href="http__req_8c_source.html#l00111">httpx_frame_t::clen</a>, <a class="el" href="http__req_8c_source.html#l00108">httpx_frame_t::have_hdrs</a>, and <a class="el" href="http__download_8c_source.html#l00119">raw_header()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__req_8c_source.html#l00241">httpx_read_response()</a>.</p>
+
+</div>
+</div>
+<a id="a53b1af3f46577ef59b329641de4910ab" name="a53b1af3f46577ef59b329641de4910ab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a53b1af3f46577ef59b329641de4910ab">&#9670;&#160;</a></span>httpx_read_response()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_read_response </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__io.html">brix_io</a> *&#160;</td>
+          <td class="paramname"><em>io</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structhttpx__exchange__t.html">httpx_exchange_t</a> *&#160;</td>
+          <td class="paramname"><em>ex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00241">241</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__req_8c_source.html#l00110">httpx_frame_t::body_off</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="http__req_8c_source.html#l00109">httpx_frame_t::chunked</a>, <a class="el" href="http__req_8c_source.html#l00111">httpx_frame_t::clen</a>, <a class="el" href="http__req_8c_source.html#l00108">httpx_frame_t::have_hdrs</a>, <a class="el" href="http__req_8c_source.html#l00052">httpx_body_complete()</a>, <a class="el" href="http_8c_source.html#l00257">httpx_parse()</a>, <a class="el" href="http__req_8c_source.html#l00201">httpx_read_frame_headers()</a>, <a class="el" href="http__req_8c_source.html#l00014">httpx_read_some()</a>, <a class="el" href="http__req_8c_source.html#l00092">httpx_exchange_t::timeout_ms</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="http__internal_8h_source.html#l00019">XRDC_HTTPX_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__req_8c_source.html#l00295">httpx_exchange()</a>.</p>
 
 </div>
 </div>
@@ -404,7 +576,67 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00277">brix_tls_read_some()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http_8c_source.html#l00260">bsrc_read()</a>, <a class="el" href="http__req_8c_source.html#l00076">httpx_exchange()</a>, and <a class="el" href="http__download_8c_source.html#l00087">read_resp_headers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http_8c_source.html#l00331">bsrc_read()</a>, <a class="el" href="http__req_8c_source.html#l00241">httpx_read_response()</a>, and <a class="el" href="http__download_8c_source.html#l00087">read_resp_headers()</a>.</p>
+
+</div>
+</div>
+<a id="acb16c1f0f8d5851a61d3b828fc8f3f6f" name="acb16c1f0f8d5851a61d3b828fc8f3f6f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acb16c1f0f8d5851a61d3b828fc8f3f6f">&#9670;&#160;</a></span>httpx_send_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_send_request </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__io.html">brix_io</a> *&#160;</td>
+          <td class="paramname"><em>io</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structhttpx__exchange__t.html">httpx_exchange_t</a> *&#160;</td>
+          <td class="paramname"><em>ex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>rlen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__req_8c_source.html#l00172">172</a> of file <a class="el" href="http__req_8c_source.html">http_req.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__req_8c_source.html#l00091">httpx_exchange_t::blen</a>, <a class="el" href="http__req_8c_source.html#l00090">httpx_exchange_t::body</a>, and <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__req_8c_source.html#l00295">httpx_exchange()</a>.</p>
 
 </div>
 </div>

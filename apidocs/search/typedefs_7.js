@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['zip_5fpread_5ffn_0',['zip_pread_fn',['../zip__kernel_8h.html#a4365af63772f4c46a51ff09bb33f1582',1,'zip_kernel.h']]]
+  ['rw_5fmeta_5ffn_0',['rw_meta_fn',['../brixcvmfs__rw_8c.html#ae33febaf7e2dbfcc4b48ebc462050686',1,'brixcvmfs_rw.c']]]
 ];

@@ -119,6 +119,16 @@ Functions</h2></td></tr>
 <tr class="separator:ac2805f4989bf6bcd85b8c3313e83cdb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af56075c64b1945de91af88d957bcaf7f" id="r_af56075c64b1945de91af88d957bcaf7f"><td class="memItemLeft" align="right" valign="top">static mode_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__policy_8c.html#af56075c64b1945de91af88d957bcaf7f">brix_parent_group_mode_bits</a> (const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *parent, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *child)</td></tr>
 <tr class="separator:af56075c64b1945de91af88d957bcaf7f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a13b293d7e9296b985a1298b5140343ca" id="r_a13b293d7e9296b985a1298b5140343ca"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__policy_8c.html#a13b293d7e9296b985a1298b5140343ca">brix_derive_parent_dir</a> (const char *path, char *parent, size_t parent_size)</td></tr>
+<tr class="separator:a13b293d7e9296b985a1298b5140343ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a188d6915710cd414705d099818563a3b" id="r_a188d6915710cd414705d099818563a3b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__policy_8c.html#a188d6915710cd414705d099818563a3b">brix_stat_child</a> (int fd, const char *path, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *child_st)</td></tr>
+<tr class="separator:a188d6915710cd414705d099818563a3b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9921e919ba0a73de577ca703d298fb96" id="r_a9921e919ba0a73de577ca703d298fb96"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__policy_8c.html#a9921e919ba0a73de577ca703d298fb96">brix_apply_child_gid</a> (int fd, const char *path, gid_t gid)</td></tr>
+<tr class="separator:a9921e919ba0a73de577ca703d298fb96"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae73479c0910269e153af4999a98b0681" id="r_ae73479c0910269e153af4999a98b0681"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__policy_8c.html#ae73479c0910269e153af4999a98b0681">brix_apply_child_mode</a> (int fd, const char *path, mode_t mode)</td></tr>
+<tr class="separator:ae73479c0910269e153af4999a98b0681"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aec5495e6381b6c3c630e4218dadac968" id="r_aec5495e6381b6c3c630e4218dadac968"><td class="memItemLeft" align="right" valign="top">static mode_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__policy_8c.html#aec5495e6381b6c3c630e4218dadac968">brix_desired_child_mode</a> (const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *parent, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *child)</td></tr>
+<tr class="separator:aec5495e6381b6c3c630e4218dadac968"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a27821a7b9be1499ebb0d9698b88ee735" id="r_a27821a7b9be1499ebb0d9698b88ee735"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__policy_8c.html#a27821a7b9be1499ebb0d9698b88ee735">brix_apply_parent_group_policy_impl</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, int fd, const char *path, ngx_array_t *rules)</td></tr>
 <tr class="separator:a27821a7b9be1499ebb0d9698b88ee735"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a45a3ce0ff8c6d99e2fe4d27626b4cbc2" id="r_a45a3ce0ff8c6d99e2fe4d27626b4cbc2"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__policy_8c.html#a45a3ce0ff8c6d99e2fe4d27626b4cbc2">brix_apply_parent_group_policy_fd</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, int fd, const char *path, ngx_array_t *rules)</td></tr>
@@ -127,6 +137,98 @@ Functions</h2></td></tr>
 <tr class="separator:a46eb542e23ddd06f58922c2d83485f24"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a9921e919ba0a73de577ca703d298fb96" name="a9921e919ba0a73de577ca703d298fb96"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9921e919ba0a73de577ca703d298fb96">&#9670;&#160;</a></span>brix_apply_child_gid()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_apply_child_gid </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">gid_t&#160;</td>
+          <td class="paramname"><em>gid</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00126">126</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00222">brix_apply_parent_group_policy_impl()</a>.</p>
+
+</div>
+</div>
+<a id="ae73479c0910269e153af4999a98b0681" name="ae73479c0910269e153af4999a98b0681"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae73479c0910269e153af4999a98b0681">&#9670;&#160;</a></span>brix_apply_child_mode()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_apply_child_mode </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00153">153</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00222">brix_apply_parent_group_policy_impl()</a>.</p>
+
+</div>
+</div>
 <a id="a45a3ce0ff8c6d99e2fe4d27626b4cbc2" name="a45a3ce0ff8c6d99e2fe4d27626b4cbc2"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a45a3ce0ff8c6d99e2fe4d27626b4cbc2">&#9670;&#160;</a></span>brix_apply_parent_group_policy_fd()</h2>
 
@@ -165,11 +267,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00149">149</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00279">279</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00049">brix_apply_parent_group_policy_impl()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00222">brix_apply_parent_group_policy_impl()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__resolved__file_8c_source.html#l00647">brix_open_resolved_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__resolved__file__finalize_8c_source.html#l00358">brix_open_finalize_handle()</a>.</p>
 
 </div>
 </div>
@@ -219,11 +321,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00049">49</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00222">222</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00088">brix_find_group_rule()</a>, <a class="el" href="group__policy_8c_source.html#l00030">brix_parent_group_mode_bits()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00126">brix_apply_child_gid()</a>, <a class="el" href="group__policy_8c_source.html#l00153">brix_apply_child_mode()</a>, <a class="el" href="group__policy_8c_source.html#l00067">brix_derive_parent_dir()</a>, <a class="el" href="group__policy_8c_source.html#l00185">brix_desired_child_mode()</a>, <a class="el" href="find__rule_8c_source.html#l00118">brix_find_group_rule()</a>, <a class="el" href="group__policy_8c_source.html#l00099">brix_stat_child()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00149">brix_apply_parent_group_policy_fd()</a>, and <a class="el" href="group__policy_8c_source.html#l00157">brix_apply_parent_group_policy_path()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00279">brix_apply_parent_group_policy_fd()</a>, and <a class="el" href="group__policy_8c_source.html#l00287">brix_apply_parent_group_policy_path()</a>.</p>
 
 </div>
 </div>
@@ -259,11 +361,99 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00157">157</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00287">287</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00049">brix_apply_parent_group_policy_impl()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00222">brix_apply_parent_group_policy_impl()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2write_2mkdir_8c_source.html#l00027">brix_handle_mkdir()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00162">brix_mkdir_recursive_beneath()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00095">brix_mkdir_recursive_confined_canon()</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00034">brix_mkdir_recursive_policy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2write_2mkdir_8c_source.html#l00028">brix_handle_mkdir()</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00143">brix_mkdir_apply_policy()</a>.</p>
+
+</div>
+</div>
+<a id="a13b293d7e9296b985a1298b5140343ca" name="a13b293d7e9296b985a1298b5140343ca"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a13b293d7e9296b985a1298b5140343ca">&#9670;&#160;</a></span>brix_derive_parent_dir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_derive_parent_dir </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>parent</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>parent_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00067">67</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00222">brix_apply_parent_group_policy_impl()</a>.</p>
+
+</div>
+</div>
+<a id="aec5495e6381b6c3c630e4218dadac968" name="aec5495e6381b6c3c630e4218dadac968"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aec5495e6381b6c3c630e4218dadac968">&#9670;&#160;</a></span>brix_desired_child_mode()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static mode_t brix_desired_child_mode </td>
+          <td>(</td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>parent</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>child</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00185">185</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00030">brix_parent_group_mode_bits()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00222">brix_apply_parent_group_policy_impl()</a>.</p>
 
 </div>
 </div>
@@ -301,7 +491,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00018">18</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00118">brix_finalize_path_rules()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00122">brix_finalize_path_rules()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="core_2config_2policy_8c_source.html#l00122">brix_config_finalize_policy()</a>.</p>
 
@@ -343,7 +533,55 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00030">30</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00049">brix_apply_parent_group_policy_impl()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00185">brix_desired_child_mode()</a>.</p>
+
+</div>
+</div>
+<a id="a188d6915710cd414705d099818563a3b" name="a188d6915710cd414705d099818563a3b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a188d6915710cd414705d099818563a3b">&#9670;&#160;</a></span>brix_stat_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_stat_child </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>child_st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="group__policy_8c_source.html#l00099">99</a> of file <a class="el" href="group__policy_8c_source.html">group_policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="group__policy_8c_source.html#l00222">brix_apply_parent_group_policy_impl()</a>.</p>
 
 </div>
 </div>

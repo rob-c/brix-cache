@@ -111,12 +111,38 @@ $(document).ready(function(){initNavTree('event__sched_8c.html',''); initResizab
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a11191f5f8e5e2779264e350db88ad99c" id="r_a11191f5f8e5e2779264e350db88ad99c"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="event__sched_8c.html#a11191f5f8e5e2779264e350db88ad99c">brix_schedule_read_resume</a> (ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:a11191f5f8e5e2779264e350db88ad99c" id="r_a11191f5f8e5e2779264e350db88ad99c"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="event__sched_8c.html#a11191f5f8e5e2779264e350db88ad99c">brix_schedule_read_resume</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:a11191f5f8e5e2779264e350db88ad99c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a401ca9b78be9ea5c5680ca4ef9cf6c1d" id="r_a401ca9b78be9ea5c5680ca4ef9cf6c1d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="event__sched_8c.html#a401ca9b78be9ea5c5680ca4ef9cf6c1d">brix_schedule_write_resume</a> (ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:a401ca9b78be9ea5c5680ca4ef9cf6c1d" id="r_a401ca9b78be9ea5c5680ca4ef9cf6c1d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="event__sched_8c.html#a401ca9b78be9ea5c5680ca4ef9cf6c1d">brix_schedule_write_resume</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:a401ca9b78be9ea5c5680ca4ef9cf6c1d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a18bd37cbb320a36ad8b4efdd860b156f" id="r_a18bd37cbb320a36ad8b4efdd860b156f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="event__sched_8c.html#a18bd37cbb320a36ad8b4efdd860b156f">brix_ensure_write_event</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:a18bd37cbb320a36ad8b4efdd860b156f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a18bd37cbb320a36ad8b4efdd860b156f" name="a18bd37cbb320a36ad8b4efdd860b156f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a18bd37cbb320a36ad8b4efdd860b156f">&#9670;&#160;</a></span>brix_ensure_write_event()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t brix_ensure_write_event </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="event__sched_8c_source.html#l00055">55</a> of file <a class="el" href="event__sched_8c_source.html">event_sched.c</a>.</p>
+
+<p class="reference">References <a class="el" href="deadline_8h_source.html#l00104">brix_arm_send_deadline()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="resume_8c_source.html#l00141">brix_aio_resume()</a>, <a class="el" href="write__helpers_8c_source.html#l00103">brix_queue_response_base()</a>, and <a class="el" href="write__helpers_8c_source.html#l00198">brix_queue_response_chain()</a>.</p>
+
+</div>
+</div>
 <a id="a11191f5f8e5e2779264e350db88ad99c" name="a11191f5f8e5e2779264e350db88ad99c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a11191f5f8e5e2779264e350db88ad99c">&#9670;&#160;</a></span>brix_schedule_read_resume()</h2>
 
@@ -135,9 +161,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="event__sched_8c_source.html#l00006">6</a> of file <a class="el" href="event__sched_8c_source.html">event_sched.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="resume_8c_source.html#l00136">brix_aio_resume()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="connect__upstream_8c_source.html#l00186">brix_proxy_connect()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00476">brix_proxy_handle_bootstrap()</a>, <a class="el" href="forward__relay__response_8c_source.html#l00037">brix_proxy_relay_lazy_open()</a>, <a class="el" href="forward__relay__response_8c_source.html#l00291">brix_proxy_relay_to_client()</a>, <a class="el" href="protocols_2root_2connection_2recv_8c_source.html#l00148">brix_recv_pre_loop()</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="response_8c_source.html#l00020">brix_upstream_forward_response()</a>, <a class="el" href="core_2aio_2write_8c_source.html#l00037">brix_write_aio_done()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00207">cms_wake_pending_session()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00143">proxy_gsi_login_done()</a>, and <a class="el" href="stage__waiter_8c_source.html#l00192">stage_waiter_deliver_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="resume_8c_source.html#l00141">brix_aio_resume()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="forward__relay__response__lazy_8c_source.html#l00035">brix_proxy_lazy_open_failed()</a>, <a class="el" href="forward__relay__response_8c_source.html#l00362">brix_proxy_relay_finish_final()</a>, <a class="el" href="forward__relay__response__lazy_8c_source.html#l00216">brix_proxy_relay_lazy_open()</a>, <a class="el" href="protocols_2root_2connection_2recv_8c_source.html#l00036">brix_recv_pre_loop()</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="response_8c_source.html#l00020">brix_upstream_forward_response()</a>, <a class="el" href="core_2aio_2write_8c_source.html#l00121">brix_write_aio_done_pipelined()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00048">cms_wake_pending_session()</a>, <a class="el" href="connect__upstream_8c_source.html#l00268">pc_select_endpoint()</a>, <a class="el" href="events__bootstrap_8c_source.html#l00125">proxy_bs_adopt_conn()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00143">proxy_gsi_login_done()</a>, and <a class="el" href="stage__waiter_8c_source.html#l00193">stage_waiter_deliver_one()</a>.</p>
 
 </div>
 </div>
@@ -159,9 +185,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="event__sched_8c_source.html#l00022">22</a> of file <a class="el" href="event__sched_8c_source.html">event_sched.c</a>.</p>
 
-<p class="reference">References <a class="el" href="deadline_8h_source.html#l00104">brix_arm_send_deadline()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="deadline_8h_source.html#l00104">brix_arm_send_deadline()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="resume_8c_source.html#l00136">brix_aio_resume()</a>, <a class="el" href="write__helpers_8c_source.html#l00268">brix_flush_pending()</a>, <a class="el" href="write__helpers_8c_source.html#l00103">brix_queue_response_base()</a>, and <a class="el" href="write__helpers_8c_source.html#l00195">brix_queue_response_chain()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="write__helpers_8c_source.html#l00272">brix_flush_pending()</a>, <a class="el" href="write__helpers_8c_source.html#l00103">brix_queue_response_base()</a>, and <a class="el" href="write__helpers_8c_source.html#l00198">brix_queue_response_chain()</a>.</p>
 
 </div>
 </div>

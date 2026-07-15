@@ -1,27 +1,11 @@
 var auth__sigv4__verify_8c =
 [
-    [ "S3_SIGV4_MAX_FUTURE_SKEW_SEC", "auth__sigv4__verify_8c.html#a20d27fdb454000386fe24874e81ffa99", null ],
-    [ "S3_SIGV4_MAX_HEADER_SKEW_SEC", "auth__sigv4__verify_8c.html#a0054b02e1d24d788c4a1cba62bba895f", null ],
-    [ "build_canonical_headers", "auth__sigv4__verify_8c.html#a9a7414665f8b6b1ef0c3411e8c5b08c2", null ],
-    [ "build_canonical_qs", "auth__sigv4__verify_8c.html#ac094488db38e1f2b44714a8976a6f48e", null ],
-    [ "get_header", "auth__sigv4__verify_8c.html#a5e454311f46d4da86cb2d748c745c729", null ],
-    [ "parse_authorization", "auth__sigv4__verify_8c.html#aecd468f01f2dbed7ed442b7263b428d3", null ],
-    [ "parse_presigned_authorization", "auth__sigv4__verify_8c.html#a305a2fa63cce1bfb4322b4fe2a76fde8", null ],
-    [ "s3_check_header_clock_skew", "auth__sigv4__verify_8c.html#a709d2afe82ebc27efc1a6b11726f55a3", null ],
-    [ "s3_check_presigned_future_skew", "auth__sigv4__verify_8c.html#a3859f658a78b1c6a0a6de865de174f39", null ],
-    [ "s3_digit", "auth__sigv4__verify_8c.html#a0640a9388f978682bb4cec584c070d85", null ],
-    [ "s3_parse_2digits", "auth__sigv4__verify_8c.html#a3dc584ee035c74d32b0ab2c4d43afa89", null ],
-    [ "s3_parse_4digits", "auth__sigv4__verify_8c.html#a893c75dde8b64835405893d595cfc3a5", null ],
-    [ "s3_parse_amz_datetime", "auth__sigv4__verify_8c.html#aa0fb9e8ec6f7b9769d18363d59ac5946", null ],
-    [ "s3_record_auth_result", "auth__sigv4__verify_8c.html#affb98fd887a877b34afba3183156bcea", null ],
-    [ "s3_reject_bad_amz_date", "auth__sigv4__verify_8c.html#ac21a57dcc4ba4fb7545bb0a6ed089588", null ],
-    [ "s3_reject_clock_skew", "auth__sigv4__verify_8c.html#a8234e5fd10d9c9d59b1d4159357e42f7", null ],
+    [ "s3_record_auth_result", "auth__sigv4__verify_8c.html#af4d8541e92077590dcea76e10bca31e6", null ],
     [ "s3_request_has_session_token", "auth__sigv4__verify_8c.html#a0b1ae2ec373291f1a253478ca8d60042", null ],
     [ "s3_signed_headers_contains", "auth__sigv4__verify_8c.html#a22282ded79ac2802e669684e1c67169e", null ],
-    [ "s3_sigv4_derive_signing_key_cached", "auth__sigv4__verify_8c.html#aa61b59cafce62b3fe43cdde6d0ada37c", null ],
-    [ "s3_verify_sigv4", "auth__sigv4__verify_8c.html#adad8c5bf65ef8c9e466a445bc88a2752", null ],
-    [ "date", "auth__sigv4__verify_8c.html#a20d8c6b5428110e36cdf8d8c847d6dc9", null ],
-    [ "key", "auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665", null ],
-    [ "region", "auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425", null ],
-    [ "s_signing_key_cache", "auth__sigv4__verify_8c.html#af4308ce61e3c5da4bfd3bdd2b25c1ac5", null ]
+    [ "s3_sigv4_bearer_intercept", "auth__sigv4__verify_8c.html#a8aa076aa9aa23fd21459fb891e2533eb", null ],
+    [ "s3_sigv4_check_session_token", "auth__sigv4__verify_8c.html#ad34f753088072c3349291f977be15019", null ],
+    [ "s3_sigv4_finish", "auth__sigv4__verify_8c.html#ae24658a3c1caa50c0d233bc719c111b2", null ],
+    [ "s3_sigv4_parse_authz_header", "auth__sigv4__verify_8c.html#a009f8e965f0db86c095b3d86ec8c77a4", null ],
+    [ "s3_verify_sigv4", "auth__sigv4__verify_8c.html#adad8c5bf65ef8c9e466a445bc88a2752", null ]
 ];

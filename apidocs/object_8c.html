@@ -107,6 +107,7 @@ $(document).ready(function(){initNavTree('object_8c.html',''); initResizable(); 
 <code>#include &quot;<a class="el" href="http__cache__fill_8h_source.html">protocols/shared/http_cache_fill.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__serve__offload_8h_source.html">protocols/shared/http_serve_offload.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="zip__http_8h_source.html">protocols/root/zip/zip_http.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="object__internal_8h_source.html">object_internal.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
@@ -127,27 +128,181 @@ $(document).ready(function(){initNavTree('object_8c.html',''); initResizable(); 
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__get__reenter__t.html">s3_get_reenter_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__get__serve__t.html">s3_get_serve_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a10e01173c096e8599f779240423c3893" id="r_a10e01173c096e8599f779240423c3893"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#a10e01173c096e8599f779240423c3893">s3_serve_metrics</a> (ngx_http_request_t *r, const <a class="el" href="structbrix__http__serve__result__t.html">brix_http_serve_result_t</a> *result)</td></tr>
 <tr class="separator:a10e01173c096e8599f779240423c3893"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab3fc474b271b4687782f154a4d0b2aba" id="r_ab3fc474b271b4687782f154a4d0b2aba"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#ab3fc474b271b4687782f154a4d0b2aba">s3_vfs_ctx</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx)</td></tr>
-<tr class="separator:ab3fc474b271b4687782f154a4d0b2aba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acf38a840346283033bdfaf131e8fe8cd" id="r_acf38a840346283033bdfaf131e8fe8cd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#acf38a840346283033bdfaf131e8fe8cd">s3_vfs_ctx</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx)</td></tr>
+<tr class="separator:acf38a840346283033bdfaf131e8fe8cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abe68c421737dc0c9d5b4dfdb43aec688" id="r_abe68c421737dc0c9d5b4dfdb43aec688"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#abe68c421737dc0c9d5b4dfdb43aec688">s3_get_reenter</a> (ngx_http_request_t *r, void *data)</td></tr>
 <tr class="separator:abe68c421737dc0c9d5b4dfdb43aec688"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afe6c9caf8ff154ad8a1ea6ed0903c4d4" id="r_afe6c9caf8ff154ad8a1ea6ed0903c4d4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#afe6c9caf8ff154ad8a1ea6ed0903c4d4">s3_get_serve_zip_member</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
+<tr class="separator:afe6c9caf8ff154ad8a1ea6ed0903c4d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a413af849c67d909bbd3e9b66be474b0b" id="r_a413af849c67d909bbd3e9b66be474b0b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#a413af849c67d909bbd3e9b66be474b0b">s3_get_check_residency</a> (ngx_http_request_t *r, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx)</td></tr>
+<tr class="separator:a413af849c67d909bbd3e9b66be474b0b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ada1db9df0ad98a88f97be6aa0973cb1a" id="r_ada1db9df0ad98a88f97be6aa0973cb1a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#ada1db9df0ad98a88f97be6aa0973cb1a">s3_get_serve_offload</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx)</td></tr>
+<tr class="separator:ada1db9df0ad98a88f97be6aa0973cb1a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acaf8b87413c5fb8695624ce78fa4170b" id="r_acaf8b87413c5fb8695624ce78fa4170b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#acaf8b87413c5fb8695624ce78fa4170b">s3_get_cache_fill</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx)</td></tr>
+<tr class="separator:acaf8b87413c5fb8695624ce78fa4170b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a278938919aac6bdbcfffc39b13c71619" id="r_a278938919aac6bdbcfffc39b13c71619"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#a278938919aac6bdbcfffc39b13c71619">s3_get_resolve</a> (ngx_http_request_t *r, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx, brix_vfs_file_t **out_fh, <a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *out_vst)</td></tr>
+<tr class="separator:a278938919aac6bdbcfffc39b13c71619"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9379792d3629f6c4abd4301f8d977e12" id="r_a9379792d3629f6c4abd4301f8d977e12"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#a9379792d3629f6c4abd4301f8d977e12">s3_get_resolve_identity</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, char *identity, size_t identity_size)</td></tr>
+<tr class="separator:a9379792d3629f6c4abd4301f8d977e12"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a86aa9612dcb9054308adf163ae514c90" id="r_a86aa9612dcb9054308adf163ae514c90"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#a86aa9612dcb9054308adf163ae514c90">s3_get_echo_headers</a> (ngx_http_request_t *r, brix_vfs_file_t *fh, const char *fs_path)</td></tr>
+<tr class="separator:a86aa9612dcb9054308adf163ae514c90"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad1a75b470cef40d75dc7475b58dcfd72" id="r_ad1a75b470cef40d75dc7475b58dcfd72"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#ad1a75b470cef40d75dc7475b58dcfd72">s3_get_serve</a> (ngx_http_request_t *r, const <a class="el" href="structs3__get__serve__t.html">s3_get_serve_t</a> *sv)</td></tr>
+<tr class="separator:ad1a75b470cef40d75dc7475b58dcfd72"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a071b321f5fc384497920fc9713789578" id="r_a071b321f5fc384497920fc9713789578"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#a071b321f5fc384497920fc9713789578">s3_handle_get</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
 <tr class="separator:a071b321f5fc384497920fc9713789578"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa9b00615fdb01994e4b3778411e0e3ac" id="r_aa9b00615fdb01994e4b3778411e0e3ac"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#aa9b00615fdb01994e4b3778411e0e3ac">s3_handle_head</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
-<tr class="separator:aa9b00615fdb01994e4b3778411e0e3ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a62a3d69f235342ce426e4a0b3873c719" id="r_a62a3d69f235342ce426e4a0b3873c719"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#a62a3d69f235342ce426e4a0b3873c719">s3_handle_head_bucket</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
-<tr class="separator:a62a3d69f235342ce426e4a0b3873c719"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac448e0b997d47c517b257a303924be15" id="r_ac448e0b997d47c517b257a303924be15"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#ac448e0b997d47c517b257a303924be15">s3_handle_get_bucket_location</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
-<tr class="separator:ac448e0b997d47c517b257a303924be15"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aadfdfbed7774c1257961d4288ba3a0b8" id="r_aadfdfbed7774c1257961d4288ba3a0b8"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="object_8c.html#aadfdfbed7774c1257961d4288ba3a0b8">s3_handle_delete</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
-<tr class="separator:aadfdfbed7774c1257961d4288ba3a0b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="acaf8b87413c5fb8695624ce78fa4170b" name="acaf8b87413c5fb8695624ce78fa4170b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acaf8b87413c5fb8695624ce78fa4170b">&#9670;&#160;</a></span>s3_get_cache_fill()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_get_cache_fill </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>fs_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>vctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00224">224</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__cache__fill_8c_source.html#l00159">brix_http_cache_fill_if_needed()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00223">brix_vfs_export_relative()</a>, <a class="el" href="object_8c_source.html#l00087">s3_get_reenter_t::cf</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="object_8c_source.html#l00086">s3_get_reenter_t::fs_path</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="object_8c_source.html#l00091">s3_get_reenter()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
+
+</div>
+</div>
+<a id="a413af849c67d909bbd3e9b66be474b0b" name="a413af849c67d909bbd3e9b66be474b0b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a413af849c67d909bbd3e9b66be474b0b">&#9670;&#160;</a></span>s3_get_check_residency()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_get_check_residency </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>vctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00154">154</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00056">BRIX_S3_EVENT_ACCESS_DENIED</a>, <a class="el" href="sd_8h_source.html#l00225">BRIX_SD_RES_NEARLINE</a>, <a class="el" href="sd_8h_source.html#l00226">BRIX_SD_RES_OFFLINE</a>, <a class="el" href="sd_8h_source.html#l00224">BRIX_SD_RES_ONLINE</a>, <a class="el" href="vfs__stat_8c_source.html#l00155">brix_vfs_residency()</a>, and <a class="el" href="s3_2util_8c_source.html#l00186">s3_fail()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
+
+</div>
+</div>
+<a id="a86aa9612dcb9054308adf163ae514c90" name="a86aa9612dcb9054308adf163ae514c90"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a86aa9612dcb9054308adf163ae514c90">&#9670;&#160;</a></span>s3_get_echo_headers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void s3_get_echo_headers </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_vfs_file_t *&#160;</td>
+          <td class="paramname"><em>fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>fs_path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00348">348</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00370">s3_echo_object_checksums()</a>, and <a class="el" href="usermeta_8c_source.html#l00236">s3_echo_user_metadata()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
+
+</div>
+</div>
 <a id="abe68c421737dc0c9d5b4dfdb43aec688" name="abe68c421737dc0c9d5b4dfdb43aec688"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#abe68c421737dc0c9d5b4dfdb43aec688">&#9670;&#160;</a></span>s3_get_reenter()</h2>
 
@@ -182,22 +337,229 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00076">76</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00091">91</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
 
-<p class="reference">References <a class="el" href="object_8c_source.html#l00072">s3_get_reenter_t::cf</a>, <a class="el" href="object_8c_source.html#l00071">s3_get_reenter_t::fs_path</a>, and <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>.</p>
+<p class="reference">References <a class="el" href="object_8c_source.html#l00087">s3_get_reenter_t::cf</a>, <a class="el" href="object_8c_source.html#l00086">s3_get_reenter_t::fs_path</a>, and <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00224">s3_get_cache_fill()</a>.</p>
 
 </div>
 </div>
-<a id="aadfdfbed7774c1257961d4288ba3a0b8" name="aadfdfbed7774c1257961d4288ba3a0b8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aadfdfbed7774c1257961d4288ba3a0b8">&#9670;&#160;</a></span>s3_handle_delete()</h2>
+<a id="a278938919aac6bdbcfffc39b13c71619" name="a278938919aac6bdbcfffc39b13c71619"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a278938919aac6bdbcfffc39b13c71619">&#9670;&#160;</a></span>s3_get_resolve()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">ngx_int_t s3_handle_delete </td>
+          <td class="memname">static ngx_int_t s3_get_resolve </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>vctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_vfs_file_t **&#160;</td>
+          <td class="paramname"><em>out_fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>out_vst</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00272">272</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+
+<p class="reference">References <a class="el" href="error__mapping_8c_source.html#l00184">brix_http_errno_to_status()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00220">brix_vfs_file_stat()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::is_directory</a>, and <a class="el" href="s3_2util_8c_source.html#l00186">s3_fail()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
+
+</div>
+</div>
+<a id="a9379792d3629f6c4abd4301f8d977e12" name="a9379792d3629f6c4abd4301f8d977e12"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9379792d3629f6c4abd4301f8d977e12">&#9670;&#160;</a></span>s3_get_resolve_identity()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void s3_get_resolve_identity </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>identity</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>identity_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00316">316</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="identity_8c_source.html#l00358">brix_identity_subject_cstr()</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
+
+</div>
+</div>
+<a id="ad1a75b470cef40d75dc7475b58dcfd72" name="ad1a75b470cef40d75dc7475b58dcfd72"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad1a75b470cef40d75dc7475b58dcfd72">&#9670;&#160;</a></span>s3_get_serve()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_get_serve </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__get__serve__t.html">s3_get_serve_t</a> *&#160;</td>
+          <td class="paramname"><em>sv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00380">380</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+
+<p class="reference">References <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_S3</a>, <a class="el" href="object_8c_source.html#l00366">s3_get_serve_t::compress</a>, <a class="el" href="file__serve_8h_source.html#l00027">brix_http_serve_opts_t::compress</a>, <a class="el" href="file__serve_8h_source.html#l00026">brix_http_serve_opts_t::etag_flags</a>, <a class="el" href="object_8c_source.html#l00362">s3_get_serve_t::fh</a>, <a class="el" href="object_8c_source.html#l00364">s3_get_serve_t::fs_path</a>, <a class="el" href="object_8c_source.html#l00365">s3_get_serve_t::identity</a>, <a class="el" href="file__serve_8h_source.html#l00025">brix_http_serve_opts_t::identity</a>, <a class="el" href="file__serve_8h_source.html#l00024">brix_http_serve_opts_t::op_name</a>, <a class="el" href="file__serve_8h_source.html#l00028">brix_http_serve_opts_t::pre_header_send</a>, <a class="el" href="conditional_8c_source.html#l00271">s3_get_pre_header()</a>, <a class="el" href="object_8c_source.html#l00017">s3_serve_metrics()</a>, <a class="el" href="object_8c_source.html#l00363">s3_get_serve_t::vst</a>, and <a class="el" href="file__serve_8h_source.html#l00023">brix_http_serve_opts_t::xfer_proto</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
+
+</div>
+</div>
+<a id="ada1db9df0ad98a88f97be6aa0973cb1a" name="ada1db9df0ad98a88f97be6aa0973cb1a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ada1db9df0ad98a88f97be6aa0973cb1a">&#9670;&#160;</a></span>s3_get_serve_offload()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_get_serve_offload </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>fs_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>vctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00179">179</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__serve__offload_8c_source.html#l00545">brix_http_serve_offload_remote()</a>, <a class="el" href="metrics__s3_8h_source.html#l00056">BRIX_S3_EVENT_ACCESS_DENIED</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00223">brix_vfs_export_relative()</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_S3</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00163">ngx_http_brix_shared_conf_t::compress</a>, <a class="el" href="file__serve_8h_source.html#l00027">brix_http_serve_opts_t::compress</a>, <a class="el" href="file__serve_8h_source.html#l00026">brix_http_serve_opts_t::etag_flags</a>, <a class="el" href="file__serve_8h_source.html#l00025">brix_http_serve_opts_t::identity</a>, <a class="el" href="file__serve_8h_source.html#l00024">brix_http_serve_opts_t::op_name</a>, <a class="el" href="s3_2util_8c_source.html#l00186">s3_fail()</a>, <a class="el" href="object_8c_source.html#l00017">s3_serve_metrics()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>, and <a class="el" href="file__serve_8h_source.html#l00023">brix_http_serve_opts_t::xfer_proto</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
+
+</div>
+</div>
+<a id="afe6c9caf8ff154ad8a1ea6ed0903c4d4" name="afe6c9caf8ff154ad8a1ea6ed0903c4d4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afe6c9caf8ff154ad8a1ea6ed0903c4d4">&#9670;&#160;</a></span>s3_get_serve_zip_member()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_get_serve_zip_member </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -220,13 +582,18 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00520">520</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00110">110</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00062">BRIX_S3_EVENT_DELETE_MISSING</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="vfs__unlink_8c_source.html#l00151">brix_vfs_unlink()</a>, <a class="el" href="s3_2util_8c_source.html#l00122">s3_send_xml_error()</a>, and <a class="el" href="object_8c_source.html#l00049">s3_vfs_ctx()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="zip__http_8c_source.html#l00042">brix_zip_http_member_arg()</a>, <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="s3_2util_8c_source.html#l00186">s3_fail()</a>, <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>, <a class="el" href="s3_8h_source.html#l00098">ngx_http_s3_loc_conf_t::zip_access</a>, and <a class="el" href="s3_8h_source.html#l00099">ngx_http_s3_loc_conf_t::zip_cd_max_bytes</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>.</p>
 
 </div>
 </div>
@@ -262,119 +629,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00098">98</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00422">422</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="http__cache__fill_8c_source.html#l00644">brix_http_cache_fill_if_needed()</a>, <a class="el" href="error__mapping_8c_source.html#l00161">brix_http_errno_to_status()</a>, <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>, <a class="el" href="http__serve__offload_8c_source.html#l00315">brix_http_serve_offload_remote()</a>, <a class="el" href="identity_8c_source.html#l00439">brix_identity_subject_cstr()</a>, <a class="el" href="metrics__s3_8h_source.html#l00056">BRIX_S3_EVENT_ACCESS_DENIED</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_RES_NEARLINE</a>, <a class="el" href="sd_8h_source.html#l00133">BRIX_SD_RES_OFFLINE</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00226">brix_vfs_export_relative()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="vfs__open_8c_source.html#l00665">brix_vfs_file_stat()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="vfs__stat_8c_source.html#l00128">brix_vfs_residency()</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_S3</a>, <a class="el" href="zip__http_8c_source.html#l00042">brix_zip_http_member_arg()</a>, <a class="el" href="zip__http_8c_source.html#l00079">brix_zip_http_serve()</a>, <a class="el" href="object_8c_source.html#l00072">s3_get_reenter_t::cf</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00097">ngx_http_brix_shared_conf_t::compress</a>, <a class="el" href="file__serve_8h_source.html#l00027">brix_http_serve_opts_t::compress</a>, <a class="el" href="file__serve_8h_source.html#l00026">brix_http_serve_opts_t::etag_flags</a>, <a class="el" href="object_8c_source.html#l00071">s3_get_reenter_t::fs_path</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="file__serve_8h_source.html#l00025">brix_http_serve_opts_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::is_directory</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="file__serve_8h_source.html#l00024">brix_http_serve_opts_t::op_name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="file__serve_8h_source.html#l00028">brix_http_serve_opts_t::pre_header_send</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00378">s3_echo_object_checksums()</a>, <a class="el" href="usermeta_8c_source.html#l00199">s3_echo_user_metadata()</a>, <a class="el" href="s3_2util_8c_source.html#l00142">s3_fail()</a>, <a class="el" href="conditional_8c_source.html#l00271">s3_get_pre_header()</a>, <a class="el" href="object_8c_source.html#l00076">s3_get_reenter()</a>, <a class="el" href="conditional_8c_source.html#l00086">s3_handle_conditional()</a>, <a class="el" href="s3_2util_8c_source.html#l00122">s3_send_xml_error()</a>, <a class="el" href="object_8c_source.html#l00016">s3_serve_metrics()</a>, <a class="el" href="object_8c_source.html#l00049">s3_vfs_ctx()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::sd</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00062">brix_vfs_stat_t::size</a>, <a class="el" href="file__serve_8h_source.html#l00023">brix_http_serve_opts_t::xfer_proto</a>, <a class="el" href="s3_8h_source.html#l00098">ngx_http_s3_loc_conf_t::zip_access</a>, and <a class="el" href="s3_8h_source.html#l00099">ngx_http_s3_loc_conf_t::zip_cd_max_bytes</a>.</p>
+<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00163">ngx_http_brix_shared_conf_t::compress</a>, <a class="el" href="object_8c_source.html#l00366">s3_get_serve_t::compress</a>, <a class="el" href="object_8c_source.html#l00362">s3_get_serve_t::fh</a>, <a class="el" href="object_8c_source.html#l00364">s3_get_serve_t::fs_path</a>, <a class="el" href="object_8c_source.html#l00365">s3_get_serve_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="object_8c_source.html#l00224">s3_get_cache_fill()</a>, <a class="el" href="object_8c_source.html#l00154">s3_get_check_residency()</a>, <a class="el" href="object_8c_source.html#l00348">s3_get_echo_headers()</a>, <a class="el" href="object_8c_source.html#l00272">s3_get_resolve()</a>, <a class="el" href="object_8c_source.html#l00316">s3_get_resolve_identity()</a>, <a class="el" href="object_8c_source.html#l00380">s3_get_serve()</a>, <a class="el" href="object_8c_source.html#l00179">s3_get_serve_offload()</a>, <a class="el" href="object_8c_source.html#l00110">s3_get_serve_zip_member()</a>, <a class="el" href="conditional_8c_source.html#l00086">s3_handle_conditional()</a>, <a class="el" href="object_8c_source.html#l00050">s3_vfs_ctx()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>, and <a class="el" href="object_8c_source.html#l00363">s3_get_serve_t::vst</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>, and <a class="el" href="object_8c_source.html#l00076">s3_get_reenter()</a>.</p>
-
-</div>
-</div>
-<a id="ac448e0b997d47c517b257a303924be15" name="ac448e0b997d47c517b257a303924be15"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac448e0b997d47c517b257a303924be15">&#9670;&#160;</a></span>s3_handle_get_bucket_location()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t s3_handle_get_bucket_location </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>cf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00471">471</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00123">BRIX_S3_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00077">ngx_http_s3_loc_conf_t::region</a>, and <a class="el" href="s3_8h_source.html#l00186">XML_APPEND</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
-
-</div>
-</div>
-<a id="aa9b00615fdb01994e4b3778411e0e3ac" name="aa9b00615fdb01994e4b3778411e0e3ac"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa9b00615fdb01994e4b3778411e0e3ac">&#9670;&#160;</a></span>s3_handle_head()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t s3_handle_head </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>fs_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>cf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00318">318</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
-
-<p class="reference">References <a class="el" href="error__mapping_8c_source.html#l00161">brix_http_errno_to_status()</a>, <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, <a class="el" href="http__headers_8c_source.html#l00344">brix_http_set_header()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_RES_NEARLINE</a>, <a class="el" href="sd_8h_source.html#l00133">BRIX_SD_RES_OFFLINE</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="vfs__stat_8c_source.html#l00128">brix_vfs_residency()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::is_directory</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00378">s3_echo_object_checksums()</a>, <a class="el" href="usermeta_8c_source.html#l00199">s3_echo_user_metadata()</a>, <a class="el" href="s3_2util_8c_source.html#l00142">s3_fail()</a>, <a class="el" href="conditional_8c_source.html#l00086">s3_handle_conditional()</a>, <a class="el" href="object_8c_source.html#l00049">s3_vfs_ctx()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00062">brix_vfs_stat_t::size</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
-
-</div>
-</div>
-<a id="a62a3d69f235342ce426e4a0b3873c719" name="a62a3d69f235342ce426e4a0b3873c719"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a62a3d69f235342ce426e4a0b3873c719">&#9670;&#160;</a></span>s3_handle_head_bucket()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t s3_handle_head_bucket </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>cf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00424">424</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00055">BRIX_S3_EVENT_INVALID_URI</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>, <a class="el" href="s3_8h_source.html#l00077">ngx_http_s3_loc_conf_t::region</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00058">s3_dispatch_object_get()</a>, and <a class="el" href="object_8c_source.html#l00091">s3_get_reenter()</a>.</p>
 
 </div>
 </div>
@@ -412,25 +671,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00016">16</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00017">17</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
 
 <p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00123">BRIX_S3_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="metrics__s3_8h_source.html#l00044">BRIX_S3_RANGE_FULL</a>, <a class="el" href="metrics__s3_8h_source.html#l00045">BRIX_S3_RANGE_PARTIAL</a>, <a class="el" href="metrics__s3_8h_source.html#l00046">BRIX_S3_RANGE_UNSATISFIED</a>, <a class="el" href="file__serve_8h_source.html#l00011">BRIX_SERVE_RANGE_PARTIAL</a>, <a class="el" href="file__serve_8h_source.html#l00012">BRIX_SERVE_RANGE_UNSATISFIED</a>, <a class="el" href="file__serve_8h_source.html#l00034">brix_http_serve_result_t::bytes_sent</a>, and <a class="el" href="file__serve_8h_source.html#l00033">brix_http_serve_result_t::range_result</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00380">s3_get_serve()</a>, and <a class="el" href="object_8c_source.html#l00179">s3_get_serve_offload()</a>.</p>
 
 </div>
 </div>
-<a id="ab3fc474b271b4687782f154a4d0b2aba" name="ab3fc474b271b4687782f154a4d0b2aba"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab3fc474b271b4687782f154a4d0b2aba">&#9670;&#160;</a></span>s3_vfs_ctx()</h2>
+<a id="acf38a840346283033bdfaf131e8fe8cd" name="acf38a840346283033bdfaf131e8fe8cd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acf38a840346283033bdfaf131e8fe8cd">&#9670;&#160;</a></span>s3_vfs_ctx()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void s3_vfs_ctx </td>
+          <td class="memname">void s3_vfs_ctx </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -459,18 +715,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00049">49</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="object_8c_source.html#l00050">50</a> of file <a class="el" href="object_8c_source.html">object.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__cred_8c_source.html#l00090">brix_vfs_ctx_bind_backend_mint()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, <a class="el" href="shared__conf_8h_source.html#l00060">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_cert</a>, <a class="el" href="shared__conf_8h_source.html#l00068">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_key</a>, and <a class="el" href="shared__conf_8h_source.html#l00072">ngx_http_brix_shared_conf_t::storage_credential_mint_ttl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00520">s3_handle_delete()</a>, <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="object_8c_source.html#l00318">s3_handle_head()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="object__meta_8c_source.html#l00229">s3_handle_delete()</a>, <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>, and <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>.</p>
 
 </div>
 </div>

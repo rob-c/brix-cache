@@ -46,7 +46,7 @@
   </g>
 </defs>
 <script type="application/ecmascript">
-var viewWidth = 670;
+var viewWidth = 769;
 var viewHeight = 170;
 var sectionId = 'dynsection-1';
 </script>
@@ -58,9 +58,9 @@ var sectionId = 'dynsection-1';
 <g id="Node000001" class="node">
 <title>Node1</title>
 <g id="a_Node000001"><a xlink:title=" ">
-<polygon fill="#999999" stroke="#666666" points="499,-162 347,-162 347,-132 499,-132 499,-162"/>
-<text text-anchor="start" x="355" y="-150" font-family="Helvetica,sans-Serif" font-size="10.00">src/observability/dashboard</text>
-<text text-anchor="middle" x="423" y="-139" font-family="Helvetica,sans-Serif" font-size="10.00">/api_admin.h</text>
+<polygon fill="#999999" stroke="#666666" points="591,-162 439,-162 439,-132 591,-132 591,-162"/>
+<text text-anchor="start" x="447" y="-150" font-family="Helvetica,sans-Serif" font-size="10.00">src/observability/dashboard</text>
+<text text-anchor="middle" x="515" y="-139" font-family="Helvetica,sans-Serif" font-size="10.00">/api_admin.h</text>
 </a>
 </g>
 </g>
@@ -78,8 +78,8 @@ var sectionId = 'dynsection-1';
 <g id="edge1_Node000001_Node000002" class="edge">
 <title>Node1&#45;&gt;Node2</title>
 <g id="a_edge1_Node000001_Node000002"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M394.29,-126.03C380.37,-116.34 363.97,-104.94 351.36,-96.16"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="392.37,-128.96 402.58,-131.8 396.37,-123.21 392.37,-128.96"/>
+<path fill="none" stroke="#63b8ff" d="M464.95,-128.59C435.53,-118.36 398.83,-105.59 371.29,-96.01"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="464.03,-131.98 474.62,-131.95 466.33,-125.36 464.03,-131.98"/>
 </a>
 </g>
 </g>
@@ -97,8 +97,27 @@ var sectionId = 'dynsection-1';
 <g id="edge6_Node000001_Node000007" class="edge">
 <title>Node1&#45;&gt;Node7</title>
 <g id="a_edge6_Node000001_Node000007"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M451.71,-126.03C465.63,-116.34 482.03,-104.94 494.64,-96.16"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="449.63,-123.21 443.42,-131.8 453.63,-128.96 449.63,-123.21"/>
+<path fill="none" stroke="#63b8ff" d="M515,-121.54C515,-112.96 515,-103.61 515,-96.16"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="511.5,-121.8 515,-131.8 518.5,-121.8 511.5,-121.8"/>
+</a>
+</g>
+</g>
+<!-- Node8 -->
+<g id="Node000008" class="node">
+<title>Node8</title>
+<g id="a_Node000008"><a xlink:href="module__dispatch_8c.html" target="_top" xlink:title=" ">
+<polygon fill="white" stroke="#666666" points="761,-96 609,-96 609,-66 761,-66 761,-96"/>
+<text text-anchor="start" x="617" y="-84" font-family="Helvetica,sans-Serif" font-size="10.00">src/observability/dashboard</text>
+<text text-anchor="middle" x="685" y="-73" font-family="Helvetica,sans-Serif" font-size="10.00">/module_dispatch.c</text>
+</a>
+</g>
+</g>
+<!-- Node1&#45;&gt;Node8 -->
+<g id="edge7_Node000001_Node000008" class="edge">
+<title>Node1&#45;&gt;Node8</title>
+<g id="a_edge7_Node000001_Node000008"><a xlink:title=" ">
+<path fill="none" stroke="#63b8ff" d="M561.96,-128.32C589.01,-118.14 622.55,-105.51 647.78,-96.01"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="560.43,-125.16 552.31,-131.95 562.9,-131.71 560.43,-125.16"/>
 </a>
 </g>
 </g>

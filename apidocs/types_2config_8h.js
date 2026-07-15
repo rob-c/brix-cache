@@ -6,7 +6,7 @@ var types_2config_8h =
     [ "brix_group_rule_t", "structbrix__group__rule__t.html", "structbrix__group__rule__t" ],
     [ "brix_manager_map_t", "structbrix__manager__map__t.html", "structbrix__manager__map__t" ],
     [ "brix_proxy_upstream_t", "structbrix__proxy__upstream__t.html", "structbrix__proxy__upstream__t" ],
-    [ "ngx_stream_brix_srv_conf_t", "structngx__stream__brix__srv__conf__t.html", "structngx__stream__brix__srv__conf__t" ],
+    [ "ngx_stream_brix_srv_conf_t", "structngx__stream__brix__srv__conf__t.html", null ],
     [ "BRIX_AUTH_ADMIN", "types_2config_8h.html#acec0b76dbe7a9aea49abbe3cee6f475f", null ],
     [ "BRIX_AUTH_DELETE", "types_2config_8h.html#a2de05cdd8e41ee34c9fe3fea8be9ff1f", null ],
     [ "BRIX_AUTH_LOOKUP", "types_2config_8h.html#a73f7b98aa52d9f9c00df852a726e0cc6", null ],

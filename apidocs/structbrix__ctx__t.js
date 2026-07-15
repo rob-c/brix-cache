@@ -5,6 +5,7 @@ var structbrix__ctx__t =
     [ "budget_charged", "structbrix__ctx__t.html#a0416cc9754f64b2261f56cd148e25311", null ],
     [ "cms_wait_streamid", "structbrix__ctx__t.html#a8f5de72dab54ec2631deedb1b9e7d1ad", null ],
     [ "deadline", "structbrix__ctx__t.html#a4a6059ed9eb179b2650ab3629b487ffc", null ],
+    [ "deleg_proxy_pem", "structbrix__ctx__t.html#a97600e185f02abf3169e29a342a64e11", null ],
     [ "destroyed", "structbrix__ctx__t.html#a05b9d4f44f587d0e99ffce3f4e36c068", null ],
     [ "files", "structbrix__ctx__t.html#ab5ca9df3109ed0d0d704ce2140148d15", null ],
     [ "gsi", "structbrix__ctx__t.html#aa08e13c1ab776dcd24bb457a233761c6", null ],

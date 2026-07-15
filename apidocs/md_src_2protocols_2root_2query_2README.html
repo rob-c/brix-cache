@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2query_2README
   <div class="headertitle"><div class="title">query — XRootD &lt;tt&gt;kXR_query&lt;/tt&gt; sub-protocol, &lt;tt&gt;kXR_prepare&lt;/tt&gt; staging, and &lt;tt&gt;kXR_set&lt;/tt&gt; hints</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md361"></a> </p>
-<h1><a class="anchor" id="autotoc_md362"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md362"></a> </p>
+<h1><a class="anchor" id="autotoc_md363"></a>
 Overview</h1>
 <p>The XRootD wire protocol folds a large family of mostly read-only metadata operations into a single opcode, <code>kXR_query</code>, whose <code>infotype</code> field selects a "sub-protocol": checksums, filesystem space, server capabilities, statistics, extended attributes, and several opaque/visa plugin hooks. This subsystem implements that opcode dispatcher plus two adjacent metadata opcodes that share the same machinery and confinement rules: <code>kXR_prepare</code> (storage-staging hints) and <code>kXR_set</code> (advisory client/CMS hints). All three are <code>root://</code> / <code>roots://</code> <b>stream</b> operations — there is no HTTP/WebDAV or S3 path through this directory.</p>
 <p>Execution enters from the handshake opcode router after login/auth completes: <code>../handshake/dispatch_read.c</code> routes <code>kXR_query</code> → <code>brix_handle_query</code> and <code>kXR_prepare</code> → <code>brix_handle_prepare</code>, while <code>../handshake/dispatch_session.c</code> routes <code>kXR_set</code> → <code>brix_handle_set</code>. <code>brix_handle_query</code> (<code>dispatch.c</code>) then fans out by <code>ntohs(req-&gt;infotype)</code> to one of ~14 handlers declared in <code><a class="el" href="query__internal_8h.html">query_internal.h</a></code>, returning <code>kXR_Unsupported</code> for any unrecognized infotype.</p>
 <p>The two operations that touch real file bytes — <code>kXR_Qcksum</code> (checksum one file) and <code>kXR_Qckscan</code> (checksum a file or a whole subtree) — can be expensive, so they run on the nginx thread pool when one is configured and fall back to a synchronous event-loop path otherwise. Both variants are written to produce byte-identical wire responses; the async <code>_done</code> callback restores the request streamid and re-arms the connection exactly like the <code>../read</code> data plane. Everything else (space, fsinfo, config, stats, xattr, prepare-status, the opaque stubs) is cheap enough to answer inline on the event loop.</p>
 <p>This subsystem is heavily compatibility-driven. Response strings, the default algorithm (<code>adler32</code>, the <code>xrdcp</code> default), the bare-numeric <code>tpc</code> / <code>QFSinfo</code> formats, and the FSctl/fctl "unsupported" shapes are all chosen so the reference <code>XrdCl</code> client parsers accept them. The opaque/visa subtypes deliberately mirror the reference server's "FSctl/fctl operation not supported" reply because nginx-xrootd does not embed the <code>XrdOfs</code> plugin layer.</p>
-<h1><a class="anchor" id="autotoc_md363"></a>
+<h1><a class="anchor" id="autotoc_md364"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -134,7 +134,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>util.c</code>   </td><td class="markdownTableBodyNone">Standalone file/fd checksum helpers (<code>brix_query_adler32_{fd,file}</code>, <code>brix_query_crc32_{fd,file}</code>, <code>brix_query_digest_{fd,file}</code>) wrapping <code>../compat/checksum</code>; the <code>_file</code> variants use <code>brix_open_confined</code> + <code>brix_sanitize_log_string</code>.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md364"></a>
+<h1><a class="anchor" id="autotoc_md365"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structClientQueryRequest.html">ClientQueryRequest</a></code>** (wire struct from <code>../protocol</code>): carries <code>infotype</code> (big-endian, needs <code>ntohs</code>) and <code>fhandle[]</code> (handle index for handle-based Qcksum / Qvisa / Qopaqug). Cast directly from <code>ctx-&gt;hdr_buf</code>.</li>
@@ -144,7 +144,7 @@ Key types &amp; data structures</h1>
 <li>**<code>ctx-&gt;prepare_paths</code> / <code>prepare_paths_len</code> / <code>prepare_reqid[32]</code>** (<code>../types/context.h</code>): legacy FRM-off per-session staging state set by a <code>kXR_stage</code> prepare so a later <code>kXR_QPrep</code> with no inline paths can report status against the original list. <code>prepare_paths</code> is <code>ngx_alloc</code>-d and freed/replaced on each new stage; in this fallback mode <code>prepare_reqid</code> is <code>"0"</code>. With <code>brix_frm on</code>, durable request records and real reqids live in <code>../frm/</code> and survive disconnect/restart.</li>
 <li><b>Response wire shapes</b> worth remembering: Qcksum = <code>"algo hexvalue"</code>; Qckscan = newline-delimited <code>"algo &lt;hex&gt;  logical_path"</code> lines (hex width per algorithm: 8 for adler32/crc32c, 16 for crc64/crc64nvme); Qspace = <code>oss.cgroup=default&amp;oss.space=…&amp;oss.free=…&amp;oss.maxf=…&amp;oss.used=…&amp;oss.quota=-1</code>; QFSinfo = <code>"wVal freeMB util sVal freeMB util"</code> (both halves identical, <code>wVal</code>/ <code>sVal</code> = <code>1</code>); QStats = an <code>&lt;statistics&gt;…&lt;/statistics&gt;</code> XML document; QPrep = FRM-off <code>"A &lt;path&gt;"</code> / <code>"M &lt;path&gt;"</code> lines or FRM-backed queued/staging/failed/ available status lines.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md365"></a>
+<h1><a class="anchor" id="autotoc_md366"></a>
 Control &amp; data flow</h1>
 <p>Entry is always one stream opcode dispatched after auth by <code>../handshake</code> (<code><a class="el" href="dispatch__read_8c.html">dispatch_read.c</a></code> for query/prepare, <code><a class="el" href="dispatch__session_8c.html">dispatch_session.c</a></code> for set). Inside the subsystem the handlers call out to:</p>
 <ul>
@@ -157,7 +157,7 @@ Control &amp; data flow</h1>
 <li><b>Responses</b> are framed by <code>../response/README.md</code>: <code>brix_send_ok</code>, <code>brix_send_error</code>, and the macros <code>BRIX_RETURN_OK</code> / <code>BRIX_RETURN_ERR</code> / <code>BRIX_RETURN_REDIR</code>. <code>kXR_prepare kXR_notify</code> builds a combined ok+notify buffer with <code>brix_build_resp_hdr</code> + <code>brix_build_attn_asyncms_frame</code> and sends it via <code>brix_queue_response</code>.</li>
 <li><b>Metrics &amp; access log</b>: every handler bumps a fixed <code>BRIX_OP_QUERY_*</code> (or <code>BRIX_OP_SET</code>) ok/err slot via <code>BRIX_OP_OK</code> / <code>BRIX_OP_ERR</code> (<code>../metrics/README.md</code>) and emits an <code>brix_log_access</code> line.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md366"></a>
+<h1><a class="anchor" id="autotoc_md367"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Confine first, always.</b> Every wire path is run through <code>brix_extract_path</code><ul>
@@ -177,12 +177,12 @@ Invariants, security &amp; gotchas</h1>
 <li>**<code>kXR_set</code> never rejects.** Per spec it always returns <code>kXR_ok</code>; it parses the <code>appid</code> <code>"cms.space"</code> report for logging only (no enforcement) and logs other modifiers at debug level.</li>
 <li><b>Low-cardinality metrics.</b> Handlers increment fixed <code>BRIX_OP_QUERY_*</code> slots (note: several slots are intentionally shared, e.g. <code>BRIX_OP_QUERY_CKSUM</code> and <code>BRIX_OP_QUERY_SPACE</code> both map to slot <code>17</code> in <code>../metrics/metrics.h</code>); paths, algorithms, and reqids are never used as metric labels.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md367"></a>
+<h1><a class="anchor" id="autotoc_md368"></a>
 Entry points / extending</h1>
 <p><b>Add a new <code>kXR_query</code> infotype:</b> declare its handler prototype in <code><a class="el" href="query__internal_8h.html">query_internal.h</a></code>, implement it in a new or existing <code>.c</code> here, then add one <code>if (infotype == kXR_Qfoo) return brix_query_foo(...);</code> branch in <code>dispatch.c</code> (before the trailing <code>kXR_Unsupported</code> fallback). Follow the existing contract: confine any path (<code>brix_extract_path</code> + <code>brix_*_beneath</code>), run <code>brix_auth_gate</code> (<code>BRIX_AUTH_READ</code>), bump <code>BRIX_OP_OK</code>/<code>_ERR</code> and <code>brix_log_access</code>, and reply via <code>brix_send_ok</code> / <code>brix_send_error</code>. Register the new <code>.c</code> in the top-level <code>config</code> script (the module's <code>ngx_module_srcs</code> / <code>NGX_ADDON_SRCS</code> list) and re-run <code>./configure</code>.</p>
 <p><b>Make a query op async:</b> copy the <code><a class="el" href="structbrix__cksum__aio__t.html">brix_cksum_aio_t</a></code> pattern — add a context struct to <code><a class="el" href="query__internal_8h.html">query_internal.h</a></code>, write a <code>_thread</code> worker (no nginx-event-loop access; result/error fields only) and a <code>_done</code> callback (<code>brix_aio_restore_request</code> → send → <code>brix_aio_resume</code>), allocate via <code>ngx_thread_task_alloc</code>, bind with <code>brix_task_bind</code>, and post with <code>brix_aio_post_task</code> while keeping a synchronous fallback for the queue-full case. Always keep the sync and async paths byte-identical.</p>
 <p><b>Tune scan limits / staging:</b> caps live in <code><a class="el" href="query__internal_8h.html">query_internal.h</a></code> (<code>BRIX_CKSCAN_INIT_CAP</code>, <code>BRIX_PREPARE_CMD_MAX_PATHS</code>) and in srv-conf (<code>ckscan_max_depth</code>, <code>ckscan_max_files</code>, <code>prepare_command</code>).</p>
-<h1><a class="anchor" id="autotoc_md368"></a>
+<h1><a class="anchor" id="autotoc_md369"></a>
 See also</h1>
 <ul>
 <li><code>../handshake/README.md</code> — opcode routing that calls into this subsystem</li>

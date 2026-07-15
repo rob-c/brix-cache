@@ -425,15 +425,15 @@ $(document).ready(function(){initNavTree('core_2compat_2crc32c_8c_source.html','
 <div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
 <div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>brix_crc32c_zeros(uint32_t zeros[][256], <span class="keywordtype">size_t</span> len)</div>
 <div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>{</div>
-<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    uint32_t op[32];</div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    uint32_t <a class="code hl_variable" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>[32];</div>
 <div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>    <span class="keywordtype">int</span>      n;</div>
 <div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span> </div>
-<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    brix_crc32c_zeros_op(op, len);</div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    brix_crc32c_zeros_op(<a class="code hl_variable" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, len);</div>
 <div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>    <span class="keywordflow">for</span> (n = 0; n &lt; 256; n++) {</div>
-<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>        zeros[0][n] = brix_gf2_matrix_times(op, (uint32_t) n);</div>
-<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>        zeros[1][n] = brix_gf2_matrix_times(op, (uint32_t) n &lt;&lt; 8);</div>
-<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>        zeros[2][n] = brix_gf2_matrix_times(op, (uint32_t) n &lt;&lt; 16);</div>
-<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>        zeros[3][n] = brix_gf2_matrix_times(op, (uint32_t) n &lt;&lt; 24);</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>        zeros[0][n] = brix_gf2_matrix_times(<a class="code hl_variable" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, (uint32_t) n);</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>        zeros[1][n] = brix_gf2_matrix_times(<a class="code hl_variable" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, (uint32_t) n &lt;&lt; 8);</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>        zeros[2][n] = brix_gf2_matrix_times(<a class="code hl_variable" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, (uint32_t) n &lt;&lt; 16);</div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>        zeros[3][n] = brix_gf2_matrix_times(<a class="code hl_variable" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, (uint32_t) n &lt;&lt; 24);</div>
 <div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>    }</div>
 <div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>}</div>
 <div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span> </div>
@@ -722,6 +722,7 @@ $(document).ready(function(){initNavTree('core_2compat_2crc32c_8c_source.html','
 <div class="line"><a id="l00613" name="l00613"></a><span class="lineno">  613</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="core_2compat_2crc32c_8c.html#adc056906c5fe4d7e10416a19e1480a03">brix_crc32c_copy_sw</a>(src, dst, len);</div>
 <div class="line"><a id="l00614" name="l00614"></a><span class="lineno">  614</span>}</div>
 </div>
+<div class="ttc" id="abroker__ops_8c_html_a0a0aa265e5eadd9a8815f58be2fa559c"><div class="ttname"><a href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a></div><div class="ttdeci">uint32_t op</div><div class="ttdef"><b>Definition</b> <a href="broker__ops_8c_source.html#l00392">broker_ops.c:392</a></div></div>
 <div class="ttc" id="acore_2compat_2crc32c_8c_html_a0067aace2f447c32c64dc2b9fc9ecfd4"><div class="ttname"><a href="core_2compat_2crc32c_8c.html#a0067aace2f447c32c64dc2b9fc9ecfd4">brix_crc32c_sw_extend</a></div><div class="ttdeci">static uint32_t brix_crc32c_sw_extend(uint32_t crc, const unsigned char *p, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="core_2compat_2crc32c_8c_source.html#l00044">crc32c.c:44</a></div></div>
 <div class="ttc" id="acore_2compat_2crc32c_8c_html_a44e9268b9301c1e218bd0f8791967748"><div class="ttname"><a href="core_2compat_2crc32c_8c.html#a44e9268b9301c1e218bd0f8791967748">brix_crc32c_copy_value</a></div><div class="ttdeci">uint32_t brix_crc32c_copy_value(const unsigned char *src, unsigned char *dst, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="core_2compat_2crc32c_8c_source.html#l00591">crc32c.c:591</a></div></div>
 <div class="ttc" id="acore_2compat_2crc32c_8c_html_a611c7d8e5544b9bffe9fe90d2f245879"><div class="ttname"><a href="core_2compat_2crc32c_8c.html#a611c7d8e5544b9bffe9fe90d2f245879">brix_crc32c_value</a></div><div class="ttdeci">uint32_t brix_crc32c_value(const void *buf, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="core_2compat_2crc32c_8c_source.html#l00585">crc32c.c:585</a></div></div>

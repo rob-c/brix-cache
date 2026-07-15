@@ -170,105 +170,166 @@ $(document).ready(function(){initNavTree('sss__keytab__kernel_8c_source.html',''
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>}</div>
 </div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00068" data-start="{" data-end="}">
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno"><a class="line" href="sss__keytab__kernel_8c.html#a51c2f7ddce15a9ac079d9f82db7a0b75">   68</a></span><a class="code hl_function" href="sss__keytab__kernel_8c.html#a51c2f7ddce15a9ac079d9f82db7a0b75">sss_keytab_parse_line</a>(<span class="keywordtype">char</span> *line, <a class="code hl_struct" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out, int64_t now)</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>{</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <span class="keywordtype">char</span> *field, *save;</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    field = strtok_r(line, <span class="stringliteral">&quot; \t\r\n&quot;</span>, &amp;save);</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    <span class="keywordflow">if</span> (field == NULL || field[0] == <span class="charliteral">&#39;#&#39;</span>) {</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        <span class="keywordflow">return</span> 0;                       <span class="comment">/* blank / comment */</span></div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    }</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    <span class="keywordflow">if</span> (strcmp(field, <span class="stringliteral">&quot;0&quot;</span>) != 0 &amp;&amp; strcmp(field, <span class="stringliteral">&quot;1&quot;</span>) != 0) {</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        <span class="keywordflow">return</span> -1;                      <span class="comment">/* unsupported version tag */</span></div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    }</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    memset(out, 0, <span class="keyword">sizeof</span>(*out));</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a96b8848d9d0749c9d97b6a940116b41a">id</a> = -1;</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    memcpy(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#ada733f0106620589e105681f9dd5afdc">user</a>, <span class="stringliteral">&quot;nobody&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;nobody&quot;</span>));</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    memcpy(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a3185875700e61a928ba7cd0594110ca9">group</a>, <span class="stringliteral">&quot;nogroup&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;nogroup&quot;</span>));</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    memcpy(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a0cdbb3ba53e06beb190bcef407887470">name</a>, <span class="stringliteral">&quot;nowhere&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;nowhere&quot;</span>));</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span> </div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    <span class="keywordflow">while</span> ((field = strtok_r(NULL, <span class="stringliteral">&quot; \t\r\n&quot;</span>, &amp;save)) != NULL) {</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *v;</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        <span class="keywordflow">if</span> (field[0] == <span class="charliteral">&#39;#&#39;</span>) {</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>            <span class="keywordflow">break</span>;                      <span class="comment">/* inline comment */</span></div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>        }</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>        <span class="keywordflow">if</span> (field[1] != <span class="charliteral">&#39;:&#39;</span>) {</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>            <span class="keywordflow">continue</span>;                   <span class="comment">/* not a &quot;x:value&quot; field — ignore */</span></div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>        }</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        v = field + 2;</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        <span class="keywordflow">switch</span> (field[0]) {</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        <span class="keywordflow">case</span> <span class="charliteral">&#39;u&#39;</span>:</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="sss__keytab__kernel_8c.html#ad65bed807bb08c43e081e999625622a0">sss_copy_field</a>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#ada733f0106620589e105681f9dd5afdc">user</a>, <span class="keyword">sizeof</span>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#ada733f0106620589e105681f9dd5afdc">user</a>), v) != 0) {</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>            }</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>        <span class="keywordflow">case</span> <span class="charliteral">&#39;g&#39;</span>:</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="sss__keytab__kernel_8c.html#ad65bed807bb08c43e081e999625622a0">sss_copy_field</a>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a3185875700e61a928ba7cd0594110ca9">group</a>, <span class="keyword">sizeof</span>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a3185875700e61a928ba7cd0594110ca9">group</a>), v) != 0) {</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>            }</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>        <span class="keywordflow">case</span> <span class="charliteral">&#39;n&#39;</span>:</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="sss__keytab__kernel_8c.html#ad65bed807bb08c43e081e999625622a0">sss_copy_field</a>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a0cdbb3ba53e06beb190bcef407887470">name</a>, <span class="keyword">sizeof</span>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a0cdbb3ba53e06beb190bcef407887470">name</a>), v) != 0) {</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>            }</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>        <span class="keywordflow">case</span> <span class="charliteral">&#39;N&#39;</span>:</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="sss__keytab__kernel_8c.html#a4f5f524dfb7df205218d66372a6f4c42">sss_parse_i64</a>(v, &amp;out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a96b8848d9d0749c9d97b6a940116b41a">id</a>) != 0) {</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>            }</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>        <span class="keywordflow">case</span> <span class="charliteral">&#39;e&#39;</span>:</div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="sss__keytab__kernel_8c.html#a4f5f524dfb7df205218d66372a6f4c42">sss_parse_i64</a>(v, &amp;out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#afa514301c7c267b7803ea6c8e51b36fe">exp</a>) != 0) {</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>            }</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>        <span class="keywordflow">case</span> <span class="charliteral">&#39;k&#39;</span>:</div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="sss__keytab__kernel_8c.html#a732adb1ae4806bcfc94ba2639a3763a5">sss_decode_hex</a>(v, out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a128067ae7356bd3c3daf4c5cfcb3bcba">key</a>, &amp;out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a50e966d640544917af70c3267a89c294">key_len</a>) != 0) {</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>            }</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        <span class="keywordflow">default</span>:</div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>            <span class="keywordflow">break</span>;                      <span class="comment">/* unknown field — ignore */</span></div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        }</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    }</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span> </div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a96b8848d9d0749c9d97b6a940116b41a">id</a> &lt; 0 || out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a50e966d640544917af70c3267a89c294">key_len</a> == 0) {</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        <span class="keywordflow">return</span> -1;                      <span class="comment">/* required field missing */</span></div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    }</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#afa514301c7c267b7803ea6c8e51b36fe">exp</a> != 0 &amp;&amp; out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#afa514301c7c267b7803ea6c8e51b36fe">exp</a> &lt;= now) {</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <span class="keywordflow">return</span> 0;                       <span class="comment">/* expired — skip */</span></div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    }</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    <span class="keywordflow">return</span> 1;</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>}</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment"> * WHAT: Seed *out with the neutral entry defaults before field parsing.</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment"> * WHY:  Every optional text field has a documented default (&quot;nobody&quot; /</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment"> *       &quot;nogroup&quot; / &quot;nowhere&quot;) and the required numeric id starts at -1 so a</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> *       missing N: is detectable; a clean zero-init also clears the key buffer.</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> * HOW:  memset to zero, then set id and the three default strings verbatim —</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> *       byte-for-byte identical to the original inline initialisation.</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00076" data-start="{" data-end="}">
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno"><a class="line" href="sss__keytab__kernel_8c.html#a2cd4b0df6b0bf35d15dc199862b2e114">   76</a></span><a class="code hl_function" href="sss__keytab__kernel_8c.html#a2cd4b0df6b0bf35d15dc199862b2e114">sss_entry_set_defaults</a>(<a class="code hl_struct" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out)</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>{</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    memset(out, 0, <span class="keyword">sizeof</span>(*out));</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a96b8848d9d0749c9d97b6a940116b41a">id</a> = -1;</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    memcpy(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#ada733f0106620589e105681f9dd5afdc">user</a>, <span class="stringliteral">&quot;nobody&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;nobody&quot;</span>));</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    memcpy(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a3185875700e61a928ba7cd0594110ca9">group</a>, <span class="stringliteral">&quot;nogroup&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;nogroup&quot;</span>));</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    memcpy(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a0cdbb3ba53e06beb190bcef407887470">name</a>, <span class="stringliteral">&quot;nowhere&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;nowhere&quot;</span>));</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>}</div>
 </div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span> </div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00141" data-start="{" data-end="}">
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno"><a class="line" href="sss__keytab__kernel_8c.html#ae99a55309d3104b26240b3266b285213">  141</a></span><a class="code hl_function" href="sss__keytab__kernel_8c.html#ae99a55309d3104b26240b3266b285213">sss_keytab_mode_ok</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path, mode_t <a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, <span class="keywordtype">int</span> allow_dotgrp)</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>{</div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    mode_t allowed = S_IRUSR | S_IWUSR;</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span> </div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    <span class="keywordflow">if</span> (allow_dotgrp) {</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        <span class="keywordtype">size_t</span> len = strlen(path);</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>        <span class="keywordflow">if</span> (len &gt;= 4 &amp;&amp; strcmp(path + len - 4, <span class="stringliteral">&quot;.grp&quot;</span>) == 0) {</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>            allowed |= S_IRGRP;</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        }</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    }</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    <span class="keywordflow">return</span> ((<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a> &amp; (S_IRWXG | S_IRWXO)) &amp; ~allowed) ? -1 : 0;</div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>}</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment"> * WHAT: Validate the leading version tag of a keytab line.</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="comment"> * WHY:  Only the &quot;0&quot; and &quot;1&quot; grammar versions are supported; a blank line or a</span></div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="comment"> *       comment must be skipped, and any other tag rejects the whole line.</span></div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="comment"> * HOW:  Returns 1 for a valid tag, 0 for blank/comment (skip), -1 for an</span></div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="comment"> *       unsupported tag — mirroring the original leading branches exactly.</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00093" data-start="{" data-end="}">
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno"><a class="line" href="sss__keytab__kernel_8c.html#a362a1b55df3143e3bcc19e114c77991e">   93</a></span><a class="code hl_function" href="sss__keytab__kernel_8c.html#a362a1b55df3143e3bcc19e114c77991e">sss_check_version_tag</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *field)</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>{</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    <span class="keywordflow">if</span> (field == NULL || field[0] == <span class="charliteral">&#39;#&#39;</span>) {</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        <span class="keywordflow">return</span> 0;                       <span class="comment">/* blank / comment */</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    }</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    <span class="keywordflow">if</span> (strcmp(field, <span class="stringliteral">&quot;0&quot;</span>) != 0 &amp;&amp; strcmp(field, <span class="stringliteral">&quot;1&quot;</span>) != 0) {</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        <span class="keywordflow">return</span> -1;                      <span class="comment">/* unsupported version tag */</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    }</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <span class="keywordflow">return</span> 1;</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>}</div>
 </div>
-<div class="ttc" id="aauth_2impersonate_2lifecycle_8c_html_a1ea5d0cb93f22f7d0fdf804bd68c3326"><div class="ttname"><a href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a></div><div class="ttdeci">int mode</div><div class="ttdef"><b>Definition</b> <a href="auth_2impersonate_2lifecycle_8c_source.html#l00042">lifecycle.c:42</a></div></div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> * WHAT: Apply one &quot;x:value&quot; field token to the entry being built.</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> * WHY:  Keeping the per-key dispatch in one focused helper drops the parse</span></div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> *       loop&#39;s branching to a single call and preserves the exact field-order</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> *       independence and reject-on-malformed semantics of the original switch.</span></div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> * HOW:  key is field[0], v is the value after &quot;x:&quot;. Copies/decodes into the</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment"> *       matching field; returns 0 on success (including unknown keys, which are</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment"> *       ignored) and -1 on any malformed required value.</span></div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00114" data-start="{" data-end="}">
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno"><a class="line" href="sss__keytab__kernel_8c.html#aa98d9052cc057d7887d281f56c17da39">  114</a></span><a class="code hl_function" href="sss__keytab__kernel_8c.html#aa98d9052cc057d7887d281f56c17da39">sss_apply_field</a>(<a class="code hl_struct" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out, <span class="keywordtype">char</span> <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *v)</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>{</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <span class="keywordflow">switch</span> (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>) {</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    <span class="keywordflow">case</span> <span class="charliteral">&#39;u&#39;</span>:</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sss__keytab__kernel_8c.html#ad65bed807bb08c43e081e999625622a0">sss_copy_field</a>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#ada733f0106620589e105681f9dd5afdc">user</a>, <span class="keyword">sizeof</span>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#ada733f0106620589e105681f9dd5afdc">user</a>), v);</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    <span class="keywordflow">case</span> <span class="charliteral">&#39;g&#39;</span>:</div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sss__keytab__kernel_8c.html#ad65bed807bb08c43e081e999625622a0">sss_copy_field</a>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a3185875700e61a928ba7cd0594110ca9">group</a>, <span class="keyword">sizeof</span>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a3185875700e61a928ba7cd0594110ca9">group</a>), v);</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    <span class="keywordflow">case</span> <span class="charliteral">&#39;n&#39;</span>:</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sss__keytab__kernel_8c.html#ad65bed807bb08c43e081e999625622a0">sss_copy_field</a>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a0cdbb3ba53e06beb190bcef407887470">name</a>, <span class="keyword">sizeof</span>(out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a0cdbb3ba53e06beb190bcef407887470">name</a>), v);</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    <span class="keywordflow">case</span> <span class="charliteral">&#39;N&#39;</span>:</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sss__keytab__kernel_8c.html#a4f5f524dfb7df205218d66372a6f4c42">sss_parse_i64</a>(v, &amp;out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a96b8848d9d0749c9d97b6a940116b41a">id</a>);</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    <span class="keywordflow">case</span> <span class="charliteral">&#39;e&#39;</span>:</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sss__keytab__kernel_8c.html#a4f5f524dfb7df205218d66372a6f4c42">sss_parse_i64</a>(v, &amp;out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#afa514301c7c267b7803ea6c8e51b36fe">exp</a>);</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    <span class="keywordflow">case</span> <span class="charliteral">&#39;k&#39;</span>:</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sss__keytab__kernel_8c.html#a732adb1ae4806bcfc94ba2639a3763a5">sss_decode_hex</a>(v, out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a128067ae7356bd3c3daf4c5cfcb3bcba">key</a>, &amp;out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a50e966d640544917af70c3267a89c294">key_len</a>);</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    <span class="keywordflow">default</span>:</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <span class="keywordflow">return</span> 0;                       <span class="comment">/* unknown field — ignore */</span></div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    }</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>}</div>
+</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span> </div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment"> * WHAT: Tokenise the remaining fields of a keytab line into *out.</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="comment"> * WHY:  The value-field loop is the bulk of the grammar; isolating it keeps the</span></div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="comment"> *       top-level parser small while retaining the exact &quot;x:value&quot; shape check,</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="comment"> *       inline-comment stop, and fail-closed behaviour.</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="comment"> * HOW:  Continues the strtok_r walk started by the caller (via *save). Stops at</span></div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="comment"> *       an inline &#39;#&#39;, ignores tokens that are not &quot;x:value&quot;, and returns -1 on</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="comment"> *       the first malformed value; 0 when the line is fully consumed.</span></div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00144" data-start="{" data-end="}">
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno"><a class="line" href="sss__keytab__kernel_8c.html#a146547d307bfeaf0918c30aeb43ce3a8">  144</a></span><a class="code hl_function" href="sss__keytab__kernel_8c.html#a146547d307bfeaf0918c30aeb43ce3a8">sss_parse_fields</a>(<span class="keywordtype">char</span> **save, <a class="code hl_struct" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out)</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>{</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    <span class="keywordtype">char</span> *field;</div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span> </div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    <span class="keywordflow">while</span> ((field = strtok_r(NULL, <span class="stringliteral">&quot; \t\r\n&quot;</span>, save)) != NULL) {</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        <span class="keywordflow">if</span> (field[0] == <span class="charliteral">&#39;#&#39;</span>) {</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>            <span class="keywordflow">break</span>;                      <span class="comment">/* inline comment */</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>        }</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        <span class="keywordflow">if</span> (field[1] != <span class="charliteral">&#39;:&#39;</span>) {</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>            <span class="keywordflow">continue</span>;                   <span class="comment">/* not a &quot;x:value&quot; field — ignore */</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        }</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="sss__keytab__kernel_8c.html#aa98d9052cc057d7887d281f56c17da39">sss_apply_field</a>(out, field[0], field + 2) != 0) {</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        }</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>    }</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>}</div>
+</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span> </div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00163" data-start="{" data-end="}">
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno"><a class="line" href="sss__keytab__kernel_8c.html#a51c2f7ddce15a9ac079d9f82db7a0b75">  163</a></span><a class="code hl_function" href="sss__keytab__kernel_8c.html#a51c2f7ddce15a9ac079d9f82db7a0b75">sss_keytab_parse_line</a>(<span class="keywordtype">char</span> *line, <a class="code hl_struct" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out, int64_t now)</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>{</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    <span class="keywordtype">char</span> *field, *save;</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    <span class="keywordtype">int</span>   tag;</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span> </div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    field = strtok_r(line, <span class="stringliteral">&quot; \t\r\n&quot;</span>, &amp;save);</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    tag = <a class="code hl_function" href="sss__keytab__kernel_8c.html#a362a1b55df3143e3bcc19e114c77991e">sss_check_version_tag</a>(field);</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <span class="keywordflow">if</span> (tag &lt;= 0) {</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>        <span class="keywordflow">return</span> tag;                     <span class="comment">/* 0 = blank/comment, -1 = bad tag */</span></div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    }</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span> </div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    <a class="code hl_function" href="sss__keytab__kernel_8c.html#a2cd4b0df6b0bf35d15dc199862b2e114">sss_entry_set_defaults</a>(out);</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span> </div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="sss__keytab__kernel_8c.html#a146547d307bfeaf0918c30aeb43ce3a8">sss_parse_fields</a>(&amp;save, out) != 0) {</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        <span class="keywordflow">return</span> -1;                      <span class="comment">/* malformed field */</span></div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    }</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span> </div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a96b8848d9d0749c9d97b6a940116b41a">id</a> &lt; 0 || out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#a50e966d640544917af70c3267a89c294">key_len</a> == 0) {</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>        <span class="keywordflow">return</span> -1;                      <span class="comment">/* required field missing */</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    }</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#afa514301c7c267b7803ea6c8e51b36fe">exp</a> != 0 &amp;&amp; out-&gt;<a class="code hl_variable" href="structsss__keytab__entry__t.html#afa514301c7c267b7803ea6c8e51b36fe">exp</a> &lt;= now) {</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        <span class="keywordflow">return</span> 0;                       <span class="comment">/* expired — skip */</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    }</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    <span class="keywordflow">return</span> 1;</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>}</div>
+</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span> </div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00190" data-start="{" data-end="}">
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno"><a class="line" href="sss__keytab__kernel_8c.html#ae99a55309d3104b26240b3266b285213">  190</a></span><a class="code hl_function" href="sss__keytab__kernel_8c.html#ae99a55309d3104b26240b3266b285213">sss_keytab_mode_ok</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path, mode_t mode, <span class="keywordtype">int</span> allow_dotgrp)</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>{</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    mode_t allowed = S_IRUSR | S_IWUSR;</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span> </div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    <span class="keywordflow">if</span> (allow_dotgrp) {</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>        <span class="keywordtype">size_t</span> len = strlen(path);</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <span class="keywordflow">if</span> (len &gt;= 4 &amp;&amp; strcmp(path + len - 4, <span class="stringliteral">&quot;.grp&quot;</span>) == 0) {</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>            allowed |= S_IRGRP;</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>        }</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    }</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    <span class="keywordflow">return</span> ((mode &amp; (S_IRWXG | S_IRWXO)) &amp; ~allowed) ? -1 : 0;</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>}</div>
+</div>
+<div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
 <div class="ttc" id="ahex_8c_html_a39baec90bcf0cd6c36b47e3303446d67"><div class="ttname"><a href="hex_8c.html#a39baec90bcf0cd6c36b47e3303446d67">brix_hex_from_char</a></div><div class="ttdeci">int brix_hex_from_char(unsigned char c)</div><div class="ttdef"><b>Definition</b> <a href="hex_8c_source.html#l00034">hex.c:34</a></div></div>
 <div class="ttc" id="ahex_8h_html"><div class="ttname"><a href="hex_8h.html">hex.h</a></div></div>
 <div class="ttc" id="assi__rrinfo__unittest_8c_html_ae0513c6c74e3f0a241a4585ac7f27507"><div class="ttname"><a href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a></div><div class="ttdeci">static void hex(const char *s, unsigned char *out, size_t n)</div><div class="ttdef"><b>Definition</b> <a href="ssi__rrinfo__unittest_8c_source.html#l00024">ssi_rrinfo_unittest.c:24</a></div></div>
+<div class="ttc" id="asss__keytab__kernel_8c_html_a146547d307bfeaf0918c30aeb43ce3a8"><div class="ttname"><a href="sss__keytab__kernel_8c.html#a146547d307bfeaf0918c30aeb43ce3a8">sss_parse_fields</a></div><div class="ttdeci">static int sss_parse_fields(char **save, sss_keytab_entry_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00144">sss_keytab_kernel.c:144</a></div></div>
+<div class="ttc" id="asss__keytab__kernel_8c_html_a2cd4b0df6b0bf35d15dc199862b2e114"><div class="ttname"><a href="sss__keytab__kernel_8c.html#a2cd4b0df6b0bf35d15dc199862b2e114">sss_entry_set_defaults</a></div><div class="ttdeci">static void sss_entry_set_defaults(sss_keytab_entry_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00076">sss_keytab_kernel.c:76</a></div></div>
+<div class="ttc" id="asss__keytab__kernel_8c_html_a362a1b55df3143e3bcc19e114c77991e"><div class="ttname"><a href="sss__keytab__kernel_8c.html#a362a1b55df3143e3bcc19e114c77991e">sss_check_version_tag</a></div><div class="ttdeci">static int sss_check_version_tag(const char *field)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00093">sss_keytab_kernel.c:93</a></div></div>
 <div class="ttc" id="asss__keytab__kernel_8c_html_a4f5f524dfb7df205218d66372a6f4c42"><div class="ttname"><a href="sss__keytab__kernel_8c.html#a4f5f524dfb7df205218d66372a6f4c42">sss_parse_i64</a></div><div class="ttdeci">static int sss_parse_i64(const char *text, int64_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00053">sss_keytab_kernel.c:53</a></div></div>
-<div class="ttc" id="asss__keytab__kernel_8c_html_a51c2f7ddce15a9ac079d9f82db7a0b75"><div class="ttname"><a href="sss__keytab__kernel_8c.html#a51c2f7ddce15a9ac079d9f82db7a0b75">sss_keytab_parse_line</a></div><div class="ttdeci">int sss_keytab_parse_line(char *line, sss_keytab_entry_t *out, int64_t now)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00068">sss_keytab_kernel.c:68</a></div></div>
+<div class="ttc" id="asss__keytab__kernel_8c_html_a51c2f7ddce15a9ac079d9f82db7a0b75"><div class="ttname"><a href="sss__keytab__kernel_8c.html#a51c2f7ddce15a9ac079d9f82db7a0b75">sss_keytab_parse_line</a></div><div class="ttdeci">int sss_keytab_parse_line(char *line, sss_keytab_entry_t *out, int64_t now)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00163">sss_keytab_kernel.c:163</a></div></div>
 <div class="ttc" id="asss__keytab__kernel_8c_html_a732adb1ae4806bcfc94ba2639a3763a5"><div class="ttname"><a href="sss__keytab__kernel_8c.html#a732adb1ae4806bcfc94ba2639a3763a5">sss_decode_hex</a></div><div class="ttdeci">static int sss_decode_hex(const char *hex, uint8_t *out, size_t *out_len)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00032">sss_keytab_kernel.c:32</a></div></div>
+<div class="ttc" id="asss__keytab__kernel_8c_html_aa98d9052cc057d7887d281f56c17da39"><div class="ttname"><a href="sss__keytab__kernel_8c.html#aa98d9052cc057d7887d281f56c17da39">sss_apply_field</a></div><div class="ttdeci">static int sss_apply_field(sss_keytab_entry_t *out, char key, const char *v)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00114">sss_keytab_kernel.c:114</a></div></div>
 <div class="ttc" id="asss__keytab__kernel_8c_html_ad65bed807bb08c43e081e999625622a0"><div class="ttname"><a href="sss__keytab__kernel_8c.html#ad65bed807bb08c43e081e999625622a0">sss_copy_field</a></div><div class="ttdeci">static int sss_copy_field(char *dst, size_t dst_len, const char *src)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00020">sss_keytab_kernel.c:20</a></div></div>
-<div class="ttc" id="asss__keytab__kernel_8c_html_ae99a55309d3104b26240b3266b285213"><div class="ttname"><a href="sss__keytab__kernel_8c.html#ae99a55309d3104b26240b3266b285213">sss_keytab_mode_ok</a></div><div class="ttdeci">int sss_keytab_mode_ok(const char *path, mode_t mode, int allow_dotgrp)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00141">sss_keytab_kernel.c:141</a></div></div>
+<div class="ttc" id="asss__keytab__kernel_8c_html_ae99a55309d3104b26240b3266b285213"><div class="ttname"><a href="sss__keytab__kernel_8c.html#ae99a55309d3104b26240b3266b285213">sss_keytab_mode_ok</a></div><div class="ttdeci">int sss_keytab_mode_ok(const char *path, mode_t mode, int allow_dotgrp)</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8c_source.html#l00190">sss_keytab_kernel.c:190</a></div></div>
 <div class="ttc" id="asss__keytab__kernel_8h_html"><div class="ttname"><a href="sss__keytab__kernel_8h.html">sss_keytab_kernel.h</a></div></div>
 <div class="ttc" id="asss__keytab__kernel_8h_html_a8d7310c95104157c475f6372cfd47890"><div class="ttname"><a href="sss__keytab__kernel_8h.html#a8d7310c95104157c475f6372cfd47890">SSS_K_KEY_MAX</a></div><div class="ttdeci">#define SSS_K_KEY_MAX</div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8h_source.html#l00036">sss_keytab_kernel.h:36</a></div></div>
 <div class="ttc" id="astructsss__keytab__entry__t_html"><div class="ttname"><a href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a></div><div class="ttdef"><b>Definition</b> <a href="sss__keytab__kernel_8h_source.html#l00042">sss_keytab_kernel.h:42</a></div></div>

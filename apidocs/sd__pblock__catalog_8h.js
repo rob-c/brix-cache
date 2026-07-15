@@ -4,7 +4,6 @@ var sd__pblock__catalog_8h =
     [ "PBLOCK_BLOB_ID_CAP", "sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673", null ],
     [ "PBLOCK_BLOB_ID_HEX", "sd__pblock__catalog_8h.html#a6ad3a04ed58223939cc2678838386960", null ],
     [ "PBLOCK_DEFAULT_BLOCK_SIZE", "sd__pblock__catalog_8h.html#acad4b45e44dfe5fc2099dbbce7c37a41", null ],
-    [ "pblock_catalog", "sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb", null ],
     [ "pblock_catalog_iter", "sd__pblock__catalog_8h.html#a69f603ad5435db36e3ce5838b4334e4e", null ],
     [ "pblock_catalog_child_count", "sd__pblock__catalog_8h.html#adb79a859108661aa890d80046a37017b", null ],
     [ "pblock_catalog_close", "sd__pblock__catalog_8h.html#a84ab430455e51a7de01a1ab221ee3a69", null ],

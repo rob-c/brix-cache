@@ -24,8 +24,13 @@ var searchData=
   ['broker_5fcreds_2ec_21',['broker_creds.c',['../broker__creds_8c.html',1,'']]],
   ['broker_5finternal_2eh_22',['broker_internal.h',['../broker__internal_8h.html',1,'']]],
   ['broker_5fops_2ec_23',['broker_ops.c',['../broker__ops_8c.html',1,'']]],
-  ['budget_2eh_24',['budget.h',['../budget_8h.html',1,'']]],
-  ['buffer_2ec_25',['buffer.c',['../buffer_8c.html',1,'']]],
-  ['buffers_2ec_26',['buffers.c',['../buffers_8c.html',1,'']]],
-  ['builder_2ec_27',['builder.c',['../builder_8c.html',1,'']]]
+  ['broker_5fops_5finternal_2eh_24',['broker_ops_internal.h',['../broker__ops__internal_8h.html',1,'']]],
+  ['broker_5fops_5fns_2ec_25',['broker_ops_ns.c',['../broker__ops__ns_8c.html',1,'']]],
+  ['budget_2eh_26',['budget.h',['../budget_8h.html',1,'']]],
+  ['buffer_2ec_27',['buffer.c',['../buffer_8c.html',1,'']]],
+  ['buffers_2ec_28',['buffers.c',['../buffers_8c.html',1,'']]],
+  ['buffers_5finternal_2eh_29',['buffers_internal.h',['../buffers__internal_8h.html',1,'']]],
+  ['buffers_5fscratch_2ec_30',['buffers_scratch.c',['../buffers__scratch_8c.html',1,'']]],
+  ['buffers_5fsendfile_2ec_31',['buffers_sendfile.c',['../buffers__sendfile_8c.html',1,'']]],
+  ['builder_2ec_32',['builder.c',['../builder_8c.html',1,'']]]
 ];

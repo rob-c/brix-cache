@@ -97,14 +97,13 @@ $(document).ready(function(){initNavTree('http__headers_8c.html',''); initResiza
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="http__headers_8h_source.html">http_headers.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cstr_8h_source.html">core/compat/cstr.h</a>&quot;</code><br />
-<code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for http_headers.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="http__headers_8c__incl.svg" width="618" height="198"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><iframe scrolling="no" frameborder="0" src="http__headers_8c__incl.svg" width="547" height="198"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div>
 <p><a href="http__headers_8c_source.html">Go to the source code of this file.</a></p>
@@ -115,25 +114,17 @@ Functions</h2></td></tr>
 <tr class="separator:af44cbcd95d2967de3ea081ce217cdf9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afdd507ae7e6ad2d0c843b9907bb9a062" id="r_afdd507ae7e6ad2d0c843b9907bb9a062"><td class="memItemLeft" align="right" valign="top">ngx_str_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#afdd507ae7e6ad2d0c843b9907bb9a062">brix_http_get_header</a> (ngx_http_request_t *r, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
 <tr class="separator:afdd507ae7e6ad2d0c843b9907bb9a062"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6c4dae23979f8a9520b1d474109902d3" id="r_a6c4dae23979f8a9520b1d474109902d3"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a6c4dae23979f8a9520b1d474109902d3">brix_http_skip_ws</a> (u_char *p, const u_char *end)</td></tr>
+<tr class="separator:a6c4dae23979f8a9520b1d474109902d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a66d99c28b4eb5f24019574ea5d12337e" id="r_a66d99c28b4eb5f24019574ea5d12337e"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a66d99c28b4eb5f24019574ea5d12337e">brix_http_trim_trailing_ws</a> (const u_char *start, u_char *end)</td></tr>
+<tr class="separator:a66d99c28b4eb5f24019574ea5d12337e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acb4874c3258203cf99876a59bba23abf" id="r_acb4874c3258203cf99876a59bba23abf"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#acb4874c3258203cf99876a59bba23abf">brix_http_extract_bearer</a> (const ngx_str_t *auth_header, ngx_str_t *token_out)</td></tr>
 <tr class="separator:acb4874c3258203cf99876a59bba23abf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9244d5ee4b7087a09d590f0fa82b1b0d" id="r_a9244d5ee4b7087a09d590f0fa82b1b0d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a9244d5ee4b7087a09d590f0fa82b1b0d">brix_http_str_has_ctl</a> (const u_char *data, size_t len)</td></tr>
 <tr class="separator:a9244d5ee4b7087a09d590f0fa82b1b0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a55d0f0ebfcd53089430bb3461f082ac4" id="r_a55d0f0ebfcd53089430bb3461f082ac4"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a55d0f0ebfcd53089430bb3461f082ac4">brix_http_header_value_equals</a> (const ngx_str_t *value, const char *literal)</td></tr>
 <tr class="separator:a55d0f0ebfcd53089430bb3461f082ac4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a36259992e21589f2674a2d9bf4bc07ba" id="r_a36259992e21589f2674a2d9bf4bc07ba"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a36259992e21589f2674a2d9bf4bc07ba">brix_http_effective_status</a> (ngx_http_request_t *r, ngx_int_t rc)</td></tr>
-<tr class="separator:a36259992e21589f2674a2d9bf4bc07ba"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aff15f5ba4aa83a8209d9bb371e9e5ac2" id="r_aff15f5ba4aa83a8209d9bb371e9e5ac2"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#aff15f5ba4aa83a8209d9bb371e9e5ac2">brix_http_set_header_str</a> (ngx_http_request_t *r, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const ngx_str_t *value, ngx_flag_t copy_value, ngx_table_elt_t **out)</td></tr>
-<tr class="separator:aff15f5ba4aa83a8209d9bb371e9e5ac2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a003b84cfa9137bcdf3b77927381f59c1" id="r_a003b84cfa9137bcdf3b77927381f59c1"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a003b84cfa9137bcdf3b77927381f59c1">brix_http_set_header</a> (ngx_http_request_t *r, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *value, ngx_table_elt_t **out)</td></tr>
-<tr class="separator:a003b84cfa9137bcdf3b77927381f59c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac01d9e8c0a811133f684e5c68c1a463d" id="r_ac01d9e8c0a811133f684e5c68c1a463d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#ac01d9e8c0a811133f684e5c68c1a463d">brix_http_set_header_num</a> (ngx_http_request_t *r, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, long value)</td></tr>
-<tr class="separator:ac01d9e8c0a811133f684e5c68c1a463d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a28a9e47c77d05de22f65d690d0e78e59" id="r_a28a9e47c77d05de22f65d690d0e78e59"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a28a9e47c77d05de22f65d690d0e78e59">brix_http_source_offer</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a28a9e47c77d05de22f65d690d0e78e59"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a72a0be2d7113cce2064fb636849ac700" id="r_a72a0be2d7113cce2064fb636849ac700"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a72a0be2d7113cce2064fb636849ac700">brix_http_request_header_add</a> (ngx_http_request_t *r, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *value, ngx_table_elt_t **out)</td></tr>
-<tr class="separator:a72a0be2d7113cce2064fb636849ac700"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6ce5aa427f2bcff4d19983570a716222" id="r_a6ce5aa427f2bcff4d19983570a716222"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a6ce5aa427f2bcff4d19983570a716222">brix_hex_nibble</a> (u_char <a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:a6ce5aa427f2bcff4d19983570a716222" id="r_a6ce5aa427f2bcff4d19983570a716222"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#a6ce5aa427f2bcff4d19983570a716222">brix_hex_nibble</a> (u_char <a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:a6ce5aa427f2bcff4d19983570a716222"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af6174555b66121f178079c3a45ff45ac" id="r_af6174555b66121f178079c3a45ff45ac"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__headers_8c.html#af6174555b66121f178079c3a45ff45ac">brix_urldecode_inplace</a> (char *str)</td></tr>
 <tr class="separator:af6174555b66121f178079c3a45ff45ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -167,11 +158,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00429">429</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00285">285</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__headers_8c_source.html#l00438">brix_urldecode_inplace()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__headers_8c_source.html#l00294">brix_urldecode_inplace()</a>.</p>
 
 </div>
 </div>
@@ -213,43 +204,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00463">463</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00319">319</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
 <p class="reference">References <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__token_8c_source.html#l00125">webdav_bearer_from_query()</a>.</p>
-
-</div>
-</div>
-<a id="a36259992e21589f2674a2d9bf4bc07ba" name="a36259992e21589f2674a2d9bf4bc07ba"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a36259992e21589f2674a2d9bf4bc07ba">&#9670;&#160;</a></span>brix_http_effective_status()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_uint_t brix_http_effective_status </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_int_t&#160;</td>
-          <td class="paramname"><em>rc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00255">255</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00224">cvmfs_finalize_observe()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">s3_metrics_response_method()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__token_8c_source.html#l00142">webdav_bearer_from_query()</a>.</p>
 
 </div>
 </div>
@@ -279,9 +238,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00115">115</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00165">165</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api__admin_8c_source.html#l00103">brix_admin_check_auth()</a>, <a class="el" href="introspect_8c_source.html#l00174">webdav_introspect_access_handler()</a>, <a class="el" href="tpc_8c_source.html#l00191">webdav_tpc_extract_subject_token()</a>, and <a class="el" href="auth__token_8c_source.html#l00160">webdav_verify_bearer_token()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00120">brix_http_skip_ws()</a>, and <a class="el" href="http__headers_8c_source.html#l00144">brix_http_trim_trailing_ws()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="api__admin_8c_source.html#l00155">admin_auth_secret_ok()</a>, <a class="el" href="introspect_8c_source.html#l00174">webdav_introspect_access_handler()</a>, <a class="el" href="tpc_8c_source.html#l00152">webdav_tpc_extract_subject_token()</a>, and <a class="el" href="auth__token_8c_source.html#l00228">wt_parse_header()</a>.</p>
 
 </div>
 </div>
@@ -317,11 +278,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00041">41</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00043">43</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cors_8c_source.html#l00058">brix_http_add_cors_headers()</a>, <a class="el" href="http__headers_8c_source.html#l00091">brix_http_get_header()</a>, <a class="el" href="http__conditionals_8c_source.html#l00282">brix_http_overwrite_forbidden()</a>, <a class="el" href="http__mirror_8c_source.html#l00136">mirror_create_request()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00243">s3_add_preflight_headers()</a>, <a class="el" href="tagging_8c_source.html#l00245">s3_apply_put_tagging_header()</a>, <a class="el" href="aws__chunked_8c_source.html#l00392">s3_aws_chunked_has_inner_coding()</a>, <a class="el" href="aws__chunked_8c_source.html#l00362">s3_body_is_aws_chunked()</a>, <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00037">s3_copy_find_header()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00378">s3_echo_object_checksums()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00034">s3_find_request_header_value()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00211">s3_is_post_object_form()</a>, <a class="el" href="post__form_8c_source.html#l00129">s3_post_boundary()</a>, <a class="el" href="s3_2put_8c_source.html#l00262">s3_put_body_inner()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00212">s3_put_select_algo()</a>, <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>, <a class="el" href="cors_8c_source.html#l00181">webdav_add_cors_headers()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cors_8c_source.html#l00229">brix_http_add_cors_headers()</a>, <a class="el" href="http__headers_8c_source.html#l00093">brix_http_get_header()</a>, <a class="el" href="http__conditionals_8c_source.html#l00418">brix_http_overwrite_forbidden()</a>, <a class="el" href="deleg__capture_8c_source.html#l00058">brix_proto_deleg_capture_proxy_header()</a>, <a class="el" href="cors_8c_source.html#l00153">cors_emit_allow_headers()</a>, <a class="el" href="http__mirror__request_8c_source.html#l00136">mirror_build_subrequest()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00178">s3_add_preflight_headers()</a>, <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00107">s3_aws_chunked_has_inner_coding()</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00029">s3_body_is_aws_chunked()</a>, <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00037">s3_copy_find_header()</a>, <a class="el" href="handler__object__route_8c_source.html#l00146">s3_dispatch_object_put()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00370">s3_echo_object_checksums()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00053">s3_find_request_header_value()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00146">s3_is_post_object_form()</a>, <a class="el" href="post__form_8c_source.html#l00179">s3_post_boundary()</a>, <a class="el" href="handler__object__route_8c_source.html#l00080">s3_prepare_upload_part()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00204">s3_put_select_algo()</a>, <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="cors_8c_source.html#l00271">webdav_add_cors_headers()</a>, <a class="el" href="put__setup_8c_source.html#l00219">webdav_put_precheck()</a>, and <a class="el" href="put__body_8c_source.html#l00273">webdav_put_select_codec()</a>.</p>
 
 </div>
 </div>
@@ -351,11 +312,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00091">91</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00093">93</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__sigv4__parse_8c_source.html#l00021">get_header()</a>, <a class="el" href="propfind_8c_source.html#l00222">propfind_parse_depth()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00035">webdav_sess_mode()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__parse_8c_source.html#l00021">get_header()</a>, <a class="el" href="propfind_8c_source.html#l00270">propfind_parse_depth()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00075">webdav_dispatch_macaroon()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00035">webdav_sess_mode()</a>.</p>
 
 </div>
 </div>
@@ -385,9 +346,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00215">215</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00259">259</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00282">brix_http_overwrite_forbidden()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00120">brix_http_skip_ws()</a>, and <a class="el" href="http__headers_8c_source.html#l00144">brix_http_trim_trailing_ws()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__conditionals_8c_source.html#l00418">brix_http_overwrite_forbidden()</a>.</p>
 
 </div>
 </div>
@@ -407,41 +370,32 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00483">483</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00339">339</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__token_8c_source.html#l00160">webdav_verify_bearer_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__token_8c_source.html#l00228">wt_parse_header()</a>.</p>
 
 </div>
 </div>
-<a id="a72a0be2d7113cce2064fb636849ac700" name="a72a0be2d7113cce2064fb636849ac700"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a72a0be2d7113cce2064fb636849ac700">&#9670;&#160;</a></span>brix_http_request_header_add()</h2>
+<a id="a6c4dae23979f8a9520b1d474109902d3" name="a6c4dae23979f8a9520b1d474109902d3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6c4dae23979f8a9520b1d474109902d3">&#9670;&#160;</a></span>brix_http_skip_ws()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">ngx_int_t brix_http_request_header_add </td>
+          <td class="memname">static u_char * brix_http_skip_ws </td>
           <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>p</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>value</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_table_elt_t **&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>end</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -449,175 +403,16 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00389">389</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00120">120</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="xrdhttp_8c_source.html#l00475">xrdhttp_inject_tpc_headers()</a>.</p>
-
-</div>
-</div>
-<a id="a003b84cfa9137bcdf3b77927381f59c1" name="a003b84cfa9137bcdf3b77927381f59c1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a003b84cfa9137bcdf3b77927381f59c1">&#9670;&#160;</a></span>brix_http_set_header()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_http_set_header </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>value</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_table_elt_t **&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00344">344</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00289">brix_http_set_header_str()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__file__response_8c_source.html#l00135">brix_http_add_content_range_header()</a>, <a class="el" href="cors_8c_source.html#l00058">brix_http_add_cors_headers()</a>, <a class="el" href="http__file__response_8c_source.html#l00100">brix_http_add_etag_header()</a>, <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00024">rl_reject()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00243">s3_add_preflight_headers()</a>, <a class="el" href="object_8c_source.html#l00318">s3_handle_head()</a>, <a class="el" href="conditional_8c_source.html#l00213">s3_override_header()</a>, <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>, <a class="el" href="tape__rest_8c_source.html#l00269">tape_stage_post()</a>, <a class="el" href="xrdhttp_8c_source.html#l00573">xrdhttp_add_checksum_header()</a>, <a class="el" href="xrdhttp_8c_source.html#l00300">xrdhttp_add_response_headers()</a>, and <a class="el" href="xrdhttp_8c_source.html#l00357">xrdhttp_send_redirect()</a>.</p>
-
-</div>
-</div>
-<a id="ac01d9e8c0a811133f684e5c68c1a463d" name="ac01d9e8c0a811133f684e5c68c1a463d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac01d9e8c0a811133f684e5c68c1a463d">&#9670;&#160;</a></span>brix_http_set_header_num()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_http_set_header_num </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">long&#160;</td>
-          <td class="paramname"><em>value</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00360">360</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00289">brix_http_set_header_str()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="xrdhttp_8c_source.html#l00300">xrdhttp_add_response_headers()</a>, and <a class="el" href="xrdhttp_8c_source.html#l00357">xrdhttp_send_redirect()</a>.</p>
-
-</div>
-</div>
-<a id="aff15f5ba4aa83a8209d9bb371e9e5ac2" name="aff15f5ba4aa83a8209d9bb371e9e5ac2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aff15f5ba4aa83a8209d9bb371e9e5ac2">&#9670;&#160;</a></span>brix_http_set_header_str()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_http_set_header_str </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const ngx_str_t *&#160;</td>
-          <td class="paramname"><em>value</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>copy_value</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_table_elt_t **&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00289">289</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
-
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cors_8c_source.html#l00058">brix_http_add_cors_headers()</a>, <a class="el" href="http__headers_8c_source.html#l00344">brix_http_set_header()</a>, <a class="el" href="http__headers_8c_source.html#l00360">brix_http_set_header_num()</a>, <a class="el" href="http__headers_8c_source.html#l00378">brix_http_source_offer()</a>, and <a class="el" href="protocols_2s3_2handler_8c_source.html#l00243">s3_add_preflight_headers()</a>.</p>
-
-</div>
-</div>
-<a id="a28a9e47c77d05de22f65d690d0e78e59" name="a28a9e47c77d05de22f65d690d0e78e59"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a28a9e47c77d05de22f65d690d0e78e59">&#9670;&#160;</a></span>brix_http_source_offer()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_http_source_offer </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00378">378</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00289">brix_http_set_header_str()</a>, and <a class="el" href="http__headers_8h_source.html#l00103">BRIX_SOURCE_URL</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="config__download_8c_source.html#l00577">ngx_http_brix_dashboard_config_download_handler()</a>, <a class="el" href="files_8c_source.html#l00280">ngx_http_brix_dashboard_download_handler()</a>, <a class="el" href="files_8c_source.html#l00167">ngx_http_brix_dashboard_files_handler()</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00520">ngx_http_brix_dashboard_main_handler()</a>, <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>, <a class="el" href="health_8c_source.html#l00146">ngx_http_brix_health_handler()</a>, <a class="el" href="observability_2metrics_2handler_8c_source.html#l00020">ngx_http_brix_metrics_handler()</a>, <a class="el" href="protocols_2srr_2handler_8c_source.html#l00024">ngx_http_brix_srr_handler()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, <a class="el" href="vfs__browse_8c_source.html#l00061">vfs_browse_preamble()</a>, and <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__headers_8c_source.html#l00165">brix_http_extract_bearer()</a>, and <a class="el" href="http__headers_8c_source.html#l00259">brix_http_header_value_equals()</a>.</p>
 
 </div>
 </div>
@@ -647,9 +442,49 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00182">182</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00226">226</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cors_8c_source.html#l00058">brix_http_add_cors_headers()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00243">s3_add_preflight_headers()</a>, <a class="el" href="conditional_8c_source.html#l00233">s3_apply_response_overrides()</a>, <a class="el" href="conditional_8c_source.html#l00213">s3_override_header()</a>, <a class="el" href="post__form_8c_source.html#l00280">s3_post_expand_filename()</a>, and <a class="el" href="post__response_8c_source.html#l00097">s3_post_send_success()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cors_8c_source.html#l00153">cors_emit_allow_headers()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00178">s3_add_preflight_headers()</a>, <a class="el" href="conditional_8c_source.html#l00233">s3_apply_response_overrides()</a>, <a class="el" href="conditional_8c_source.html#l00213">s3_override_header()</a>, <a class="el" href="post__form_8c_source.html#l00300">s3_post_expand_filename()</a>, and <a class="el" href="post__response_8c_source.html#l00097">s3_post_send_success()</a>.</p>
+
+</div>
+</div>
+<a id="a66d99c28b4eb5f24019574ea5d12337e" name="a66d99c28b4eb5f24019574ea5d12337e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a66d99c28b4eb5f24019574ea5d12337e">&#9670;&#160;</a></span>brix_http_trim_trailing_ws()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static u_char * brix_http_trim_trailing_ws </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>end</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00144">144</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__headers_8c_source.html#l00165">brix_http_extract_bearer()</a>, and <a class="el" href="http__headers_8c_source.html#l00259">brix_http_header_value_equals()</a>.</p>
 
 </div>
 </div>
@@ -669,11 +504,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00438">438</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__headers_8c_source.html#l00294">294</a> of file <a class="el" href="http__headers_8c_source.html">http_headers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00429">brix_hex_nibble()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00285">brix_hex_nibble()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__token_8c_source.html#l00125">webdav_bearer_from_query()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__token_8c_source.html#l00142">webdav_bearer_from_query()</a>.</p>
 
 </div>
 </div>

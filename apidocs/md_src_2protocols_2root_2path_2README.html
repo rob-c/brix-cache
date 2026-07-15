@@ -93,12 +93,12 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2path_2README.
   <div class="headertitle"><div class="title">path — wire-path extraction, sanitization, and stat formatting</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md347"></a> </p>
-<h1><a class="anchor" id="autotoc_md348"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md348"></a> </p>
+<h1><a class="anchor" id="autotoc_md349"></a>
 Overview</h1>
 <p>Every filesystem path that arrives on the XRootD wire passes through this directory before anything touches storage. It is the security choke point between "bytes a client sent" and "a path the VFS may resolve": embedded NULs are rejected as malicious, oversized payloads are rejected against <code>BRIX_MAX_PATH</code>, CGI query suffixes (<code>?checksum=md5</code>, <code>?xrdcl.unzip=…</code>) are stripped so only the POSIX path component reaches resolution, and the repeated extract → depth-check → resolve sequence used by namespace operations is centralized in one helper instead of ten.</p>
 <p>Confinement itself is NOT enforced here — that is the VFS seam's job (<a href="../../../fs/path/">../../../fs/path/</a>, <code>openat2</code> RESOLVE_IN_ROOT). This directory guarantees the <em>string</em> handed to the VFS is well-formed.</p>
-<h1><a class="anchor" id="autotoc_md349"></a>
+<h1><a class="anchor" id="autotoc_md350"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -114,7 +114,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="stat__body_8c.html">stat_body.c</a></code>   </td><td class="markdownTableBodyNone">format <code>struct stat</code> into the kXR_stat/kXR_statx 4-field wire body (VFS and non-VFS modes)   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md350"></a>
+<h1><a class="anchor" id="autotoc_md351"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li>A payload with an embedded NUL anywhere but the final byte is rejected — never "repaired".</li>
@@ -122,7 +122,7 @@ Invariants, security &amp; gotchas</h1>
 <li>Trailing-slash handling in <code><a class="el" href="op__path_8c.html">op_path.c</a></code>'s parent gate is load-bearing for nested mkdir on object backends (fixed 2026-06; see the pblock suite).</li>
 <li>Nothing here calls <code>realpath(3)</code> — resolution/confinement belongs to the VFS layer, not the extractor.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md351"></a>
+<h1><a class="anchor" id="autotoc_md352"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2fs_2path_2README.html">../../../fs/path/README.md</a> — confined canonical resolution (the <em>other</em> path directory)</li>

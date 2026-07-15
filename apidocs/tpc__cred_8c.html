@@ -91,7 +91,7 @@ $(document).ready(function(){initNavTree('tpc__cred_8c.html',''); initResizable(
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">tpc_cred.c File Reference</div></div>
 </div><!--header-->
@@ -124,10 +124,10 @@ $(document).ready(function(){initNavTree('tpc__cred_8c.html',''); initResizable(
 </div>
 <p><a href="tpc__cred_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:abc5234083906b555e6eab9037c71e496" id="r_abc5234083906b555e6eab9037c71e496"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#abc5234083906b555e6eab9037c71e496">TPC_CRED_HELPER_PATH</a>&#160;&#160;&#160;&quot;/usr/local/sbin/nginx-xrootd-tpc-cred&quot;</td></tr>
-<tr class="separator:abc5234083906b555e6eab9037c71e496"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__cred__request__t.html">tpc_cred_request_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -136,44 +136,25 @@ Functions</h2></td></tr>
 <tr class="separator:a68081f790cc30aca06101d7d0502ed81"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aeafe9cd9eff26c7baae39d1739a26b25" id="r_aeafe9cd9eff26c7baae39d1739a26b25"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#aeafe9cd9eff26c7baae39d1739a26b25">webdav_tpc_cred_validate_token</a> (ngx_http_request_t *r, ngx_str_t *token)</td></tr>
 <tr class="separator:aeafe9cd9eff26c7baae39d1739a26b25"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3b1a59b966343d22f4d47c15ef60a8f1" id="r_a3b1a59b966343d22f4d47c15ef60a8f1"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a3b1a59b966343d22f4d47c15ef60a8f1">resolve_oidc_token_binary</a> (void)</td></tr>
-<tr class="separator:a3b1a59b966343d22f4d47c15ef60a8f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2caa97ea9466199d3f0f07e21948e49b" id="r_a2caa97ea9466199d3f0f07e21948e49b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a2caa97ea9466199d3f0f07e21948e49b">tpc_cred_oidc_agent_fetch</a> (ngx_http_request_t *r, const char *source_url, const char *scope, ngx_str_t *token_out)</td></tr>
-<tr class="memdesc:a2caa97ea9466199d3f0f07e21948e49b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Send a JSON request to the oidc-agent UNIX socket and read the token.  <br /></td></tr>
-<tr class="separator:a2caa97ea9466199d3f0f07e21948e49b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8f55f481c839a60185d1584675a575ed" id="r_a8f55f481c839a60185d1584675a575ed"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a8f55f481c839a60185d1584675a575ed">tpc_cred_rfc8693_exchange</a> (ngx_http_request_t *r, const char *subject_token, const char *source_url, const char *scope, const char *token_endpoint, const char *client_id, const char *client_secret, ngx_str_t *token_out)</td></tr>
-<tr class="memdesc:a8f55f481c839a60185d1584675a575ed"><td class="mdescLeft">&#160;</td><td class="mdescRight">Perform an RFC 8693 token-exchange request.  <br /></td></tr>
-<tr class="separator:a8f55f481c839a60185d1584675a575ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d923ce80d2dd056271fd0a6f20c216d" id="r_a2d923ce80d2dd056271fd0a6f20c216d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="tpc__cred_8h.html#a3e88d81dc91410be0857bc2c6ffa6437">brix_tpc_cred_mode_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a2d923ce80d2dd056271fd0a6f20c216d">webdav_tpc_cred_parse_mode</a> (const char *value, size_t len)</td></tr>
 <tr class="memdesc:a2d923ce80d2dd056271fd0a6f20c216d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Parse a Credential: header value into a mode enum.  <br /></td></tr>
 <tr class="separator:a2d923ce80d2dd056271fd0a6f20c216d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8bfd69b6ee4fd13daf09bae3810c5c19" id="r_a8bfd69b6ee4fd13daf09bae3810c5c19"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a8bfd69b6ee4fd13daf09bae3810c5c19">webdav_tpc_cred_obtain_token</a> (ngx_http_request_t *r, <a class="el" href="tpc__cred_8h.html#a3e88d81dc91410be0857bc2c6ffa6437">brix_tpc_cred_mode_e</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, const char *source_url, const char *subject_token, const char *scope, ngx_str_t *token_out)</td></tr>
+<tr class="memitem:a1469d6b02c476e884ec8d5ac3e518cc3" id="r_a1469d6b02c476e884ec8d5ac3e518cc3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a1469d6b02c476e884ec8d5ac3e518cc3">tpc_cred_finish</a> (ngx_http_request_t *r, ngx_str_t *token_out, ngx_int_t rc)</td></tr>
+<tr class="separator:a1469d6b02c476e884ec8d5ac3e518cc3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8279b29b5890b573943d1ae587025d38" id="r_a8279b29b5890b573943d1ae587025d38"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a8279b29b5890b573943d1ae587025d38">tpc_cred_run_oidc_agent</a> (const <a class="el" href="structtpc__cred__request__t.html">tpc_cred_request_t</a> *req)</td></tr>
+<tr class="separator:a8279b29b5890b573943d1ae587025d38"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5f9eaacc96b6fcba5cbb10653ae42175" id="r_a5f9eaacc96b6fcba5cbb10653ae42175"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a5f9eaacc96b6fcba5cbb10653ae42175">tpc_cred_run_token_exchange</a> (const <a class="el" href="structtpc__cred__request__t.html">tpc_cred_request_t</a> *req, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *wconf)</td></tr>
+<tr class="separator:a5f9eaacc96b6fcba5cbb10653ae42175"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8bfd69b6ee4fd13daf09bae3810c5c19" id="r_a8bfd69b6ee4fd13daf09bae3810c5c19"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a8bfd69b6ee4fd13daf09bae3810c5c19">webdav_tpc_cred_obtain_token</a> (ngx_http_request_t *r, <a class="el" href="tpc__cred_8h.html#a3e88d81dc91410be0857bc2c6ffa6437">brix_tpc_cred_mode_e</a> mode, const char *source_url, const char *subject_token, const char *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, ngx_str_t *token_out)</td></tr>
 <tr class="memdesc:a8bfd69b6ee4fd13daf09bae3810c5c19"><td class="mdescLeft">&#160;</td><td class="mdescRight">Obtain an access token for a TPC pull transfer.  <br /></td></tr>
 <tr class="separator:a8bfd69b6ee4fd13daf09bae3810c5c19"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1c70784bd44317387215b37f6bbdd9df" id="r_a1c70784bd44317387215b37f6bbdd9df"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred_8c.html#a1c70784bd44317387215b37f6bbdd9df">webdav_tpc_cred_metric_name</a> (<a class="el" href="tpc__cred_8h.html#a60b3cd37ef95e1b184ff6ae6c1867ba5">brix_tpc_cred_metrics_e</a> idx)</td></tr>
 <tr class="memdesc:a1c70784bd44317387215b37f6bbdd9df"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the name string for a cred-metrics counter index.  <br /></td></tr>
 <tr class="separator:a1c70784bd44317387215b37f6bbdd9df"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="abc5234083906b555e6eab9037c71e496" name="abc5234083906b555e6eab9037c71e496"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abc5234083906b555e6eab9037c71e496">&#9670;&#160;</a></span>TPC_CRED_HELPER_PATH</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TPC_CRED_HELPER_PATH&#160;&#160;&#160;&quot;/usr/local/sbin/nginx-xrootd-tpc-cred&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00067">67</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a3b1a59b966343d22f4d47c15ef60a8f1" name="a3b1a59b966343d22f4d47c15ef60a8f1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3b1a59b966343d22f4d47c15ef60a8f1">&#9670;&#160;</a></span>resolve_oidc_token_binary()</h2>
+<a id="a1469d6b02c476e884ec8d5ac3e518cc3" name="a1469d6b02c476e884ec8d5ac3e518cc3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1469d6b02c476e884ec8d5ac3e518cc3">&#9670;&#160;</a></span>tpc_cred_finish()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -182,39 +163,7 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static const char * resolve_oidc_token_binary </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00078">78</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00112">tpc_cred_oidc_agent_fetch()</a>.</p>
-
-</div>
-</div>
-<a id="a2caa97ea9466199d3f0f07e21948e49b" name="a2caa97ea9466199d3f0f07e21948e49b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2caa97ea9466199d3f0f07e21948e49b">&#9670;&#160;</a></span>tpc_cred_oidc_agent_fetch()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t tpc_cred_oidc_agent_fetch </td>
+          <td class="memname">static ngx_int_t tpc_cred_finish </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -222,20 +171,14 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>source_url</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>scope</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
           <td class="paramtype">ngx_str_t *&#160;</td>
-          <td class="paramname"><em>token_out</em>&#160;</td>
+          <td class="paramname"><em>token_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_int_t&#160;</td>
+          <td class="paramname"><em>rc</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -250,21 +193,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p>Send a JSON request to the oidc-agent UNIX socket and read the token. </p>
-<p>Spawns a tiny fork/exec pipeline: nginx-worker → fork → exec "oidc-token -c &lt;client&gt;" or socket helper</p>
-<p>If the OIDC_SOCK environment variable is set, we connect directly to it. Otherwise we fall back to the default oidc-agent socket location.</p>
-<p>The helper process is: src/webdav/tpc_cred_oidc_helper (built separately) which handles the socket IPC. If that helper binary is not found we attempt a simpler approach using the <code>oidc-token</code> CLI if available. </p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00114">114</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00112">112</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="reference">References <a class="el" href="tpc__cred_8h_source.html#l00043">BRIX_TPC_CRED_NERROR</a>, <a class="el" href="tpc__cred_8h_source.html#l00042">BRIX_TPC_CRED_NSUCCESS</a>, <a class="el" href="tpc__cred_8c_source.html#l00043">webdav_tpc_cred_metric_increment()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00052">webdav_tpc_cred_validate_token()</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, <a class="el" href="tpc__cred_8c_source.html#l00078">resolve_oidc_token_binary()</a>, <a class="el" href="tpc__cred_8c_source.html#l00067">TPC_CRED_HELPER_PATH</a>, <a class="el" href="tpc__cred__internal_8h_source.html#l00008">TPC_CRED_MAX_TOKEN_LEN</a>, and <a class="el" href="tpc__cred__parse_8c_source.html#l00021">tpc_cred_parse_token_response()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00461">webdav_tpc_cred_obtain_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00135">tpc_cred_run_oidc_agent()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00151">tpc_cred_run_token_exchange()</a>.</p>
 
 </div>
 </div>
-<a id="a8f55f481c839a60185d1584675a575ed" name="a8f55f481c839a60185d1584675a575ed"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8f55f481c839a60185d1584675a575ed">&#9670;&#160;</a></span>tpc_cred_rfc8693_exchange()</h2>
+<a id="a8279b29b5890b573943d1ae587025d38" name="a8279b29b5890b573943d1ae587025d38"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8279b29b5890b573943d1ae587025d38">&#9670;&#160;</a></span>tpc_cred_run_oidc_agent()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -273,52 +211,48 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t tpc_cred_rfc8693_exchange </td>
+          <td class="memname">static ngx_int_t tpc_cred_run_oidc_agent </td>
           <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
+          <td class="paramtype">const <a class="el" href="structtpc__cred__request__t.html">tpc_cred_request_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00135">135</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tpc__cred_8c_source.html#l00098">tpc_cred_request_t::r</a>, <a class="el" href="tpc__cred_8c_source.html#l00101">tpc_cred_request_t::scope</a>, <a class="el" href="tpc__cred_8c_source.html#l00099">tpc_cred_request_t::source_url</a>, <a class="el" href="tpc__cred_8c_source.html#l00102">tpc_cred_request_t::token_out</a>, <a class="el" href="tpc__cred_8c_source.html#l00114">tpc_cred_finish()</a>, and <a class="el" href="tpc__cred__oidc_8c_source.html#l00364">tpc_cred_oidc_agent_fetch()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00190">webdav_tpc_cred_obtain_token()</a>.</p>
+
+</div>
+</div>
+<a id="a5f9eaacc96b6fcba5cbb10653ae42175" name="a5f9eaacc96b6fcba5cbb10653ae42175"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5f9eaacc96b6fcba5cbb10653ae42175">&#9670;&#160;</a></span>tpc_cred_run_token_exchange()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t tpc_cred_run_token_exchange </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structtpc__cred__request__t.html">tpc_cred_request_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>subject_token</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>source_url</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>scope</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>token_endpoint</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>client_id</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>client_secret</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_str_t *&#160;</td>
-          <td class="paramname"><em>token_out</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>wconf</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -333,15 +267,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p>Perform an RFC 8693 token-exchange request. </p>
-<p>Sends a POST to the configured token endpoint with: grant_type=urn:ietf:params:oauth:grant-type:token-exchange subject_token=&lt;JWT&gt; resource=&lt;source_url&gt; audience=&lt;source_url&gt; scope=&lt;scope&gt;</p>
-<p>Uses a fork/exec'd curl subprocess (same pattern as <a class="el" href="tpc__curl_8c.html">tpc_curl.c</a>). </p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00151">151</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00340">340</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="tpc__cred_8h_source.html#l00043">BRIX_TPC_CRED_NERROR</a>, <a class="el" href="tpc__cred_8c_source.html#l00098">tpc_cred_request_t::r</a>, <a class="el" href="tpc__cred_8c_source.html#l00101">tpc_cred_request_t::scope</a>, <a class="el" href="tpc__cred_8c_source.html#l00099">tpc_cred_request_t::source_url</a>, <a class="el" href="tpc__cred_8c_source.html#l00100">tpc_cred_request_t::subject_token</a>, <a class="el" href="tpc__config_8h_source.html#l00023">ngx_http_brix_tpc_conf_t::token_client_id</a>, <a class="el" href="tpc__config_8h_source.html#l00026">ngx_http_brix_tpc_conf_t::token_client_secret</a>, <a class="el" href="tpc__config_8h_source.html#l00020">ngx_http_brix_tpc_conf_t::token_endpoint</a>, <a class="el" href="tpc__cred_8c_source.html#l00102">tpc_cred_request_t::token_out</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00088">ngx_http_brix_webdav_loc_conf_t::tpc_cred</a>, <a class="el" href="tpc__cred_8c_source.html#l00114">tpc_cred_finish()</a>, <a class="el" href="tpc__cred__exchange_8c_source.html#l00048">tpc_cred_rfc8693_exchange()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00043">webdav_tpc_cred_metric_increment()</a>.</p>
 
-<p class="reference">References <a class="el" href="subprocess_8c_source.html#l00017">brix_subprocess_capture()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__cred__internal_8h_source.html#l00008">TPC_CRED_MAX_TOKEN_LEN</a>, and <a class="el" href="tpc__cred__parse_8c_source.html#l00021">tpc_cred_parse_token_response()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00461">webdav_tpc_cred_obtain_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00190">webdav_tpc_cred_obtain_token()</a>.</p>
 
 </div>
 </div>
@@ -373,11 +303,11 @@ Functions</h2></td></tr>
 
 <p>Increment a TPC credential metrics counter in shared memory. </p>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00039">39</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00043">43</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
 <p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00461">webdav_tpc_cred_obtain_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00114">tpc_cred_finish()</a>, <a class="el" href="tpc__cred_8c_source.html#l00151">tpc_cred_run_token_exchange()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00190">webdav_tpc_cred_obtain_token()</a>.</p>
 
 </div>
 </div>
@@ -399,7 +329,7 @@ Functions</h2></td></tr>
 
 <p>Return the name string for a cred-metrics counter index. </p>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00541">541</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00228">228</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tpc__cred_8h_source.html#l00043">BRIX_TPC_CRED_NERROR</a>, <a class="el" href="tpc__cred_8h_source.html#l00045">BRIX_TPC_CRED_NPARSE_ERROR</a>, <a class="el" href="tpc__cred_8h_source.html#l00041">BRIX_TPC_CRED_NSTARTED</a>, <a class="el" href="tpc__cred_8h_source.html#l00042">BRIX_TPC_CRED_NSUCCESS</a>, and <a class="el" href="tpc__cred_8h_source.html#l00044">BRIX_TPC_CRED_NUNKNOWN_MODE</a>.</p>
 
@@ -469,11 +399,11 @@ Functions</h2></td></tr>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>NGX_OK on success; NGX_ERROR on failure (error already logged) </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00461">461</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00190">190</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="tpc__cred_8h_source.html#l00043">BRIX_TPC_CRED_NERROR</a>, <a class="el" href="tpc__cred_8h_source.html#l00041">BRIX_TPC_CRED_NSTARTED</a>, <a class="el" href="tpc__cred_8h_source.html#l00042">BRIX_TPC_CRED_NSUCCESS</a>, <a class="el" href="tpc__cred_8h_source.html#l00044">BRIX_TPC_CRED_NUNKNOWN_MODE</a>, <a class="el" href="tpc__cred_8h_source.html#l00031">BRIX_TPC_CRED_OIDC_AGENT</a>, <a class="el" href="tpc__cred_8h_source.html#l00032">BRIX_TPC_CRED_TOKEN_EXCHANGE</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="tpc__config_8h_source.html#l00023">ngx_http_brix_tpc_conf_t::token_client_id</a>, <a class="el" href="tpc__config_8h_source.html#l00026">ngx_http_brix_tpc_conf_t::token_client_secret</a>, <a class="el" href="tpc__config_8h_source.html#l00020">ngx_http_brix_tpc_conf_t::token_endpoint</a>, <a class="el" href="webdav_8h_source.html#l00197">ngx_http_brix_webdav_loc_conf_t::tpc_cred</a>, <a class="el" href="tpc__cred_8c_source.html#l00112">tpc_cred_oidc_agent_fetch()</a>, <a class="el" href="tpc__cred_8c_source.html#l00340">tpc_cred_rfc8693_exchange()</a>, <a class="el" href="tpc__cred_8c_source.html#l00039">webdav_tpc_cred_metric_increment()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00048">webdav_tpc_cred_validate_token()</a>.</p>
+<p class="reference">References <a class="el" href="tpc__cred_8h_source.html#l00041">BRIX_TPC_CRED_NSTARTED</a>, <a class="el" href="tpc__cred_8h_source.html#l00044">BRIX_TPC_CRED_NUNKNOWN_MODE</a>, <a class="el" href="tpc__cred_8h_source.html#l00031">BRIX_TPC_CRED_OIDC_AGENT</a>, <a class="el" href="tpc__cred_8h_source.html#l00032">BRIX_TPC_CRED_TOKEN_EXCHANGE</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>, <a class="el" href="tpc__cred_8c_source.html#l00135">tpc_cred_run_oidc_agent()</a>, <a class="el" href="tpc__cred_8c_source.html#l00151">tpc_cred_run_token_exchange()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00043">webdav_tpc_cred_metric_increment()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00474">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__copy_8c_source.html#l00050">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc__push_8c_source.html#l00042">webdav_tpc_push_apply_credential()</a>.</p>
 
 </div>
 </div>
@@ -506,11 +436,11 @@ Functions</h2></td></tr>
 <p>Parse a Credential: header value into a mode enum. </p>
 <p>Returns BRIX_TPC_CRED_UNKNOWN for unrecognised values. </p>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00443">443</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00072">72</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tpc__cred_8h_source.html#l00030">BRIX_TPC_CRED_NONE</a>, <a class="el" href="tpc__cred_8h_source.html#l00031">BRIX_TPC_CRED_OIDC_AGENT</a>, <a class="el" href="tpc__cred_8h_source.html#l00032">BRIX_TPC_CRED_TOKEN_EXCHANGE</a>, and <a class="el" href="tpc__cred_8h_source.html#l00033">BRIX_TPC_CRED_UNKNOWN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00474">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__copy_8c_source.html#l00050">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc__push_8c_source.html#l00042">webdav_tpc_push_apply_credential()</a>.</p>
 
 </div>
 </div>
@@ -548,11 +478,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00048">48</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00052">52</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="credential_8c_source.html#l00117">brix_tpc_credential_parse()</a>, <a class="el" href="credential_8h_source.html#l00034">BRIX_TPC_CREDENTIAL_TOKEN</a>, and <a class="el" href="credential_8c_source.html#l00195">brix_tpc_credential_validate()</a>.</p>
+<p class="reference">References <a class="el" href="credential_8c_source.html#l00209">brix_tpc_credential_parse()</a>, <a class="el" href="credential_8h_source.html#l00034">BRIX_TPC_CREDENTIAL_TOKEN</a>, and <a class="el" href="credential_8c_source.html#l00261">brix_tpc_credential_validate()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00461">webdav_tpc_cred_obtain_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00114">tpc_cred_finish()</a>.</p>
 
 </div>
 </div>

@@ -93,11 +93,11 @@ $(document).ready(function(){initNavTree('md_src_2README.html',''); initResizabl
   <div class="headertitle"><div class="title">src — nginx-xrootd Source Tree</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md517"></a> <code>nginx-xrootd</code> turns a stock nginx build into a multi-protocol data gateway for HEP/grid storage, replacing native XRootD gateway daemons. It speaks the XRootD binary wire protocol (<code>root://</code> / <code>roots://</code>) through nginx's <b>stream</b> module, plus WebDAV (<code>davs://</code> / <code><a href="http://">http://</a></code>) and an S3-compatible REST subset through nginx's <b>HTTP</b> module. All three protocols project the same on-disk export root and share one metrics / auth / path-confinement core, so one process can be deployed as a standalone data server, a CMS cluster member, or a redirector/manager.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md518"></a> <code>nginx-xrootd</code> turns a stock nginx build into a multi-protocol data gateway for HEP/grid storage, replacing native XRootD gateway daemons. It speaks the XRootD binary wire protocol (<code>root://</code> / <code>roots://</code>) through nginx's <b>stream</b> module, plus WebDAV (<code>davs://</code> / <code><a href="http://">http://</a></code>) and an S3-compatible REST subset through nginx's <b>HTTP</b> module. All three protocols project the same on-disk export root and share one metrics / auth / path-confinement core, so one process can be deployed as a standalone data server, a CMS cluster member, or a redirector/manager.</p>
 <p><b>Deployment thesis:</b> instead of running separate XRootD, GridFTP, WebDAV, and S3 daemons in front of a storage volume, run one nginx with this module. You get the event-loop scalability and TLS/HTTP machinery of nginx, a single configuration surface, unified Prometheus metrics, and one kernel-confined view of the export root — across every protocol HEP clients actually use.</p>
 <p>The umbrella header <a href="core/ngx_brix_module.h"><code>ngx_brix_module.h</code></a> wires every subsystem together; per-connection state lives in <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code> (<a class="el" href="md_src_2core_2types_2README.html">types/</a>). Stream entry is <a class="el" href="md_src_2protocols_2root_2connection_2README.html">connection/</a> → <a class="el" href="md_src_2protocols_2root_2handshake_2README.html">handshake/</a>; HTTP entry is <a class="el" href="md_src_2protocols_2webdav_2README.html">webdav/</a> and <a class="el" href="md_src_2protocols_2s3_2README.html">s3/</a>.</p>
 <hr  />
-<h1><a class="anchor" id="autotoc_md519"></a>
+<h1><a class="anchor" id="autotoc_md520"></a>
 Source map</h1>
 <p>Since phase-66 (2026-07-02) the tree is bucketed by concept — locate any subsystem from its concept alone:</p>
 <div class="fragment"><div class="line">core/           platform primitives (compat, types, config, shm, aio, umbrella header)</div>
@@ -110,7 +110,7 @@ Source map</h1>
 <div class="line">tpc/            cross-plane third-party copy</div>
 </div><!-- fragment --><p>Cross-directory includes are <b>src-rooted</b> (<code>#include "auth/gsi/parse.h"</code>); same-directory includes stay bare. The full old→new mapping is <a href="../docs/refactor/phase-66-map.tsv">docs/refactor/phase-66-map.tsv</a>.</p>
 <p>Every subsystem below has its own <code>README.md</code> (linked) describing its files and internals. Subsystems are grouped by the layer they belong to.</p>
-<h2><a class="anchor" id="autotoc_md520"></a>
+<h2><a class="anchor" id="autotoc_md521"></a>
 Top-level files (now under &lt;tt&gt;core/&lt;/tt&gt;)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -120,7 +120,7 @@ Top-level files (now under &lt;tt&gt;core/&lt;/tt&gt;)</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><a href="core/feature_flags.h">core/feature_flags.h</a>   </td><td class="markdownTableBodyNone">Compile-time <code>BRIX_WITH_*</code> feature toggles (WebDAV, S3, dashboard, cache, TPC); defaults each to enabled unless the addon config script supplies an explicit <code>-DBRIX_WITH_*</code> override to disable it.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md521"></a>
+<h2><a class="anchor" id="autotoc_md522"></a>
 Entry &amp; dispatch</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -138,7 +138,7 @@ Entry &amp; dispatch</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><a class="el" href="md_src_2protocols_2s3_2README.html">s3</a>   </td><td class="markdownTableBodyNone">nginx HTTP module serving a SigV4-authenticated, S3-compatible REST subset (Get/Head/Put/Delete/List/Copy/multipart/POST-Object) over the same confined export root, in its own auth domain.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md522"></a>
+<h2><a class="anchor" id="autotoc_md523"></a>
 Protocol handlers</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -154,7 +154,7 @@ Protocol handlers</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a class="el" href="md_src_2protocols_2root_2query_2README.html">query</a>   </td><td class="markdownTableBodyNone">The <code>kXR_query</code> sub-protocol dispatcher (checksums, space/fsinfo, config, stats, xattr, opaque/visa stubs) plus the adjacent <code>kXR_prepare</code> staging and <code>kXR_set</code> advisory-hint opcodes.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md523"></a>
+<h2><a class="anchor" id="autotoc_md524"></a>
 Data plane</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -170,7 +170,7 @@ Data plane</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a class="el" href="md_src_2protocols_2shared_2README.html">shared</a>   </td><td class="markdownTableBodyNone">Cross-protocol helper library: the shared HTTP ranged-file-serving pipeline (used by WebDAV GET and S3 GetObject) and header-only overflow-checked size/array-allocation math for wire-driven allocations.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md524"></a>
+<h2><a class="anchor" id="autotoc_md525"></a>
 Path &amp; confinement</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -178,7 +178,7 @@ Path &amp; confinement</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a class="el" href="md_src_2fs_2path_2README.html">fs/path</a>   </td><td class="markdownTableBodyNone">The security boundary between an untrusted client path (<code>root://</code> wire, WebDAV URL, or S3 <code>/&lt;bucket&gt;/&lt;key&gt;</code>) and any syscall: lexical validation, <code>openat2</code> <code>RESOLVE_BENEATH</code> confinement, canonicalization/normalization. (Phase-66 split the old <code>path/</code> dir: the authdb/VO-ACL/auth-gate/group-policy half now lives in <a class="el" href="md_src_2auth_2authz_2acc_2README.html">auth/authz</a>'s directory, wire-path extraction in <code>protocols/root/path/</code>, and access logging in <code>observability/accesslog/</code>.)   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md525"></a>
+<h2><a class="anchor" id="autotoc_md526"></a>
 Authentication</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -198,7 +198,7 @@ Authentication</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a class="el" href="md_src_2auth_2crypto_2README.html">crypto</a>   </td><td class="markdownTableBodyNone">Shared OpenSSL X.509/PKI core: builds CA+CRL trust stores, verifies proxy-cert chains, runs the startup CA/CRL consistency audit, and does OCSP revocation/stapling for both the stream GSI and WebDAV/DAVS cert-auth paths.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md526"></a>
+<h2><a class="anchor" id="autotoc_md527"></a>
 Cluster &amp; federation</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -216,7 +216,7 @@ Cluster &amp; federation</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><a class="el" href="md_src_2tpc_2common_2README.html">tpc/common</a>   </td><td class="markdownTableBodyNone">Protocol-neutral TPC support core — shared authorization, credential parsing, a cross-process SHM transfer registry, and unified metrics — used identically by both the native XRootD pull and WebDAV COPY transports.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md527"></a>
+<h2><a class="anchor" id="autotoc_md528"></a>
 Cross-cutting</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -244,7 +244,7 @@ Cross-cutting</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a class="el" href="md_src_2net_2mirror_2README.html">mirror</a>   </td><td class="markdownTableBodyNone">Fire-and-forget traffic mirroring that replays sampled XRootD-stream and WebDAV/HTTP requests to shadow backends after the primary is answered, comparing status and counting divergence without ever delaying or exposing the shadow path to the client.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md528"></a>
+<h2><a class="anchor" id="autotoc_md529"></a>
 WebDAV sub-helpers</h2>
 <p>These live under <a class="el" href="md_src_2protocols_2webdav_2README.html">webdav/</a> and back its method handlers.</p>
 <table class="markdownTable">
@@ -260,12 +260,12 @@ WebDAV sub-helpers</h2>
 <td class="markdownTableBodyNone"><a class="el" href="md_src_2protocols_2webdav_2util_2README.html">webdav/util</a>   </td><td class="markdownTableBodyNone">Thin protocol-aware adapters that wrap the all-protocol compat URI-decode and XML-escape primitives into nginx-HTTP dialect (nginx status codes + request-pool allocation) for WebDAV handlers.   </td></tr>
 </table>
 <hr  />
-<h1><a class="anchor" id="autotoc_md530"></a>
+<h1><a class="anchor" id="autotoc_md531"></a>
 The four request lifecycles</h1>
 <blockquote class="doxtable">
 <p>&zwj;<b>Visual call-ladders:</b> `docs/11-architecture/request-lifecycle-sequences.md` renders each of the four flows below as a step-by-step sequence diagram annotated with the real <code>function() (<a class="el" href="file_8c.html">file.c</a>:line)</code> at every hop — the fastest way to trace a request end-to-end. </p>
 </blockquote>
-<h2><a class="anchor" id="autotoc_md531"></a>
+<h2><a class="anchor" id="autotoc_md532"></a>
 &lt;tt&gt;root://&lt;/tt&gt; stream</h2>
 <ol type="1">
 <li><b><a class="el" href="md_src_2protocols_2root_2connection_2README.html">connection</a></b> — TCP accept → <code>ngx_stream_brix_handler</code> allocates <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code>, marks fd slots free, generates a session ID; <code>recv</code> accumulates the request header.</li>
@@ -278,16 +278,16 @@ The four request lifecycles</h1>
 <li><b><a class="el" href="md_src_2fs_2README.html">fs</a></b> + <b><a class="el" href="md_src_2core_2aio_2README.html">aio</a></b> (<a class="el" href="md_src_2fs_2cache_2README.html">cache</a> if enabled) — I/O is offloaded to the thread pool.</li>
 <li><b><a class="el" href="md_src_2protocols_2root_2response_2README.html">response</a></b> + <b><a class="el" href="md_src_2observability_2metrics_2README.html">metrics</a></b> — the reply is framed and counters updated.</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md532"></a>
+<h2><a class="anchor" id="autotoc_md533"></a>
 &lt;tt&gt;davs://&lt;/tt&gt; WebDAV</h2>
 <ol type="1">
 <li><b><a class="el" href="md_src_2protocols_2webdav_2README.html">webdav</a></b> access phase — auth (cert via <a class="el" href="md_src_2auth_2crypto_2README.html">crypto</a>, bearer via <a class="el" href="md_src_2auth_2token_2README.html">token</a>), CORS, write-allow, and scope checks.</li>
 <li><b><a class="el" href="md_src_2protocols_2webdav_2README.html">webdav</a></b> <code>dispatch.c</code> content handler — routes by HTTP method.</li>
-<li><b><a class="el" href="md_src_2fs_2path_2README.html">path</a></b> — <code>resolve_path()</code> confines the path; <code><a class="el" href="protocols_2webdav_2lock_8c.html#aa3e3a619f4000469da46470424ebcdfe">webdav_check_locks()</a></code> (<a class="el" href="md_src_2protocols_2webdav_2locks_2README.html">webdav/locks</a>) checks the lock store.</li>
+<li><b><a class="el" href="md_src_2fs_2path_2README.html">path</a></b> — <code>resolve_path()</code> confines the path; <code><a class="el" href="lock__check_8c.html#aa3e3a619f4000469da46470424ebcdfe">webdav_check_locks()</a></code> (<a class="el" href="md_src_2protocols_2webdav_2locks_2README.html">webdav/locks</a>) checks the lock store.</li>
 <li><b>Method handler</b> — GET serves a ranged file via <a class="el" href="md_src_2protocols_2shared_2README.html">shared</a>; PUT reads the body async via <a class="el" href="md_src_2core_2aio_2README.html">aio</a>/<a class="el" href="md_src_2fs_2README.html">fs</a>; COPY/MOVE use <a class="el" href="md_src_2protocols_2webdav_2fs_2README.html">webdav/fs</a> locally or, with <code>Source:</code>/<code>Credential:</code> headers, drive HTTP-TPC via <a class="el" href="md_src_2tpc_2common_2README.html">tpc/common</a>; URI/XML helpers come from <a class="el" href="md_src_2protocols_2webdav_2util_2README.html">webdav/util</a> and conditional checks from <a class="el" href="md_src_2protocols_2webdav_2methods_2README.html">webdav/methods</a>.</li>
 <li><b><a class="el" href="md_src_2observability_2metrics_2README.html">metrics</a></b> — <code>webdav_metrics_return</code> records bytes/status.</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md533"></a>
+<h2><a class="anchor" id="autotoc_md534"></a>
 S3 REST</h2>
 <ol type="1">
 <li><b><a class="el" href="md_src_2protocols_2s3_2README.html">s3</a></b> — <code>ngx_http_s3_handler</code> parses <code>/&lt;bucket&gt;/&lt;key&gt;</code>.</li>
@@ -296,7 +296,7 @@ S3 REST</h2>
 <li><b>Method/query dispatch</b> — ListObjectsV2 / GetObject (via <a class="el" href="md_src_2protocols_2shared_2README.html">shared</a>) / PutObject / multipart / CopyObject; writes gated on <code>allow_write</code> before the body is read.</li>
 <li><b><a class="el" href="md_src_2fs_2README.html">fs</a></b> + <b><a class="el" href="md_src_2core_2aio_2README.html">aio</a></b> + <b><a class="el" href="md_src_2observability_2metrics_2README.html">metrics</a></b> — I/O and counters.</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md534"></a>
+<h2><a class="anchor" id="autotoc_md535"></a>
 CMS cluster redirect</h2>
 <ol type="1">
 <li><b><a class="el" href="md_src_2net_2cms_2README.html">cms</a></b> client — data servers run the per-worker heartbeat client: login + periodic load/space frames to the manager.</li>
@@ -306,7 +306,7 @@ CMS cluster redirect</h2>
 <li><b><a class="el" href="md_src_2net_2manager_2README.html">manager</a></b> redir_cache — the choice is cached (TTL) to skip repeat CMS round-trips.</li>
 </ol>
 <hr  />
-<h1><a class="anchor" id="autotoc_md536"></a>
+<h1><a class="anchor" id="autotoc_md537"></a>
 Cross-cutting invariants</h1>
 <p>Read these before changing any wire/client path — they are enforced project-wide.</p>
 <ol type="1">
@@ -317,7 +317,7 @@ Cross-cutting invariants</h1>
 <li><b>Fail-closed auth.</b> <code>allow_write</code> is checked globally before token scope; auth gates grant access only on explicit <code>NGX_OK</code>. S3 SigV4 and WLCG tokens are distinct auth domains and never share logic. Metric labels stay low-cardinality (no paths/buckets/UUIDs/DNs).</li>
 </ol>
 <hr  />
-<h1><a class="anchor" id="autotoc_md538"></a>
+<h1><a class="anchor" id="autotoc_md539"></a>
 How to navigate / where to start reading</h1>
 <ul>
 <li><b>Big picture first:</b> read this file, then <a href="core/ngx_brix_module.h">ngx_brix_module.h</a> (the umbrella header that includes every subsystem) and <a class="el" href="md_src_2core_2types_2README.html">types/</a> (the <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code> per-connection context that threads through everything).</li>

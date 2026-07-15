@@ -91,7 +91,10 @@ $(document).ready(function(){initNavTree('parse_8c.html',''); initResizable(); }
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a>  </div>
+<a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">parse.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -99,6 +102,7 @@ $(document).ready(function(){initNavTree('parse_8c.html',''); initResizable(); }
 <code>#include &quot;<a class="el" href="host__split_8h_source.html">core/compat/host_split.h</a>&quot;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
+<code>#include &lt;stddef.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for parse.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -109,23 +113,77 @@ $(document).ready(function(){initNavTree('parse_8c.html',''); initResizable(); }
 </div>
 <p><a href="parse_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__src__spec__out__t.html">tpc_src_spec_out_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__key__desc__t.html">tpc_key_desc_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:a2f35d6b666b333fe20039fdb6aad2fca" id="r_a2f35d6b666b333fe20039fdb6aad2fca"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#a2f35d6b666b333fe20039fdb6aad2fca">TPC_KEY_ROW</a>(bare,  field)</td></tr>
+<tr class="separator:a2f35d6b666b333fe20039fdb6aad2fca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a20780ecb3754c011fc8ccd89a9bdb055" id="r_a20780ecb3754c011fc8ccd89a9bdb055"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#a20780ecb3754c011fc8ccd89a9bdb055">tpc_copy_src_path</a> (char *path, size_t path_size, const char *path_start)</td></tr>
 <tr class="separator:a20780ecb3754c011fc8ccd89a9bdb055"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a356e4d8401bf70a475cd6caf00d56c61" id="r_a356e4d8401bf70a475cd6caf00d56c61"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#a356e4d8401bf70a475cd6caf00d56c61">tpc_parse_src_spec</a> (const char *src, char *host, size_t host_size, uint16_t *port, char *path, size_t path_size)</td></tr>
-<tr class="separator:a356e4d8401bf70a475cd6caf00d56c61"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4762ec89263092b25012fd5b76b721a4" id="r_a4762ec89263092b25012fd5b76b721a4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#a4762ec89263092b25012fd5b76b721a4">tpc_parse_src_spec</a> (const char *src, <a class="el" href="structtpc__src__spec__out__t.html">tpc_src_spec_out_t</a> *dst)</td></tr>
+<tr class="separator:a4762ec89263092b25012fd5b76b721a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adca30383a42f2aaf640d9ffd745669b7" id="r_adca30383a42f2aaf640d9ffd745669b7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#adca30383a42f2aaf640d9ffd745669b7">tpc_copy_value</a> (char *dst, size_t dst_size, const char *value_start, size_t value_len)</td></tr>
 <tr class="separator:adca30383a42f2aaf640d9ffd745669b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab4e8fd0a90cc27772b6f2f8000375012" id="r_ab4e8fd0a90cc27772b6f2f8000375012"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#ab4e8fd0a90cc27772b6f2f8000375012">tpc_fill_src_path_from_lfn</a> (<a class="el" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *out)</td></tr>
 <tr class="separator:ab4e8fd0a90cc27772b6f2f8000375012"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac8ff94c29aeb1e4496326c1f9217d4a9" id="r_ac8ff94c29aeb1e4496326c1f9217d4a9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#ac8ff94c29aeb1e4496326c1f9217d4a9">tpc_parse_src_fields</a> (<a class="el" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *out)</td></tr>
 <tr class="separator:ac8ff94c29aeb1e4496326c1f9217d4a9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa2c8d5ff299f9238237a18255c309d2d" id="r_aa2c8d5ff299f9238237a18255c309d2d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#aa2c8d5ff299f9238237a18255c309d2d">tpc_apply_key</a> (<a class="el" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *out, const char *key_start, size_t key_len, const char *value_start, size_t value_len)</td></tr>
+<tr class="separator:aa2c8d5ff299f9238237a18255c309d2d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a91ce3c755db7234e1acbf3473c86cb7d" id="r_a91ce3c755db7234e1acbf3473c86cb7d"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#a91ce3c755db7234e1acbf3473c86cb7d">tpc_parse_token</a> (const char *token_start, const char *opaque_end, <a class="el" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *out)</td></tr>
 <tr class="separator:a91ce3c755db7234e1acbf3473c86cb7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a19db5810779317295e518694c41dde8e" id="r_a19db5810779317295e518694c41dde8e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#a19db5810779317295e518694c41dde8e">brix_tpc_parse_opaque</a> (const char *opaque, <a class="el" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *out)</td></tr>
 <tr class="separator:a19db5810779317295e518694c41dde8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a96a4bce590e4b956bcf610dfe17ac43b" id="r_a96a4bce590e4b956bcf610dfe17ac43b"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structtpc__key__desc__t.html">tpc_key_desc_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse_8c.html#a96a4bce590e4b956bcf610dfe17ac43b">tpc_key_table</a> []</td></tr>
+<tr class="separator:a96a4bce590e4b956bcf610dfe17ac43b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a2f35d6b666b333fe20039fdb6aad2fca" name="a2f35d6b666b333fe20039fdb6aad2fca"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2f35d6b666b333fe20039fdb6aad2fca">&#9670;&#160;</a></span>TPC_KEY_ROW</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TPC_KEY_ROW</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">bare, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">field&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    { (bare), <span class="keyword">sizeof</span>(bare) - 1,                                           \</div>
+<div class="line">      offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, field), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *)0)-&gt;field), \</div>
+<div class="line">      offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, has_##field) }</div>
+<div class="ttc" id="astructbrix__tpc__params__t_html"><div class="ttname"><a href="structbrix__tpc__params__t.html">brix_tpc_params_t</a></div><div class="ttdef"><b>Definition</b> <a href="tpc__internal_8h_source.html#l00054">tpc_internal.h:54</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00237">237</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a19db5810779317295e518694c41dde8e" name="a19db5810779317295e518694c41dde8e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a19db5810779317295e518694c41dde8e">&#9670;&#160;</a></span>brix_tpc_parse_opaque()</h2>
@@ -153,9 +211,69 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00275">275</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00336">336</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00066">brix_tpc_params_t::has_dst</a>, <a class="el" href="tpc__internal_8h_source.html#l00067">brix_tpc_params_t::has_key</a>, <a class="el" href="tpc__internal_8h_source.html#l00068">brix_tpc_params_t::has_lfn</a>, <a class="el" href="tpc__internal_8h_source.html#l00069">brix_tpc_params_t::has_org</a>, <a class="el" href="tpc__internal_8h_source.html#l00065">brix_tpc_params_t::has_src</a>, <a class="el" href="tpc__internal_8h_source.html#l00070">brix_tpc_params_t::has_stage</a>, <a class="el" href="tpc__internal_8h_source.html#l00071">brix_tpc_params_t::has_token_mode</a>, <a class="el" href="parse_8c_source.html#l00171">tpc_parse_src_fields()</a>, and <a class="el" href="parse_8c_source.html#l00193">tpc_parse_token()</a>.</p>
+<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00066">brix_tpc_params_t::has_dst</a>, <a class="el" href="tpc__internal_8h_source.html#l00067">brix_tpc_params_t::has_key</a>, <a class="el" href="tpc__internal_8h_source.html#l00068">brix_tpc_params_t::has_lfn</a>, <a class="el" href="tpc__internal_8h_source.html#l00069">brix_tpc_params_t::has_org</a>, <a class="el" href="tpc__internal_8h_source.html#l00065">brix_tpc_params_t::has_src</a>, <a class="el" href="tpc__internal_8h_source.html#l00070">brix_tpc_params_t::has_stage</a>, <a class="el" href="tpc__internal_8h_source.html#l00071">brix_tpc_params_t::has_token_mode</a>, <a class="el" href="parse_8c_source.html#l00189">tpc_parse_src_fields()</a>, and <a class="el" href="parse_8c_source.html#l00289">tpc_parse_token()</a>.</p>
+
+</div>
+</div>
+<a id="aa2c8d5ff299f9238237a18255c309d2d" name="aa2c8d5ff299f9238237a18255c309d2d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa2c8d5ff299f9238237a18255c309d2d">&#9670;&#160;</a></span>tpc_apply_key()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tpc_apply_key </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key_start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>key_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>value_start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>value_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00263">263</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse_8c_source.html#l00227">tpc_key_desc_t::flag_off</a>, <a class="el" href="parse_8c_source.html#l00223">tpc_key_desc_t::name</a>, <a class="el" href="parse_8c_source.html#l00224">tpc_key_desc_t::name_len</a>, <a class="el" href="parse_8c_source.html#l00147">tpc_copy_value()</a>, <a class="el" href="parse_8c_source.html#l00242">tpc_key_table</a>, <a class="el" href="parse_8c_source.html#l00225">tpc_key_desc_t::value_off</a>, and <a class="el" href="parse_8c_source.html#l00226">tpc_key_desc_t::value_size</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00289">tpc_parse_token()</a>.</p>
 
 </div>
 </div>
@@ -199,9 +317,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00023">23</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00024">24</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00058">tpc_parse_src_spec()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00077">tpc_parse_src_spec()</a>.</p>
 
 </div>
 </div>
@@ -251,9 +369,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00129">129</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00147">147</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00193">tpc_parse_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00263">tpc_apply_key()</a>.</p>
 
 </div>
 </div>
@@ -281,11 +399,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00147">147</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00165">165</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00068">brix_tpc_params_t::has_lfn</a>, <a class="el" href="tpc__internal_8h_source.html#l00060">brix_tpc_params_t::lfn</a>, and <a class="el" href="tpc__internal_8h_source.html#l00058">brix_tpc_params_t::src_path</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00171">tpc_parse_src_fields()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00189">tpc_parse_src_fields()</a>.</p>
 
 </div>
 </div>
@@ -313,16 +431,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00171">171</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00189">189</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00065">brix_tpc_params_t::has_src</a>, <a class="el" href="tpc__internal_8h_source.html#l00056">brix_tpc_params_t::src</a>, <a class="el" href="tpc__internal_8h_source.html#l00057">brix_tpc_params_t::src_host</a>, <a class="el" href="tpc__internal_8h_source.html#l00058">brix_tpc_params_t::src_path</a>, <a class="el" href="tpc__internal_8h_source.html#l00072">brix_tpc_params_t::src_port</a>, <a class="el" href="parse_8c_source.html#l00147">tpc_fill_src_path_from_lfn()</a>, and <a class="el" href="parse_8c_source.html#l00058">tpc_parse_src_spec()</a>.</p>
+<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00065">brix_tpc_params_t::has_src</a>, <a class="el" href="parse_8c_source.html#l00066">tpc_src_spec_out_t::host</a>, <a class="el" href="tpc__internal_8h_source.html#l00056">brix_tpc_params_t::src</a>, <a class="el" href="tpc__internal_8h_source.html#l00057">brix_tpc_params_t::src_host</a>, <a class="el" href="tpc__internal_8h_source.html#l00058">brix_tpc_params_t::src_path</a>, <a class="el" href="tpc__internal_8h_source.html#l00072">brix_tpc_params_t::src_port</a>, <a class="el" href="parse_8c_source.html#l00165">tpc_fill_src_path_from_lfn()</a>, and <a class="el" href="parse_8c_source.html#l00077">tpc_parse_src_spec()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00275">brix_tpc_parse_opaque()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00336">brix_tpc_parse_opaque()</a>.</p>
 
 </div>
 </div>
-<a id="a356e4d8401bf70a475cd6caf00d56c61" name="a356e4d8401bf70a475cd6caf00d56c61"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a356e4d8401bf70a475cd6caf00d56c61">&#9670;&#160;</a></span>tpc_parse_src_spec()</h2>
+<a id="a4762ec89263092b25012fd5b76b721a4" name="a4762ec89263092b25012fd5b76b721a4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4762ec89263092b25012fd5b76b721a4">&#9670;&#160;</a></span>tpc_parse_src_spec()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -339,32 +457,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>host</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>host_size</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t *&#160;</td>
-          <td class="paramname"><em>port</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>path_size</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="structtpc__src__spec__out__t.html">tpc_src_spec_out_t</a> *&#160;</td>
+          <td class="paramname"><em>dst</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -379,11 +473,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00058">58</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00077">77</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
 
-<p class="reference">References <a class="el" href="host__split_8c_source.html#l00013">brix_split_host_port()</a>, and <a class="el" href="parse_8c_source.html#l00023">tpc_copy_src_path()</a>.</p>
+<p class="reference">References <a class="el" href="host__split_8c_source.html#l00151">brix_split_host_port()</a>, <a class="el" href="parse_8c_source.html#l00066">tpc_src_spec_out_t::host</a>, <a class="el" href="parse_8c_source.html#l00067">tpc_src_spec_out_t::host_size</a>, <a class="el" href="parse_8c_source.html#l00069">tpc_src_spec_out_t::path</a>, <a class="el" href="parse_8c_source.html#l00070">tpc_src_spec_out_t::path_size</a>, <a class="el" href="parse_8c_source.html#l00068">tpc_src_spec_out_t::port</a>, and <a class="el" href="parse_8c_source.html#l00024">tpc_copy_src_path()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00171">tpc_parse_src_fields()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00189">tpc_parse_src_fields()</a>.</p>
 
 </div>
 </div>
@@ -427,11 +521,48 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00193">193</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00289">289</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00059">brix_tpc_params_t::dst</a>, <a class="el" href="tpc__internal_8h_source.html#l00066">brix_tpc_params_t::has_dst</a>, <a class="el" href="tpc__internal_8h_source.html#l00067">brix_tpc_params_t::has_key</a>, <a class="el" href="tpc__internal_8h_source.html#l00068">brix_tpc_params_t::has_lfn</a>, <a class="el" href="tpc__internal_8h_source.html#l00069">brix_tpc_params_t::has_org</a>, <a class="el" href="tpc__internal_8h_source.html#l00065">brix_tpc_params_t::has_src</a>, <a class="el" href="tpc__internal_8h_source.html#l00070">brix_tpc_params_t::has_stage</a>, <a class="el" href="tpc__internal_8h_source.html#l00071">brix_tpc_params_t::has_token_mode</a>, <a class="el" href="tpc__internal_8h_source.html#l00055">brix_tpc_params_t::key</a>, <a class="el" href="tpc__internal_8h_source.html#l00060">brix_tpc_params_t::lfn</a>, <a class="el" href="tpc__internal_8h_source.html#l00061">brix_tpc_params_t::org</a>, <a class="el" href="tpc__internal_8h_source.html#l00056">brix_tpc_params_t::src</a>, <a class="el" href="tpc__internal_8h_source.html#l00062">brix_tpc_params_t::stage</a>, <a class="el" href="tpc__internal_8h_source.html#l00063">brix_tpc_params_t::token_mode</a>, and <a class="el" href="parse_8c_source.html#l00129">tpc_copy_value()</a>.</p>
+<p class="reference">References <a class="el" href="parse_8c_source.html#l00263">tpc_apply_key()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00275">brix_tpc_parse_opaque()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00336">brix_tpc_parse_opaque()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a96a4bce590e4b956bcf610dfe17ac43b" name="a96a4bce590e4b956bcf610dfe17ac43b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96a4bce590e4b956bcf610dfe17ac43b">&#9670;&#160;</a></span>tpc_key_table</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structtpc__key__desc__t.html">tpc_key_desc_t</a> tpc_key_table[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { ( <span class="stringliteral">&quot;src&quot;</span> ), <span class="keyword">sizeof</span>( <span class="stringliteral">&quot;src&quot;</span> ) - 1,   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>,  src ), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *)0)-&gt; src ),   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, has_src ) },</div>
+<div class="line">    { ( <span class="stringliteral">&quot;dst&quot;</span> ), <span class="keyword">sizeof</span>( <span class="stringliteral">&quot;dst&quot;</span> ) - 1,   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>,  dst ), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *)0)-&gt; dst ),   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, has_dst ) },</div>
+<div class="line">    { ( <span class="stringliteral">&quot;key&quot;</span> ), <span class="keyword">sizeof</span>( <span class="stringliteral">&quot;key&quot;</span> ) - 1,   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>,  <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> ), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *)0)-&gt; <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> ),   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, has_key ) },</div>
+<div class="line">    { ( <span class="stringliteral">&quot;lfn&quot;</span> ), <span class="keyword">sizeof</span>( <span class="stringliteral">&quot;lfn&quot;</span> ) - 1,   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>,  lfn ), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *)0)-&gt; lfn ),   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, has_lfn ) },</div>
+<div class="line">    { ( <span class="stringliteral">&quot;org&quot;</span> ), <span class="keyword">sizeof</span>( <span class="stringliteral">&quot;org&quot;</span> ) - 1,   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>,  org ), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *)0)-&gt; org ),   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, has_org ) },</div>
+<div class="line">    { ( <span class="stringliteral">&quot;stage&quot;</span> ), <span class="keyword">sizeof</span>( <span class="stringliteral">&quot;stage&quot;</span> ) - 1,   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>,  stage ), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *)0)-&gt; stage ),   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, has_stage ) },</div>
+<div class="line">    { ( <span class="stringliteral">&quot;token_mode&quot;</span> ), <span class="keyword">sizeof</span>( <span class="stringliteral">&quot;token_mode&quot;</span> ) - 1,   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>,  token_mode ), <span class="keyword">sizeof</span>(((<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a> *)0)-&gt; token_mode ),   offsetof(<a class="code hl_struct" href="structbrix__tpc__params__t.html">brix_tpc_params_t</a>, has_token_mode ) },</div>
+<div class="line">}</div>
+<div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="parse_8c_source.html#l00242">242</a> of file <a class="el" href="parse_8c_source.html">parse.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="parse_8c_source.html#l00263">tpc_apply_key()</a>.</p>
 
 </div>
 </div>

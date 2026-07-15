@@ -106,6 +106,7 @@ $(document).ready(function(){initNavTree('http__cache__fill_8c.html',''); initRe
 <code>#include &lt;stdatomic.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;sys/socket.h&gt;</code><br />
+<code>#include &quot;<a class="el" href="http__cache__fill__internal_8h_source.html">http_cache_fill_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for http_cache_fill.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -118,7 +119,7 @@ $(document).ready(function(){initNavTree('http__cache__fill_8c.html',''); initRe
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:abc9600dee9fb2f613e8ad5ccd487b836" id="r_abc9600dee9fb2f613e8ad5ccd487b836"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__cache__fill_8c.html#abc9600dee9fb2f613e8ad5ccd487b836">brix_http_cache_fill_if_needed</a> (ngx_http_request_t *r, brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *common, <a class="el" href="http__cache__fill_8h.html#a6c2190b5266152bd5f1feae9c90fc124">brix_http_cache_reenter_pt</a> reenter, void *reenter_data)</td></tr>
+<tr class="memitem:abc9600dee9fb2f613e8ad5ccd487b836" id="r_abc9600dee9fb2f613e8ad5ccd487b836"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__cache__fill_8c.html#abc9600dee9fb2f613e8ad5ccd487b836">brix_http_cache_fill_if_needed</a> (ngx_http_request_t *r, brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *common, <a class="el" href="http__cache__fill_8h.html#a6c2190b5266152bd5f1feae9c90fc124">brix_http_cache_reenter_pt</a> reenter, void *reenter_data)</td></tr>
 <tr class="separator:abc9600dee9fb2f613e8ad5ccd487b836"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -172,11 +173,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__cache__fill_8c_source.html#l00644">644</a> of file <a class="el" href="http__cache__fill_8c_source.html">http_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__cache__fill_8c_source.html#l00159">159</a> of file <a class="el" href="http__cache__fill_8c_source.html">http_cache_fill.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00082">cvmfs_tier_get()</a>, <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00135">cvmfs_tier_serve_or_fill()</a>, <a class="el" href="webdav_2get_8c_source.html#l00208">get_offload_or_fill()</a>, and <a class="el" href="object_8c_source.html#l00224">s3_get_cache_fill()</a>.</p>
 
 </div>
 </div>

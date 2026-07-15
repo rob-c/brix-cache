@@ -118,18 +118,18 @@ $(document).ready(function(){initNavTree('net_2cms_2config_8c_source.html',''); 
 <div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>    value = cf-&gt;args-&gt;elts;</div>
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    (void) <a class="code hl_struct" href="structcmd.html">cmd</a>;</div>
 <div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span> </div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    <span class="keywordflow">if</span> (xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#acda717dee3a55f72595b9b26261478a8">cms</a>.<a class="code hl_variable" href="structbrix__cms__conf__t.html#a436078aa9bfbd753f04d9f1ffb73a29b">addr</a> != NULL) {</div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    <span class="keywordflow">if</span> (xcf-&gt;cms.addr != NULL) {</div>
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>        <span class="keywordflow">return</span> <span class="stringliteral">&quot;is duplicate&quot;</span>;</div>
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    }</div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span> </div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="config_2config_8h.html#a090fa763cd8508093062c04eb5d72da3">brix_copy_conf_string</a>(cf, &amp;value[1], &amp;xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#acda717dee3a55f72595b9b26261478a8">cms</a>.<a class="code hl_variable" href="structbrix__cms__conf__t.html#a3eaee44ca9aee624e24d669ac3b85b34">manager</a>)</div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="config_2config_8h.html#a090fa763cd8508093062c04eb5d72da3">brix_copy_conf_string</a>(cf, &amp;value[1], &amp;xcf-&gt;cms.manager)</div>
 <div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>        != NGX_CONF_OK)</div>
 <div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    {</div>
 <div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
 <div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    }</div>
 <div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span> </div>
 <div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    ngx_memzero(&amp;url, <span class="keyword">sizeof</span>(url));</div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    url.url = xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#acda717dee3a55f72595b9b26261478a8">cms</a>.<a class="code hl_variable" href="structbrix__cms__conf__t.html#a3eaee44ca9aee624e24d669ac3b85b34">manager</a>;</div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    url.url = xcf-&gt;cms.manager;</div>
 <div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    url.default_port = 0;</div>
 <div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span> </div>
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <span class="keywordflow">if</span> (ngx_parse_url(cf-&gt;pool, &amp;url) != NGX_OK) {</div>
@@ -168,10 +168,10 @@ $(document).ready(function(){initNavTree('net_2cms_2config_8c_source.html',''); 
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(addr-&gt;sockaddr, url.addrs[0].sockaddr, url.addrs[0].socklen);</div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>    addr-&gt;socklen = url.addrs[0].socklen;</div>
 <div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    addr-&gt;name = url.addrs[0].name;</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#acda717dee3a55f72595b9b26261478a8">cms</a>.<a class="code hl_variable" href="structbrix__cms__conf__t.html#a436078aa9bfbd753f04d9f1ffb73a29b">addr</a> = addr;</div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    xcf-&gt;cms.addr = addr;</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        <span class="stringliteral">&quot;brix: CMS manager configured: %V&quot;</span>, &amp;xcf-&gt;<a class="code hl_variable" href="structngx__stream__brix__srv__conf__t.html#acda717dee3a55f72595b9b26261478a8">cms</a>.<a class="code hl_variable" href="structbrix__cms__conf__t.html#a3eaee44ca9aee624e24d669ac3b85b34">manager</a>);</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        <span class="stringliteral">&quot;brix: CMS manager configured: %V&quot;</span>, &amp;xcf-&gt;cms.manager);</div>
 <div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span> </div>
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>}</div>
@@ -183,11 +183,8 @@ $(document).ready(function(){initNavTree('net_2cms_2config_8c_source.html',''); 
 <div class="ttc" id="anet_2cms_2config_8c_html_aafae25de020d66ce01f0cdb1176ab8c4"><div class="ttname"><a href="net_2cms_2config_8c.html#aafae25de020d66ce01f0cdb1176ab8c4">brix_conf_set_cms_manager</a></div><div class="ttdeci">char * brix_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2config_8c_source.html#l00010">config.c:10</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
-<div class="ttc" id="astructbrix__cms__conf__t_html_a3eaee44ca9aee624e24d669ac3b85b34"><div class="ttname"><a href="structbrix__cms__conf__t.html#a3eaee44ca9aee624e24d669ac3b85b34">brix_cms_conf_t::manager</a></div><div class="ttdeci">ngx_str_t manager</div><div class="ttdef"><b>Definition</b> <a href="conf__structs_8h_source.html#l00080">conf_structs.h:80</a></div></div>
-<div class="ttc" id="astructbrix__cms__conf__t_html_a436078aa9bfbd753f04d9f1ffb73a29b"><div class="ttname"><a href="structbrix__cms__conf__t.html#a436078aa9bfbd753f04d9f1ffb73a29b">brix_cms_conf_t::addr</a></div><div class="ttdeci">ngx_addr_t * addr</div><div class="ttdef"><b>Definition</b> <a href="conf__structs_8h_source.html#l00081">conf_structs.h:81</a></div></div>
 <div class="ttc" id="astructcmd_html"><div class="ttname"><a href="structcmd.html">cmd</a></div><div class="ttdef"><b>Definition</b> <a href="aio__internal_8h_source.html#l00125">aio_internal.h:125</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00112">config.h:112</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_acda717dee3a55f72595b9b26261478a8"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#acda717dee3a55f72595b9b26261478a8">ngx_stream_brix_srv_conf_t::cms</a></div><div class="ttdeci">brix_cms_conf_t cms</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00637">config.h:637</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

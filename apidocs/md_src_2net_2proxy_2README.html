@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2net_2proxy_2README.html',''); 
   <div class="headertitle"><div class="title">proxy — Transparent XRootD reverse proxy (&lt;tt&gt;brix_proxy&lt;/tt&gt;)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md243"></a> </p>
-<h1><a class="anchor" id="autotoc_md244"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md244"></a> </p>
+<h1><a class="anchor" id="autotoc_md245"></a>
 Overview</h1>
 <p>This subsystem turns nginx-xrootd into a <b>transparent reverse proxy</b> for an existing XRootD storage cluster. When <code>brix_proxy on</code> is set in a <code>server {}</code> block, the local node authenticates the client (token / GSI / SSS / anonymous), terminates its TLS, and then forwards every post-login <code>root://</code> opcode verbatim to a configured upstream XRootD server — collecting metrics, audit records, and applying optional path rewriting along the way. The backend is invisible to clients: they see one endpoint, while the proxy lazily opens a backend connection, bootstraps it, translates file handles end-to-end, and relays responses with the client's own streamid. This is the wire-level counterpart to the HTTP/WebDAV proxy (<code>../webdav/proxy.c</code>); both live in front of a remote origin, but this one speaks the binary XRootD protocol through nginx's <b>stream</b> module.</p>
 <p>Control enters here from a single short-circuit in the stream dispatcher: <code><a class="el" href="root_2handshake_2dispatch_8c.html">src/protocols/root/handshake/dispatch.c</a></code> calls <code><a class="el" href="forward__relay__dispatch_8c.html#accf3824e4284ec09b362ea0db373bc84">brix_proxy_dispatch()</a></code> for every opcode once <code>conf-&gt;proxy_enable &amp;&amp; ctx-&gt;logged_in</code> is true, <em>before</em> the local read/write handlers run (so no local filesystem path is ever resolved in proxy mode). From that point the proxy owns the request: it returns <code>NGX_OK</code>/<code>NGX_ERROR</code>/<code>NGX_DONE</code> and drives an independent event-loop state machine on the <b>upstream</b> socket (<code>brix_proxy_read_handler</code> / <code>brix_proxy_write_handler</code>) while the client read loop is parked in the <code>XRD_ST_PROXY</code> state.</p>
 <p>The proxy is fully event-driven and never blocks. It implements a multi-phase upstream lifecycle — async TCP connect → optional TLS → XRootD bootstrap (handshake + <code>kXR_protocol</code> + <code>kXR_login</code> + optional <code>kXR_auth</code>) → IDLE → FORWARDING — plus several transparency features the client never sees: file-handle translation, lazy-open for <code>kXR_bind</code> secondary channels, <code>kXR_wait</code> retry with timers, <code>kXR_redirect</code> follow-through (up to 3 hops), zero-copy <code>splice()</code> for plaintext reads, a worker-local connection pool keyed by auth credentials, per-upstream health tracking, and JSON audit logging of file and path-mutation operations.</p>
 <p>Upstream credentialing supports anonymous login, forwarding the client's WLCG bearer token as a <code>ztn</code> credential, SSS keys (global or per-upstream), and a file-based token bridge — selected by <code>brix_proxy_auth</code> and per-endpoint overrides on <code>brix_proxy_upstream</code>.</p>
-<h1><a class="anchor" id="autotoc_md245"></a>
+<h1><a class="anchor" id="autotoc_md246"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -138,7 +138,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>directives.c</code>   </td><td class="markdownTableBodyNone">nginx config parsers: <code>brix_proxy_upstream host[:port] [anonymous\|forward\|sss\|sss:&lt;keyname&gt;]</code>, <code>brix_proxy_auth</code>, <code>brix_proxy_login_user anonymous\|passthrough\|fixed:&lt;name&gt;</code>, <code>brix_proxy_path_rewrite /strip /add</code>, plus the static <code><a class="el" href="net_2proxy_2directives_8c.html#abb7946dfbd7d591ab0f65ca3d032965c">proxy_parse_host_port()</a></code> (IPv6 <code>[addr]:port</code>, IPv4/hostname <code>host:port</code>, default port <code>1094</code>). First <code>brix_proxy_upstream</code> also back-fills the legacy single <code>proxy_host</code>/<code>proxy_port</code>.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md246"></a>
+<h1><a class="anchor" id="autotoc_md247"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code>brix_proxy_ctx_t</code>** (<code>proxy_internal.h</code>) — the per-client-session proxy state, allocated from the <em>client</em> connection pool and hung off <code>ctx-&gt;proxy</code>. Holds the upstream <code>ngx_connection_t</code>, the two state enums, the response accumulator (<code>rhdr</code>/<code>resp_status</code>/<code>resp_dlen</code>/<code>resp_body</code>), the upstream write buffer (<code>wbuf</code>), the in-flight-request metadata (<code>fwd_reqid</code>, <code>fwd_streamid</code>, <code>fwd_local_fh</code>, <code>fwd_payload_len</code>), the bootstrap-deferred <code>saved_req</code>, the <code>kXR_wait</code> retry copy, <code>kXR_redirect</code> follow-through state, the lazy-open pending-fh queue, the file-handle map, and the <code>splice</code> pipe state.</li>
@@ -149,7 +149,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__proxy__up__status__t.html">brix_proxy_up_status_t</a></code>** — per-upstream health: consecutive <code>fails</code>, last <code>checked</code> time, <code>down</code> flag.</li>
 <li>**<code><a class="el" href="structbrix__proxy__upstream__t.html">brix_proxy_upstream_t</a></code>** (<code>../types/config.h</code>) — a configured endpoint (<code>host</code>, <code>port</code>, per-upstream <code>auth</code> (<code>-1</code> = inherit), optional <code>sss_keyname</code>), pushed onto <code>conf-&gt;proxy_upstreams</code>. Auth/login policy enums (<code>BRIX_PROXY_AUTH_*</code>, <code>BRIX_PROXY_LOGIN_*</code>) also live there.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md247"></a>
+<h1><a class="anchor" id="autotoc_md248"></a>
 Control &amp; data flow</h1>
 <p><b>Entry.</b> <code>../handshake/dispatch.c</code> calls <code>brix_proxy_dispatch(ctx, c, conf)</code> for every opcode once <code>conf-&gt;proxy_enable &amp;&amp; ctx-&gt;logged_in</code>, <em>after</em> session opcodes are handled and <em>before</em> local read/write dispatch or rate limiting. The function never returns <code>BRIX_DISPATCH_CONTINUE</code>.</p>
 <p><b>First opcode (lazy connect).</b> <code><a class="el" href="forward__relay__dispatch_8c.html#accf3824e4284ec09b362ea0db373bc84">brix_proxy_dispatch()</a></code> allocates the proxy ctx (<code>fh_map</code> all free), calls <code><a class="el" href="connect__upstream_8c.html#ae7dca262f54e49401609ee0c4927c08e">brix_proxy_connect()</a></code>, and parks the client in <code>XRD_ST_PROXY</code>. Connect tries the pool first (<code>pool.c</code>); a pooled hit skips bootstrap and dispatches immediately. Otherwise it resolves DNS, starts an async <code>connect()</code>, optionally TLS, and queues the 68-byte bootstrap frame. The upstream <code>write</code>/<code>read</code> handlers (<code><a class="el" href="events__write_8c.html">events_write.c</a></code> / <code><a class="el" href="events__read_8c.html">events_read.c</a></code>) drive bootstrap through <code><a class="el" href="events__bootstrap_8c.html">events_bootstrap.c</a></code>, which may inject a <code>kXR_auth</code> frame (bearer/SSS/file token). On <code>BS_DONE</code> the state goes IDLE, the reconnect budget resets, and any <code>saved_req</code> is dispatched.</p>
@@ -166,7 +166,7 @@ Control &amp; data flow</h1>
 <li><code>../protocol/</code> — XRootD wire structs/opcodes (<code><a class="el" href="structClientLoginRequest.html">ClientLoginRequest</a></code>, <code><a class="el" href="structServerResponseHdr.html">ServerResponseHdr</a></code>, <code>kXR_*</code>, <code>XRD_REQUEST_HDR_LEN</code>).</li>
 <li>Sibling at the HTTP layer: <code>../webdav/proxy.c</code> (the WebDAV/HTTPS reverse proxy).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md248"></a>
+<h1><a class="anchor" id="autotoc_md249"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>No local filesystem access in proxy mode.</b> Because dispatch short-circuits before the local read/write handlers, no client path is ever resolved against the local export — confinement (<code>../path/</code>) is the upstream server's job. The proxy only <em>rewrites</em> path prefixes (<code>proxy_rewrite_path</code>), it does not confine.</li>
@@ -182,7 +182,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Pool reuse is credential-scoped.</b> A pooled connection is reused only when upstream index, auth type, <em>and</em> bearer-token MD5 all match — a forwarded-token session never reuses another user's authenticated backend connection. Redirected connections are never pooled (too transient).</li>
 <li><b>Audit &amp; metric discipline.</b> Audit JSON is written with non-blocking <code>ngx_write_fd</code> only when <code>proxy_audit_log_fd != NGX_INVALID_FILE</code>; abandoned open handles are audited at cleanup. Metric labels remain low-cardinality (no paths) — paths live only in audit records, never in counter labels.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md249"></a>
+<h1><a class="anchor" id="autotoc_md250"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Handle a new opcode that carries file handles:</b> add a <code>case</code> in the switch in <code><a class="el" href="forward__request_8c.html#a3e7073c0046ec83bf722b799159914e3">brix_proxy_forward_request()</a></code> (<code><a class="el" href="forward__request_8c.html">forward_request.c</a></code>) to translate the handle byte(s) with <code><a class="el" href="forward__rewrite__helpers_8c.html#af8defca672193e67e838882d96e9c039">proxy_translate_fh()</a></code> at the correct payload offset, and a matching translation/metrics branch in <code><a class="el" href="forward__relay__response_8c.html#afcc2cbfba9555001677f246141406f35">brix_proxy_relay_to_client()</a></code> (<code><a class="el" href="forward__relay__response_8c.html">forward_relay_response.c</a></code>). Anything without a case is forwarded verbatim.</li>
@@ -191,7 +191,7 @@ Entry points / extending</h1>
 <li><b>Add a proxy metric:</b> add the field to the proxy metric struct in <code>../metrics/</code>, then call <code>BRIX_PROXY_METRIC_INC/ADD(ctx, field)</code> plus the per-upstream <code>BRIX_PROXY_UP_INC/ADD(proxy, field)</code> at the callsite.</li>
 <li><b>Add an upstream auth method:</b> extend <code>BRIX_PROXY_AUTH_*</code> (<code>../types/config.h</code>), parse it in <code>brix_conf_set_proxy_auth</code> / per-upstream parser (<code>directives.c</code>), and build the <code>kXR_auth</code> frame in the <code>LOGIN</code> phase of <code><a class="el" href="events__bootstrap_8c.html">events_bootstrap.c</a></code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md250"></a>
+<h1><a class="anchor" id="autotoc_md251"></a>
 See also</h1>
 <ul>
 <li><code>../handshake/README.md</code> — the dispatcher that short-circuits into this subsystem.</li>

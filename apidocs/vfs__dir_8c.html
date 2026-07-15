@@ -109,6 +109,14 @@ $(document).ready(function(){initNavTree('vfs__dir_8c.html',''); initResizable()
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a1ea825da24e34ae50448e9b2565115a6" id="r_a1ea825da24e34ae50448e9b2565115a6"><td class="memItemLeft" align="right" valign="top">static brix_vfs_dir_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a1ea825da24e34ae50448e9b2565115a6">vfs_opendir_fail</a> (<a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx, int err, int observe, uint64_t start, int *err_out)</td></tr>
+<tr class="separator:a1ea825da24e34ae50448e9b2565115a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9e6227049e27d5b3ba8dbc2e1218e38a" id="r_a9e6227049e27d5b3ba8dbc2e1218e38a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a9e6227049e27d5b3ba8dbc2e1218e38a">vfs_dir_route</a> (<a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx, const brix_sd_driver_t **drv_out, int *err)</td></tr>
+<tr class="separator:a9e6227049e27d5b3ba8dbc2e1218e38a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a110cf75ce47e5b880cbeda0246f4bce3" id="r_a110cf75ce47e5b880cbeda0246f4bce3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a110cf75ce47e5b880cbeda0246f4bce3">vfs_dir_open_driver</a> (<a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx, brix_vfs_dir_t *dh, const brix_sd_driver_t *drv, const char *path, int *err_out)</td></tr>
+<tr class="separator:a110cf75ce47e5b880cbeda0246f4bce3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af8f52e6d36bead61e56fd45efaa7fd46" id="r_af8f52e6d36bead61e56fd45efaa7fd46"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#af8f52e6d36bead61e56fd45efaa7fd46">vfs_dir_open_confined</a> (<a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx, brix_vfs_dir_t *dh, const char *path)</td></tr>
+<tr class="separator:af8f52e6d36bead61e56fd45efaa7fd46"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa30eaac8116a1da7f1689f699eebe964" id="r_aa30eaac8116a1da7f1689f699eebe964"><td class="memItemLeft" align="right" valign="top">static brix_vfs_dir_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#aa30eaac8116a1da7f1689f699eebe964">brix_vfs_opendir_impl</a> (<a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx, int *err_out, int observe)</td></tr>
 <tr class="separator:aa30eaac8116a1da7f1689f699eebe964"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa1269aabb5daaec1505569c69c476a00" id="r_aa1269aabb5daaec1505569c69c476a00"><td class="memItemLeft" align="right" valign="top">brix_vfs_dir_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#aa1269aabb5daaec1505569c69c476a00">brix_vfs_opendir</a> (<a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx, int *err_out)</td></tr>
@@ -117,8 +125,22 @@ Functions</h2></td></tr>
 <tr class="separator:ac951e5ed30fc4c3bf88f45d545a16cbf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6f7955c35869ba239b7c3e06127f8552" id="r_a6f7955c35869ba239b7c3e06127f8552"><td class="memItemLeft" align="right" valign="top">ngx_fd_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a6f7955c35869ba239b7c3e06127f8552">brix_vfs_dir_fd</a> (const brix_vfs_dir_t *dh)</td></tr>
 <tr class="separator:a6f7955c35869ba239b7c3e06127f8552"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aceec5239192e9f2b76bf40917793b39e" id="r_aceec5239192e9f2b76bf40917793b39e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#aceec5239192e9f2b76bf40917793b39e">vfs_readdir_fill_entry</a> (ngx_pool_t *pool, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, ngx_str_t *name_out)</td></tr>
+<tr class="separator:aceec5239192e9f2b76bf40917793b39e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3f9d3096bdcb7392bd72568838937dda" id="r_a3f9d3096bdcb7392bd72568838937dda"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a3f9d3096bdcb7392bd72568838937dda">vfs_readdir_next_posix</a> (brix_vfs_dir_t *dh, struct dirent **de_out)</td></tr>
+<tr class="separator:a3f9d3096bdcb7392bd72568838937dda"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acde181c80085d0e2b003f9878ace3850" id="r_acde181c80085d0e2b003f9878ace3850"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#acde181c80085d0e2b003f9878ace3850">vfs_readdir_stat_child</a> (brix_vfs_dir_t *dh, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *stat_out)</td></tr>
+<tr class="separator:acde181c80085d0e2b003f9878ace3850"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a361a30e8ec7ae1642da186441ed38c77" id="r_a361a30e8ec7ae1642da186441ed38c77"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a361a30e8ec7ae1642da186441ed38c77">vfs_sd_stat_child</a> (brix_vfs_dir_t *dh, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *sd_st)</td></tr>
+<tr class="separator:a361a30e8ec7ae1642da186441ed38c77"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa03a85fe5a822c6ea581fba12e4d0886" id="r_aa03a85fe5a822c6ea581fba12e4d0886"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#aa03a85fe5a822c6ea581fba12e4d0886">vfs_readdir_sd</a> (brix_vfs_dir_t *dh, ngx_str_t *name_out, <a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *stat_out)</td></tr>
+<tr class="separator:aa03a85fe5a822c6ea581fba12e4d0886"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aab91d13d09f65fb9bc20f838e6f00b27" id="r_aab91d13d09f65fb9bc20f838e6f00b27"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#aab91d13d09f65fb9bc20f838e6f00b27">brix_vfs_readdir</a> (brix_vfs_dir_t *dh, ngx_str_t *name_out, <a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *stat_out)</td></tr>
 <tr class="separator:aab91d13d09f65fb9bc20f838e6f00b27"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9fc1843e0ad312cdc794ab1a1a024b68" id="r_a9fc1843e0ad312cdc794ab1a1a024b68"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a9fc1843e0ad312cdc794ab1a1a024b68">vfs_sd_entry_kind</a> (brix_vfs_dir_t *dh, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="separator:a9fc1843e0ad312cdc794ab1a1a024b68"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a68a7db220929bfa35aeba64932a52e7a" id="r_a68a7db220929bfa35aeba64932a52e7a"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a68a7db220929bfa35aeba64932a52e7a">vfs_posix_dtype_kind</a> (unsigned char d_type)</td></tr>
+<tr class="separator:a68a7db220929bfa35aeba64932a52e7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a38dee1d6673760ee28b6904529562d2e" id="r_a38dee1d6673760ee28b6904529562d2e"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a38dee1d6673760ee28b6904529562d2e">brix_vfs_readdir_kind</a> (brix_vfs_dir_t *dh, ngx_str_t *name_out, <a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a> *kind_out)</td></tr>
 <tr class="separator:a38dee1d6673760ee28b6904529562d2e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1c6fae0239b8a6dda10b3e3ff853c28f" id="r_a1c6fae0239b8a6dda10b3e3ff853c28f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__dir_8c.html#a1c6fae0239b8a6dda10b3e3ff853c28f">brix_vfs_closedir</a> (brix_vfs_dir_t *dh, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
@@ -153,11 +175,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00359">359</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00499">499</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
 
 <p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00071">brix_handle_dirlist()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00343">check_locks_descendants()</a>, <a class="el" href="list_8c_source.html#l00059">fattr_recurse_dir()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00095">mpu_collect()</a>, <a class="el" href="vfs__browse_8c_source.html#l00287">ngx_http_brix_dashboard_vfs_files_handler()</a>, <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>, <a class="el" href="multipart__complete__list__parts_8c_source.html#l00059">s3_handle_list_parts()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00165">s3_mpu_reap_stale()</a>, <a class="el" href="list__walk_8c_source.html#l00131">s3_walk()</a>, and <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00267">brix_dirlist_alloc_chunk()</a>, <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00523">brix_dirlist_stream_entries()</a>, <a class="el" href="lock__check_8c_source.html#l00179">check_locks_descendants()</a>, <a class="el" href="list_8c_source.html#l00205">fattr_recurse_dir()</a>, <a class="el" href="multipart__complete__list__parts_8c_source.html#l00137">lp_scan_staged_parts()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00234">mpu_collect()</a>, <a class="el" href="vfs__browse_8c_source.html#l00338">ngx_http_brix_dashboard_vfs_files_handler()</a>, <a class="el" href="propfind__walk_8c_source.html#l00194">propfind_walk()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00213">s3_mpu_reap_stale()</a>, <a class="el" href="list__walk_8c_source.html#l00371">s3_walk_run()</a>, and <a class="el" href="search_8c_source.html#l00397">webdav_search_walk()</a>.</p>
 
 </div>
 </div>
@@ -177,9 +199,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00169">169</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00229">229</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00071">brix_handle_dirlist()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00354">brix_dirlist_entry_meta()</a>.</p>
 
 </div>
 </div>
@@ -221,9 +243,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00395">395</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00535">535</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="scan__engine_8c_source.html#l00391">brix_scan_run_inventory()</a>, and <a class="el" href="scan__engine_8c_source.html#l00531">brix_scan_run_verify_catalog()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="scan__engine__catalog_8c_source.html#l00055">brix_scan_run_inventory()</a>, and <a class="el" href="scan__engine__catalog_8c_source.html#l00221">brix_scan_run_verify_catalog()</a>.</p>
 
 </div>
 </div>
@@ -253,11 +275,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00152">152</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00212">212</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__dir_8c_source.html#l00031">brix_vfs_opendir_impl()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00071">brix_handle_dirlist()</a>, <a class="el" href="vfs__browse_8c_source.html#l00287">ngx_http_brix_dashboard_vfs_files_handler()</a>, and <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00214">brix_dirlist_open_dir()</a>, <a class="el" href="vfs__browse_8c_source.html#l00338">ngx_http_brix_dashboard_vfs_files_handler()</a>, and <a class="el" href="propfind__walk_8c_source.html#l00194">propfind_walk()</a>.</p>
 
 </div>
 </div>
@@ -301,11 +323,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00031">31</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00163">163</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00046">BRIX_METRIC_OP_DIRLIST</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="vfs__open_8c_source.html#l00098">brix_vfs_copy_path()</a>, <a class="el" href="vfs__internal_8h_source.html#l00126">brix_vfs_ctx_driver()</a>, <a class="el" href="vfs__internal_8h_source.html#l00213">brix_vfs_ctx_path()</a>, <a class="el" href="vfs__open_8c_source.html#l00226">brix_vfs_export_relative()</a>, <a class="el" href="vfs__internal_8h_source.html#l00302">brix_vfs_now_ns()</a>, <a class="el" href="vfs__internal_8h_source.html#l00330">brix_vfs_observe_ctx_op()</a>, <a class="el" href="vfs__internal_8h_source.html#l00226">brix_vfs_require_confined()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00086">brix_vfs_ctx_t::log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00089">brix_vfs_ctx_t::root_canon</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::sd</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00046">BRIX_METRIC_OP_DIRLIST</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00094">brix_vfs_copy_path()</a>, <a class="el" href="vfs__internal_8h_source.html#l00248">brix_vfs_ctx_path()</a>, <a class="el" href="vfs__internal_8h_source.html#l00337">brix_vfs_now_ns()</a>, <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="vfs__dir_8c_source.html#l00143">vfs_dir_open_confined()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, <a class="el" href="vfs__dir_8c_source.html#l00061">vfs_dir_route()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00036">vfs_opendir_fail()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00152">brix_vfs_opendir()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00161">brix_vfs_opendir_quiet()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00212">brix_vfs_opendir()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00221">brix_vfs_opendir_quiet()</a>.</p>
 
 </div>
 </div>
@@ -335,11 +357,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00161">161</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00221">221</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__dir_8c_source.html#l00031">brix_vfs_opendir_impl()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00343">check_locks_descendants()</a>, <a class="el" href="list_8c_source.html#l00059">fattr_recurse_dir()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00095">mpu_collect()</a>, <a class="el" href="multipart__complete__list__parts_8c_source.html#l00059">s3_handle_list_parts()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00165">s3_mpu_reap_stale()</a>, <a class="el" href="list__walk_8c_source.html#l00131">s3_walk()</a>, and <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lock__check_8c_source.html#l00179">check_locks_descendants()</a>, <a class="el" href="list_8c_source.html#l00205">fattr_recurse_dir()</a>, <a class="el" href="multipart__complete__list__parts_8c_source.html#l00137">lp_scan_staged_parts()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00234">mpu_collect()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00213">s3_mpu_reap_stale()</a>, <a class="el" href="list__walk_8c_source.html#l00371">s3_walk_run()</a>, and <a class="el" href="search_8c_source.html#l00397">webdav_search_walk()</a>.</p>
 
 </div>
 </div>
@@ -375,11 +397,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00178">178</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00376">376</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="vfs__open_8c_source.html#l00076">brix_vfs_fill_stat()</a>, <a class="el" href="vfs__dir_8c_source.html#l00178">brix_vfs_readdir()</a>, <a class="el" href="vfs__internal_8h_source.html#l00139">brix_vfs_sd_stat_fill()</a>, <a class="el" href="sd_8h_source.html#l00170">brix_sd_dirent_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__dir_8c_source.html#l00242">vfs_readdir_fill_entry()</a>, <a class="el" href="vfs__dir_8c_source.html#l00264">vfs_readdir_next_posix()</a>, <a class="el" href="vfs__dir_8c_source.html#l00347">vfs_readdir_sd()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00298">vfs_readdir_stat_child()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00071">brix_handle_dirlist()</a>, <a class="el" href="vfs__dir_8c_source.html#l00178">brix_vfs_readdir()</a>, <a class="el" href="list_8c_source.html#l00059">fattr_recurse_dir()</a>, and <a class="el" href="propfind__walk_8c_source.html#l00057">propfind_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00523">brix_dirlist_stream_entries()</a>, <a class="el" href="list_8c_source.html#l00205">fattr_recurse_dir()</a>, and <a class="el" href="propfind__walk_8c_source.html#l00194">propfind_walk()</a>.</p>
 
 </div>
 </div>
@@ -415,11 +437,533 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00278">278</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00458">458</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00248">BRIX_VFS_DT_DIR</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00250">BRIX_VFS_DT_OTHER</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00249">BRIX_VFS_DT_REG</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00247">BRIX_VFS_DT_UNKNOWN</a>, <a class="el" href="sd_8h_source.html#l00163">brix_sd_stat_t::is_dir</a>, <a class="el" href="sd_8h_source.html#l00170">brix_sd_dirent_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00263">brix_sd_dirent_t::name</a>, <a class="el" href="vfs__dir_8c_source.html#l00447">vfs_posix_dtype_kind()</a>, <a class="el" href="vfs__dir_8c_source.html#l00242">vfs_readdir_fill_entry()</a>, <a class="el" href="vfs__dir_8c_source.html#l00264">vfs_readdir_next_posix()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00427">vfs_sd_entry_kind()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00343">check_locks_descendants()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00095">mpu_collect()</a>, <a class="el" href="vfs__browse_8c_source.html#l00287">ngx_http_brix_dashboard_vfs_files_handler()</a>, <a class="el" href="multipart__complete__list__parts_8c_source.html#l00059">s3_handle_list_parts()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00165">s3_mpu_reap_stale()</a>, <a class="el" href="list__walk_8c_source.html#l00131">s3_walk()</a>, and <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lock__check_8c_source.html#l00179">check_locks_descendants()</a>, <a class="el" href="multipart__complete__list__parts_8c_source.html#l00137">lp_scan_staged_parts()</a>, <a class="el" href="multipart__complete__list__uploads_8c_source.html#l00234">mpu_collect()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00213">s3_mpu_reap_stale()</a>, <a class="el" href="list__walk_8c_source.html#l00371">s3_walk_run()</a>, <a class="el" href="vfs__browse_8c_source.html#l00305">vfs_browse_collect()</a>, and <a class="el" href="search_8c_source.html#l00340">webdav_search_scan_dir()</a>.</p>
+
+</div>
+</div>
+<a id="af8f52e6d36bead61e56fd45efaa7fd46" name="af8f52e6d36bead61e56fd45efaa7fd46"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af8f52e6d36bead61e56fd45efaa7fd46">&#9670;&#160;</a></span>vfs_dir_open_confined()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_dir_open_confined </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_vfs_dir_t *&#160;</td>
+          <td class="paramname"><em>dh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00143">143</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::log</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00098">brix_vfs_ctx_t::root_canon</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a110cf75ce47e5b880cbeda0246f4bce3" name="a110cf75ce47e5b880cbeda0246f4bce3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a110cf75ce47e5b880cbeda0246f4bce3">&#9670;&#160;</a></span>vfs_dir_open_driver()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_dir_open_driver </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_vfs_dir_t *&#160;</td>
+          <td class="paramname"><em>dh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const brix_sd_driver_t *&#160;</td>
+          <td class="paramname"><em>drv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00085">85</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00845">brix_sd_opendir_maybe_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00094">brix_vfs_copy_path()</a>, <a class="el" href="vfs__cred_8c_source.html#l00433">brix_vfs_cred_gate_active()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00223">brix_vfs_export_relative()</a>, <a class="el" href="vfs__cred_8c_source.html#l00542">brix_vfs_ns_cred()</a>, <a class="el" href="vfs__cred_8c_source.html#l00465">brix_vfs_ns_leaf()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::log</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a9e6227049e27d5b3ba8dbc2e1218e38a" name="a9e6227049e27d5b3ba8dbc2e1218e38a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9e6227049e27d5b3ba8dbc2e1218e38a">&#9670;&#160;</a></span>vfs_dir_route()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_dir_route </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const brix_sd_driver_t **&#160;</td>
+          <td class="paramname"><em>drv_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00061">61</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00161">brix_vfs_ctx_driver()</a>, and <a class="el" href="vfs__internal_8h_source.html#l00261">brix_vfs_require_confined()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a1ea825da24e34ae50448e9b2565115a6" name="a1ea825da24e34ae50448e9b2565115a6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ea825da24e34ae50448e9b2565115a6">&#9670;&#160;</a></span>vfs_opendir_fail()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static brix_vfs_dir_t * vfs_opendir_fail </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>err</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>observe</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00036">36</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00046">BRIX_METRIC_OP_DIRLIST</a>, <a class="el" href="vfs__internal_8h_source.html#l00248">brix_vfs_ctx_path()</a>, and <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a68a7db220929bfa35aeba64932a52e7a" name="a68a7db220929bfa35aeba64932a52e7a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a68a7db220929bfa35aeba64932a52e7a">&#9670;&#160;</a></span>vfs_posix_dtype_kind()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a> vfs_posix_dtype_kind </td>
+          <td>(</td>
+          <td class="paramtype">unsigned char&#160;</td>
+          <td class="paramname"><em>d_type</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00447">447</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00353">BRIX_VFS_DT_DIR</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00355">BRIX_VFS_DT_OTHER</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00354">BRIX_VFS_DT_REG</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00352">BRIX_VFS_DT_UNKNOWN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00458">brix_vfs_readdir_kind()</a>.</p>
+
+</div>
+</div>
+<a id="aceec5239192e9f2b76bf40917793b39e" name="aceec5239192e9f2b76bf40917793b39e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aceec5239192e9f2b76bf40917793b39e">&#9670;&#160;</a></span>vfs_readdir_fill_entry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_readdir_fill_entry </td>
+          <td>(</td>
+          <td class="paramtype">ngx_pool_t *&#160;</td>
+          <td class="paramname"><em>pool</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>name_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00242">242</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00376">brix_vfs_readdir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00458">brix_vfs_readdir_kind()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00347">vfs_readdir_sd()</a>.</p>
+
+</div>
+</div>
+<a id="a3f9d3096bdcb7392bd72568838937dda" name="a3f9d3096bdcb7392bd72568838937dda"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3f9d3096bdcb7392bd72568838937dda">&#9670;&#160;</a></span>vfs_readdir_next_posix()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_readdir_next_posix </td>
+          <td>(</td>
+          <td class="paramtype">brix_vfs_dir_t *&#160;</td>
+          <td class="paramname"><em>dh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct dirent **&#160;</td>
+          <td class="paramname"><em>de_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00264">264</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00376">brix_vfs_readdir()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00458">brix_vfs_readdir_kind()</a>.</p>
+
+</div>
+</div>
+<a id="aa03a85fe5a822c6ea581fba12e4d0886" name="aa03a85fe5a822c6ea581fba12e4d0886"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa03a85fe5a822c6ea581fba12e4d0886">&#9670;&#160;</a></span>vfs_readdir_sd()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_readdir_sd </td>
+          <td>(</td>
+          <td class="paramtype">brix_vfs_dir_t *&#160;</td>
+          <td class="paramname"><em>dh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>name_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>stat_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00347">347</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00174">brix_vfs_sd_stat_fill()</a>, <a class="el" href="sd_8h_source.html#l00263">brix_sd_dirent_t::name</a>, <a class="el" href="vfs__dir_8c_source.html#l00242">vfs_readdir_fill_entry()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00326">vfs_sd_stat_child()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00376">brix_vfs_readdir()</a>.</p>
+
+</div>
+</div>
+<a id="acde181c80085d0e2b003f9878ace3850" name="acde181c80085d0e2b003f9878ace3850"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acde181c80085d0e2b003f9878ace3850">&#9670;&#160;</a></span>vfs_readdir_stat_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_readdir_stat_child </td>
+          <td>(</td>
+          <td class="paramtype">brix_vfs_dir_t *&#160;</td>
+          <td class="paramname"><em>dh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>stat_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00298">298</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00072">brix_vfs_fill_stat()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00376">brix_vfs_readdir()</a>.</p>
+
+</div>
+</div>
+<a id="a9fc1843e0ad312cdc794ab1a1a024b68" name="a9fc1843e0ad312cdc794ab1a1a024b68"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9fc1843e0ad312cdc794ab1a1a024b68">&#9670;&#160;</a></span>vfs_sd_entry_kind()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a> vfs_sd_entry_kind </td>
+          <td>(</td>
+          <td class="paramtype">brix_vfs_dir_t *&#160;</td>
+          <td class="paramname"><em>dh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00427">427</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00353">BRIX_VFS_DT_DIR</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00354">BRIX_VFS_DT_REG</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00352">BRIX_VFS_DT_UNKNOWN</a>, <a class="el" href="sd_8h_source.html#l00256">brix_sd_stat_t::is_dir</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="vfs__dir_8c_source.html#l00326">vfs_sd_stat_child()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00458">brix_vfs_readdir_kind()</a>.</p>
+
+</div>
+</div>
+<a id="a361a30e8ec7ae1642da186441ed38c77" name="a361a30e8ec7ae1642da186441ed38c77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a361a30e8ec7ae1642da186441ed38c77">&#9670;&#160;</a></span>vfs_sd_stat_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_sd_stat_child </td>
+          <td>(</td>
+          <td class="paramtype">brix_vfs_dir_t *&#160;</td>
+          <td class="paramname"><em>dh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>sd_st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__dir_8c_source.html#l00326">326</a> of file <a class="el" href="vfs__dir_8c_source.html">vfs_dir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__dir_8c_source.html#l00347">vfs_readdir_sd()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00427">vfs_sd_entry_kind()</a>.</p>
 
 </div>
 </div>

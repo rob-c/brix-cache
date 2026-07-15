@@ -109,10 +109,270 @@ $(document).ready(function(){initNavTree('forward__request_8c.html',''); initRes
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a3e7073c0046ec83bf722b799159914e3" id="r_a3e7073c0046ec83bf722b799159914e3"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#a3e7073c0046ec83bf722b799159914e3">brix_proxy_forward_request</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:afcbfdd32618a755f8ed91668cfd66e45" id="r_afcbfdd32618a755f8ed91668cfd66e45"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#afcbfdd32618a755f8ed91668cfd66e45">brix_proxy_forward_open</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, u_char **req, size_t *total)</td></tr>
+<tr class="separator:afcbfdd32618a755f8ed91668cfd66e45"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a70216ebd801a5fe6dd2a27e2d03bef8a" id="r_a70216ebd801a5fe6dd2a27e2d03bef8a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#a70216ebd801a5fe6dd2a27e2d03bef8a">brix_proxy_pathop_audit</a> (brix_proxy_ctx_t *proxy, uint16_t reqid, u_char *req, size_t total)</td></tr>
+<tr class="separator:a70216ebd801a5fe6dd2a27e2d03bef8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af17a2bc7fe869f635a7974428327a281" id="r_af17a2bc7fe869f635a7974428327a281"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#af17a2bc7fe869f635a7974428327a281">brix_proxy_forward_pathop</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t reqid, u_char **req, size_t *total)</td></tr>
+<tr class="separator:af17a2bc7fe869f635a7974428327a281"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab7062b2f1afb84e3fce08b13a22d8653" id="r_ab7062b2f1afb84e3fce08b13a22d8653"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#ab7062b2f1afb84e3fce08b13a22d8653">brix_proxy_save_wait_retry</a> (brix_proxy_ctx_t *proxy, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, u_char *req, size_t total)</td></tr>
+<tr class="separator:ab7062b2f1afb84e3fce08b13a22d8653"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aed2a1c7c8927fac3fe44d88feabc9827" id="r_aed2a1c7c8927fac3fe44d88feabc9827"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#aed2a1c7c8927fac3fe44d88feabc9827">brix_proxy_queue_and_flush</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, u_char *req, size_t total)</td></tr>
+<tr class="separator:aed2a1c7c8927fac3fe44d88feabc9827"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae130829c5fa37e87625679cc0e33edc5" id="r_ae130829c5fa37e87625679cc0e33edc5"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#ae130829c5fa37e87625679cc0e33edc5">brix_proxy_forward_stat</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t reqid, u_char *req, size_t total)</td></tr>
+<tr class="separator:ae130829c5fa37e87625679cc0e33edc5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a703be2d2ac57f8142a461f5300633a1d" id="r_a703be2d2ac57f8142a461f5300633a1d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#a703be2d2ac57f8142a461f5300633a1d">brix_proxy_forward_clone</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, u_char *req)</td></tr>
+<tr class="separator:a703be2d2ac57f8142a461f5300633a1d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac5109c1f7739d605ef906c4297e07167" id="r_ac5109c1f7739d605ef906c4297e07167"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#ac5109c1f7739d605ef906c4297e07167">brix_proxy_forward_prepare</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, u_char **req, size_t *total)</td></tr>
+<tr class="separator:ac5109c1f7739d605ef906c4297e07167"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adf943c455571376e38edee4ab427b2b1" id="r_adf943c455571376e38edee4ab427b2b1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#adf943c455571376e38edee4ab427b2b1">brix_proxy_translate_fh_op</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t reqid, u_char **req, size_t *total)</td></tr>
+<tr class="separator:adf943c455571376e38edee4ab427b2b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a315926935c8bee4b73c8c4dc3d3663ef" id="r_a315926935c8bee4b73c8c4dc3d3663ef"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#a315926935c8bee4b73c8c4dc3d3663ef">brix_proxy_translate_dispatch</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t reqid, u_char **req, size_t *total)</td></tr>
+<tr class="separator:a315926935c8bee4b73c8c4dc3d3663ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3e7073c0046ec83bf722b799159914e3" id="r_a3e7073c0046ec83bf722b799159914e3"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="forward__request_8c.html#a3e7073c0046ec83bf722b799159914e3">brix_proxy_forward_request</a> (brix_proxy_ctx_t *proxy, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:a3e7073c0046ec83bf722b799159914e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a703be2d2ac57f8142a461f5300633a1d" name="a703be2d2ac57f8142a461f5300633a1d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a703be2d2ac57f8142a461f5300633a1d">&#9670;&#160;</a></span>brix_proxy_forward_clone()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_proxy_forward_clone </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>req</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00298">298</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00274">proxy_reject_request()</a>, and <a class="el" href="forward__rewrite__helpers_8c_source.html#l00289">proxy_translate_fh()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00340">brix_proxy_translate_fh_op()</a>.</p>
+
+</div>
+</div>
+<a id="afcbfdd32618a755f8ed91668cfd66e45" name="afcbfdd32618a755f8ed91668cfd66e45"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afcbfdd32618a755f8ed91668cfd66e45">&#9670;&#160;</a></span>brix_proxy_forward_open()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_proxy_forward_open </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00044">44</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="forward__session__helpers_8c_source.html#l00135">brix_proxy_alloc_local_fh()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00036">BRIX_PROXY_PATH_MAX</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00274">proxy_reject_request()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00022">proxy_rewrite_path()</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00340">brix_proxy_translate_fh_op()</a>.</p>
+
+</div>
+</div>
+<a id="af17a2bc7fe869f635a7974428327a281" name="af17a2bc7fe869f635a7974428327a281"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af17a2bc7fe869f635a7974428327a281">&#9670;&#160;</a></span>brix_proxy_forward_pathop()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_proxy_forward_pathop </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>reqid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00147">147</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="forward__request_8c_source.html#l00090">brix_proxy_pathop_audit()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00022">proxy_rewrite_path()</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00393">brix_proxy_translate_dispatch()</a>.</p>
+
+</div>
+</div>
+<a id="ac5109c1f7739d605ef906c4297e07167" name="ac5109c1f7739d605ef906c4297e07167"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac5109c1f7739d605ef906c4297e07167">&#9670;&#160;</a></span>brix_proxy_forward_prepare()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_proxy_forward_prepare </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00319">319</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00211">proxy_rewrite_prepare_payload()</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00393">brix_proxy_translate_dispatch()</a>.</p>
+
+</div>
+</div>
 <a id="a3e7073c0046ec83bf722b799159914e3" name="a3e7073c0046ec83bf722b799159914e3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a3e7073c0046ec83bf722b799159914e3">&#9670;&#160;</a></span>brix_proxy_forward_request()</h2>
 
@@ -145,11 +405,371 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00037">37</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00417">417</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="forward__session__helpers_8c_source.html#l00135">brix_proxy_alloc_local_fh()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00033">BRIX_PROXY_FH_FREE</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00020">brix_proxy_flush()</a>, <a class="el" href="forward__session__helpers_8c_source.html#l00164">brix_proxy_lazy_open()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00036">BRIX_PROXY_PATH_MAX</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00254">brix_proxy_wbuf_release()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="tap_8h_source.html#l00020">BRIX_TAP_C2U</a>, <a class="el" href="tap__decode_8c_source.html#l00036">brix_tap_decode_request()</a>, <a class="el" href="tap__emit_8c_source.html#l00023">brix_tap_emit()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::cur_body_extra</a>, <a class="el" href="ctx__structs_8h_source.html#l00178">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00176">brix_ctx_recv_t::cur_reqid</a>, <a class="el" href="ctx__structs_8h_source.html#l00175">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="ctx__structs_8h_source.html#l00173">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="context_8h_source.html#l00273">brix_ctx_t::is_bound</a>, <a class="el" href="opcodes_8h_source.html#l00057">kXR_chkpoint</a>, <a class="el" href="opcodes_8h_source.html#l00047">kXR_chmod</a>, <a class="el" href="flags_8h_source.html#l00245">kXR_ckpXeq</a>, <a class="el" href="opcodes_8h_source.html#l00077">kXR_clone</a>, <a class="el" href="opcodes_8h_source.html#l00048">kXR_close</a>, <a class="el" href="opcodes_8h_source.html#l00065">kXR_fattr</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00053">kXR_mkdir</a>, <a class="el" href="opcodes_8h_source.html#l00054">kXR_mv</a>, <a class="el" href="opcodes_8h_source.html#l00055">kXR_open</a>, <a class="el" href="opcodes_8h_source.html#l00075">kXR_pgread</a>, <a class="el" href="opcodes_8h_source.html#l00071">kXR_pgwrite</a>, <a class="el" href="opcodes_8h_source.html#l00066">kXR_prepare</a>, <a class="el" href="opcodes_8h_source.html#l00058">kXR_read</a>, <a class="el" href="opcodes_8h_source.html#l00070">kXR_readv</a>, <a class="el" href="opcodes_8h_source.html#l00059">kXR_rm</a>, <a class="el" href="opcodes_8h_source.html#l00060">kXR_rmdir</a>, <a class="el" href="opcodes_8h_source.html#l00062">kXR_stat</a>, <a class="el" href="opcodes_8h_source.html#l00061">kXR_sync</a>, <a class="el" href="opcodes_8h_source.html#l00073">kXR_truncate</a>, <a class="el" href="opcodes_8h_source.html#l00064">kXR_write</a>, <a class="el" href="opcodes_8h_source.html#l00076">kXR_writev</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::payload</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00022">proxy_rewrite_path()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00080">proxy_rewrite_prepare_payload()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00182">proxy_translate_fh()</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00077">XRD_PX_FORWARDING</a>, <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>, and <a class="el" href="state_8h_source.html#l00032">XRD_ST_PROXY</a>.</p>
+<p class="reference">References <a class="el" href="forward__request_8c_source.html#l00209">brix_proxy_queue_and_flush()</a>, <a class="el" href="forward__request_8c_source.html#l00179">brix_proxy_save_wait_retry()</a>, <a class="el" href="forward__request_8c_source.html#l00393">brix_proxy_translate_dispatch()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="tap_8h_source.html#l00020">BRIX_TAP_C2U</a>, <a class="el" href="tap__decode_8c_source.html#l00036">brix_tap_decode_request()</a>, <a class="el" href="tap__emit_8c_source.html#l00023">brix_tap_emit()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00185">brix_ctx_recv_t::cur_body_extra</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00182">brix_ctx_recv_t::cur_reqid</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="forward__relay__dispatch_8c_source.html#l00139">brix_proxy_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="forward__relay__dispatch_8c_source.html#l00199">brix_proxy_dispatch()</a>.</p>
+
+</div>
+</div>
+<a id="ae130829c5fa37e87625679cc0e33edc5" name="ae130829c5fa37e87625679cc0e33edc5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae130829c5fa37e87625679cc0e33edc5">&#9670;&#160;</a></span>brix_proxy_forward_stat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_proxy_forward_stat </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>reqid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00264">264</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00036">BRIX_PROXY_PATH_MAX</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="opcodes_8h_source.html#l00073">kXR_truncate</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00274">proxy_reject_request()</a>, <a class="el" href="forward__rewrite__helpers_8c_source.html#l00289">proxy_translate_fh()</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00340">brix_proxy_translate_fh_op()</a>.</p>
+
+</div>
+</div>
+<a id="a70216ebd801a5fe6dd2a27e2d03bef8a" name="a70216ebd801a5fe6dd2a27e2d03bef8a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a70216ebd801a5fe6dd2a27e2d03bef8a">&#9670;&#160;</a></span>brix_proxy_pathop_audit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_proxy_pathop_audit </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>reqid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00090">90</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00036">BRIX_PROXY_PATH_MAX</a>, <a class="el" href="opcodes_8h_source.html#l00047">kXR_chmod</a>, <a class="el" href="opcodes_8h_source.html#l00053">kXR_mkdir</a>, <a class="el" href="opcodes_8h_source.html#l00054">kXR_mv</a>, <a class="el" href="opcodes_8h_source.html#l00059">kXR_rm</a>, <a class="el" href="opcodes_8h_source.html#l00060">kXR_rmdir</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00147">brix_proxy_forward_pathop()</a>.</p>
+
+</div>
+</div>
+<a id="aed2a1c7c8927fac3fe44d88feabc9827" name="aed2a1c7c8927fac3fe44d88feabc9827"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aed2a1c7c8927fac3fe44d88feabc9827">&#9670;&#160;</a></span>brix_proxy_queue_and_flush()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_proxy_queue_and_flush </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00209">209</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00020">brix_proxy_flush()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00254">brix_proxy_wbuf_release()</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00077">XRD_PX_FORWARDING</a>, and <a class="el" href="state_8h_source.html#l00032">XRD_ST_PROXY</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00417">brix_proxy_forward_request()</a>.</p>
+
+</div>
+</div>
+<a id="ab7062b2f1afb84e3fce08b13a22d8653" name="ab7062b2f1afb84e3fce08b13a22d8653"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab7062b2f1afb84e3fce08b13a22d8653">&#9670;&#160;</a></span>brix_proxy_save_wait_retry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_proxy_save_wait_retry </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00179">179</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00417">brix_proxy_forward_request()</a>.</p>
+
+</div>
+</div>
+<a id="a315926935c8bee4b73c8c4dc3d3663ef" name="a315926935c8bee4b73c8c4dc3d3663ef"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a315926935c8bee4b73c8c4dc3d3663ef">&#9670;&#160;</a></span>brix_proxy_translate_dispatch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_proxy_translate_dispatch </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>reqid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00393">393</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="forward__request_8c_source.html#l00147">brix_proxy_forward_pathop()</a>, <a class="el" href="forward__request_8c_source.html#l00319">brix_proxy_forward_prepare()</a>, <a class="el" href="forward__request_8c_source.html#l00340">brix_proxy_translate_fh_op()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="opcodes_8h_source.html#l00066">kXR_prepare</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00417">brix_proxy_forward_request()</a>.</p>
+
+</div>
+</div>
+<a id="adf943c455571376e38edee4ab427b2b1" name="adf943c455571376e38edee4ab427b2b1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adf943c455571376e38edee4ab427b2b1">&#9670;&#160;</a></span>brix_proxy_translate_fh_op()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_proxy_translate_fh_op </td>
+          <td>(</td>
+          <td class="paramtype">brix_proxy_ctx_t *&#160;</td>
+          <td class="paramname"><em>proxy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>reqid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>total</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="forward__request_8c_source.html#l00340">340</a> of file <a class="el" href="forward__request_8c_source.html">forward_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="forward__fh__translate_8c_source.html#l00155">brix_proxy_fh_translate_single()</a>, <a class="el" href="forward__fh__translate_8c_source.html#l00284">brix_proxy_fh_translate_vector()</a>, <a class="el" href="forward__request_8c_source.html#l00298">brix_proxy_forward_clone()</a>, <a class="el" href="forward__request_8c_source.html#l00044">brix_proxy_forward_open()</a>, <a class="el" href="forward__request_8c_source.html#l00264">brix_proxy_forward_stat()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00185">brix_ctx_recv_t::cur_body_extra</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="opcodes_8h_source.html#l00057">kXR_chkpoint</a>, <a class="el" href="opcodes_8h_source.html#l00077">kXR_clone</a>, <a class="el" href="opcodes_8h_source.html#l00048">kXR_close</a>, <a class="el" href="opcodes_8h_source.html#l00065">kXR_fattr</a>, <a class="el" href="opcodes_8h_source.html#l00055">kXR_open</a>, <a class="el" href="opcodes_8h_source.html#l00075">kXR_pgread</a>, <a class="el" href="opcodes_8h_source.html#l00071">kXR_pgwrite</a>, <a class="el" href="opcodes_8h_source.html#l00058">kXR_read</a>, <a class="el" href="opcodes_8h_source.html#l00070">kXR_readv</a>, <a class="el" href="opcodes_8h_source.html#l00062">kXR_stat</a>, <a class="el" href="opcodes_8h_source.html#l00061">kXR_sync</a>, <a class="el" href="opcodes_8h_source.html#l00073">kXR_truncate</a>, <a class="el" href="opcodes_8h_source.html#l00064">kXR_write</a>, <a class="el" href="opcodes_8h_source.html#l00076">kXR_writev</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="forward__request_8c_source.html#l00393">brix_proxy_translate_dispatch()</a>.</p>
 
 </div>
 </div>

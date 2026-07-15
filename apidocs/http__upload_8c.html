@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('http__upload_8c.html',''); initResizab
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">http_upload.c File Reference</div></div>
 </div><!--header-->
@@ -106,18 +107,39 @@ $(document).ready(function(){initNavTree('http__upload_8c.html',''); initResizab
 </div>
 <p><a href="http__upload_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structhttpx__chunk__range__t.html">httpx_chunk_range_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a766c5a6be1b749f90dec45c1a0b22539" id="r_a766c5a6be1b749f90dec45c1a0b22539"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a766c5a6be1b749f90dec45c1a0b22539">httpx_upload_body</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, <a class="el" href="brix__net_8h.html#af63faa7bc2b6a7728a73c4b4ce50c0ac">brix_http_body_src_fn</a> src, void *src_ctx, long long base_off, long long clen, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a766c5a6be1b749f90dec45c1a0b22539"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1e7d188907419fc2f438240d5725f4c2" id="r_a1e7d188907419fc2f438240d5725f4c2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a1e7d188907419fc2f438240d5725f4c2">httpx_upload_response</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, int timeout_ms, int *http_status, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a1e7d188907419fc2f438240d5725f4c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad8ef9edabcfd8da654fdd4cd6ca2eb8b" id="r_ad8ef9edabcfd8da654fdd4cd6ca2eb8b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#ad8ef9edabcfd8da654fdd4cd6ca2eb8b">httpx_fmt_put_request</a> (const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, char *req, size_t cap, int *rlen_out)</td></tr>
+<tr class="separator:ad8ef9edabcfd8da654fdd4cd6ca2eb8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1eff7bdd72ee36b271c4af64f76fc1cf" id="r_a1eff7bdd72ee36b271c4af64f76fc1cf"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a1eff7bdd72ee36b271c4af64f76fc1cf">httpx_exchange_core</a> (const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__io.html">brix_io</a> *io)</td></tr>
+<tr class="separator:a1eff7bdd72ee36b271c4af64f76fc1cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7d6a48cd836b8ea085d3100a8c76e949" id="r_a7d6a48cd836b8ea085d3100a8c76e949"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a7d6a48cd836b8ea085d3100a8c76e949">httpx_upload_exchange</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const char *host, int port, const char *path, const char *extra_headers, <a class="el" href="brix__net_8h.html#af63faa7bc2b6a7728a73c4b4ce50c0ac">brix_http_body_src_fn</a> src, void *src_ctx, long long clen, int timeout_ms, int *http_status, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a7d6a48cd836b8ea085d3100a8c76e949"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8a3e2637bcb560394402b134bb9fe759" id="r_a8a3e2637bcb560394402b134bb9fe759"><td class="memItemLeft" align="right" valign="top">long long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a8a3e2637bcb560394402b134bb9fe759">httpx_parse_upload_offset</a> (const char *hdr, size_t len)</td></tr>
 <tr class="separator:a8a3e2637bcb560394402b134bb9fe759"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad156ac08eaa9b2e98c25001ad7d772ea" id="r_ad156ac08eaa9b2e98c25001ad7d772ea"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#ad156ac08eaa9b2e98c25001ad7d772ea">httpx_fmt_chunk_request</a> (const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structhttpx__chunk__range__t.html">httpx_chunk_range_t</a> *rng, char *req, size_t cap, int *rlen_out)</td></tr>
+<tr class="separator:ad156ac08eaa9b2e98c25001ad7d772ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac2f5875808758e519beae2939cd65df3" id="r_ac2f5875808758e519beae2939cd65df3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#ac2f5875808758e519beae2939cd65df3">httpx_chunk_read_status</a> (const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__io.html">brix_io</a> *io, int *status_out, long long *srv_off_out)</td></tr>
+<tr class="separator:ac2f5875808758e519beae2939cd65df3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1231fd9b76c3eeaeb9242629785b8c6a" id="r_a1231fd9b76c3eeaeb9242629785b8c6a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a1231fd9b76c3eeaeb9242629785b8c6a">httpx_chunk_core</a> (const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__io.html">brix_io</a> *io, const <a class="el" href="structhttpx__chunk__range__t.html">httpx_chunk_range_t</a> *rng)</td></tr>
+<tr class="separator:a1231fd9b76c3eeaeb9242629785b8c6a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5b622d33121f459fdff0fe55a8edda1f" id="r_a5b622d33121f459fdff0fe55a8edda1f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a5b622d33121f459fdff0fe55a8edda1f">httpx_upload_chunk</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const char *host, int port, const char *path, const char *extra_headers, <a class="el" href="brix__net_8h.html#af63faa7bc2b6a7728a73c4b4ce50c0ac">brix_http_body_src_fn</a> src, void *src_ctx, long long off, long long chunk_len, long long total, int timeout_ms, int *status_out, long long *srv_off_out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a5b622d33121f459fdff0fe55a8edda1f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ada842fead2a5c899f0bd2b072e3ae87e" id="r_ada842fead2a5c899f0bd2b072e3ae87e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#ada842fead2a5c899f0bd2b072e3ae87e">httpx_resumable_attempt</a> (const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structhttpx__chunk__range__t.html">httpx_chunk_range_t</a> *rng)</td></tr>
+<tr class="separator:ada842fead2a5c899f0bd2b072e3ae87e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9153d35cfa3f4688b7aaca3589624cff" id="r_a9153d35cfa3f4688b7aaca3589624cff"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a9153d35cfa3f4688b7aaca3589624cff">httpx_resumable_may_retry</a> (const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, int max_stall_ms, uint64_t deadline)</td></tr>
+<tr class="separator:a9153d35cfa3f4688b7aaca3589624cff"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7065553d3e9eb4355937dcd17838768c" id="r_a7065553d3e9eb4355937dcd17838768c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a7065553d3e9eb4355937dcd17838768c">brix_http_upload_resumable</a> (const char *host, int port, int <a class="el" href="tier__config_8c.html#a39888985bf98dd26251c28fbf14cb82f">tls</a>, const char *path, const char *extra_headers, <a class="el" href="brix__net_8h.html#af63faa7bc2b6a7728a73c4b4ce50c0ac">brix_http_body_src_fn</a> src, void *src_ctx, long long clen, int verify, const char *ca_dir, int timeout_ms, int max_stall_ms, int *http_status, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a7065553d3e9eb4355937dcd17838768c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8860d9287b74e577c44cef5dbf804271" id="r_a8860d9287b74e577c44cef5dbf804271"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__upload_8c.html#a8860d9287b74e577c44cef5dbf804271">brix_http_upload</a> (const char *host, int port, int <a class="el" href="tier__config_8c.html#a39888985bf98dd26251c28fbf14cb82f">tls</a>, const char *path, const char *extra_headers, <a class="el" href="brix__net_8h.html#af63faa7bc2b6a7728a73c4b4ce50c0ac">brix_http_body_src_fn</a> src, void *src_ctx, long long clen, int verify, const char *ca_dir, int timeout_ms, int *http_status, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
@@ -216,11 +238,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00267">267</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00449">449</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00387">brix_tls_client_free()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="http_8c_source.html#l00232">httpx_connect()</a>, <a class="el" href="http__upload_8c_source.html#l00080">httpx_upload_exchange()</a>, and <a class="el" href="tier__config_8c_source.html#l00028">tls</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00387">brix_tls_client_free()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="http__upload_8c_source.html#l00027">httpx_upload_ctx_t::host</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__upload_8c_source.html#l00164">httpx_exchange_core()</a>, and <a class="el" href="tier__config_8c_source.html#l00028">tls</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00413">battery_s3()</a>, and <a class="el" href="xrd__battery_8c_source.html#l00293">battery_web()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00510">s3_put()</a>, and <a class="el" href="xrd__battery_8c_source.html#l00388">web_put_get_verify()</a>.</p>
 
 </div>
 </div>
@@ -322,11 +344,269 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00196">196</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00388">388</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
 
-<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00069">brix_status_retryable()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00387">brix_tls_client_free()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="http_8c_source.html#l00232">httpx_connect()</a>, <a class="el" href="http__upload_8c_source.html#l00140">httpx_upload_chunk()</a>, <a class="el" href="tier__config_8c_source.html#l00028">tls</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="http__upload_8c_source.html#l00027">httpx_upload_ctx_t::host</a>, <a class="el" href="http__upload_8c_source.html#l00345">httpx_resumable_attempt()</a>, <a class="el" href="http__upload_8c_source.html#l00370">httpx_resumable_may_retry()</a>, <a class="el" href="http__upload_8c_source.html#l00056">httpx_chunk_range_t::off</a>, <a class="el" href="tier__config_8c_source.html#l00028">tls</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00514">copy_web_upload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__local_8c_source.html#l00744">copy_web_upload()</a>.</p>
+
+</div>
+</div>
+<a id="a1231fd9b76c3eeaeb9242629785b8c6a" name="a1231fd9b76c3eeaeb9242629785b8c6a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1231fd9b76c3eeaeb9242629785b8c6a">&#9670;&#160;</a></span>httpx_chunk_core()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_chunk_core </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__io.html">brix_io</a> *&#160;</td>
+          <td class="paramname"><em>io</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structhttpx__chunk__range__t.html">httpx_chunk_range_t</a> *&#160;</td>
+          <td class="paramname"><em>rng</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00296">296</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="http__upload_8c_source.html#l00266">httpx_chunk_read_status()</a>, <a class="el" href="http__upload_8c_source.html#l00235">httpx_fmt_chunk_request()</a>, <a class="el" href="http__upload_8c_source.html#l00071">httpx_upload_body()</a>, <a class="el" href="http__upload_8c_source.html#l00057">httpx_chunk_range_t::len</a>, <a class="el" href="http__upload_8c_source.html#l00056">httpx_chunk_range_t::off</a>, <a class="el" href="http__upload_8c_source.html#l00060">httpx_chunk_range_t::srv_off_out</a>, and <a class="el" href="http__upload_8c_source.html#l00059">httpx_chunk_range_t::status_out</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00345">httpx_resumable_attempt()</a>, and <a class="el" href="http__upload_8c_source.html#l00318">httpx_upload_chunk()</a>.</p>
+
+</div>
+</div>
+<a id="ac2f5875808758e519beae2939cd65df3" name="ac2f5875808758e519beae2939cd65df3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac2f5875808758e519beae2939cd65df3">&#9670;&#160;</a></span>httpx_chunk_read_status()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_chunk_read_status </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__io.html">brix_io</a> *&#160;</td>
+          <td class="paramname"><em>io</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>status_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long long *&#160;</td>
+          <td class="paramname"><em>srv_off_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00266">266</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="http__upload_8c_source.html#l00200">httpx_parse_upload_offset()</a>, <a class="el" href="http__download_8c_source.html#l00087">read_resp_headers()</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="http__internal_8h_source.html#l00021">XRDC_HDR_CAP</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00296">httpx_chunk_core()</a>.</p>
+
+</div>
+</div>
+<a id="a1eff7bdd72ee36b271c4af64f76fc1cf" name="a1eff7bdd72ee36b271c4af64f76fc1cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1eff7bdd72ee36b271c4af64f76fc1cf">&#9670;&#160;</a></span>httpx_exchange_core()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_exchange_core </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__io.html">brix_io</a> *&#160;</td>
+          <td class="paramname"><em>io</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00164">164</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="http__upload_8c_source.html#l00137">httpx_fmt_put_request()</a>, <a class="el" href="http__upload_8c_source.html#l00071">httpx_upload_body()</a>, <a class="el" href="http__upload_8c_source.html#l00103">httpx_upload_response()</a>, and <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00449">brix_http_upload()</a>, and <a class="el" href="http__upload_8c_source.html#l00182">httpx_upload_exchange()</a>.</p>
+
+</div>
+</div>
+<a id="ad156ac08eaa9b2e98c25001ad7d772ea" name="ad156ac08eaa9b2e98c25001ad7d772ea"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad156ac08eaa9b2e98c25001ad7d772ea">&#9670;&#160;</a></span>httpx_fmt_chunk_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_fmt_chunk_request </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structhttpx__chunk__range__t.html">httpx_chunk_range_t</a> *&#160;</td>
+          <td class="paramname"><em>rng</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>rlen_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00235">235</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+
+<p class="reference">References <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="http__upload_8c_source.html#l00057">httpx_chunk_range_t::len</a>, <a class="el" href="http__upload_8c_source.html#l00056">httpx_chunk_range_t::off</a>, <a class="el" href="http__upload_8c_source.html#l00058">httpx_chunk_range_t::total</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00296">httpx_chunk_core()</a>.</p>
+
+</div>
+</div>
+<a id="ad8ef9edabcfd8da654fdd4cd6ca2eb8b" name="ad8ef9edabcfd8da654fdd4cd6ca2eb8b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad8ef9edabcfd8da654fdd4cd6ca2eb8b">&#9670;&#160;</a></span>httpx_fmt_put_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_fmt_put_request </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>rlen_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00137">137</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+
+<p class="reference">References <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00164">httpx_exchange_core()</a>.</p>
 
 </div>
 </div>
@@ -356,11 +636,101 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00108">108</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00200">200</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00140">httpx_upload_chunk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00266">httpx_chunk_read_status()</a>.</p>
+
+</div>
+</div>
+<a id="ada842fead2a5c899f0bd2b072e3ae87e" name="ada842fead2a5c899f0bd2b072e3ae87e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ada842fead2a5c899f0bd2b072e3ae87e">&#9670;&#160;</a></span>httpx_resumable_attempt()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_resumable_attempt </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structhttpx__chunk__range__t.html">httpx_chunk_range_t</a> *&#160;</td>
+          <td class="paramname"><em>rng</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00345">345</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00387">brix_tls_client_free()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="http__upload_8c_source.html#l00296">httpx_chunk_core()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, and <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00388">brix_http_upload_resumable()</a>.</p>
+
+</div>
+</div>
+<a id="a9153d35cfa3f4688b7aaca3589624cff" name="a9153d35cfa3f4688b7aaca3589624cff"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9153d35cfa3f4688b7aaca3589624cff">&#9670;&#160;</a></span>httpx_resumable_may_retry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int httpx_resumable_may_retry </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structhttpx__upload__ctx__t.html">httpx_upload_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>max_stall_ms</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>deadline</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00370">370</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+
+<p class="reference">References <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00069">brix_status_retryable()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00388">brix_http_upload_resumable()</a>.</p>
 
 </div>
 </div>
@@ -414,11 +784,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00015">15</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00071">71</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00050">brix_status::sys_errno</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>, and <a class="el" href="http__internal_8h_source.html#l00020">XRDC_XFER_BUF</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00140">httpx_upload_chunk()</a>, and <a class="el" href="http__upload_8c_source.html#l00080">httpx_upload_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00296">httpx_chunk_core()</a>, and <a class="el" href="http__upload_8c_source.html#l00164">httpx_exchange_core()</a>.</p>
 
 </div>
 </div>
@@ -520,11 +890,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00140">140</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00318">318</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
 
-<p class="reference">References <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="http__upload_8c_source.html#l00108">httpx_parse_upload_offset()</a>, <a class="el" href="http__upload_8c_source.html#l00015">httpx_upload_body()</a>, <a class="el" href="http__download_8c_source.html#l00087">read_resp_headers()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="http__internal_8h_source.html#l00021">XRDC_HDR_CAP</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00196">brix_http_upload_resumable()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="http__upload_8c_source.html#l00027">httpx_upload_ctx_t::host</a>, <a class="el" href="http__upload_8c_source.html#l00296">httpx_chunk_core()</a>, and <a class="el" href="http__upload_8c_source.html#l00056">httpx_chunk_range_t::off</a>.</p>
 
 </div>
 </div>
@@ -608,11 +976,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00080">80</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00182">182</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
 
-<p class="reference">References <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="http__upload_8c_source.html#l00015">httpx_upload_body()</a>, <a class="el" href="http__upload_8c_source.html#l00047">httpx_upload_response()</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00267">brix_http_upload()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="http__upload_8c_source.html#l00027">httpx_upload_ctx_t::host</a>, and <a class="el" href="http__upload_8c_source.html#l00164">httpx_exchange_core()</a>.</p>
 
 </div>
 </div>
@@ -654,11 +1020,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00047">47</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__upload_8c_source.html#l00103">103</a> of file <a class="el" href="http__upload_8c_source.html">http_upload.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="http__download_8c_source.html#l00087">read_resp_headers()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="http__internal_8h_source.html#l00021">XRDC_HDR_CAP</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00080">httpx_upload_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__upload_8c_source.html#l00164">httpx_exchange_core()</a>.</p>
 
 </div>
 </div>

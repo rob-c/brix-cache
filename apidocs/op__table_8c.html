@@ -103,6 +103,7 @@ $(document).ready(function(){initNavTree('op__table_8c.html',''); initResizable(
 <code>#include &quot;<a class="el" href="error__mapping_8h_source.html">core/compat/error_mapping.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2fs_2vfs_2vfs_8h_source.html">fs/vfs/vfs.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="op__path_8h_source.html">protocols/root/path/op_path.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for op_table.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -115,7 +116,7 @@ $(document).ready(function(){initNavTree('op__table_8c.html',''); initResizable(
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:abb3d991e7dad48d57d2e9bb4c814cd32" id="r_abb3d991e7dad48d57d2e9bb4c814cd32"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="op__table_8c.html#abb3d991e7dad48d57d2e9bb4c814cd32">N_OPS</a>&#160;&#160;&#160;(sizeof(<a class="el" href="op__table_8c.html#ac1cd08a991be2d7f42ba6ffb6499338f">_ops</a>) / sizeof(<a class="el" href="op__table_8c.html#ac1cd08a991be2d7f42ba6ffb6499338f">_ops</a>[0]))</td></tr>
+<tr class="memitem:abb3d991e7dad48d57d2e9bb4c814cd32" id="r_abb3d991e7dad48d57d2e9bb4c814cd32"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="op__table_8c.html#abb3d991e7dad48d57d2e9bb4c814cd32">N_OPS</a>&#160;&#160;&#160;(sizeof(<a class="el" href="op__table_8c.html#a79650cdab76aa691e8b457689169035c">op_table</a>) / sizeof(<a class="el" href="op__table_8c.html#a79650cdab76aa691e8b457689169035c">op_table</a>[0]))</td></tr>
 <tr class="separator:abb3d991e7dad48d57d2e9bb4c814cd32"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
@@ -128,13 +129,13 @@ Functions</h2></td></tr>
 <tr class="separator:ae52621e03f111e9446ec883c478dadc0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a65ba473f95f2a67da82ecf58aecacb1a" id="r_a65ba473f95f2a67da82ecf58aecacb1a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="op__table_8c.html#a65ba473f95f2a67da82ecf58aecacb1a">exec_rmdir</a> (const <a class="el" href="structbrix__op__exec__t.html">brix_op_exec_t</a> *e, int *out_errno)</td></tr>
 <tr class="separator:a65ba473f95f2a67da82ecf58aecacb1a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0a8703e81ead50003d1a90c1a1599841" id="r_a0a8703e81ead50003d1a90c1a1599841"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="op__table_8c.html#a0a8703e81ead50003d1a90c1a1599841">brix_dispatch_op</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, uint16_t opcode)</td></tr>
+<tr class="memitem:a0a8703e81ead50003d1a90c1a1599841" id="r_a0a8703e81ead50003d1a90c1a1599841"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="op__table_8c.html#a0a8703e81ead50003d1a90c1a1599841">brix_dispatch_op</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, uint16_t opcode)</td></tr>
 <tr class="separator:a0a8703e81ead50003d1a90c1a1599841"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
-<tr class="memitem:ac1cd08a991be2d7f42ba6ffb6499338f" id="r_ac1cd08a991be2d7f42ba6ffb6499338f"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structbrix__op__desc__t.html">brix_op_desc_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="op__table_8c.html#ac1cd08a991be2d7f42ba6ffb6499338f">_ops</a> []</td></tr>
-<tr class="separator:ac1cd08a991be2d7f42ba6ffb6499338f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a79650cdab76aa691e8b457689169035c" id="r_a79650cdab76aa691e8b457689169035c"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structbrix__op__desc__t.html">brix_op_desc_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="op__table_8c.html#a79650cdab76aa691e8b457689169035c">op_table</a> []</td></tr>
+<tr class="separator:a79650cdab76aa691e8b457689169035c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="abb3d991e7dad48d57d2e9bb4c814cd32" name="abb3d991e7dad48d57d2e9bb4c814cd32"></a>
@@ -144,12 +145,12 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define N_OPS&#160;&#160;&#160;(sizeof(<a class="el" href="op__table_8c.html#ac1cd08a991be2d7f42ba6ffb6499338f">_ops</a>) / sizeof(<a class="el" href="op__table_8c.html#ac1cd08a991be2d7f42ba6ffb6499338f">_ops</a>[0]))</td>
+          <td class="memname">#define N_OPS&#160;&#160;&#160;(sizeof(<a class="el" href="op__table_8c.html#a79650cdab76aa691e8b457689169035c">op_table</a>) / sizeof(<a class="el" href="op__table_8c.html#a79650cdab76aa691e8b457689169035c">op_table</a>[0]))</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00097">97</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00115">115</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
 
 </div>
 </div>
@@ -192,9 +193,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00101">101</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00119">119</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
 
-<p class="reference">References <a class="el" href="op__table_8c_source.html#l00089">_ops</a>, <a class="el" href="op__table_8h_source.html#l00034">brix_op_desc_t::auth_level</a>, <a class="el" href="auth__gate_8c_source.html#l00331">brix_auth_gate()</a>, <a class="el" href="err__strings_8h_source.html#l00015">brix_kxr_err_string()</a>, <a class="el" href="error__mapping_8c_source.html#l00034">brix_kxr_from_errno()</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="op__path_8c_source.html#l00249">brix_resolve_op_path()</a>, <a class="el" href="tunables_8h_source.html#l00285">BRIX_RETURN_ERR</a>, <a class="el" href="tunables_8h_source.html#l00277">BRIX_RETURN_OK</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="op__table_8h_source.html#l00012">brix_op_exec_t::c</a>, <a class="el" href="op__table_8h_source.html#l00013">brix_op_exec_t::conf</a>, <a class="el" href="op__table_8h_source.html#l00011">brix_op_exec_t::ctx</a>, <a class="el" href="op__table_8h_source.html#l00038">brix_op_desc_t::exec</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="op__table_8c_source.html#l00097">N_OPS</a>, <a class="el" href="op__table_8h_source.html#l00032">brix_op_desc_t::name</a>, <a class="el" href="op__table_8h_source.html#l00035">brix_op_desc_t::need_write</a>, <a class="el" href="op__table_8h_source.html#l00033">brix_op_desc_t::op_id</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="op__table_8h_source.html#l00036">brix_op_desc_t::path_mode</a>, <a class="el" href="op__table_8h_source.html#l00014">brix_op_exec_t::reqpath</a>, <a class="el" href="op__table_8h_source.html#l00015">brix_op_exec_t::resolved</a>, and <a class="el" href="context_8h_source.html#l00292">brix_ctx_t::write_rc</a>.</p>
+<p class="reference">References <a class="el" href="op__table_8h_source.html#l00034">brix_op_desc_t::auth_level</a>, <a class="el" href="auth__gate_8c_source.html#l00482">brix_auth_gate()</a>, <a class="el" href="err__strings_8h_source.html#l00015">brix_kxr_err_string()</a>, <a class="el" href="error__mapping_8c_source.html#l00035">brix_kxr_from_errno()</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="op__path_8c_source.html#l00333">brix_resolve_op_path()</a>, <a class="el" href="tunables_8h_source.html#l00285">BRIX_RETURN_ERR</a>, <a class="el" href="tunables_8h_source.html#l00277">BRIX_RETURN_OK</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="op__table_8h_source.html#l00012">brix_op_exec_t::c</a>, <a class="el" href="op__table_8h_source.html#l00013">brix_op_exec_t::conf</a>, <a class="el" href="op__table_8h_source.html#l00011">brix_op_exec_t::ctx</a>, <a class="el" href="op__table_8h_source.html#l00038">brix_op_desc_t::exec</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="op__table_8c_source.html#l00115">N_OPS</a>, <a class="el" href="op__table_8h_source.html#l00032">brix_op_desc_t::name</a>, <a class="el" href="op__table_8h_source.html#l00035">brix_op_desc_t::need_write</a>, <a class="el" href="op__table_8h_source.html#l00033">brix_op_desc_t::op_id</a>, <a class="el" href="op__table_8c_source.html#l00107">op_table</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="op__table_8h_source.html#l00036">brix_op_desc_t::path_mode</a>, <a class="el" href="op__table_8h_source.html#l00014">brix_op_exec_t::reqpath</a>, <a class="el" href="op__table_8h_source.html#l00015">brix_op_exec_t::resolved</a>, and <a class="el" href="context_8h_source.html#l00304">brix_ctx_t::write_rc</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="chmod_8c_source.html#l00008">brix_handle_chmod()</a>, <a class="el" href="rm_8c_source.html#l00008">brix_handle_rm()</a>, and <a class="el" href="rmdir_8c_source.html#l00008">brix_handle_rmdir()</a>.</p>
 
@@ -234,9 +235,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00026">26</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00044">44</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__mkdir_8c_source.html#l00098">brix_vfs_chmod()</a>, <a class="el" href="op__table_8h_source.html#l00011">brix_op_exec_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00173">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="wire__codec_8h_source.html#l00277">xrdw_chmod_req_t::mode</a>, <a class="el" href="op__table_8c_source.html#l00017">op_vfs_ctx()</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="wire__codec__ns_8c_source.html#l00052">xrdw_chmod_req_unpack()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, <a class="el" href="op__table_8h_source.html#l00011">brix_op_exec_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="wire__codec_8h_source.html#l00277">xrdw_chmod_req_t::mode</a>, <a class="el" href="op__table_8c_source.html#l00031">op_vfs_ctx()</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="wire__codec__ns_8c_source.html#l00052">xrdw_chmod_req_unpack()</a>.</p>
 
 </div>
 </div>
@@ -274,9 +275,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00053">53</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00071">71</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__unlink_8c_source.html#l00151">brix_vfs_unlink()</a>, and <a class="el" href="op__table_8c_source.html#l00017">op_vfs_ctx()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__unlink_8c_source.html#l00273">brix_vfs_unlink()</a>, and <a class="el" href="op__table_8c_source.html#l00031">op_vfs_ctx()</a>.</p>
 
 </div>
 </div>
@@ -314,9 +315,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00070">70</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00088">88</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__unlink_8c_source.html#l00158">brix_vfs_rmdir()</a>, and <a class="el" href="op__table_8c_source.html#l00017">op_vfs_ctx()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__unlink_8c_source.html#l00280">brix_vfs_rmdir()</a>, and <a class="el" href="op__table_8c_source.html#l00031">op_vfs_ctx()</a>.</p>
 
 </div>
 </div>
@@ -354,17 +355,17 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00017">17</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00031">31</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="op__table_8h_source.html#l00012">brix_op_exec_t::c</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="op__table_8h_source.html#l00013">brix_op_exec_t::conf</a>, <a class="el" href="op__table_8h_source.html#l00015">brix_op_exec_t::resolved</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="op__path_8c_source.html#l00412">brix_root_vfs_bind_deleg()</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="op__table_8h_source.html#l00012">brix_op_exec_t::c</a>, <a class="el" href="op__table_8h_source.html#l00013">brix_op_exec_t::conf</a>, <a class="el" href="op__table_8h_source.html#l00011">brix_op_exec_t::ctx</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, and <a class="el" href="op__table_8h_source.html#l00015">brix_op_exec_t::resolved</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="op__table_8c_source.html#l00026">exec_chmod()</a>, <a class="el" href="op__table_8c_source.html#l00053">exec_rm()</a>, and <a class="el" href="op__table_8c_source.html#l00070">exec_rmdir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="op__table_8c_source.html#l00044">exec_chmod()</a>, <a class="el" href="op__table_8c_source.html#l00071">exec_rm()</a>, and <a class="el" href="op__table_8c_source.html#l00088">exec_rmdir()</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Variable Documentation</h2>
-<a id="ac1cd08a991be2d7f42ba6ffb6499338f" name="ac1cd08a991be2d7f42ba6ffb6499338f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac1cd08a991be2d7f42ba6ffb6499338f">&#9670;&#160;</a></span>_ops</h2>
+<a id="a79650cdab76aa691e8b457689169035c" name="a79650cdab76aa691e8b457689169035c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a79650cdab76aa691e8b457689169035c">&#9670;&#160;</a></span>op_table</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -373,7 +374,7 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">const <a class="el" href="structbrix__op__desc__t.html">brix_op_desc_t</a> _ops[]</td>
+          <td class="memname">const <a class="el" href="structbrix__op__desc__t.html">brix_op_desc_t</a> op_table[]</td>
         </tr>
       </table>
   </td>
@@ -392,13 +393,13 @@ Variables</h2></td></tr>
 <div class="line">}</div>
 <div class="ttc" id="aop__path_8h_html_aff78f9df26e17e3057395564c3f0674fa2f178cd1b1a1374997643c775163d574"><div class="ttname"><a href="op__path_8h.html#aff78f9df26e17e3057395564c3f0674fa2f178cd1b1a1374997643c775163d574">BRIX_PATH_EITHER</a></div><div class="ttdeci">@ BRIX_PATH_EITHER</div><div class="ttdef"><b>Definition</b> <a href="op__path_8h_source.html#l00022">op_path.h:22</a></div></div>
 <div class="ttc" id="aop__path_8h_html_aff78f9df26e17e3057395564c3f0674faaea2ecaffb95299f6b25d9975fd7925e"><div class="ttname"><a href="op__path_8h.html#aff78f9df26e17e3057395564c3f0674faaea2ecaffb95299f6b25d9975fd7925e">BRIX_PATH_EXISTING</a></div><div class="ttdeci">@ BRIX_PATH_EXISTING</div><div class="ttdef"><b>Definition</b> <a href="op__path_8h_source.html#l00019">op_path.h:19</a></div></div>
-<div class="ttc" id="aop__table_8c_html_a65ba473f95f2a67da82ecf58aecacb1a"><div class="ttname"><a href="op__table_8c.html#a65ba473f95f2a67da82ecf58aecacb1a">exec_rmdir</a></div><div class="ttdeci">static ngx_int_t exec_rmdir(const brix_op_exec_t *e, int *out_errno)</div><div class="ttdef"><b>Definition</b> <a href="op__table_8c_source.html#l00070">op_table.c:70</a></div></div>
-<div class="ttc" id="aop__table_8c_html_ae52621e03f111e9446ec883c478dadc0"><div class="ttname"><a href="op__table_8c.html#ae52621e03f111e9446ec883c478dadc0">exec_rm</a></div><div class="ttdeci">static ngx_int_t exec_rm(const brix_op_exec_t *e, int *out_errno)</div><div class="ttdef"><b>Definition</b> <a href="op__table_8c_source.html#l00053">op_table.c:53</a></div></div>
-<div class="ttc" id="aop__table_8c_html_affe5b7cf844200f27adce4a37178bdaf"><div class="ttname"><a href="op__table_8c.html#affe5b7cf844200f27adce4a37178bdaf">exec_chmod</a></div><div class="ttdeci">static ngx_int_t exec_chmod(const brix_op_exec_t *e, int *out_errno)</div><div class="ttdef"><b>Definition</b> <a href="op__table_8c_source.html#l00026">op_table.c:26</a></div></div>
+<div class="ttc" id="aop__table_8c_html_a65ba473f95f2a67da82ecf58aecacb1a"><div class="ttname"><a href="op__table_8c.html#a65ba473f95f2a67da82ecf58aecacb1a">exec_rmdir</a></div><div class="ttdeci">static ngx_int_t exec_rmdir(const brix_op_exec_t *e, int *out_errno)</div><div class="ttdef"><b>Definition</b> <a href="op__table_8c_source.html#l00088">op_table.c:88</a></div></div>
+<div class="ttc" id="aop__table_8c_html_ae52621e03f111e9446ec883c478dadc0"><div class="ttname"><a href="op__table_8c.html#ae52621e03f111e9446ec883c478dadc0">exec_rm</a></div><div class="ttdeci">static ngx_int_t exec_rm(const brix_op_exec_t *e, int *out_errno)</div><div class="ttdef"><b>Definition</b> <a href="op__table_8c_source.html#l00071">op_table.c:71</a></div></div>
+<div class="ttc" id="aop__table_8c_html_affe5b7cf844200f27adce4a37178bdaf"><div class="ttname"><a href="op__table_8c.html#affe5b7cf844200f27adce4a37178bdaf">exec_chmod</a></div><div class="ttdeci">static ngx_int_t exec_chmod(const brix_op_exec_t *e, int *out_errno)</div><div class="ttdef"><b>Definition</b> <a href="op__table_8c_source.html#l00044">op_table.c:44</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00089">89</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="op__table_8c_source.html#l00107">107</a> of file <a class="el" href="op__table_8c_source.html">op_table.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="op__table_8c_source.html#l00101">brix_dispatch_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="op__table_8c_source.html#l00119">brix_dispatch_op()</a>.</p>
 
 </div>
 </div>

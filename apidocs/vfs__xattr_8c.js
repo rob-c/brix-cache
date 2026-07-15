@@ -8,5 +8,7 @@ var vfs__xattr_8c =
     [ "brix_vfs_listxattr", "vfs__xattr_8c.html#a2d349ad32fd2fe640205e1be08b5934a", null ],
     [ "brix_vfs_removexattr", "vfs__xattr_8c.html#a91a429402abdc25ea6b35b7329603ecf", null ],
     [ "brix_vfs_setxattr", "vfs__xattr_8c.html#a200b7bdb746adc6a1c1c64581301afe5", null ],
-    [ "brix_vfs_xattr_observe_count", "vfs__xattr_8c.html#a3362fbd81b5e95f274cdfc9e68bb0182", null ]
+    [ "brix_vfs_xattr_observe_count", "vfs__xattr_8c.html#a3362fbd81b5e95f274cdfc9e68bb0182", null ],
+    [ "brix_vfs_xattr_observe_mut", "vfs__xattr_8c.html#a89f28fb0ba6b545a157429d2a1d12d45", null ],
+    [ "brix_vfs_xattr_write_gate", "vfs__xattr_8c.html#a9e786fe14de967edc1acfa2100297967", null ]
 ];

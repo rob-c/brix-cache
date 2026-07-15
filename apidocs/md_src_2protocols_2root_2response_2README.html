@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2response_2REA
   <div class="headertitle"><div class="title">response — XRootD wire-response framing helpers</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md388"></a> </p>
-<h1><a class="anchor" id="autotoc_md389"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md389"></a> </p>
+<h1><a class="anchor" id="autotoc_md390"></a>
 Overview</h1>
 <p>This subsystem is the single, shared toolbox every <code>root://</code> stream handler uses to turn a finished operation into bytes on the wire. It owns the layout of the 8-byte <code><a class="el" href="structServerResponseHdr.html">ServerResponseHdr</a></code> and the bodies that follow it: success (<code>kXR_ok</code>), error (<code>kXR_error</code>), control-flow hints (<code>kXR_redirect</code>, <code>kXR_wait</code>, <code>kXR_waitresp</code>), server-push notifications (<code>kXR_attn</code>), and the CRC32c-protected <code>kXR_status</code> frames required by paged read/write. Handlers never hand-assemble these headers — they call one of the <code>brix_send_*</code> helpers here, which guarantees correct big-endian field order, correct <code>dlen</code> accounting, and consistent stream-ID echo.</p>
 <p>It sits at the very end of the stream request lifecycle. After <code><a class="el" href="root_2handshake_2dispatch_8c.html">handshake/dispatch.c</a></code> routes an opcode to its handler (in <code>read/</code>, <code>write/</code>, <code>query/</code>, <code>dirlist/</code>, <code>fattr/</code>, <code>manager/</code>, <code>cms/</code>, <code>proxy/</code>, <code>tpc/</code>), and after any blocking I/O has been offloaded to and resumed from <code>../aio/</code>, the handler produces an answer by calling a helper in this directory. Every helper allocates its frame from the connection pool (<code>ngx_palloc(c-&gt;pool, …)</code>), fills it, and then delegates the actual socket write — including partial-write/<code>EAGAIN</code> stalling — to <code><a class="el" href="write__helpers_8c.html#acff66d4590ac686b00c600ad86e69627">brix_queue_response()</a></code> in <code>../connection/write_helpers.c</code>. Nothing in this directory performs raw <code>write()</code>/<code>send()</code> or touches the socket directly.</p>
 <p>Only the binary XRootD protocol uses these helpers. WebDAV and S3 build their responses with nginx's HTTP machinery (<code>ngx_http_send_header</code> + output filter chain) and never enter this subsystem; the CMS cluster protocol has its own framing in <code>../cms/</code>. The one piece shared more broadly is CRC32c (<code>crc32c.c</code>), which is a thin wire-facing wrapper over <code>../compat/</code>.</p>
 <p>The functions are intentionally tiny, pure-ish builders so the same response can be constructed identically from the synchronous path and from an AIO completion callback running on the event loop — this is why, for example, <code><a class="el" href="response_8h.html#a33deb60b77dc2751246d3f1d9dd23522">brix_build_pgread_status()</a></code> builds into a caller-provided struct rather than queueing, letting the read path prepend it to a data chain.</p>
-<h1><a class="anchor" id="autotoc_md390"></a>
+<h1><a class="anchor" id="autotoc_md391"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -123,7 +123,7 @@ Files</h1>
 <blockquote class="doxtable">
 <p>&zwj;Note: these <code>.c</code>/<code>.h</code> files are registered for the build in the top-level nginx addon <code>config</code> script (lines ~136–137 for headers, ~475–479 for sources), not in <code><a class="el" href="config_2config_8h.html">src/core/config/config.h</a></code>. <code><a class="el" href="core_2compat_2crc32c_8c.html#a9f29514ad0004dc6804e5e48d53566b0">brix_crc32c_extend()</a></code> is <em>declared</em> in <code><a class="el" href="response_8h.html">response.h</a></code> but <em>defined</em> in <code>../compat/crc32c.c</code>; only the other three CRC entry points are bodied here. </p>
 </blockquote>
-<h1><a class="anchor" id="autotoc_md391"></a>
+<h1><a class="anchor" id="autotoc_md392"></a>
 Key types &amp; data structures</h1>
 <p>These are defined in <code>../protocol/wire_core_requests.h</code> and <code>../protocol/opcodes.h</code>; this subsystem is their primary producer.</p>
 <ul>
@@ -133,7 +133,7 @@ Key types &amp; data structures</h1>
 <li><b>kXR_attn action codes</b> — carried in the leading 4-byte <code>actnum</code> of an attn body. Only <code>kXR_asyncms</code> (5002) and <code>kXR_asynresp</code> (5008) are active; the rest are retired. See the wire layouts documented in <code><a class="el" href="async_8h.html">async.h</a></code> / <code><a class="el" href="async_8c.html">async.c</a></code>.</li>
 <li>**<code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code>** (<code>../types/context.h</code>) — supplies <code>ctx-&gt;cur_streamid</code>, the 2-byte stream ID echoed into every outgoing header so concurrent ops on one connection stay distinguishable.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md392"></a>
+<h1><a class="anchor" id="autotoc_md393"></a>
 Control &amp; data flow</h1>
 <p><b>Entry:</b> a stream operation handler finishes its work and calls a single <code>brix_send_*</code> helper. There is no dispatcher in this directory — it is a leaf utility layer called from many places:</p>
 <ul>
@@ -145,7 +145,7 @@ Control &amp; data flow</h1>
 </ul>
 <p><b>Exit / call-out:</b> every helper ends by calling <code>brix_queue_response(ctx, c, buf, total)</code> in <code>../connection/write_helpers.c</code>, which performs the actual non-blocking send and handles partial-write stalling. <code>crc32c.c</code> calls down into <code>../compat/</code> (<code>crc32c.c</code>, <code>checksum.c</code>). Frame buffers come from the per-connection pool, so they are valid until the request completes and require no manual free.</p>
 <p>See <code>../read/README.md</code>, <code>../write/README.md</code>, <code>../aio/README.md</code>, <code>../connection/README.md</code>, <code>../manager/README.md</code>, <code>../tpc/README.md</code>, <code>../cms/README.md</code>, and <code>../protocol/README.md</code>.</p>
-<h1><a class="anchor" id="autotoc_md393"></a>
+<h1><a class="anchor" id="autotoc_md394"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>All multi-byte fields are big-endian.</b> <code>status</code>/<code>dlen</code> use <code>htons</code>/<code>htonl</code>; 64-bit offsets use <code>htobe64</code>; the attn <code>actnum</code> is <code>htonl</code>'d. Build only through <code><a class="el" href="basic_8c.html#a919558d7a05c6e3ebe008a450bab70b5">brix_build_resp_hdr()</a></code> — never write header fields by hand.</li>
@@ -159,7 +159,7 @@ Invariants, security &amp; gotchas</h1>
 <li>**<code>crc32c_file</code> sentinel.** <code><a class="el" href="protocols_2root_2response_2crc32c_8c.html#a43c342f085a31aa34cf22aff9a93801d">brix_crc32c_file()</a></code> returns <code>(uint32_t)-1</code> on read error; callers must check the sentinel rather than treating it as a valid checksum (<code>crc32c.c:39</code>).</li>
 <li>**<code>brix_send_redirect_tpc</code> opaque buffer is fixed-size.** The <code>?tpc.key=…</code> qualifier is formatted into a 160-byte stack buffer via <code>snprintf</code>; very long keys would truncate (<code><a class="el" href="control_8c.html">control.c</a>:118</code>).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md394"></a>
+<h1><a class="anchor" id="autotoc_md395"></a>
 Entry points / extending</h1>
 <p><b>Add a new control/status response type</b> (e.g. a new server-push or backpressure frame):</p><ol type="1">
 <li>Declare the helper in <code><a class="el" href="response_8h.html">response.h</a></code> (or <code><a class="el" href="async_8h.html">async.h</a></code> for attn-family frames), documenting the exact wire layout in the header comment.</li>
@@ -168,7 +168,7 @@ Entry points / extending</h1>
 <li>Add the three required tests (success + error + security-negative) exercising the new opcode through a real handler.</li>
 </ol>
 <p><b>Add a new opcode that returns an existing frame type:</b> just call the existing helper from the handler in its own subsystem — nothing changes here.</p>
-<h1><a class="anchor" id="autotoc_md395"></a>
+<h1><a class="anchor" id="autotoc_md396"></a>
 See also</h1>
 <ul>
 <li><code>../connection/README.md</code> — <code>brix_queue_response</code> send path and stall handling</li>

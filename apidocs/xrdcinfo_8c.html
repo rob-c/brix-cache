@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('xrdcinfo_8c.html',''); initResizable()
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">xrdcinfo.c File Reference</div></div>
@@ -113,6 +114,13 @@ $(document).ready(function(){initNavTree('xrdcinfo_8c.html',''); initResizable()
 </div>
 <p><a href="xrdcinfo_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structxmeta__state__t.html">xmeta_state_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a10d508f9aee9affa4af0749a14c38c62" id="r_a10d508f9aee9affa4af0749a14c38c62"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a10d508f9aee9affa4af0749a14c38c62">XMETA_STOCK_VERSION</a>&#160;&#160;&#160;4</td></tr>
@@ -144,6 +152,24 @@ Functions</h2></td></tr>
 <tr class="separator:aba6352986bf6c73bccba5e85c307f0ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a846a272a02a9bc97b8a8dafe5776d2eb" id="r_a846a272a02a9bc97b8a8dafe5776d2eb"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a846a272a02a9bc97b8a8dafe5776d2eb">slurp_xattr</a> (const char *path, uint8_t **buf)</td></tr>
 <tr class="separator:a846a272a02a9bc97b8a8dafe5776d2eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac6cd65bdb15b1a7eb2f43e313b50f101" id="r_ac6cd65bdb15b1a7eb2f43e313b50f101"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#ac6cd65bdb15b1a7eb2f43e313b50f101">parse_stock_header</a> (const uint8_t *buf, size_t n, <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *h)</td></tr>
+<tr class="separator:ac6cd65bdb15b1a7eb2f43e313b50f101"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a995409a061c1161ba432b539d975f61a" id="r_a995409a061c1161ba432b539d975f61a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a995409a061c1161ba432b539d975f61a">emit_geometry</a> (const <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *h)</td></tr>
+<tr class="separator:a995409a061c1161ba432b539d975f61a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a82e83822185edb25732f0b9d5163e93e" id="r_a82e83822185edb25732f0b9d5163e93e"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a82e83822185edb25732f0b9d5163e93e">emit_present_bitmap</a> (const <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *h)</td></tr>
+<tr class="separator:a82e83822185edb25732f0b9d5163e93e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a31bbdc267fc90fdcf78ce78b4e57c18b" id="r_a31bbdc267fc90fdcf78ce78b4e57c18b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a31bbdc267fc90fdcf78ce78b4e57c18b">emit_ext_state</a> (const uint8_t *buf, size_t pay, uint32_t plen, <a class="el" href="structxmeta__state__t.html">xmeta_state_t</a> *st)</td></tr>
+<tr class="separator:a31bbdc267fc90fdcf78ce78b4e57c18b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3d11cba83f71f6fd7565e114f8f62479" id="r_a3d11cba83f71f6fd7565e114f8f62479"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a3d11cba83f71f6fd7565e114f8f62479">emit_ext_blockcrc</a> (const uint8_t *buf, size_t n, size_t pay, uint32_t plen)</td></tr>
+<tr class="separator:a3d11cba83f71f6fd7565e114f8f62479"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a338d12a7ed6f9e941956fb3d3cd39593" id="r_a338d12a7ed6f9e941956fb3d3cd39593"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a338d12a7ed6f9e941956fb3d3cd39593">emit_digest_value</a> (const uint8_t *buf, size_t base, uint16_t vl)</td></tr>
+<tr class="separator:a338d12a7ed6f9e941956fb3d3cd39593"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9a5ea2ba23f90f02ee6ee74f79bb1141" id="r_a9a5ea2ba23f90f02ee6ee74f79bb1141"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a9a5ea2ba23f90f02ee6ee74f79bb1141">emit_ext_digest</a> (const uint8_t *buf, size_t pay, uint32_t plen)</td></tr>
+<tr class="separator:a9a5ea2ba23f90f02ee6ee74f79bb1141"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa02693fab53d743f59cbb143d9383ba2" id="r_aa02693fab53d743f59cbb143d9383ba2"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#aa02693fab53d743f59cbb143d9383ba2">emit_ext_sections</a> (const uint8_t *buf, size_t n, const <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *h, <a class="el" href="structxmeta__state__t.html">xmeta_state_t</a> *st)</td></tr>
+<tr class="separator:aa02693fab53d743f59cbb143d9383ba2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a48ae968c12dfe1be650e181b20d9ee31" id="r_a48ae968c12dfe1be650e181b20d9ee31"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a48ae968c12dfe1be650e181b20d9ee31">emit_flags</a> (const <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *h, const <a class="el" href="structxmeta__state__t.html">xmeta_state_t</a> *st, uint64_t present)</td></tr>
+<tr class="separator:a48ae968c12dfe1be650e181b20d9ee31"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a11735521644fa1ae0a7e11b022f3c493" id="r_a11735521644fa1ae0a7e11b022f3c493"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a11735521644fa1ae0a7e11b022f3c493">dump_record</a> (const uint8_t *buf, size_t n)</td></tr>
 <tr class="separator:a11735521644fa1ae0a7e11b022f3c493"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1a6b85888d1ed1db4f6ac580bdd12af7" id="r_a1a6b85888d1ed1db4f6ac580bdd12af7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcinfo_8c.html#a1a6b85888d1ed1db4f6ac580bdd12af7">brix_xrdcinfo_main</a> (int argc, char **argv)</td></tr>
@@ -305,9 +331,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00260">260</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00428">428</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="xrdcinfo_8c_source.html#l00118">dump_record()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00059">slurp_file()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00096">slurp_xattr()</a>.</p>
+<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="xrdcinfo_8c_source.html#l00409">dump_record()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00059">slurp_file()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00096">slurp_xattr()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcksum_8c_source.html#l00056">dispatch()</a>.</p>
 
@@ -347,11 +373,427 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00118">118</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00409">409</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00029">F_VERIFIED</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="xrdcinfo_8c_source.html#l00033">rd_u16()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00039">rd_u32()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00046">rd_u64()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00027">SEC_BLOCKCRC</a>, <a class="el" href="xrdcinfo_8c_source.html#l00026">SEC_DIGEST</a>, <a class="el" href="xrdcinfo_8c_source.html#l00025">SEC_STATE</a>, <a class="el" href="xrdcinfo_8c_source.html#l00024">XMETA_EXT_MAGIC</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00023">XMETA_STOCK_VERSION</a>.</p>
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00335">emit_ext_sections()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00379">emit_flags()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00191">emit_geometry()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00206">emit_present_bitmap()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00156">parse_stock_header()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00260">brix_xrdcinfo_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00428">brix_xrdcinfo_main()</a>.</p>
+
+</div>
+</div>
+<a id="a338d12a7ed6f9e941956fb3d3cd39593" name="a338d12a7ed6f9e941956fb3d3cd39593"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a338d12a7ed6f9e941956fb3d3cd39593">&#9670;&#160;</a></span>emit_digest_value()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void emit_digest_value </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>base</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>vl</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00281">281</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00304">emit_ext_digest()</a>.</p>
+
+</div>
+</div>
+<a id="a3d11cba83f71f6fd7565e114f8f62479" name="a3d11cba83f71f6fd7565e114f8f62479"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3d11cba83f71f6fd7565e114f8f62479">&#9670;&#160;</a></span>emit_ext_blockcrc()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void emit_ext_blockcrc </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>pay</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>plen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00256">256</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00039">rd_u32()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00046">rd_u64()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00335">emit_ext_sections()</a>.</p>
+
+</div>
+</div>
+<a id="a9a5ea2ba23f90f02ee6ee74f79bb1141" name="a9a5ea2ba23f90f02ee6ee74f79bb1141"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9a5ea2ba23f90f02ee6ee74f79bb1141">&#9670;&#160;</a></span>emit_ext_digest()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void emit_ext_digest </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>pay</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>plen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00304">304</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00281">emit_digest_value()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00033">rd_u16()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00335">emit_ext_sections()</a>.</p>
+
+</div>
+</div>
+<a id="aa02693fab53d743f59cbb143d9383ba2" name="aa02693fab53d743f59cbb143d9383ba2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa02693fab53d743f59cbb143d9383ba2">&#9670;&#160;</a></span>emit_ext_sections()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void emit_ext_sections </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *&#160;</td>
+          <td class="paramname"><em>h</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structxmeta__state__t.html">xmeta_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00335">335</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00256">emit_ext_blockcrc()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00304">emit_ext_digest()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00233">emit_ext_state()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00129">xmeta_hdr_t::ext_off</a>, <a class="el" href="xrdcinfo_8c_source.html#l00033">rd_u16()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00039">rd_u32()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00027">SEC_BLOCKCRC</a>, <a class="el" href="xrdcinfo_8c_source.html#l00026">SEC_DIGEST</a>, <a class="el" href="xrdcinfo_8c_source.html#l00025">SEC_STATE</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00024">XMETA_EXT_MAGIC</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00409">dump_record()</a>.</p>
+
+</div>
+</div>
+<a id="a31bbdc267fc90fdcf78ce78b4e57c18b" name="a31bbdc267fc90fdcf78ce78b4e57c18b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a31bbdc267fc90fdcf78ce78b4e57c18b">&#9670;&#160;</a></span>emit_ext_state()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void emit_ext_state </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>pay</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>plen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structxmeta__state__t.html">xmeta_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00233">233</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00141">xmeta_state_t::dirty_hi</a>, <a class="el" href="xrdcinfo_8c_source.html#l00140">xmeta_state_t::dirty_lo</a>, <a class="el" href="xrdcinfo_8c_source.html#l00143">xmeta_state_t::flags</a>, <a class="el" href="xrdcinfo_8c_source.html#l00144">xmeta_state_t::have_state</a>, <a class="el" href="xrdcinfo_8c_source.html#l00142">xmeta_state_t::mode</a>, <a class="el" href="xrdcinfo_8c_source.html#l00039">rd_u32()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00046">rd_u64()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00335">emit_ext_sections()</a>.</p>
+
+</div>
+</div>
+<a id="a48ae968c12dfe1be650e181b20d9ee31" name="a48ae968c12dfe1be650e181b20d9ee31"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a48ae968c12dfe1be650e181b20d9ee31">&#9670;&#160;</a></span>emit_flags()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void emit_flags </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *&#160;</td>
+          <td class="paramname"><em>h</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structxmeta__state__t.html">xmeta_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>present</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00379">379</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00141">xmeta_state_t::dirty_hi</a>, <a class="el" href="xrdcinfo_8c_source.html#l00140">xmeta_state_t::dirty_lo</a>, <a class="el" href="xrdcinfo_8c_source.html#l00029">F_VERIFIED</a>, <a class="el" href="xrdcinfo_8c_source.html#l00143">xmeta_state_t::flags</a>, <a class="el" href="xrdcinfo_8c_source.html#l00144">xmeta_state_t::have_state</a>, <a class="el" href="xrdcinfo_8c_source.html#l00142">xmeta_state_t::mode</a>, <a class="el" href="xrdcinfo_8c_source.html#l00127">xmeta_hdr_t::nblocks</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00126">xmeta_hdr_t::no_cksum</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00409">dump_record()</a>.</p>
+
+</div>
+</div>
+<a id="a995409a061c1161ba432b539d975f61a" name="a995409a061c1161ba432b539d975f61a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a995409a061c1161ba432b539d975f61a">&#9670;&#160;</a></span>emit_geometry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void emit_geometry </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *&#160;</td>
+          <td class="paramname"><em>h</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00191">191</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00124">xmeta_hdr_t::bsize</a>, <a class="el" href="xrdcinfo_8c_source.html#l00127">xmeta_hdr_t::nblocks</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00125">xmeta_hdr_t::size</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00409">dump_record()</a>.</p>
+
+</div>
+</div>
+<a id="a82e83822185edb25732f0b9d5163e93e" name="a82e83822185edb25732f0b9d5163e93e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a82e83822185edb25732f0b9d5163e93e">&#9670;&#160;</a></span>emit_present_bitmap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static uint64_t emit_present_bitmap </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *&#160;</td>
+          <td class="paramname"><em>h</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00206">206</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00128">xmeta_hdr_t::bm</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00127">xmeta_hdr_t::nblocks</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00409">dump_record()</a>.</p>
+
+</div>
+</div>
+<a id="ac6cd65bdb15b1a7eb2f43e313b50f101" name="ac6cd65bdb15b1a7eb2f43e313b50f101"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac6cd65bdb15b1a7eb2f43e313b50f101">&#9670;&#160;</a></span>parse_stock_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int parse_stock_header </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structxmeta__hdr__t.html">xmeta_hdr_t</a> *&#160;</td>
+          <td class="paramname"><em>h</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00156">156</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcinfo_8c_source.html#l00128">xmeta_hdr_t::bm</a>, <a class="el" href="xrdcinfo_8c_source.html#l00124">xmeta_hdr_t::bsize</a>, <a class="el" href="xrdcinfo_8c_source.html#l00129">xmeta_hdr_t::ext_off</a>, <a class="el" href="xrdcinfo_8c_source.html#l00127">xmeta_hdr_t::nblocks</a>, <a class="el" href="xrdcinfo_8c_source.html#l00126">xmeta_hdr_t::no_cksum</a>, <a class="el" href="xrdcinfo_8c_source.html#l00039">rd_u32()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00046">rd_u64()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00125">xmeta_hdr_t::size</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00023">XMETA_STOCK_VERSION</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00409">dump_record()</a>.</p>
 
 </div>
 </div>
@@ -391,7 +833,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00033">33</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00118">dump_record()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00304">emit_ext_digest()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00335">emit_ext_sections()</a>.</p>
 
 </div>
 </div>
@@ -431,7 +873,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00039">39</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00118">dump_record()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00256">emit_ext_blockcrc()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00335">emit_ext_sections()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00233">emit_ext_state()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00156">parse_stock_header()</a>.</p>
 
 </div>
 </div>
@@ -471,7 +913,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00046">46</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00118">dump_record()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00256">emit_ext_blockcrc()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00233">emit_ext_state()</a>, and <a class="el" href="xrdcinfo_8c_source.html#l00156">parse_stock_header()</a>.</p>
 
 </div>
 </div>
@@ -511,7 +953,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00059">59</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00260">brix_xrdcinfo_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00428">brix_xrdcinfo_main()</a>.</p>
 
 </div>
 </div>
@@ -551,7 +993,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcinfo_8c_source.html#l00096">96</a> of file <a class="el" href="xrdcinfo_8c_source.html">xrdcinfo.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00260">brix_xrdcinfo_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcinfo_8c_source.html#l00428">brix_xrdcinfo_main()</a>.</p>
 
 </div>
 </div>

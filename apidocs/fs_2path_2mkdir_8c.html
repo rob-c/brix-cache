@@ -91,6 +91,8 @@ $(document).ready(function(){initNavTree('fs_2path_2mkdir_8c.html',''); initResi
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">mkdir.c File Reference</div></div>
 </div><!--header-->
@@ -112,18 +114,407 @@ $(document).ready(function(){initNavTree('fs_2path_2mkdir_8c.html',''); initResi
 </div>
 <p><a href="fs_2path_2mkdir_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__mkdir__walk__s.html">brix_mkdir_walk_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:a36d601d050ab9f60b03f77d3d244cd02" id="r_a36d601d050ab9f60b03f77d3d244cd02"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a36d601d050ab9f60b03f77d3d244cd02">BRIX_MKDIR_ERROR</a>&#160;&#160;&#160;(-1)</td></tr>
+<tr class="separator:a36d601d050ab9f60b03f77d3d244cd02"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0c732669ff6299f4df782dd35555366d" id="r_a0c732669ff6299f4df782dd35555366d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a0c732669ff6299f4df782dd35555366d">BRIX_MKDIR_CREATED</a>&#160;&#160;&#160;(0)</td></tr>
+<tr class="separator:a0c732669ff6299f4df782dd35555366d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2802ede4ba5ae2522ffdc0c320027198" id="r_a2802ede4ba5ae2522ffdc0c320027198"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a2802ede4ba5ae2522ffdc0c320027198">BRIX_MKDIR_EXISTED</a>&#160;&#160;&#160;(1)</td></tr>
+<tr class="separator:a2802ede4ba5ae2522ffdc0c320027198"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a14feace5f89eca09df4ccdf548a10ad1" id="r_a14feace5f89eca09df4ccdf548a10ad1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a14feace5f89eca09df4ccdf548a10ad1">brix_mkdir_recursive</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a3d298d966fd24e6efc485ae2c0889594" id="r_a3d298d966fd24e6efc485ae2c0889594"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a3d298d966fd24e6efc485ae2c0889594">brix_mkdir_copy_tmp</a> (char *tmp, const char *src, int *out_len)</td></tr>
+<tr class="separator:a3d298d966fd24e6efc485ae2c0889594"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a23ee19104a96968d25c2a01e7ab32730" id="r_a23ee19104a96968d25c2a01e7ab32730"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a23ee19104a96968d25c2a01e7ab32730">brix_mkdir_confined_start</a> (char *tmp, const char *root_canon, size_t root_len)</td></tr>
+<tr class="separator:a23ee19104a96968d25c2a01e7ab32730"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0a0f2ced380b787c9833f4c14277b648" id="r_a0a0f2ced380b787c9833f4c14277b648"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a0a0f2ced380b787c9833f4c14277b648">brix_mkdir_apply_policy</a> (const brix_mkdir_walk_t *w, const char *dir, int made)</td></tr>
+<tr class="separator:a0a0f2ced380b787c9833f4c14277b648"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a843b21bec603412f42d7063d4efb20cb" id="r_a843b21bec603412f42d7063d4efb20cb"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a843b21bec603412f42d7063d4efb20cb">brix_mkdir_one_level</a> (const brix_mkdir_walk_t *w, const char *dir)</td></tr>
+<tr class="separator:a843b21bec603412f42d7063d4efb20cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad08e8e277080005617bfc1ed1a42f0f5" id="r_ad08e8e277080005617bfc1ed1a42f0f5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#ad08e8e277080005617bfc1ed1a42f0f5">brix_mkdir_walk</a> (const brix_mkdir_walk_t *w, char *tmp, char *p)</td></tr>
+<tr class="separator:ad08e8e277080005617bfc1ed1a42f0f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2c72d75229e13aca3aef2c922c5bd674" id="r_a2c72d75229e13aca3aef2c922c5bd674"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a2c72d75229e13aca3aef2c922c5bd674">brix_mkdir_level_plain</a> (const brix_mkdir_walk_t *w, const char *dir)</td></tr>
+<tr class="separator:a2c72d75229e13aca3aef2c922c5bd674"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a61f9090638c28056e0a3b6815f0a0195" id="r_a61f9090638c28056e0a3b6815f0a0195"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a61f9090638c28056e0a3b6815f0a0195">brix_mkdir_level_confined</a> (const brix_mkdir_walk_t *w, const char *dir)</td></tr>
+<tr class="separator:a61f9090638c28056e0a3b6815f0a0195"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa117dc128412ebef46cf3ff7503c6740" id="r_aa117dc128412ebef46cf3ff7503c6740"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#aa117dc128412ebef46cf3ff7503c6740">brix_mkdir_level_beneath</a> (const brix_mkdir_walk_t *w, const char *dir)</td></tr>
+<tr class="separator:aa117dc128412ebef46cf3ff7503c6740"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a14feace5f89eca09df4ccdf548a10ad1" id="r_a14feace5f89eca09df4ccdf548a10ad1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#a14feace5f89eca09df4ccdf548a10ad1">brix_mkdir_recursive</a> (const char *path, mode_t mode)</td></tr>
 <tr class="separator:a14feace5f89eca09df4ccdf548a10ad1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae206dccc143bff0e4646fa9ea095a611" id="r_ae206dccc143bff0e4646fa9ea095a611"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#ae206dccc143bff0e4646fa9ea095a611">brix_mkdir_recursive_policy</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_array_t *rules)</td></tr>
+<tr class="memitem:ae206dccc143bff0e4646fa9ea095a611" id="r_ae206dccc143bff0e4646fa9ea095a611"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#ae206dccc143bff0e4646fa9ea095a611">brix_mkdir_recursive_policy</a> (const char *path, mode_t mode, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_array_t *rules)</td></tr>
 <tr class="separator:ae206dccc143bff0e4646fa9ea095a611"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac0648f731791bad0fcc01d2a418ed2f5" id="r_ac0648f731791bad0fcc01d2a418ed2f5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#ac0648f731791bad0fcc01d2a418ed2f5">brix_mkdir_recursive_confined_canon</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *resolved, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, ngx_array_t *rules)</td></tr>
+<tr class="memitem:ac0648f731791bad0fcc01d2a418ed2f5" id="r_ac0648f731791bad0fcc01d2a418ed2f5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#ac0648f731791bad0fcc01d2a418ed2f5">brix_mkdir_recursive_confined_canon</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *resolved, mode_t mode, ngx_array_t *rules)</td></tr>
 <tr class="separator:ac0648f731791bad0fcc01d2a418ed2f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa2ea0dd92a50ae503adc7dbfdd9f575a" id="r_aa2ea0dd92a50ae503adc7dbfdd9f575a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#aa2ea0dd92a50ae503adc7dbfdd9f575a">brix_mkdir_recursive_beneath</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, int rootfd, const char *root_canon, const char *resolved, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, ngx_array_t *rules)</td></tr>
+<tr class="memitem:aa2ea0dd92a50ae503adc7dbfdd9f575a" id="r_aa2ea0dd92a50ae503adc7dbfdd9f575a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs_2path_2mkdir_8c.html#aa2ea0dd92a50ae503adc7dbfdd9f575a">brix_mkdir_recursive_beneath</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, int rootfd, const char *root_canon, const char *resolved, mode_t mode, ngx_array_t *rules)</td></tr>
 <tr class="separator:aa2ea0dd92a50ae503adc7dbfdd9f575a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a0c732669ff6299f4df782dd35555366d" name="a0c732669ff6299f4df782dd35555366d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0c732669ff6299f4df782dd35555366d">&#9670;&#160;</a></span>BRIX_MKDIR_CREATED</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define BRIX_MKDIR_CREATED&#160;&#160;&#160;(0)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00026">26</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+</div>
+</div>
+<a id="a36d601d050ab9f60b03f77d3d244cd02" name="a36d601d050ab9f60b03f77d3d244cd02"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a36d601d050ab9f60b03f77d3d244cd02">&#9670;&#160;</a></span>BRIX_MKDIR_ERROR</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define BRIX_MKDIR_ERROR&#160;&#160;&#160;(-1)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00025">25</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+</div>
+</div>
+<a id="a2802ede4ba5ae2522ffdc0c320027198" name="a2802ede4ba5ae2522ffdc0c320027198"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2802ede4ba5ae2522ffdc0c320027198">&#9670;&#160;</a></span>BRIX_MKDIR_EXISTED</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define BRIX_MKDIR_EXISTED&#160;&#160;&#160;(1)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00027">27</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a0a0f2ced380b787c9833f4c14277b648" name="a0a0f2ced380b787c9833f4c14277b648"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0a0f2ced380b787c9833f4c14277b648">&#9670;&#160;</a></span>brix_mkdir_apply_policy()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_mkdir_apply_policy </td>
+          <td>(</td>
+          <td class="paramtype">const brix_mkdir_walk_t *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>made</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00143">143</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00287">brix_apply_parent_group_policy_path()</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00026">BRIX_MKDIR_CREATED</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00177">brix_mkdir_one_level()</a>.</p>
+
+</div>
+</div>
+<a id="a23ee19104a96968d25c2a01e7ab32730" name="a23ee19104a96968d25c2a01e7ab32730"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a23ee19104a96968d25c2a01e7ab32730">&#9670;&#160;</a></span>brix_mkdir_confined_start()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static char * brix_mkdir_confined_start </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>tmp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>root_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00106">106</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00369">brix_mkdir_recursive_beneath()</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00330">brix_mkdir_recursive_confined_canon()</a>.</p>
+
+</div>
+</div>
+<a id="a3d298d966fd24e6efc485ae2c0889594" name="a3d298d966fd24e6efc485ae2c0889594"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3d298d966fd24e6efc485ae2c0889594">&#9670;&#160;</a></span>brix_mkdir_copy_tmp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_mkdir_copy_tmp </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>tmp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>out_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00071">71</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00369">brix_mkdir_recursive_beneath()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00330">brix_mkdir_recursive_confined_canon()</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00300">brix_mkdir_recursive_policy()</a>.</p>
+
+</div>
+</div>
+<a id="aa117dc128412ebef46cf3ff7503c6740" name="aa117dc128412ebef46cf3ff7503c6740"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa117dc128412ebef46cf3ff7503c6740">&#9670;&#160;</a></span>brix_mkdir_level_beneath()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_mkdir_level_beneath </td>
+          <td>(</td>
+          <td class="paramtype">const brix_mkdir_walk_t *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00269">269</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00026">BRIX_MKDIR_CREATED</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00025">BRIX_MKDIR_ERROR</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00027">BRIX_MKDIR_EXISTED</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00369">brix_mkdir_recursive_beneath()</a>.</p>
+
+</div>
+</div>
+<a id="a61f9090638c28056e0a3b6815f0a0195" name="a61f9090638c28056e0a3b6815f0a0195"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a61f9090638c28056e0a3b6815f0a0195">&#9670;&#160;</a></span>brix_mkdir_level_confined()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_mkdir_level_confined </td>
+          <td>(</td>
+          <td class="paramtype">const brix_mkdir_walk_t *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00250">250</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00026">BRIX_MKDIR_CREATED</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00025">BRIX_MKDIR_ERROR</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00027">BRIX_MKDIR_EXISTED</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00330">brix_mkdir_recursive_confined_canon()</a>.</p>
+
+</div>
+</div>
+<a id="a2c72d75229e13aca3aef2c922c5bd674" name="a2c72d75229e13aca3aef2c922c5bd674"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2c72d75229e13aca3aef2c922c5bd674">&#9670;&#160;</a></span>brix_mkdir_level_plain()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_mkdir_level_plain </td>
+          <td>(</td>
+          <td class="paramtype">const brix_mkdir_walk_t *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00231">231</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00026">BRIX_MKDIR_CREATED</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00025">BRIX_MKDIR_ERROR</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00027">BRIX_MKDIR_EXISTED</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00300">brix_mkdir_recursive_policy()</a>.</p>
+
+</div>
+</div>
+<a id="a843b21bec603412f42d7063d4efb20cb" name="a843b21bec603412f42d7063d4efb20cb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a843b21bec603412f42d7063d4efb20cb">&#9670;&#160;</a></span>brix_mkdir_one_level()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_mkdir_one_level </td>
+          <td>(</td>
+          <td class="paramtype">const brix_mkdir_walk_t *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00177">177</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00143">brix_mkdir_apply_policy()</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00025">BRIX_MKDIR_ERROR</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00203">brix_mkdir_walk()</a>.</p>
+
+</div>
+</div>
 <a id="a14feace5f89eca09df4ccdf548a10ad1" name="a14feace5f89eca09df4ccdf548a10ad1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a14feace5f89eca09df4ccdf548a10ad1">&#9670;&#160;</a></span>brix_mkdir_recursive()</h2>
 
@@ -150,11 +541,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00020">20</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00286">286</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00034">brix_mkdir_recursive_policy()</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00300">brix_mkdir_recursive_policy()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="paths_8c_source.html#l00044">brix_cache_ensure_parent()</a>, <a class="el" href="runtime__server_8c_source.html#l00060">brix_storage_backend_posix_root()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00823">brix_vfs_backend_register_http_upstream()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="paths_8c_source.html#l00044">brix_cache_ensure_parent()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00063">brix_storage_backend_posix_root()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00231">brix_vfs_backend_register_http_upstream()</a>.</p>
 
 </div>
 </div>
@@ -208,11 +599,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00162">162</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00369">369</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00157">brix_apply_parent_group_policy_path()</a>, <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00106">brix_mkdir_confined_start()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00071">brix_mkdir_copy_tmp()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00269">brix_mkdir_level_beneath()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00203">brix_mkdir_walk()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00239">brix_ns_mkdir()</a>, and <a class="el" href="net_2cms_2recv_8c_source.html#l00095">cms_node_exec_forward()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00229">brix_ns_mkdir()</a>, and <a class="el" href="recv__forward_8c_source.html#l00180">cms_posix_apply()</a>.</p>
 
 </div>
 </div>
@@ -260,11 +651,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00095">95</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00330">330</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00157">brix_apply_parent_group_policy_path()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00106">brix_mkdir_confined_start()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00071">brix_mkdir_copy_tmp()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00250">brix_mkdir_level_confined()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00203">brix_mkdir_walk()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00333">brix_vfs_mkdir_parent_path()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00088">brix_vfs_mkdir_parent_path()</a>.</p>
 
 </div>
 </div>
@@ -306,11 +697,59 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00034">34</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00300">300</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="group__policy_8c_source.html#l00157">brix_apply_parent_group_policy_path()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00071">brix_mkdir_copy_tmp()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00231">brix_mkdir_level_plain()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00203">brix_mkdir_walk()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="mv_8c_source.html#l00027">brix_handle_mv()</a>, <a class="el" href="open__request_8c_source.html#l00269">brix_handle_open()</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00020">brix_mkdir_recursive()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00286">brix_mkdir_recursive()</a>, <a class="el" href="open__request_8c_source.html#l00561">brix_open_write_resolve()</a>, <a class="el" href="mv_8c_source.html#l00224">mv_make_dst_parents()</a>, and <a class="el" href="open__tpc_8c_source.html#l00031">tpc_handle_dest()</a>.</p>
+
+</div>
+</div>
+<a id="ad08e8e277080005617bfc1ed1a42f0f5" name="ad08e8e277080005617bfc1ed1a42f0f5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad08e8e277080005617bfc1ed1a42f0f5">&#9670;&#160;</a></span>brix_mkdir_walk()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_mkdir_walk </td>
+          <td>(</td>
+          <td class="paramtype">const brix_mkdir_walk_t *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>tmp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>p</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs_2path_2mkdir_8c_source.html#l00203">203</a> of file <a class="el" href="fs_2path_2mkdir_8c_source.html">mkdir.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00177">brix_mkdir_one_level()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs_2path_2mkdir_8c_source.html#l00369">brix_mkdir_recursive_beneath()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00330">brix_mkdir_recursive_confined_canon()</a>, and <a class="el" href="fs_2path_2mkdir_8c_source.html#l00300">brix_mkdir_recursive_policy()</a>.</p>
 
 </div>
 </div>

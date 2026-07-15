@@ -103,14 +103,14 @@ $(document).ready(function(){initNavTree('tpc__cred__internal_8h.html',''); init
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="tpc__cred__internal_8h__incl.svg" width="100%" height="580"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="tpc__cred__internal_8h__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div><div class="textblock"><div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-1-trigger" src="closed.png" alt="+"/> This graph shows which files directly or indirectly include this file:</div>
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="tpc__cred__internal_8h__dep__incl.svg" width="355" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="tpc__cred__internal_8h__dep__incl.svg" width="100%" height="404"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="tpc__cred__internal_8h_source.html">Go to the source code of this file.</a></p>
@@ -124,6 +124,12 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a3902de87d52cdccd20edc8b84bdf3b95" id="r_a3902de87d52cdccd20edc8b84bdf3b95"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred__internal_8h.html#a3902de87d52cdccd20edc8b84bdf3b95">tpc_cred_parse_token_response</a> (ngx_http_request_t *r, const char *json, ngx_str_t *token_out)</td></tr>
 <tr class="separator:a3902de87d52cdccd20edc8b84bdf3b95"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a83c52b002ba6e8081984793fa7649ae9" id="r_a83c52b002ba6e8081984793fa7649ae9"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred__internal_8h.html#a83c52b002ba6e8081984793fa7649ae9">tpc_cred_oidc_agent_fetch</a> (ngx_http_request_t *r, const char *source_url, const char *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, ngx_str_t *token_out)</td></tr>
+<tr class="memdesc:a83c52b002ba6e8081984793fa7649ae9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Send a JSON request to the oidc-agent UNIX socket and read the token.  <br /></td></tr>
+<tr class="separator:a83c52b002ba6e8081984793fa7649ae9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aba06335d1f1b75f1351b2dfe3f67a8ac" id="r_aba06335d1f1b75f1351b2dfe3f67a8ac"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__cred__internal_8h.html#aba06335d1f1b75f1351b2dfe3f67a8ac">tpc_cred_rfc8693_exchange</a> (ngx_http_request_t *r, const char *subject_token, const char *source_url, const char *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, const char *token_endpoint, const char *client_id, const char *client_secret, ngx_str_t *token_out)</td></tr>
+<tr class="memdesc:aba06335d1f1b75f1351b2dfe3f67a8ac"><td class="mdescLeft">&#160;</td><td class="mdescRight">Perform an RFC 8693 token-exchange request.  <br /></td></tr>
+<tr class="separator:aba06335d1f1b75f1351b2dfe3f67a8ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a2883c92c2daabb71f523c0a12ca47248" name="a2883c92c2daabb71f523c0a12ca47248"></a>
@@ -143,6 +149,57 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a83c52b002ba6e8081984793fa7649ae9" name="a83c52b002ba6e8081984793fa7649ae9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a83c52b002ba6e8081984793fa7649ae9">&#9670;&#160;</a></span>tpc_cred_oidc_agent_fetch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t tpc_cred_oidc_agent_fetch </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>source_url</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>scope</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>token_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Send a JSON request to the oidc-agent UNIX socket and read the token. </p>
+<p>Spawns a tiny fork/exec pipeline: nginx-worker → fork → exec "oidc-token -c &lt;client&gt;" or socket helper</p>
+<p>If the OIDC_SOCK environment variable is set, we connect directly to it. Otherwise we fall back to the default oidc-agent socket location.</p>
+<p>The helper process is: src/webdav/tpc_cred_oidc_helper (built separately) which handles the socket IPC. If that helper binary is not found we attempt a simpler approach using the <code>oidc-token</code> CLI if available. </p>
+
+<p class="definition">Definition at line <a class="el" href="tpc__cred__oidc_8c_source.html#l00364">364</a> of file <a class="el" href="tpc__cred__oidc_8c_source.html">tpc_cred_oidc.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__cred__oidc_8c_source.html#l00267">oidc_drain_pipe()</a>, <a class="el" href="tpc__cred__oidc_8c_source.html#l00319">oidc_finalize_token()</a>, <a class="el" href="tpc__cred__oidc_8c_source.html#l00294">oidc_reap_child()</a>, <a class="el" href="tpc__cred__oidc_8c_source.html#l00104">oidc_resolve_helper_path()</a>, <a class="el" href="tpc__cred__oidc_8c_source.html#l00078">oidc_resolve_socket_path()</a>, <a class="el" href="tpc__cred__oidc_8c_source.html#l00231">oidc_run_child()</a>, <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>, and <a class="el" href="tpc__cred__internal_8h_source.html#l00008">TPC_CRED_MAX_TOKEN_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00135">tpc_cred_run_oidc_agent()</a>.</p>
+
+</div>
+</div>
 <a id="a3902de87d52cdccd20edc8b84bdf3b95" name="a3902de87d52cdccd20edc8b84bdf3b95"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a3902de87d52cdccd20edc8b84bdf3b95">&#9670;&#160;</a></span>tpc_cred_parse_token_response()</h2>
 
@@ -179,7 +236,81 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="oauth2_8c_source.html#l00032">brix_oauth2_parse_access_token()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="tpc__cred__internal_8h_source.html#l00008">TPC_CRED_MAX_TOKEN_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00112">tpc_cred_oidc_agent_fetch()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00340">tpc_cred_rfc8693_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__cred__oidc_8c_source.html#l00319">oidc_finalize_token()</a>, and <a class="el" href="tpc__cred__exchange_8c_source.html#l00048">tpc_cred_rfc8693_exchange()</a>.</p>
+
+</div>
+</div>
+<a id="aba06335d1f1b75f1351b2dfe3f67a8ac" name="aba06335d1f1b75f1351b2dfe3f67a8ac"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aba06335d1f1b75f1351b2dfe3f67a8ac">&#9670;&#160;</a></span>tpc_cred_rfc8693_exchange()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t tpc_cred_rfc8693_exchange </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>subject_token</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>source_url</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>scope</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>token_endpoint</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>client_id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>client_secret</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>token_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Perform an RFC 8693 token-exchange request. </p>
+<p>Sends a POST to the configured token endpoint with: grant_type=urn:ietf:params:oauth:grant-type:token-exchange subject_token=&lt;JWT&gt; resource=&lt;source_url&gt; audience=&lt;source_url&gt; scope=&lt;scope&gt;</p>
+<p>Uses a fork/exec'd curl subprocess (same pattern as <a class="el" href="tpc__curl_8c.html">tpc_curl.c</a>). </p>
+
+<p class="definition">Definition at line <a class="el" href="tpc__cred__exchange_8c_source.html#l00048">48</a> of file <a class="el" href="tpc__cred__exchange_8c_source.html">tpc_cred_exchange.c</a>.</p>
+
+<p class="reference">References <a class="el" href="subprocess_8c_source.html#l00165">brix_subprocess_capture()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>, <a class="el" href="tpc__cred__internal_8h_source.html#l00008">TPC_CRED_MAX_TOKEN_LEN</a>, and <a class="el" href="tpc__cred__parse_8c_source.html#l00021">tpc_cred_parse_token_response()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__cred_8c_source.html#l00151">tpc_cred_run_token_exchange()</a>.</p>
 
 </div>
 </div>

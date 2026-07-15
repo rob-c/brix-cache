@@ -8,6 +8,8 @@ var sd__remote_8c =
     [ "sd_remote_close", "sd__remote_8c.html#ae2ed22148f461a79d70e69d30471cd26", null ],
     [ "sd_remote_fstat", "sd__remote_8c.html#acd14ce613f7aa364fef4d14520f2b370", null ],
     [ "sd_remote_open", "sd__remote_8c.html#a69aa3be1f16aafa37c0ce0fa976355c3", null ],
+    [ "sd_remote_open_cred", "sd__remote_8c.html#a76f9bec563d322d702a3a3373613f2f5", null ],
+    [ "sd_remote_open_impl", "sd__remote_8c.html#a39a71e0ceb1f257e4c0cf2e2170243c5", null ],
     [ "sd_remote_pread", "sd__remote_8c.html#af35203665f3a23befa41cb6879fbb8d3", null ],
     [ "sd_remote_s3_key", "sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90", null ],
     [ "sd_remote_s3_params", "sd__remote_8c.html#a49863e87220243a7eab03abf740daf27", null ],

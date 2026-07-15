@@ -93,6 +93,7 @@ $(document).ready(function(){initNavTree('xrdcktree_8c.html',''); initResizable(
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
+<a href="#typedef-members">Typedefs</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">xrdcktree.c File Reference</div></div>
 </div><!--header-->
@@ -125,6 +126,10 @@ Data Structures</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structremote__tree__ctx.html">remote_tree_ctx</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structcktree__opts.html">cktree_opts</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -132,6 +137,11 @@ Macros</h2></td></tr>
 <tr class="separator:aed9838a8352c5188b9fea4bbcfdfe813"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a60c8d95f6e249860ff2b1f4e8fea11a8" id="r_a60c8d95f6e249860ff2b1f4e8fea11a8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a60c8d95f6e249860ff2b1f4e8fea11a8">TREE_LINE_MAX</a>&#160;&#160;&#160;(<a class="el" href="xrdcktree_8c.html#aed9838a8352c5188b9fea4bbcfdfe813">TREE_HEX_MAX</a> + 2 + <a class="el" href="brix_8h.html#af7b7488efcefff887347395a3d7e0ef1">XRDC_PATH_MAX</a>)</td></tr>
 <tr class="separator:a60c8d95f6e249860ff2b1f4e8fea11a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
+Typedefs</h2></td></tr>
+<tr class="memitem:a4fb6ab49021a2837b22481ac77beed2b" id="r_a4fb6ab49021a2837b22481ac77beed2b"><td class="memItemLeft" align="right" valign="top">typedef int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a4fb6ab49021a2837b22481ac77beed2b">cktree_file_fn</a>) (const char *lpath, const char *rel, void *u)</td></tr>
+<tr class="separator:a4fb6ab49021a2837b22481ac77beed2b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -143,16 +153,40 @@ Functions</h2></td></tr>
 <tr class="separator:a51fc70fdfcdc2a0b316e9cd5b7f72a80"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a546ea96ad6658ac971917f2d053ebaa9" id="r_a546ea96ad6658ac971917f2d053ebaa9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a546ea96ad6658ac971917f2d053ebaa9">rel_has_newline</a> (const char *rel)</td></tr>
 <tr class="separator:a546ea96ad6658ac971917f2d053ebaa9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4fabc2876c8155fb1671383b1713d535" id="r_a4fabc2876c8155fb1671383b1713d535"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a4fabc2876c8155fb1671383b1713d535">walk_local_tree</a> (const char *lpath, const char *rel, <a class="el" href="structtree__ctx.html">tree_ctx</a> *ctx)</td></tr>
-<tr class="separator:a4fabc2876c8155fb1671383b1713d535"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a65b72ac249e1542469fe06750cc1c952" id="r_a65b72ac249e1542469fe06750cc1c952"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a65b72ac249e1542469fe06750cc1c952">entry_is_dot</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="separator:a65b72ac249e1542469fe06750cc1c952"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae4c022e5f5afb5c63c3f4e6a59452665" id="r_ae4c022e5f5afb5c63c3f4e6a59452665"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#ae4c022e5f5afb5c63c3f4e6a59452665">cktree_walk</a> (const char *lpath, const char *rel, <a class="el" href="xrdcktree_8c.html#a4fb6ab49021a2837b22481ac77beed2b">cktree_file_fn</a> cb, void *u, int *errors)</td></tr>
+<tr class="separator:ae4c022e5f5afb5c63c3f4e6a59452665"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad6a3b4046e5a10580f4fe3c36ba4493b" id="r_ad6a3b4046e5a10580f4fe3c36ba4493b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#ad6a3b4046e5a10580f4fe3c36ba4493b">tree_emit_file</a> (const char *lpath, const char *rel, void *u)</td></tr>
+<tr class="separator:ad6a3b4046e5a10580f4fe3c36ba4493b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad371bad63fc2d443d8e8c4a99e7fcdf3" id="r_ad371bad63fc2d443d8e8c4a99e7fcdf3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#ad371bad63fc2d443d8e8c4a99e7fcdf3">remote_tree_visitor</a> (const char *path, const <a class="el" href="structbrix__dirent.html">brix_dirent</a> *e, int depth, void *u)</td></tr>
 <tr class="separator:ad371bad63fc2d443d8e8c4a99e7fcdf3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5469d495d689dc47cf4ed53cdd71545c" id="r_a5469d495d689dc47cf4ed53cdd71545c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a5469d495d689dc47cf4ed53cdd71545c">usage_tree</a> (const char *prog, int rc)</td></tr>
 <tr class="separator:a5469d495d689dc47cf4ed53cdd71545c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0bb88541cdc421ccc63bd03639750ec5" id="r_a0bb88541cdc421ccc63bd03639750ec5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a0bb88541cdc421ccc63bd03639750ec5">cktree_parse_args</a> (int argc, char **argv, <a class="el" href="structcktree__opts.html">cktree_opts</a> *o, int *rc)</td></tr>
+<tr class="separator:a0bb88541cdc421ccc63bd03639750ec5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adaeefbf7375d0ae7eb8d744f12d2f1d4" id="r_adaeefbf7375d0ae7eb8d744f12d2f1d4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#adaeefbf7375d0ae7eb8d744f12d2f1d4">cktree_run_local</a> (const <a class="el" href="structcktree__opts.html">cktree_opts</a> *o, <a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a> algo, FILE *out, int *errors)</td></tr>
+<tr class="separator:adaeefbf7375d0ae7eb8d744f12d2f1d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9d1c90f3eb2c3c608ca3f1f244dccd2f" id="r_a9d1c90f3eb2c3c608ca3f1f244dccd2f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a9d1c90f3eb2c3c608ca3f1f244dccd2f">cktree_run_remote</a> (const char *prog, const <a class="el" href="structcktree__opts.html">cktree_opts</a> *o, FILE *out, int *errors)</td></tr>
+<tr class="separator:a9d1c90f3eb2c3c608ca3f1f244dccd2f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a520225720ba4e6b9f31c3d78bda00729" id="r_a520225720ba4e6b9f31c3d78bda00729"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a520225720ba4e6b9f31c3d78bda00729">brix_xrdcktree_main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a520225720ba4e6b9f31c3d78bda00729"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7ff4a4764f2ce053bd19739519cdfbf1" id="r_a7ff4a4764f2ce053bd19739519cdfbf1"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a7ff4a4764f2ce053bd19739519cdfbf1">usage_check</a> (const char *prog, int rc)</td></tr>
 <tr class="separator:a7ff4a4764f2ce053bd19739519cdfbf1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab1c51d806262f3ce2013a5fd9ceccaed" id="r_ab1c51d806262f3ce2013a5fd9ceccaed"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#ab1c51d806262f3ce2013a5fd9ceccaed">ckcheck_parse_args</a> (int argc, char **argv, const char **algo_str, <a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a> *algo, int *rc)</td></tr>
+<tr class="separator:ab1c51d806262f3ce2013a5fd9ceccaed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af64dc68785d9bcfa35165574a4cddd9f" id="r_af64dc68785d9bcfa35165574a4cddd9f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#af64dc68785d9bcfa35165574a4cddd9f">ckcheck_connect</a> (const char *prog, const char *root, <a class="el" href="structbrix__url.html">brix_url</a> *u, <a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:af64dc68785d9bcfa35165574a4cddd9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4182708369c0335b937487ededb1693a" id="r_a4182708369c0335b937487ededb1693a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a4182708369c0335b937487ededb1693a">ckcheck_report_malformed</a> (const char *prog, char *line)</td></tr>
+<tr class="separator:a4182708369c0335b937487ededb1693a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa0d96926aac8391a48641525f4506c60" id="r_aa0d96926aac8391a48641525f4506c60"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#aa0d96926aac8391a48641525f4506c60">ckcheck_line_algo</a> (const <a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a> *cx, const char *<a class="el" href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a>, const char *rel, <a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a> *out_algo, const char **out_name)</td></tr>
+<tr class="separator:aa0d96926aac8391a48641525f4506c60"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a982bfe0523bbe0c4334d0d7b67fa97fe" id="r_a982bfe0523bbe0c4334d0d7b67fa97fe"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a982bfe0523bbe0c4334d0d7b67fa97fe">ckcheck_digest_local</a> (const <a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a> *cx, const char *rel, <a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a> algo, char *got)</td></tr>
+<tr class="separator:a982bfe0523bbe0c4334d0d7b67fa97fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad8777e6214ae89ad7ff0ff44fabb9954" id="r_ad8777e6214ae89ad7ff0ff44fabb9954"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#ad8777e6214ae89ad7ff0ff44fabb9954">ckcheck_digest_remote</a> (const <a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a> *cx, const char *rel, const char *algo_name, char *got)</td></tr>
+<tr class="separator:ad8777e6214ae89ad7ff0ff44fabb9954"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad562bb4feab1de51639c90d94bbff156" id="r_ad562bb4feab1de51639c90d94bbff156"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#ad562bb4feab1de51639c90d94bbff156">ckcheck_process_line</a> (const <a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a> *cx, char *line)</td></tr>
+<tr class="separator:ad562bb4feab1de51639c90d94bbff156"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a06b6095ea3d00b38e9e1aa2a8ff22860" id="r_a06b6095ea3d00b38e9e1aa2a8ff22860"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcktree_8c.html#a06b6095ea3d00b38e9e1aa2a8ff22860">brix_xrdckcheck_main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a06b6095ea3d00b38e9e1aa2a8ff22860"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -189,6 +223,23 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<h2 class="groupheader">Typedef Documentation</h2>
+<a id="a4fb6ab49021a2837b22481ac77beed2b" name="a4fb6ab49021a2837b22481ac77beed2b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4fb6ab49021a2837b22481ac77beed2b">&#9670;&#160;</a></span>cktree_file_fn</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef int(* cktree_file_fn) (const char *lpath, const char *rel, void *u)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00120">120</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a06b6095ea3d00b38e9e1aa2a8ff22860" name="a06b6095ea3d00b38e9e1aa2a8ff22860"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a06b6095ea3d00b38e9e1aa2a8ff22860">&#9670;&#160;</a></span>brix_xrdckcheck_main()</h2>
@@ -216,9 +267,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00466">466</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00829">829</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cksum__manifest_8c_source.html#l00039">brix_ckmf_parse_line()</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00029">brix_cksum_algo_parse()</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00445">brix_query_cksum()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="xrdcktree_8c_source.html#l00047">is_root_url()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="xrdcktree_8c_source.html#l00061">path_join()</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>, <a class="el" href="xrdcktree_8c_source.html#l00431">usage_check()</a>, <a class="el" href="brix__ops_8h_source.html#l00205">XRDC_CK_ADLER32</a>, <a class="el" href="brix__ops_8h_source.html#l00208">XRDC_CK_CRC64</a>, <a class="el" href="brix__ops_8h_source.html#l00207">XRDC_CK_MD5</a>, <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00565">ckcheck_ctx::algo</a>, <a class="el" href="xrdcktree_8c_source.html#l00564">ckcheck_ctx::algo_str</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="xrdcktree_8c_source.html#l00562">ckcheck_ctx::c</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdcktree_8c_source.html#l00623">ckcheck_connect()</a>, <a class="el" href="xrdcktree_8c_source.html#l00579">ckcheck_parse_args()</a>, <a class="el" href="xrdcktree_8c_source.html#l00776">ckcheck_process_line()</a>, <a class="el" href="xrdcktree_8c_source.html#l00566">ckcheck_ctx::errors</a>, <a class="el" href="xrdcktree_8c_source.html#l00563">ckcheck_ctx::is_remote</a>, <a class="el" href="xrdcktree_8c_source.html#l00047">is_root_url()</a>, <a class="el" href="xrdcktree_8c_source.html#l00567">ckcheck_ctx::mismatches</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="xrdcktree_8c_source.html#l00559">ckcheck_ctx::prog</a>, <a class="el" href="xrdcktree_8c_source.html#l00560">ckcheck_ctx::root</a>, <a class="el" href="xrdcktree_8c_source.html#l00561">ckcheck_ctx::root_path</a>, <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>, <a class="el" href="brix__ops_8h_source.html#l00205">XRDC_CK_ADLER32</a>, <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcksum_8c_source.html#l00056">dispatch()</a>.</p>
 
@@ -250,11 +301,629 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00309">309</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00494">494</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00116">tree_ctx::algo</a>, <a class="el" href="xrdcktree_8c_source.html#l00115">tree_ctx::algo_name</a>, <a class="el" href="xrdcktree_8c_source.html#l00218">remote_tree_ctx::algo_name</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00029">brix_cksum_algo_parse()</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="walk_8c_source.html#l00071">brix_tree_walk()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="xrdcktree_8c_source.html#l00216">remote_tree_ctx::c</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrdcktree_8c_source.html#l00117">tree_ctx::errors</a>, <a class="el" href="xrdcktree_8c_source.html#l00221">remote_tree_ctx::errors</a>, <a class="el" href="xrdcktree_8c_source.html#l00047">is_root_url()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdcktree_8c_source.html#l00114">tree_ctx::out</a>, <a class="el" href="xrdcktree_8c_source.html#l00217">remote_tree_ctx::out</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="xrdcktree_8c_source.html#l00232">remote_tree_visitor()</a>, <a class="el" href="xrdcktree_8c_source.html#l00219">remote_tree_ctx::root_path</a>, <a class="el" href="xrdcktree_8c_source.html#l00220">remote_tree_ctx::root_path_len</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="xrdcktree_8c_source.html#l00284">usage_tree()</a>, <a class="el" href="xrdcktree_8c_source.html#l00131">walk_local_tree()</a>, <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00344">cktree_opts::algo_str</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00029">brix_cksum_algo_parse()</a>, <a class="el" href="xrdcktree_8c_source.html#l00357">cktree_parse_args()</a>, <a class="el" href="xrdcktree_8c_source.html#l00410">cktree_run_local()</a>, <a class="el" href="xrdcktree_8c_source.html#l00438">cktree_run_remote()</a>, <a class="el" href="xrdcktree_8c_source.html#l00047">is_root_url()</a>, <a class="el" href="xrdcktree_8c_source.html#l00345">cktree_opts::outpath</a>, <a class="el" href="xrdcktree_8c_source.html#l00343">cktree_opts::root</a>, and <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcksum_8c_source.html#l00056">dispatch()</a>.</p>
+
+</div>
+</div>
+<a id="af64dc68785d9bcfa35165574a4cddd9f" name="af64dc68785d9bcfa35165574a4cddd9f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af64dc68785d9bcfa35165574a4cddd9f">&#9670;&#160;</a></span>ckcheck_connect()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ckcheck_connect </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__url.html">brix_url</a> *&#160;</td>
+          <td class="paramname"><em>u</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00623">623</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00829">brix_xrdckcheck_main()</a>.</p>
+
+</div>
+</div>
+<a id="a982bfe0523bbe0c4334d0d7b67fa97fe" name="a982bfe0523bbe0c4334d0d7b67fa97fe"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a982bfe0523bbe0c4334d0d7b67fa97fe">&#9670;&#160;</a></span>ckcheck_digest_local()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ckcheck_digest_local </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a> *&#160;</td>
+          <td class="paramname"><em>cx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>rel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a>&#160;</td>
+          <td class="paramname"><em>algo</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>got</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00703">703</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="xrdcktree_8c_source.html#l00061">path_join()</a>, <a class="el" href="xrdcktree_8c_source.html#l00559">ckcheck_ctx::prog</a>, <a class="el" href="xrdcktree_8c_source.html#l00560">ckcheck_ctx::root</a>, <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00776">ckcheck_process_line()</a>.</p>
+
+</div>
+</div>
+<a id="ad8777e6214ae89ad7ff0ff44fabb9954" name="ad8777e6214ae89ad7ff0ff44fabb9954"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad8777e6214ae89ad7ff0ff44fabb9954">&#9670;&#160;</a></span>ckcheck_digest_remote()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ckcheck_digest_remote </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a> *&#160;</td>
+          <td class="paramname"><em>cx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>rel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>algo_name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>got</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00742">742</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00770">brix_query_cksum()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdcktree_8c_source.html#l00562">ckcheck_ctx::c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdcktree_8c_source.html#l00559">ckcheck_ctx::prog</a>, <a class="el" href="xrdcktree_8c_source.html#l00561">ckcheck_ctx::root_path</a>, <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00776">ckcheck_process_line()</a>.</p>
+
+</div>
+</div>
+<a id="aa0d96926aac8391a48641525f4506c60" name="aa0d96926aac8391a48641525f4506c60"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa0d96926aac8391a48641525f4506c60">&#9670;&#160;</a></span>ckcheck_line_algo()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ckcheck_line_algo </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a> *&#160;</td>
+          <td class="paramname"><em>cx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>hex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>rel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a> *&#160;</td>
+          <td class="paramname"><em>out_algo</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>out_name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00673">673</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00565">ckcheck_ctx::algo</a>, <a class="el" href="xrdcktree_8c_source.html#l00564">ckcheck_ctx::algo_str</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="xrdcktree_8c_source.html#l00559">ckcheck_ctx::prog</a>, <a class="el" href="brix__ops_8h_source.html#l00205">XRDC_CK_ADLER32</a>, <a class="el" href="brix__ops_8h_source.html#l00208">XRDC_CK_CRC64</a>, and <a class="el" href="brix__ops_8h_source.html#l00207">XRDC_CK_MD5</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00776">ckcheck_process_line()</a>.</p>
+
+</div>
+</div>
+<a id="ab1c51d806262f3ce2013a5fd9ceccaed" name="ab1c51d806262f3ce2013a5fd9ceccaed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab1c51d806262f3ce2013a5fd9ceccaed">&#9670;&#160;</a></span>ckcheck_parse_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ckcheck_parse_args </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>algo_str</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a> *&#160;</td>
+          <td class="paramname"><em>algo</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>rc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00579">579</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00029">brix_cksum_algo_parse()</a>, <a class="el" href="xrdcktree_8c_source.html#l00540">usage_check()</a>, and <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00829">brix_xrdckcheck_main()</a>.</p>
+
+</div>
+</div>
+<a id="ad562bb4feab1de51639c90d94bbff156" name="ad562bb4feab1de51639c90d94bbff156"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad562bb4feab1de51639c90d94bbff156">&#9670;&#160;</a></span>ckcheck_process_line()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void ckcheck_process_line </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structckcheck__ctx.html">ckcheck_ctx</a> *&#160;</td>
+          <td class="paramname"><em>cx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>line</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00776">776</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cksum__manifest_8c_source.html#l00039">brix_ckmf_parse_line()</a>, <a class="el" href="xrdcktree_8c_source.html#l00703">ckcheck_digest_local()</a>, <a class="el" href="xrdcktree_8c_source.html#l00742">ckcheck_digest_remote()</a>, <a class="el" href="xrdcktree_8c_source.html#l00673">ckcheck_line_algo()</a>, <a class="el" href="xrdcktree_8c_source.html#l00649">ckcheck_report_malformed()</a>, <a class="el" href="xrdcktree_8c_source.html#l00566">ckcheck_ctx::errors</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="xrdcktree_8c_source.html#l00563">ckcheck_ctx::is_remote</a>, <a class="el" href="xrdcktree_8c_source.html#l00567">ckcheck_ctx::mismatches</a>, <a class="el" href="xrdcktree_8c_source.html#l00559">ckcheck_ctx::prog</a>, <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00829">brix_xrdckcheck_main()</a>.</p>
+
+</div>
+</div>
+<a id="a4182708369c0335b937487ededb1693a" name="a4182708369c0335b937487ededb1693a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4182708369c0335b937487ededb1693a">&#9670;&#160;</a></span>ckcheck_report_malformed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void ckcheck_report_malformed </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>line</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00649">649</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00776">ckcheck_process_line()</a>.</p>
+
+</div>
+</div>
+<a id="a0bb88541cdc421ccc63bd03639750ec5" name="a0bb88541cdc421ccc63bd03639750ec5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0bb88541cdc421ccc63bd03639750ec5">&#9670;&#160;</a></span>cktree_parse_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cktree_parse_args </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structcktree__opts.html">cktree_opts</a> *&#160;</td>
+          <td class="paramname"><em>o</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>rc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00357">357</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00344">cktree_opts::algo_str</a>, <a class="el" href="xrdcktree_8c_source.html#l00345">cktree_opts::outpath</a>, <a class="el" href="xrdcktree_8c_source.html#l00343">cktree_opts::root</a>, <a class="el" href="xrdcktree_8c_source.html#l00328">usage_tree()</a>, and <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00494">brix_xrdcktree_main()</a>.</p>
+
+</div>
+</div>
+<a id="adaeefbf7375d0ae7eb8d744f12d2f1d4" name="adaeefbf7375d0ae7eb8d744f12d2f1d4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adaeefbf7375d0ae7eb8d744f12d2f1d4">&#9670;&#160;</a></span>cktree_run_local()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cktree_run_local </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structcktree__opts.html">cktree_opts</a> *&#160;</td>
+          <td class="paramname"><em>o</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="brix__ops_8h.html#a63bb4705b9d04843e4a40c48528fe76a">brix_cksum_algo</a>&#160;</td>
+          <td class="paramname"><em>algo</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>errors</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00410">410</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00207">tree_ctx::algo</a>, <a class="el" href="xrdcktree_8c_source.html#l00206">tree_ctx::algo_name</a>, <a class="el" href="xrdcktree_8c_source.html#l00344">cktree_opts::algo_str</a>, <a class="el" href="xrdcktree_8c_source.html#l00147">cktree_walk()</a>, <a class="el" href="xrdcktree_8c_source.html#l00208">tree_ctx::errors</a>, <a class="el" href="xrdcktree_8c_source.html#l00205">tree_ctx::out</a>, <a class="el" href="xrdcktree_8c_source.html#l00343">cktree_opts::root</a>, and <a class="el" href="xrdcktree_8c_source.html#l00221">tree_emit_file()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00494">brix_xrdcktree_main()</a>.</p>
+
+</div>
+</div>
+<a id="a9d1c90f3eb2c3c608ca3f1f244dccd2f" name="a9d1c90f3eb2c3c608ca3f1f244dccd2f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9d1c90f3eb2c3c608ca3f1f244dccd2f">&#9670;&#160;</a></span>cktree_run_remote()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cktree_run_remote </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structcktree__opts.html">cktree_opts</a> *&#160;</td>
+          <td class="paramname"><em>o</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>errors</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00438">438</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00262">remote_tree_ctx::algo_name</a>, <a class="el" href="xrdcktree_8c_source.html#l00344">cktree_opts::algo_str</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="walk_8c_source.html#l00071">brix_tree_walk()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="xrdcktree_8c_source.html#l00260">remote_tree_ctx::c</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdcktree_8c_source.html#l00265">remote_tree_ctx::errors</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdcktree_8c_source.html#l00261">remote_tree_ctx::out</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="xrdcktree_8c_source.html#l00276">remote_tree_visitor()</a>, <a class="el" href="xrdcktree_8c_source.html#l00343">cktree_opts::root</a>, <a class="el" href="xrdcktree_8c_source.html#l00263">remote_tree_ctx::root_path</a>, <a class="el" href="xrdcktree_8c_source.html#l00264">remote_tree_ctx::root_path_len</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix__ops_8h_source.html#l00264">XRDC_EXIT_USAGE</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00494">brix_xrdcktree_main()</a>.</p>
+
+</div>
+</div>
+<a id="ae4c022e5f5afb5c63c3f4e6a59452665" name="ae4c022e5f5afb5c63c3f4e6a59452665"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae4c022e5f5afb5c63c3f4e6a59452665">&#9670;&#160;</a></span>cktree_walk()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cktree_walk </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>lpath</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>rel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="xrdcktree_8c.html#a4fb6ab49021a2837b22481ac77beed2b">cktree_file_fn</a>&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>u</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>errors</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00147">147</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00147">cktree_walk()</a>, <a class="el" href="xrdcktree_8c_source.html#l00129">entry_is_dot()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, <a class="el" href="xrdcktree_8c_source.html#l00061">path_join()</a>, <a class="el" href="xrdcktree_8c_source.html#l00083">rel_join()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00410">cktree_run_local()</a>, and <a class="el" href="xrdcktree_8c_source.html#l00147">cktree_walk()</a>.</p>
+
+</div>
+</div>
+<a id="a65b72ac249e1542469fe06750cc1c952" name="a65b72ac249e1542469fe06750cc1c952"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a65b72ac249e1542469fe06750cc1c952">&#9670;&#160;</a></span>entry_is_dot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int entry_is_dot </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00129">129</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00147">cktree_walk()</a>.</p>
 
 </div>
 </div>
@@ -286,7 +955,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00466">brix_xrdckcheck_main()</a>, <a class="el" href="xrdcktree_8c_source.html#l00309">brix_xrdcktree_main()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00829">brix_xrdckcheck_main()</a>, <a class="el" href="xrdcktree_8c_source.html#l00494">brix_xrdcktree_main()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>.</p>
 
 </div>
 </div>
@@ -340,7 +1009,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00466">brix_xrdckcheck_main()</a>, and <a class="el" href="xrdcktree_8c_source.html#l00131">walk_local_tree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00703">ckcheck_digest_local()</a>, and <a class="el" href="xrdcktree_8c_source.html#l00147">cktree_walk()</a>.</p>
 
 </div>
 </div>
@@ -370,7 +1039,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00105">105</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00232">remote_tree_visitor()</a>, and <a class="el" href="xrdcktree_8c_source.html#l00131">walk_local_tree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00276">remote_tree_visitor()</a>, and <a class="el" href="xrdcktree_8c_source.html#l00221">tree_emit_file()</a>.</p>
 
 </div>
 </div>
@@ -424,7 +1093,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00131">walk_local_tree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00147">cktree_walk()</a>.</p>
 
 </div>
 </div>
@@ -474,11 +1143,59 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00232">232</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00276">276</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00218">remote_tree_ctx::algo_name</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00445">brix_query_cksum()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdcktree_8c_source.html#l00216">remote_tree_ctx::c</a>, <a class="el" href="xrdcktree_8c_source.html#l00221">remote_tree_ctx::errors</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="brix__net_8h_source.html#l00156">brix_dirent::have_stat</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdcktree_8c_source.html#l00217">remote_tree_ctx::out</a>, <a class="el" href="xrdcktree_8c_source.html#l00105">rel_has_newline()</a>, <a class="el" href="xrdcktree_8c_source.html#l00219">remote_tree_ctx::root_path</a>, <a class="el" href="xrdcktree_8c_source.html#l00220">remote_tree_ctx::root_path_len</a>, <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>, and <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00262">remote_tree_ctx::algo_name</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00770">brix_query_cksum()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdcktree_8c_source.html#l00260">remote_tree_ctx::c</a>, <a class="el" href="xrdcktree_8c_source.html#l00265">remote_tree_ctx::errors</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="brix__net_8h_source.html#l00156">brix_dirent::have_stat</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdcktree_8c_source.html#l00261">remote_tree_ctx::out</a>, <a class="el" href="xrdcktree_8c_source.html#l00105">rel_has_newline()</a>, <a class="el" href="xrdcktree_8c_source.html#l00263">remote_tree_ctx::root_path</a>, <a class="el" href="xrdcktree_8c_source.html#l00264">remote_tree_ctx::root_path_len</a>, <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>, and <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00309">brix_xrdcktree_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00438">cktree_run_remote()</a>.</p>
+
+</div>
+</div>
+<a id="ad6a3b4046e5a10580f4fe3c36ba4493b" name="ad6a3b4046e5a10580f4fe3c36ba4493b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad6a3b4046e5a10580f4fe3c36ba4493b">&#9670;&#160;</a></span>tree_emit_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tree_emit_file </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>lpath</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>rel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>u</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00221">221</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00207">tree_ctx::algo</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="xrdcktree_8c_source.html#l00208">tree_ctx::errors</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="xrdcktree_8c_source.html#l00205">tree_ctx::out</a>, <a class="el" href="xrdcktree_8c_source.html#l00105">rel_has_newline()</a>, and <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00410">cktree_run_local()</a>.</p>
 
 </div>
 </div>
@@ -516,9 +1233,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00431">431</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00540">540</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00466">brix_xrdckcheck_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00579">ckcheck_parse_args()</a>.</p>
 
 </div>
 </div>
@@ -556,57 +1273,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00284">284</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00328">328</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00309">brix_xrdcktree_main()</a>.</p>
-
-</div>
-</div>
-<a id="a4fabc2876c8155fb1671383b1713d535" name="a4fabc2876c8155fb1671383b1713d535"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4fabc2876c8155fb1671383b1713d535">&#9670;&#160;</a></span>walk_local_tree()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int walk_local_tree </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>lpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>rel</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structtree__ctx.html">tree_ctx</a> *&#160;</td>
-          <td class="paramname"><em>ctx</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="xrdcktree_8c_source.html#l00131">131</a> of file <a class="el" href="xrdcktree_8c_source.html">xrdcktree.c</a>.</p>
-
-<p class="reference">References <a class="el" href="xrdcktree_8c_source.html#l00116">tree_ctx::algo</a>, <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="xrdcktree_8c_source.html#l00117">tree_ctx::errors</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00432">lstat()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="xrdcktree_8c_source.html#l00114">tree_ctx::out</a>, <a class="el" href="xrdcktree_8c_source.html#l00061">path_join()</a>, <a class="el" href="xrdcktree_8c_source.html#l00105">rel_has_newline()</a>, <a class="el" href="xrdcktree_8c_source.html#l00083">rel_join()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="xrdcktree_8c_source.html#l00032">TREE_HEX_MAX</a>, <a class="el" href="xrdcktree_8c_source.html#l00131">walk_local_tree()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00309">brix_xrdcktree_main()</a>, and <a class="el" href="xrdcktree_8c_source.html#l00131">walk_local_tree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcktree_8c_source.html#l00357">cktree_parse_args()</a>.</p>
 
 </div>
 </div>

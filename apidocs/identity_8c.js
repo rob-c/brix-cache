@@ -5,7 +5,6 @@ var identity_8c =
     [ "brix_identity_acc_vorg_cstr", "identity_8c.html#a85e11081c17e88fe1635bb51eede4963", null ],
     [ "brix_identity_alloc", "identity_8c.html#a5be313b3b846deb19cecb043a14cdcbf", null ],
     [ "brix_identity_check_token_scope", "identity_8c.html#af0564cceee3b50c1d41046d464fd96df", null ],
-    [ "brix_identity_derive_attrs", "identity_8c.html#a3bfb8922c708a03a7b14147951117ae4", null ],
     [ "brix_identity_describe", "identity_8c.html#a2de49133f34cfe341fb7d945c09e4df3", null ],
     [ "brix_identity_dn_cstr", "identity_8c.html#ac0080bd8274794cae0a58e4430bb6a54", null ],
     [ "brix_identity_method_name", "identity_8c.html#a056f3781915019148ac6a04f27c1fed9", null ],

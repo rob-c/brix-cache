@@ -215,9 +215,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="core_2config_2policy_8c_source.html#l00122">122</a> of file <a class="el" href="core_2config_2policy_8c_source.html">policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="types_2config_8h_source.html#l00150">ngx_stream_brix_srv_conf_t::authdb_rules</a>, <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, <a class="el" href="authdb_8c_source.html#l00015">brix_finalize_authdb_rules()</a>, <a class="el" href="group__policy_8c_source.html#l00018">brix_finalize_group_rules()</a>, <a class="el" href="auth_2authz_2acl_8c_source.html#l00011">brix_finalize_vo_rules()</a>, <a class="el" href="config_2config_8h_source.html#l00020">BRIX_PATH_DIRECTORY</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, <a class="el" href="loader_8c_source.html#l00020">brix_voms_available()</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="types_2config_8h_source.html#l00155">ngx_stream_brix_srv_conf_t::group_rules</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="types_2config_8h_source.html#l00148">ngx_stream_brix_srv_conf_t::vo_rules</a>, <a class="el" href="types_2config_8h_source.html#l00130">ngx_stream_brix_srv_conf_t::voms_cert_dir</a>, and <a class="el" href="types_2config_8h_source.html#l00128">ngx_stream_brix_srv_conf_t::vomsdir</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, <a class="el" href="authdb__parse_8c_source.html#l00015">brix_finalize_authdb_rules()</a>, <a class="el" href="group__policy_8c_source.html#l00018">brix_finalize_group_rules()</a>, <a class="el" href="auth_2authz_2acl_8c_source.html#l00011">brix_finalize_vo_rules()</a>, <a class="el" href="config_2config_8h_source.html#l00020">BRIX_PATH_DIRECTORY</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, and <a class="el" href="loader_8c_source.html#l00020">brix_voms_available()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00138">postconf_finalize_policies()</a>.</p>
 
 </div>
 </div>
@@ -247,11 +247,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="runtime__server_8c_source.html#l00233">233</a> of file <a class="el" href="runtime__server_8c_source.html">runtime_server.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="runtime__server_8c_source.html#l00437">437</a> of file <a class="el" href="runtime__server_8c_source.html">runtime_server.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00304">ngx_stream_brix_srv_conf_t::access_log</a>, <a class="el" href="types_2config_8h_source.html#l00308">ngx_stream_brix_srv_conf_t::access_log_file</a>, <a class="el" href="root__prepare_8h_source.html#l00016">brix_export_root_opts_t::allow_write</a>, <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="conf__structs_8h_source.html#l00152">brix_proxy_conf_t::audit_log</a>, <a class="el" href="conf__structs_8h_source.html#l00154">brix_proxy_conf_t::audit_log_file</a>, <a class="el" href="conf__structs_8h_source.html#l00149">brix_proxy_conf_t::auth</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00075">brix_vfs_backend_cred_t::bearer</a>, <a class="el" href="export__guard_8h_source.html#l00035">brix_assert_dir_outside_export()</a>, <a class="el" href="paths_8c_source.html#l00093">brix_cache_state_root()</a>, <a class="el" href="credential__block_8c_source.html#l00170">brix_credential_bearer()</a>, <a class="el" href="credential__block_8c_source.html#l00020">brix_credential_lookup()</a>, <a class="el" href="config_2config_8h_source.html#l00020">BRIX_PATH_DIRECTORY</a>, <a class="el" href="root__prepare_8c_source.html#l00023">brix_prepare_export_root()</a>, <a class="el" href="conf__structs_8h_source.html#l00137">BRIX_PROXY_AUTH_GSI</a>, <a class="el" href="shared__conf_8h_source.html#l00193">brix_shared_apply_read_only()</a>, <a class="el" href="staged__file_8c_source.html#l00476">brix_stage_dir_register()</a>, <a class="el" href="runtime__server_8c_source.html#l00112">brix_storage_backend_is_remote()</a>, <a class="el" href="runtime__server_8c_source.html#l00060">brix_storage_backend_posix_root()</a>, <a class="el" href="runtime__server_8c_source.html#l00137">brix_tier_register_stores()</a>, <a class="el" href="tmp__path_8c_source.html#l00147">brix_tmp_reap_register()</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00014">brix_vfs_backend_config()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00401">brix_vfs_backend_config_str()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00232">brix_vfs_backend_set_credential()</a>, <a class="el" href="credential__block_8h_source.html#l00038">brix_credential_t::ca_dir</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00077">brix_vfs_backend_cred_t::ca_dir</a>, <a class="el" href="types_2config_8h_source.html#l00420">ngx_stream_brix_srv_conf_t::cache</a>, <a class="el" href="types_2config_8h_source.html#l00455">ngx_stream_brix_srv_conf_t::cache_eviction_threshold</a>, <a class="el" href="types_2config_8h_source.html#l00453">ngx_stream_brix_srv_conf_t::cache_lock_timeout</a>, <a class="el" href="types_2config_8h_source.html#l00422">ngx_stream_brix_srv_conf_t::cache_origin</a>, <a class="el" href="types_2config_8h_source.html#l00433">ngx_stream_brix_srv_conf_t::cache_origin_bearer</a>, <a class="el" href="types_2config_8h_source.html#l00441">ngx_stream_brix_srv_conf_t::cache_origin_ca_dir</a>, <a class="el" href="types_2config_8h_source.html#l00426">ngx_stream_brix_srv_conf_t::cache_origin_family</a>, <a class="el" href="types_2config_8h_source.html#l00425">ngx_stream_brix_srv_conf_t::cache_origin_tls</a>, <a class="el" href="types_2config_8h_source.html#l00437">ngx_stream_brix_srv_conf_t::cache_origin_x509_proxy</a>, <a class="el" href="types_2config_8h_source.html#l00421">ngx_stream_brix_srv_conf_t::cache_root</a>, <a class="el" href="types_2config_8h_source.html#l00480">ngx_stream_brix_srv_conf_t::cache_state_root</a>, <a class="el" href="types_2config_8h_source.html#l00504">ngx_stream_brix_srv_conf_t::cache_wt_stage_backend</a>, <a class="el" href="types_2config_8h_source.html#l00505">ngx_stream_brix_srv_conf_t::cache_wt_stage_block_size</a>, <a class="el" href="types_2config_8h_source.html#l00511">ngx_stream_brix_srv_conf_t::cache_wt_stage_high_watermark</a>, <a class="el" href="types_2config_8h_source.html#l00512">ngx_stream_brix_srv_conf_t::cache_wt_stage_low_watermark</a>, <a class="el" href="types_2config_8h_source.html#l00503">ngx_stream_brix_srv_conf_t::cache_wt_stage_root</a>, <a class="el" href="root__prepare_8h_source.html#l00018">brix_export_root_opts_t::canon_size</a>, <a class="el" href="types_2config_8h_source.html#l00673">ngx_stream_brix_srv_conf_t::caps</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="conf__structs_8h_source.html#l00067">brix_wt_conf_t::credential</a>, <a class="el" href="root__prepare_8h_source.html#l00015">brix_export_root_opts_t::directive_name</a>, <a class="el" href="conf__structs_8h_source.html#l00063">brix_wt_conf_t::enable</a>, <a class="el" href="conf__structs_8h_source.html#l00142">brix_proxy_conf_t::enable</a>, <a class="el" href="conf__structs_8h_source.html#l00230">brix_cache_reaper_conf_t::high_watermark</a>, <a class="el" href="conf__structs_8h_source.html#l00231">brix_cache_reaper_conf_t::low_watermark</a>, <a class="el" href="types_2config_8h_source.html#l00156">ngx_stream_brix_srv_conf_t::manager_map</a>, <a class="el" href="types_2config_8h_source.html#l00615">ngx_stream_brix_srv_conf_t::manager_mode</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="shared__conf_8h_source.html#l00039">ngx_http_brix_shared_conf_t::pblock_block_size</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="types_2config_8h_source.html#l00492">ngx_stream_brix_srv_conf_t::reaper</a>, <a class="el" href="root__prepare_8h_source.html#l00017">brix_export_root_opts_t::required</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="credential__block_8h_source.html#l00044">brix_credential_t::s3_access_key</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00078">brix_vfs_backend_cred_t::s3_access_key</a>, <a class="el" href="credential__block_8h_source.html#l00046">brix_credential_t::s3_region</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00080">brix_vfs_backend_cred_t::s3_region</a>, <a class="el" href="credential__block_8h_source.html#l00045">brix_credential_t::s3_secret_key</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00079">brix_vfs_backend_cred_t::s3_secret_key</a>, <a class="el" href="credential__block_8h_source.html#l00047">brix_credential_t::sss_keytab</a>, <a class="el" href="vfs__backend__registry_8h_source.html#l00081">brix_vfs_backend_cred_t::sss_keytab</a>, <a class="el" href="shared__conf_8h_source.html#l00036">ngx_http_brix_shared_conf_t::storage_backend</a>, <a class="el" href="shared__conf_8h_source.html#l00045">ngx_http_brix_shared_conf_t::storage_credential</a>, <a class="el" href="conf__structs_8h_source.html#l00118">brix_node_caps_conf_t::supervisor</a>, <a class="el" href="types_2config_8h_source.html#l00374">ngx_stream_brix_srv_conf_t::tpc_delegate</a>, <a class="el" href="types_2config_8h_source.html#l00677">ngx_stream_brix_srv_conf_t::upload_stage_dir</a>, <a class="el" href="types_2config_8h_source.html#l00681">ngx_stream_brix_srv_conf_t::upload_stage_dir_canon</a>, <a class="el" href="conf__structs_8h_source.html#l00145">brix_proxy_conf_t::upstream_tls</a>, <a class="el" href="types_2config_8h_source.html#l00322">ngx_stream_brix_srv_conf_t::upstream_tls</a>, <a class="el" href="conf__structs_8h_source.html#l00155">brix_proxy_conf_t::upstream_tls_ca</a>, <a class="el" href="types_2config_8h_source.html#l00323">ngx_stream_brix_srv_conf_t::upstream_tls_ca</a>, <a class="el" href="types_2config_8h_source.html#l00563">ngx_stream_brix_srv_conf_t::wt</a>, <a class="el" href="credential__block_8h_source.html#l00035">brix_credential_t::x509_proxy</a>, and <a class="el" href="vfs__backend__registry_8h_source.html#l00076">brix_vfs_backend_cred_t::x509_proxy</a>.</p>
+<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00137">BRIX_PROXY_AUTH_GSI</a>, <a class="el" href="runtime__server_8c_source.html#l00160">brix_server_setup_export()</a>, <a class="el" href="runtime__server_8c_source.html#l00340">brix_server_setup_logging()</a>, <a class="el" href="runtime__server_8c_source.html#l00372">brix_server_setup_tls()</a>, <a class="el" href="runtime__server_8c_source.html#l00266">brix_server_validate_cache()</a>, <a class="el" href="runtime__server_8c_source.html#l00315">brix_server_validate_wt_stage()</a>, and <a class="el" href="shared__conf_8h_source.html#l00281">brix_shared_apply_read_only()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_prepare_servers()</a>.</p>
 
 </div>
 </div>
@@ -275,7 +275,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="shm__slots_8c_source.html#l00180">brix_shm_zone_size()</a>, <a class="el" href="observability_2dashboard_2events_8c_source.html#l00082">ngx_brix_dashboard_events_shm_init()</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00020">ngx_brix_dashboard_events_shm_zone</a>, <a class="el" href="history_8c_source.html#l00060">ngx_brix_dashboard_history_shm_init()</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00021">ngx_brix_dashboard_history_shm_zone</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00038">ngx_brix_dashboard_shm_init()</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00739">ngx_http_brix_cvmfs_postconfiguration()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00209">ngx_http_brix_cvmfs_postconfiguration()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00380">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -305,11 +305,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth_2gsi_2config_8c_source.html#l00067">67</a> of file <a class="el" href="auth_2gsi_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth_2gsi_2config_8c_source.html#l00359">359</a> of file <a class="el" href="auth_2gsi_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="auth_2gsi_2pki_8c_source.html#l00021">brix_check_pki_consistency_stream()</a>, <a class="el" href="config_2config_8h_source.html#l00021">BRIX_PATH_FILE_OR_DIRECTORY</a>, <a class="el" href="config_2config_8h_source.html#l00019">BRIX_PATH_REGULAR_FILE</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00021">brix_phase_now_ns()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00016">brix_rebuild_gsi_store()</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, <a class="el" href="types_2config_8h_source.html#l00124">ngx_stream_brix_srv_conf_t::certificate</a>, <a class="el" href="types_2config_8h_source.html#l00125">ngx_stream_brix_srv_conf_t::certificate_key</a>, <a class="el" href="types_2config_8h_source.html#l00132">ngx_stream_brix_srv_conf_t::crl</a>, <a class="el" href="types_2config_8h_source.html#l00164">ngx_stream_brix_srv_conf_t::gsi_ca_hash</a>, <a class="el" href="types_2config_8h_source.html#l00159">ngx_stream_brix_srv_conf_t::gsi_cert</a>, <a class="el" href="types_2config_8h_source.html#l00162">ngx_stream_brix_srv_conf_t::gsi_cert_pem</a>, <a class="el" href="types_2config_8h_source.html#l00163">ngx_stream_brix_srv_conf_t::gsi_cert_pem_len</a>, <a class="el" href="types_2config_8h_source.html#l00160">ngx_stream_brix_srv_conf_t::gsi_key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="types_2config_8h_source.html#l00126">ngx_stream_brix_srv_conf_t::trusted_ca</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00320">brix_gsi_build_trust_store()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00230">brix_gsi_cache_cert_pem()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00081">brix_gsi_compute_ca_hashes()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00191">brix_gsi_load_certificate()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00278">brix_gsi_load_private_key()</a>, and <a class="el" href="auth_2gsi_2config_8c_source.html#l00148">brix_gsi_require_trust_inputs()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_prepare_servers()</a>.</p>
 
 </div>
 </div>
@@ -339,11 +339,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth_2krb5_2config_8c_source.html#l00065">65</a> of file <a class="el" href="auth_2krb5_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth_2krb5_2config_8c_source.html#l00281">281</a> of file <a class="el" href="auth_2krb5_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>, <a class="el" href="log__diag_8h_source.html#l00083">BRIX_DIAG_CONF</a>, <a class="el" href="conf__structs_8h_source.html#l00047">brix_krb5_conf_t::ip_check</a>, <a class="el" href="conf__structs_8h_source.html#l00045">brix_krb5_conf_t::keytab</a>, <a class="el" href="types_2config_8h_source.html#l00282">ngx_stream_brix_srv_conf_t::krb5</a>, and <a class="el" href="conf__structs_8h_source.html#l00044">brix_krb5_conf_t::principal</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_prepare_servers()</a>.</p>
 
 </div>
 </div>
@@ -375,9 +375,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="observability_2metrics_2config_8c_source.html#l00042">42</a> of file <a class="el" href="observability_2metrics_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2config_8c_source.html#l00023">brix_metrics_ensure_zone()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="types_2config_8h_source.html#l00313">ngx_stream_brix_srv_conf_t::metrics_slot</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2config_8c_source.html#l00023">brix_metrics_ensure_zone()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00021">BRIX_METRICS_MAX_SERVERS</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00380">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -411,7 +411,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="handles_8c_source.html#l00035">brix_handle_shm_init_zone()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00017">brix_handle_shm_zone</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00023">brix_session_registry_nslots</a>, <a class="el" href="protocols_2root_2session_2registry_8h_source.html#l00030">BRIX_SESSION_REGISTRY_SLOTS</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00042">brix_session_shm_init_zone()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00016">brix_session_shm_zone</a>, <a class="el" href="shm__slots_8c_source.html#l00180">brix_shm_zone_size()</a>, <a class="el" href="shm__slots_8c_source.html#l00116">brix_shm_zone_warn_on_resize()</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00162">postconf_session_registry()</a>.</p>
 
 </div>
 </div>
@@ -443,9 +443,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth_2sss_2config_8c_source.html#l00225">225</a> of file <a class="el" href="auth_2sss_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00203">brix_sss_upstream_needed()</a>, <a class="el" href="types_2config_8h_source.html#l00279">ngx_stream_brix_srv_conf_t::sss_keys</a>, and <a class="el" href="types_2config_8h_source.html#l00277">ngx_stream_brix_srv_conf_t::sss_keytab</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>, and <a class="el" href="auth_2sss_2config_8c_source.html#l00203">brix_sss_upstream_needed()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_prepare_servers()</a>.</p>
 
 </div>
 </div>
@@ -477,9 +477,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="core_2aio_2config_8c_source.html#l00019">19</a> of file <a class="el" href="core_2aio_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00420">ngx_stream_brix_srv_conf_t::cache</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00116">ngx_http_brix_shared_conf_t::thread_pool_name</a>.</p>
+<p class="reference">References <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00380">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -511,9 +511,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tls__config_8c_source.html#l00062">62</a> of file <a class="el" href="tls__config_8c_source.html">tls_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tls__config_8c_source.html#l00042">brix_ocsp_stapling_cb()</a>, <a class="el" href="types_2config_8h_source.html#l00124">ngx_stream_brix_srv_conf_t::certificate</a>, <a class="el" href="types_2config_8h_source.html#l00125">ngx_stream_brix_srv_conf_t::certificate_key</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="types_2config_8h_source.html#l00692">ngx_stream_brix_srv_conf_t::ocsp</a>, <a class="el" href="conf__structs_8h_source.html#l00030">brix_ocsp_conf_t::stapling</a>, <a class="el" href="types_2config_8h_source.html#l00571">ngx_stream_brix_srv_conf_t::tls</a>, <a class="el" href="types_2config_8h_source.html#l00576">ngx_stream_brix_srv_conf_t::tls_ctx</a>, and <a class="el" href="types_2config_8h_source.html#l00572">ngx_stream_brix_srv_conf_t::tls_ktls</a>.</p>
+<p class="reference">References <a class="el" href="tls__config_8c_source.html#l00042">brix_ocsp_stapling_cb()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_prepare_servers()</a>.</p>
 
 </div>
 </div>
@@ -543,11 +543,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth_2token_2config_8c_source.html#l00012">12</a> of file <a class="el" href="auth_2token_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth_2token_2config_8c_source.html#l00192">192</a> of file <a class="el" href="auth_2token_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, <a class="el" href="issuer__registry_8h_source.html#l00025">BRIX_AUTHZ_CAPABILITY</a>, <a class="el" href="jwks_8c_source.html#l00138">brix_jwks_load()</a>, <a class="el" href="jwks_8c_source.html#l00225">brix_jwks_register_cleanup()</a>, <a class="el" href="token_8h_source.html#l00020">BRIX_MAX_JWKS_KEYS</a>, <a class="el" href="config_2config_8h_source.html#l00019">BRIX_PATH_REGULAR_FILE</a>, <a class="el" href="issuer__registry_8c_source.html#l00234">brix_token_registry_build()</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, <a class="el" href="types_2config_8h_source.html#l00251">ngx_stream_brix_srv_conf_t::jwks_key_count</a>, <a class="el" href="types_2config_8h_source.html#l00250">ngx_stream_brix_srv_conf_t::jwks_keys</a>, <a class="el" href="types_2config_8h_source.html#l00252">ngx_stream_brix_srv_conf_t::jwks_mtime</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="types_2config_8h_source.html#l00223">ngx_stream_brix_srv_conf_t::token_audience</a>, <a class="el" href="types_2config_8h_source.html#l00227">ngx_stream_brix_srv_conf_t::token_config</a>, <a class="el" href="types_2config_8h_source.html#l00222">ngx_stream_brix_srv_conf_t::token_issuer</a>, <a class="el" href="types_2config_8h_source.html#l00221">ngx_stream_brix_srv_conf_t::token_jwks</a>, and <a class="el" href="types_2config_8h_source.html#l00230">ngx_stream_brix_srv_conf_t::token_registry</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, <a class="el" href="auth_2token_2config_8c_source.html#l00025">brix_token_configure_registry()</a>, <a class="el" href="auth_2token_2config_8c_source.html#l00107">brix_token_load_and_register_jwks()</a>, <a class="el" href="auth_2token_2config_8c_source.html#l00158">brix_token_log_summary()</a>, and <a class="el" href="auth_2token_2config_8c_source.html#l00066">brix_token_require_single_issuer_fields()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_prepare_servers()</a>.</p>
 
 </div>
 </div>
@@ -611,7 +611,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="shm__slots_8c_source.html#l00180">brix_shm_zone_size()</a>, <a class="el" href="observability_2metrics_2config_8c_source.html#l00179">ngx_brix_metrics_shm_init()</a>, <a class="el" href="observability_2metrics_2handler_8c_source.html#l00011">ngx_brix_shm_zone</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2metrics_2config_8c_source.html#l00042">brix_configure_metrics()</a>, and <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00739">ngx_http_brix_cvmfs_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="observability_2metrics_2config_8c_source.html#l00042">brix_configure_metrics()</a>, and <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00209">ngx_http_brix_cvmfs_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -638,7 +638,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="pending_8c_source.html#l00044">brix_pending_shm_init_zone()</a>, <a class="el" href="pending_8c_source.html#l00005">brix_pending_shm_zone</a>, <a class="el" href="shm__slots_8c_source.html#l00180">brix_shm_zone_size()</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00360">postconf_shared_registries()</a>.</p>
 
 </div>
 </div>
@@ -672,7 +672,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="shm__slots_8c_source.html#l00180">brix_shm_zone_size()</a>, <a class="el" href="shm__slots_8c_source.html#l00116">brix_shm_zone_warn_on_resize()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00010">brix_srv_registry_nslots</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00055">brix_srv_shm_init_zone()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00007">brix_srv_shm_zone</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00186">postconf_server_registry()</a>.</p>
 
 </div>
 </div>
@@ -710,7 +710,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth_2sss_2config_8c_source.html#l00092">92</a> of file <a class="el" href="auth_2sss_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00083">BRIX_DIAG_CONF</a>, <a class="el" href="config_2config_8h_source.html#l00019">BRIX_PATH_REGULAR_FILE</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00033">brix_sss_parse_key_line()</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00141">sss_keytab_mode_ok()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00083">BRIX_DIAG_CONF</a>, <a class="el" href="config_2config_8h_source.html#l00019">BRIX_PATH_REGULAR_FILE</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00033">brix_sss_parse_key_line()</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00190">sss_keytab_mode_ok()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__module_8c_source.html#l00163">brix_cms_srv_set_sss_keytab()</a>, and <a class="el" href="auth_2sss_2config_8c_source.html#l00225">brix_configure_sss_auth()</a>.</p>
 
@@ -744,9 +744,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="refresh_8c_source.html#l00110">110</a> of file <a class="el" href="refresh_8c_source.html">refresh.c</a>.</p>
 
-<p class="reference">References <a class="el" href="refresh_8c_source.html#l00081">brix_token_jwks_refresh_handler()</a>, <a class="el" href="types_2config_8h_source.html#l00256">ngx_stream_brix_srv_conf_t::jwks_timer</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="types_2config_8h_source.html#l00221">ngx_stream_brix_srv_conf_t::token_jwks</a>, and <a class="el" href="types_2config_8h_source.html#l00253">ngx_stream_brix_srv_conf_t::token_jwks_refresh_interval</a>.</p>
+<p class="reference">References <a class="el" href="refresh_8c_source.html#l00081">brix_token_jwks_refresh_handler()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00205">ngx_stream_brix_init_process()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="process__server__init_8c_source.html#l00282">brix_init_server_crl_jwks()</a>.</p>
 
 </div>
 </div>
@@ -770,7 +770,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="shm__slots_8c_source.html#l00180">brix_shm_zone_size()</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00081">brix_tpc_registry_shm_init()</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00046">brix_tpc_registry_shm_zone</a>, and <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00019">ngx_http_brix_webdav_postconfiguration()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00280">ngx_http_brix_webdav_postconfiguration()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00360">postconf_shared_registries()</a>.</p>
 
 </div>
 </div>
@@ -822,7 +822,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="config_2config_8h_source.html#l00020">BRIX_PATH_DIRECTORY</a>, <a class="el" href="config_2config_8h_source.html#l00021">BRIX_PATH_FILE_OR_DIRECTORY</a>, <a class="el" href="config_2config_8h_source.html#l00019">BRIX_PATH_REGULAR_FILE</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="core_2config_2policy_8c_source.html#l00122">brix_config_finalize_policy()</a>, <a class="el" href="runtime__server_8c_source.html#l00233">brix_config_prepare_server()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00067">brix_configure_gsi()</a>, <a class="el" href="auth_2token_2config_8c_source.html#l00012">brix_configure_token_auth()</a>, <a class="el" href="root__prepare_8c_source.html#l00023">brix_prepare_export_root()</a>, and <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="core_2config_2policy_8c_source.html#l00122">brix_config_finalize_policy()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00148">brix_gsi_require_trust_inputs()</a>, <a class="el" href="root__prepare_8c_source.html#l00023">brix_prepare_export_root()</a>, <a class="el" href="runtime__server_8c_source.html#l00266">brix_server_validate_cache()</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>, and <a class="el" href="auth_2token_2config_8c_source.html#l00107">brix_token_load_and_register_jwks()</a>.</p>
 
 </div>
 </div>

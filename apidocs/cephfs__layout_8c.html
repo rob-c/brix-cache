@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('cephfs__layout_8c.html',''); initResiz
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">cephfs_layout.c File Reference</div></div>
 </div><!--header-->
@@ -106,6 +107,11 @@ $(document).ready(function(){initNavTree('cephfs__layout_8c.html',''); initResiz
 </div>
 <p><a href="cephfs__layout_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structcephfs__frag__split__t.html">cephfs_frag_split_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a495150d747620de05e951c70d013c6d9" id="r_a495150d747620de05e951c70d013c6d9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cephfs__layout_8c.html#a495150d747620de05e951c70d013c6d9">decode_utime</a> (<a class="el" href="structcephfs__denc__t.html">cephfs_denc_t</a> *d, int64_t *sec, uint32_t *nsec)</td></tr>
@@ -120,6 +126,12 @@ Functions</h2></td></tr>
 <tr class="separator:a915a19561f671a51e4b28805d65a886c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8f916fb82f39a2ab645dbe58ba878676" id="r_a8f916fb82f39a2ab645dbe58ba878676"><td class="memItemLeft" align="right" valign="top">static uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cephfs__layout_8c.html#a8f916fb82f39a2ab645dbe58ba878676">frag_make_child</a> (uint32_t enc, uint32_t nbits, uint32_t i)</td></tr>
 <tr class="separator:a8f916fb82f39a2ab645dbe58ba878676"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5377f4b910cdea850872557536b2b9d8" id="r_a5377f4b910cdea850872557536b2b9d8"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cephfs__layout_8c.html#a5377f4b910cdea850872557536b2b9d8">cephfs_read_frag_splits</a> (<a class="el" href="structcephfs__denc__t.html">cephfs_denc_t</a> *d, <a class="el" href="structcephfs__frag__split__t.html">cephfs_frag_split_t</a> *splits, uint32_t *nsplit_out)</td></tr>
+<tr class="separator:a5377f4b910cdea850872557536b2b9d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a547e60348e9165ad368935ddbd965661" id="r_a547e60348e9165ad368935ddbd965661"><td class="memItemLeft" align="right" valign="top">static int32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cephfs__layout_8c.html#a547e60348e9165ad368935ddbd965661">cephfs_frag_lookup_nway</a> (const <a class="el" href="structcephfs__frag__split__t.html">cephfs_frag_split_t</a> *splits, uint32_t nsplit, uint32_t f)</td></tr>
+<tr class="separator:a547e60348e9165ad368935ddbd965661"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa39864c47391759af2194a95a9d1f0f1" id="r_aa39864c47391759af2194a95a9d1f0f1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cephfs__layout_8c.html#aa39864c47391759af2194a95a9d1f0f1">cephfs_frag_push_children</a> (uint32_t f, int32_t nb, uint32_t *stack, uint32_t *sp, int *trunc)</td></tr>
+<tr class="separator:aa39864c47391759af2194a95a9d1f0f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4c9deb26efd831d0e92ef33236b16033" id="r_a4c9deb26efd831d0e92ef33236b16033"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cephfs__layout_8c.html#a4c9deb26efd831d0e92ef33236b16033">cephfs_decode_fragtree</a> (<a class="el" href="structcephfs__denc__t.html">cephfs_denc_t</a> *d, uint32_t *leaves, uint32_t max, uint32_t *count, int *truncated)</td></tr>
 <tr class="separator:a4c9deb26efd831d0e92ef33236b16033"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a380504fac008fe5858c71b4f6c6108e7" id="r_a380504fac008fe5858c71b4f6c6108e7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cephfs__layout_8c.html#a380504fac008fe5858c71b4f6c6108e7">cephfs_decode_xattrs</a> (<a class="el" href="structcephfs__denc__t.html">cephfs_denc_t</a> *d, <a class="el" href="structcephfs__xattr__t.html">cephfs_xattr_t</a> *out, uint32_t max, uint32_t *count, int *truncated)</td></tr>
@@ -162,9 +174,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00211">211</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00306">306</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cephfs__denc_8c_source.html#l00179">cephfs_denc_finish()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00015">cephfs_denc_init()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00156">cephfs_denc_start()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00136">cephfs_denc_str()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00092">cephfs_denc_u64()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00053">cephfs_denc_u8()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00094">CEPHFS_DENTRY_REMOTE</a>, <a class="el" href="cephfs__layout_8c_source.html#l00187">decode_primary_body()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00098">cephfs_dentry_t::kind</a>, <a class="el" href="cephfs__layout_8h_source.html#l00102">cephfs_dentry_t::remote_d_type</a>, <a class="el" href="cephfs__layout_8h_source.html#l00101">cephfs_dentry_t::remote_ino</a>, and <a class="el" href="cephfs__denc_8h_source.html#l00042">cephfs_denc_frame_t::struct_v</a>.</p>
+<p class="reference">References <a class="el" href="cephfs__denc_8c_source.html#l00179">cephfs_denc_finish()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00015">cephfs_denc_init()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00156">cephfs_denc_start()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00136">cephfs_denc_str()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00092">cephfs_denc_u64()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00053">cephfs_denc_u8()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00094">CEPHFS_DENTRY_REMOTE</a>, <a class="el" href="cephfs__layout_8c_source.html#l00282">decode_primary_body()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00098">cephfs_dentry_t::kind</a>, <a class="el" href="cephfs__layout_8h_source.html#l00102">cephfs_dentry_t::remote_d_type</a>, <a class="el" href="cephfs__layout_8h_source.html#l00101">cephfs_dentry_t::remote_ino</a>, and <a class="el" href="cephfs__denc_8h_source.html#l00042">cephfs_denc_frame_t::struct_v</a>.</p>
 
 </div>
 </div>
@@ -246,11 +258,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00097">97</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00212">212</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00076">cephfs_denc_u32()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00043">CEPHFS_MAX_FRAGS</a>, <a class="el" href="cephfs__denc_8h_source.html#l00036">cephfs_denc_t::err</a>, and <a class="el" href="cephfs__layout_8c_source.html#l00089">frag_make_child()</a>.</p>
+<p class="reference">References <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__layout_8c_source.html#l00148">cephfs_frag_lookup_nway()</a>, <a class="el" href="cephfs__layout_8c_source.html#l00176">cephfs_frag_push_children()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00043">CEPHFS_MAX_FRAGS</a>, and <a class="el" href="cephfs__layout_8c_source.html#l00117">cephfs_read_frag_splits()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00187">decode_primary_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00282">decode_primary_body()</a>.</p>
 
 </div>
 </div>
@@ -284,7 +296,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cephfs__layout_8c_source.html#l00026">cephfs_decode_file_layout()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00179">cephfs_denc_finish()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00128">cephfs_denc_skip()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00156">cephfs_denc_start()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00076">cephfs_denc_u32()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00092">cephfs_denc_u64()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00053">cephfs_denc_u8()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00077">cephfs_inode_t::ctime_nsec</a>, <a class="el" href="cephfs__layout_8h_source.html#l00076">cephfs_inode_t::ctime_sec</a>, <a class="el" href="cephfs__layout_8c_source.html#l00017">decode_utime()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00071">cephfs_inode_t::gid</a>, <a class="el" href="cephfs__layout_8h_source.html#l00068">cephfs_inode_t::ino</a>, <a class="el" href="cephfs__layout_8h_source.html#l00078">cephfs_inode_t::layout</a>, <a class="el" href="cephfs__layout_8h_source.html#l00069">cephfs_inode_t::mode</a>, <a class="el" href="cephfs__layout_8h_source.html#l00075">cephfs_inode_t::mtime_nsec</a>, <a class="el" href="cephfs__layout_8h_source.html#l00074">cephfs_inode_t::mtime_sec</a>, <a class="el" href="cephfs__layout_8h_source.html#l00072">cephfs_inode_t::nlink</a>, <a class="el" href="cephfs__layout_8h_source.html#l00073">cephfs_inode_t::size</a>, <a class="el" href="cephfs__layout_8h_source.html#l00079">cephfs_inode_t::struct_v</a>, and <a class="el" href="cephfs__layout_8h_source.html#l00070">cephfs_inode_t::uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00187">decode_primary_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00282">decode_primary_body()</a>.</p>
 
 </div>
 </div>
@@ -332,11 +344,167 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00150">150</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00245">245</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
 
 <p class="reference">References <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00136">cephfs_denc_str()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00076">cephfs_denc_u32()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00085">cephfs_xattr_t::name</a>, <a class="el" href="cephfs__layout_8h_source.html#l00086">cephfs_xattr_t::name_len</a>, <a class="el" href="cephfs__layout_8h_source.html#l00087">cephfs_xattr_t::val</a>, and <a class="el" href="cephfs__layout_8h_source.html#l00088">cephfs_xattr_t::val_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00187">decode_primary_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00282">decode_primary_body()</a>.</p>
+
+</div>
+</div>
+<a id="a547e60348e9165ad368935ddbd965661" name="a547e60348e9165ad368935ddbd965661"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a547e60348e9165ad368935ddbd965661">&#9670;&#160;</a></span>cephfs_frag_lookup_nway()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int32_t cephfs_frag_lookup_nway </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structcephfs__frag__split__t.html">cephfs_frag_split_t</a> *&#160;</td>
+          <td class="paramname"><em>splits</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>nsplit</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>f</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00148">148</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cephfs__layout_8c_source.html#l00097">cephfs_frag_split_t::nway</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00212">cephfs_decode_fragtree()</a>.</p>
+
+</div>
+</div>
+<a id="aa39864c47391759af2194a95a9d1f0f1" name="aa39864c47391759af2194a95a9d1f0f1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa39864c47391759af2194a95a9d1f0f1">&#9670;&#160;</a></span>cephfs_frag_push_children()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cephfs_frag_push_children </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int32_t&#160;</td>
+          <td class="paramname"><em>nb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t *&#160;</td>
+          <td class="paramname"><em>stack</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t *&#160;</td>
+          <td class="paramname"><em>sp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>trunc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00176">176</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="cephfs__layout_8h_source.html#l00043">CEPHFS_MAX_FRAGS</a>, and <a class="el" href="cephfs__layout_8c_source.html#l00089">frag_make_child()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00212">cephfs_decode_fragtree()</a>.</p>
+
+</div>
+</div>
+<a id="a5377f4b910cdea850872557536b2b9d8" name="a5377f4b910cdea850872557536b2b9d8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5377f4b910cdea850872557536b2b9d8">&#9670;&#160;</a></span>cephfs_read_frag_splits()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cephfs_read_frag_splits </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structcephfs__denc__t.html">cephfs_denc_t</a> *&#160;</td>
+          <td class="paramname"><em>d</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structcephfs__frag__split__t.html">cephfs_frag_split_t</a> *&#160;</td>
+          <td class="paramname"><em>splits</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t *&#160;</td>
+          <td class="paramname"><em>nsplit_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00117">117</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00076">cephfs_denc_u32()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00043">CEPHFS_MAX_FRAGS</a>, <a class="el" href="cephfs__layout_8c_source.html#l00097">cephfs_frag_split_t::enc</a>, <a class="el" href="cephfs__denc_8h_source.html#l00036">cephfs_denc_t::err</a>, and <a class="el" href="cephfs__layout_8c_source.html#l00097">cephfs_frag_split_t::nway</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00212">cephfs_decode_fragtree()</a>.</p>
 
 </div>
 </div>
@@ -374,11 +542,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00187">187</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cephfs__layout_8c_source.html#l00282">282</a> of file <a class="el" href="cephfs__layout_8c_source.html">cephfs_layout.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cephfs__layout_8c_source.html#l00097">cephfs_decode_fragtree()</a>, <a class="el" href="cephfs__layout_8c_source.html#l00047">cephfs_decode_inode()</a>, <a class="el" href="cephfs__layout_8c_source.html#l00150">cephfs_decode_xattrs()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00136">cephfs_denc_str()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00093">CEPHFS_DENTRY_PRIMARY</a>, <a class="el" href="cephfs__layout_8h_source.html#l00043">CEPHFS_MAX_FRAGS</a>, <a class="el" href="cephfs__layout_8h_source.html#l00044">CEPHFS_MAX_XATTRS</a>, <a class="el" href="cephfs__layout_8h_source.html#l00055">cephfs_mode_is_link()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00113">cephfs_dentry_t::frag_enc</a>, <a class="el" href="cephfs__layout_8h_source.html#l00115">cephfs_dentry_t::frags_truncated</a>, <a class="el" href="cephfs__layout_8h_source.html#l00105">cephfs_dentry_t::inode</a>, <a class="el" href="cephfs__layout_8h_source.html#l00098">cephfs_dentry_t::kind</a>, <a class="el" href="cephfs__layout_8h_source.html#l00069">cephfs_inode_t::mode</a>, <a class="el" href="cephfs__layout_8h_source.html#l00114">cephfs_dentry_t::nfrags</a>, <a class="el" href="cephfs__layout_8h_source.html#l00119">cephfs_dentry_t::nxattrs</a>, <a class="el" href="cephfs__layout_8h_source.html#l00106">cephfs_dentry_t::symlink</a>, <a class="el" href="cephfs__layout_8h_source.html#l00108">cephfs_dentry_t::symlink_len</a>, <a class="el" href="cephfs__layout_8h_source.html#l00118">cephfs_dentry_t::xattrs</a>, and <a class="el" href="cephfs__layout_8h_source.html#l00120">cephfs_dentry_t::xattrs_truncated</a>.</p>
+<p class="reference">References <a class="el" href="cephfs__layout_8c_source.html#l00212">cephfs_decode_fragtree()</a>, <a class="el" href="cephfs__layout_8c_source.html#l00047">cephfs_decode_inode()</a>, <a class="el" href="cephfs__layout_8c_source.html#l00245">cephfs_decode_xattrs()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00023">cephfs_denc_ok()</a>, <a class="el" href="cephfs__denc_8c_source.html#l00136">cephfs_denc_str()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00093">CEPHFS_DENTRY_PRIMARY</a>, <a class="el" href="cephfs__layout_8h_source.html#l00043">CEPHFS_MAX_FRAGS</a>, <a class="el" href="cephfs__layout_8h_source.html#l00044">CEPHFS_MAX_XATTRS</a>, <a class="el" href="cephfs__layout_8h_source.html#l00055">cephfs_mode_is_link()</a>, <a class="el" href="cephfs__layout_8h_source.html#l00113">cephfs_dentry_t::frag_enc</a>, <a class="el" href="cephfs__layout_8h_source.html#l00115">cephfs_dentry_t::frags_truncated</a>, <a class="el" href="cephfs__layout_8h_source.html#l00105">cephfs_dentry_t::inode</a>, <a class="el" href="cephfs__layout_8h_source.html#l00098">cephfs_dentry_t::kind</a>, <a class="el" href="cephfs__layout_8h_source.html#l00069">cephfs_inode_t::mode</a>, <a class="el" href="cephfs__layout_8h_source.html#l00114">cephfs_dentry_t::nfrags</a>, <a class="el" href="cephfs__layout_8h_source.html#l00119">cephfs_dentry_t::nxattrs</a>, <a class="el" href="cephfs__layout_8h_source.html#l00106">cephfs_dentry_t::symlink</a>, <a class="el" href="cephfs__layout_8h_source.html#l00108">cephfs_dentry_t::symlink_len</a>, <a class="el" href="cephfs__layout_8h_source.html#l00118">cephfs_dentry_t::xattrs</a>, and <a class="el" href="cephfs__layout_8h_source.html#l00120">cephfs_dentry_t::xattrs_truncated</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00211">cephfs_decode_dentry()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00306">cephfs_decode_dentry()</a>.</p>
 
 </div>
 </div>
@@ -504,7 +672,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cephfs__layout_8c_source.html#l00086">frag_bits()</a>, and <a class="el" href="cephfs__layout_8c_source.html#l00087">frag_value()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00097">cephfs_decode_fragtree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cephfs__layout_8c_source.html#l00176">cephfs_frag_push_children()</a>.</p>
 
 </div>
 </div>

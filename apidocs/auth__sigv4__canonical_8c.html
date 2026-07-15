@@ -123,6 +123,14 @@ Functions</h2></td></tr>
 <tr class="separator:a6d37ff488d9958df9f9c1c2a3af2ddd1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa573191cf82b3d718ccd1793472a7699" id="r_aa573191cf82b3d718ccd1793472a7699"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__sigv4__canonical_8c.html#aa573191cf82b3d718ccd1793472a7699">sigv4_store_param</a> (<a class="el" href="structqparam__t.html">qparam_t</a> *p, const u_char *segment_start, const u_char *segment_end, const u_char *equals, ngx_flag_t skip_signature)</td></tr>
 <tr class="separator:aa573191cf82b3d718ccd1793472a7699"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6fb0a259229adeed31214dae4955e1aa" id="r_a6fb0a259229adeed31214dae4955e1aa"><td class="memItemLeft" align="right" valign="top">static const u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__sigv4__canonical_8c.html#a6fb0a259229adeed31214dae4955e1aa">sigv4_scan_segment</a> (const u_char *segment_start, const u_char *end, const u_char **equals_out)</td></tr>
+<tr class="separator:a6fb0a259229adeed31214dae4955e1aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a10fc69f1ecf4e717ac2e2556a35428dc" id="r_a10fc69f1ecf4e717ac2e2556a35428dc"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__sigv4__canonical_8c.html#a10fc69f1ecf4e717ac2e2556a35428dc">sigv4_parse_qs</a> (const u_char *qs, size_t qslen, ngx_flag_t skip_signature, <a class="el" href="structqparam__t.html">qparam_t</a> *params, int max_params)</td></tr>
+<tr class="separator:a10fc69f1ecf4e717ac2e2556a35428dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac044754834561856a1181b309f0b9090" id="r_ac044754834561856a1181b309f0b9090"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__sigv4__canonical_8c.html#ac044754834561856a1181b309f0b9090">sigv4_append_encoded</a> (u_char *out, size_t oi, size_t outsz, const u_char *src, size_t slen)</td></tr>
+<tr class="separator:ac044754834561856a1181b309f0b9090"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9355b3cdb1a0c8f8f2db9b6a119a5048" id="r_a9355b3cdb1a0c8f8f2db9b6a119a5048"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__sigv4__canonical_8c.html#a9355b3cdb1a0c8f8f2db9b6a119a5048">sigv4_emit_canonical_qs</a> (const <a class="el" href="structqparam__t.html">qparam_t</a> *params, int param_count, u_char *out, size_t outsz)</td></tr>
+<tr class="separator:a9355b3cdb1a0c8f8f2db9b6a119a5048"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac094488db38e1f2b44714a8976a6f48e" id="r_ac094488db38e1f2b44714a8976a6f48e"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__sigv4__canonical_8c.html#ac094488db38e1f2b44714a8976a6f48e">build_canonical_qs</a> (const u_char *qs, size_t qslen, ngx_flag_t skip_signature, u_char *out, size_t outsz)</td></tr>
 <tr class="separator:ac094488db38e1f2b44714a8976a6f48e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -171,11 +179,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth__sigv4__canonical_8c_source.html#l00126">126</a> of file <a class="el" href="auth__sigv4__canonical_8c_source.html">auth_sigv4_canonical.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth__sigv4__canonical_8c_source.html#l00294">294</a> of file <a class="el" href="auth__sigv4__canonical_8c_source.html">auth_sigv4_canonical.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="auth__sigv4__canonical_8c_source.html#l00047">qparam_cmp()</a>, <a class="el" href="auth__sigv4__canonical_8c_source.html#l00083">sigv4_store_param()</a>, and <a class="el" href="auth__sigv4__canonical_8c_source.html#l00068">uriencode_param()</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__canonical_8c_source.html#l00047">qparam_cmp()</a>, <a class="el" href="auth__sigv4__canonical_8c_source.html#l00255">sigv4_emit_canonical_qs()</a>, and <a class="el" href="auth__sigv4__canonical_8c_source.html#l00180">sigv4_parse_qs()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__sigv4__verify_8c_source.html#l00360">s3_verify_sigv4()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00183">s3_sigv4_compute_signature()</a>.</p>
 
 </div>
 </div>
@@ -217,7 +225,227 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="auth__sigv4__canonical_8c_source.html#l00025">qparam_t::name</a>, <a class="el" href="auth__sigv4__canonical_8c_source.html#l00026">qparam_t::name_len</a>, <a class="el" href="auth__sigv4__canonical_8c_source.html#l00027">qparam_t::value</a>, and <a class="el" href="auth__sigv4__canonical_8c_source.html#l00028">qparam_t::value_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00126">build_canonical_qs()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00294">build_canonical_qs()</a>.</p>
+
+</div>
+</div>
+<a id="ac044754834561856a1181b309f0b9090" name="ac044754834561856a1181b309f0b9090"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac044754834561856a1181b309f0b9090">&#9670;&#160;</a></span>sigv4_append_encoded()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t sigv4_append_encoded </td>
+          <td>(</td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>oi</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>slen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__sigv4__canonical_8c_source.html#l00225">225</a> of file <a class="el" href="auth__sigv4__canonical_8c_source.html">auth_sigv4_canonical.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="auth__sigv4__canonical_8c_source.html#l00068">uriencode_param()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00255">sigv4_emit_canonical_qs()</a>.</p>
+
+</div>
+</div>
+<a id="a9355b3cdb1a0c8f8f2db9b6a119a5048" name="a9355b3cdb1a0c8f8f2db9b6a119a5048"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9355b3cdb1a0c8f8f2db9b6a119a5048">&#9670;&#160;</a></span>sigv4_emit_canonical_qs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t sigv4_emit_canonical_qs </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structqparam__t.html">qparam_t</a> *&#160;</td>
+          <td class="paramname"><em>params</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>param_count</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__sigv4__canonical_8c_source.html#l00255">255</a> of file <a class="el" href="auth__sigv4__canonical_8c_source.html">auth_sigv4_canonical.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="auth__sigv4__canonical_8c_source.html#l00225">sigv4_append_encoded()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00294">build_canonical_qs()</a>.</p>
+
+</div>
+</div>
+<a id="a10fc69f1ecf4e717ac2e2556a35428dc" name="a10fc69f1ecf4e717ac2e2556a35428dc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a10fc69f1ecf4e717ac2e2556a35428dc">&#9670;&#160;</a></span>sigv4_parse_qs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sigv4_parse_qs </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>qs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>qslen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>skip_signature</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structqparam__t.html">qparam_t</a> *&#160;</td>
+          <td class="paramname"><em>params</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>max_params</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__sigv4__canonical_8c_source.html#l00180">180</a> of file <a class="el" href="auth__sigv4__canonical_8c_source.html">auth_sigv4_canonical.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__sigv4__canonical_8c_source.html#l00144">sigv4_scan_segment()</a>, and <a class="el" href="auth__sigv4__canonical_8c_source.html#l00083">sigv4_store_param()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00294">build_canonical_qs()</a>.</p>
+
+</div>
+</div>
+<a id="a6fb0a259229adeed31214dae4955e1aa" name="a6fb0a259229adeed31214dae4955e1aa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6fb0a259229adeed31214dae4955e1aa">&#9670;&#160;</a></span>sigv4_scan_segment()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const u_char * sigv4_scan_segment </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>segment_start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>end</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char **&#160;</td>
+          <td class="paramname"><em>equals_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__sigv4__canonical_8c_source.html#l00144">144</a> of file <a class="el" href="auth__sigv4__canonical_8c_source.html">auth_sigv4_canonical.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00180">sigv4_parse_qs()</a>.</p>
 
 </div>
 </div>
@@ -277,7 +505,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00027">BRIX_URLDECODE_PLUS_TO_SPACE</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00026">BRIX_URLDECODE_REJECT_NUL</a>, <a class="el" href="auth__sigv4__canonical_8c_source.html#l00025">qparam_t::name</a>, <a class="el" href="auth__sigv4__canonical_8c_source.html#l00026">qparam_t::name_len</a>, <a class="el" href="auth__sigv4__canonical_8c_source.html#l00027">qparam_t::value</a>, and <a class="el" href="auth__sigv4__canonical_8c_source.html#l00028">qparam_t::value_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00126">build_canonical_qs()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00180">sigv4_parse_qs()</a>.</p>
 
 </div>
 </div>
@@ -331,7 +559,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00126">build_canonical_qs()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__canonical_8c_source.html#l00225">sigv4_append_encoded()</a>.</p>
 
 </div>
 </div>

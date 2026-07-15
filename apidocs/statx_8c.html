@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('statx_8c.html',''); initResizable(); }
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">statx.c File Reference</div></div>
@@ -99,6 +100,7 @@ $(document).ready(function(){initNavTree('statx_8c.html',''); initResizable(); }
 <div class="textblock"><code>#include &quot;<a class="el" href="statx_8h_source.html">statx.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="stat_8h_source.html">stat.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="ngx__brix__module_8h_source.html">core/ngx_brix_module.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="op__path_8h_source.html">protocols/root/path/op_path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="beneath_8h_source.html">fs/path/beneath.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="reserved__names_8h_source.html">fs/path/reserved_names.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="alloc__guard_8h_source.html">core/compat/alloc_guard.h</a>&quot;</code><br />
@@ -113,6 +115,11 @@ $(document).ready(function(){initNavTree('statx_8c.html',''); initResizable(); }
 </div>
 <p><a href="statx_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__statx__rsp__t.html">brix_statx_rsp_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:ab9e2324a6c3762e772a4e2cb58070515" id="r_ab9e2324a6c3762e772a4e2cb58070515"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="statx_8c.html#ab9e2324a6c3762e772a4e2cb58070515">BRIX_STATX_MAX_PATHS</a>&#160;&#160;&#160;256</td></tr>
@@ -124,7 +131,15 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a6cdf2285d6ede4603513e7ec79f5369d" id="r_a6cdf2285d6ede4603513e7ec79f5369d"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="statx_8c.html#a6cdf2285d6ede4603513e7ec79f5369d">brix_statx_next_path</a> (const u_char **cursor, const u_char *end, char *path, size_t path_size)</td></tr>
 <tr class="separator:a6cdf2285d6ede4603513e7ec79f5369d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3e817548825b141e720d82d8b04f1c20" id="r_a3e817548825b141e720d82d8b04f1c20"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="statx_8c.html#a3e817548825b141e720d82d8b04f1c20">brix_handle_statx</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="memitem:a7fb579a9d3fa15bd51846e33375d73f1" id="r_a7fb579a9d3fa15bd51846e33375d73f1"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="statx_8c.html#a7fb579a9d3fa15bd51846e33375d73f1">brix_statx_symlink_fallback_stat</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *full_path, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st)</td></tr>
+<tr class="separator:a7fb579a9d3fa15bd51846e33375d73f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac5f826ffc9588278c3e09a26065c4a22" id="r_ac5f826ffc9588278c3e09a26065c4a22"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="statx_8c.html#ac5f826ffc9588278c3e09a26065c4a22">brix_statx_path_authorized</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *full_path, const char *reqpath_buf)</td></tr>
+<tr class="separator:ac5f826ffc9588278c3e09a26065c4a22"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4c4e41d1c24ad7922e4318528c12b148" id="r_a4c4e41d1c24ad7922e4318528c12b148"><td class="memItemLeft" align="right" valign="top">static u_char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="statx_8c.html#a4c4e41d1c24ad7922e4318528c12b148">brix_statx_compute_flag</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *full_path, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st)</td></tr>
+<tr class="separator:a4c4e41d1c24ad7922e4318528c12b148"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5c7c5567df9373ecdb368708eab16343" id="r_a5c7c5567df9373ecdb368708eab16343"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="statx_8c.html#a5c7c5567df9373ecdb368708eab16343">brix_statx_process_path</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *reqpath_buf, <a class="el" href="structbrix__statx__rsp__t.html">brix_statx_rsp_t</a> *rsp)</td></tr>
+<tr class="separator:a5c7c5567df9373ecdb368708eab16343"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3e817548825b141e720d82d8b04f1c20" id="r_a3e817548825b141e720d82d8b04f1c20"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="statx_8c.html#a3e817548825b141e720d82d8b04f1c20">brix_handle_statx</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:a3e817548825b141e720d82d8b04f1c20"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -140,7 +155,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00021">21</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00022">22</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
 
 </div>
 </div>
@@ -156,7 +171,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00014">14</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00015">15</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
 
 </div>
 </div>
@@ -193,11 +208,65 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00059">59</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00235">235</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="types_2config_8h_source.html#l00053">BRIX_AUTH_LOOKUP</a>, <a class="el" href="beneath_8h_source.html#l00114">brix_beneath_full_path()</a>, <a class="el" href="authdb_8c_source.html#l00499">brix_check_authdb()</a>, <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00019">brix_check_token_scope()</a>, <a class="el" href="auth_2authz_2acl_8c_source.html#l00094">brix_check_vo_acl_identity()</a>, <a class="el" href="reserved__names_8h_source.html#l00043">brix_is_internal_name()</a>, <a class="el" href="error__mapping_8c_source.html#l00034">brix_kxr_from_errno()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00348">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00054">BRIX_OP_STATX</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="tunables_8h_source.html#l00285">BRIX_RETURN_ERR</a>, <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_RES_NEARLINE</a>, <a class="el" href="sd_8h_source.html#l00133">BRIX_SD_RES_OFFLINE</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="statx_8c_source.html#l00021">BRIX_STATX_BUF_MAX</a>, <a class="el" href="statx_8c_source.html#l00014">BRIX_STATX_MAX_PATHS</a>, <a class="el" href="statx_8c_source.html#l00026">brix_statx_next_path()</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00172">brix_vfs_probe()</a>, <a class="el" href="vfs__stat_8c_source.html#l00128">brix_vfs_residency()</a>, <a class="el" href="stat_8c_source.html#l00066">brix_vfs_to_struct_stat()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="ctx__structs_8h_source.html#l00178">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="flags_8h_source.html#l00047">kXR_file</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="flags_8h_source.html#l00051">kXR_offline</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::payload</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="types_2config_8h_source.html#l00117">ngx_stream_brix_srv_conf_t::rootfd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="types_2config_8h_source.html#l00148">ngx_stream_brix_srv_conf_t::vo_rules</a>.</p>
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00054">BRIX_OP_STATX</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="statx_8c_source.html#l00022">BRIX_STATX_BUF_MAX</a>, <a class="el" href="statx_8c_source.html#l00015">BRIX_STATX_MAX_PATHS</a>, <a class="el" href="statx_8c_source.html#l00035">brix_statx_next_path()</a>, <a class="el" href="statx_8c_source.html#l00193">brix_statx_process_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="statx_8c_source.html#l00029">brix_statx_rsp_t::end</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="statx_8c_source.html#l00028">brix_statx_rsp_t::ptr</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="dispatch__read_8c_source.html#l00044">brix_dispatch_read_opcode()</a>.</p>
+
+</div>
+</div>
+<a id="a4c4e41d1c24ad7922e4318528c12b148" name="a4c4e41d1c24ad7922e4318528c12b148"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4c4e41d1c24ad7922e4318528c12b148">&#9670;&#160;</a></span>brix_statx_compute_flag()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static u_char brix_statx_compute_flag </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>full_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00153">153</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="sd_8h_source.html#l00225">BRIX_SD_RES_NEARLINE</a>, <a class="el" href="sd_8h_source.html#l00226">BRIX_SD_RES_OFFLINE</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00155">brix_vfs_residency()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="flags_8h_source.html#l00047">kXR_file</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="flags_8h_source.html#l00051">kXR_offline</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="statx_8c_source.html#l00193">brix_statx_process_path()</a>.</p>
 
 </div>
 </div>
@@ -247,11 +316,191 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00026">26</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00035">35</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="statx_8c_source.html#l00059">brix_handle_statx()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="statx_8c_source.html#l00235">brix_handle_statx()</a>.</p>
+
+</div>
+</div>
+<a id="ac5f826ffc9588278c3e09a26065c4a22" name="ac5f826ffc9588278c3e09a26065c4a22"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac5f826ffc9588278c3e09a26065c4a22">&#9670;&#160;</a></span>brix_statx_path_authorized()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_statx_path_authorized </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>full_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>reqpath_buf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00128">128</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
+
+<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00053">BRIX_AUTH_LOOKUP</a>, <a class="el" href="authdb_8c_source.html#l00312">brix_check_authdb()</a>, <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00019">brix_check_token_scope()</a>, <a class="el" href="auth_2authz_2acl_8c_source.html#l00094">brix_check_vo_acl_identity()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="statx_8c_source.html#l00193">brix_statx_process_path()</a>.</p>
+
+</div>
+</div>
+<a id="a5c7c5567df9373ecdb368708eab16343" name="a5c7c5567df9373ecdb368708eab16343"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5c7c5567df9373ecdb368708eab16343">&#9670;&#160;</a></span>brix_statx_process_path()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_statx_process_path </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>reqpath_buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__statx__rsp__t.html">brix_statx_rsp_t</a> *&#160;</td>
+          <td class="paramname"><em>rsp</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00193">193</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
+
+<p class="reference">References <a class="el" href="beneath_8h_source.html#l00114">brix_beneath_full_path()</a>, <a class="el" href="reserved__names_8h_source.html#l00043">brix_is_internal_name()</a>, <a class="el" href="error__mapping_8c_source.html#l00035">brix_kxr_from_errno()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00054">BRIX_OP_STATX</a>, <a class="el" href="tunables_8h_source.html#l00285">BRIX_RETURN_ERR</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="statx_8c_source.html#l00153">brix_statx_compute_flag()</a>, <a class="el" href="statx_8c_source.html#l00128">brix_statx_path_authorized()</a>, <a class="el" href="statx_8c_source.html#l00078">brix_statx_symlink_fallback_stat()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="statx_8c_source.html#l00029">brix_statx_rsp_t::end</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="statx_8c_source.html#l00028">brix_statx_rsp_t::ptr</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="statx_8c_source.html#l00235">brix_handle_statx()</a>.</p>
+
+</div>
+</div>
+<a id="a7fb579a9d3fa15bd51846e33375d73f1" name="a7fb579a9d3fa15bd51846e33375d73f1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7fb579a9d3fa15bd51846e33375d73f1">&#9670;&#160;</a></span>brix_statx_symlink_fallback_stat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int brix_statx_symlink_fallback_stat </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>full_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="statx_8c_source.html#l00078">78</a> of file <a class="el" href="statx_8c_source.html">statx.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="op__path_8c_source.html#l00412">brix_root_vfs_bind_deleg()</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="stat_8c_source.html#l00066">brix_vfs_to_struct_stat()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="statx_8c_source.html#l00193">brix_statx_process_path()</a>.</p>
 
 </div>
 </div>

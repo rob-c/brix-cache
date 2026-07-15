@@ -1,11 +1,15 @@
 <map id="src/protocols/root/read/prefetch.h" name="src/protocols/root/read/prefetch.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="252,5,387,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="431,5,565,45"/>
 <area shape="rect" id="Node000002" href="$prefetch_8c.html" title=" " alt="" coords="5,93,140,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="253,52,128,96,126,91,251,47"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="417,44,152,96,141,98,140,93,151,91,416,39"/>
 <area shape="rect" id="Node000003" href="$read_8c.html" title=" " alt="" coords="164,93,299,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="292,57,253,95,249,91,288,53"/>
-<area shape="rect" id="Node000004" href="$read__compress_8c.html" title=" " alt="" coords="323,93,492,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="351,53,390,91,386,95,347,57"/>
-<area shape="rect" id="Node000005" href="$protocols_2root_2read_2readv_8c.html" title=" " alt="" coords="516,93,651,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="391,47,526,91,525,96,389,52"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="427,52,291,96,289,91,426,47"/>
+<area shape="rect" id="Node000004" href="$read__buffered_8c.html" title=" " alt="" coords="323,93,483,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="469,57,426,95,422,91,465,53"/>
+<area shape="rect" id="Node000005" href="$read__compress_8c.html" title=" " alt="" coords="508,93,677,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="531,53,574,91,570,95,527,57"/>
+<area shape="rect" id="Node000006" href="$read__sendfile_8c.html" title=" " alt="" coords="702,93,859,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="574,47,720,91,718,96,572,52"/>
+<area shape="rect" id="Node000007" href="$protocols_2root_2read_2readv_8c.html" title=" " alt="" coords="884,93,1019,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="579,37,872,91,884,93,883,99,871,96,578,42"/>
 </map>

@@ -118,9 +118,17 @@ $(document).ready(function(){initNavTree('verify_8c.html',''); initResizable(); 
 Functions</h2></td></tr>
 <tr class="memitem:aefbd038185cadced4bdd8ee9ad5cd805" id="r_aefbd038185cadced4bdd8ee9ad5cd805"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#aefbd038185cadced4bdd8ee9ad5cd805">brix_cache_hex_ieq</a> (const char *a, const char *b)</td></tr>
 <tr class="separator:aefbd038185cadced4bdd8ee9ad5cd805"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a41951f8fbf825e8e51b95f91924643c9" id="r_a41951f8fbf825e8e51b95f91924643c9"><td class="memItemLeft" align="right" valign="top"><a class="el" href="verify_8h.html#a9b00514f203efa83ffd986700969dfdc">brix_cache_verify_result_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#a41951f8fbf825e8e51b95f91924643c9">brix_cache_verify_part</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, const char *part_path, const <a class="el" href="structbrix__cache__digest__t.html">brix_cache_digest_t</a> *origin, <a class="el" href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22d">brix_cache_verify_mode_e</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, char *out_alg, char *out_hex)</td></tr>
+<tr class="memitem:a86090eb2e6e7e84ea5ac09f22ba8c1ce" id="r_a86090eb2e6e7e84ea5ac09f22ba8c1ce"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="verify_8h.html#a9b00514f203efa83ffd986700969dfdc">brix_cache_verify_result_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#a86090eb2e6e7e84ea5ac09f22ba8c1ce">brix_cache_verify_no_origin</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22d">brix_cache_verify_mode_e</a> mode)</td></tr>
+<tr class="separator:a86090eb2e6e7e84ea5ac09f22ba8c1ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaec54563ccd5224c5859614f25b61e7b" id="r_aaec54563ccd5224c5859614f25b61e7b"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="verify_8h.html#a9b00514f203efa83ffd986700969dfdc">brix_cache_verify_result_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#aaec54563ccd5224c5859614f25b61e7b">brix_cache_verify_unsupported</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, const <a class="el" href="structbrix__cache__digest__t.html">brix_cache_digest_t</a> *origin, <a class="el" href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22d">brix_cache_verify_mode_e</a> mode, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *part_path)</td></tr>
+<tr class="separator:aaec54563ccd5224c5859614f25b61e7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acef6f1936eb864945ba03a3c8077334f" id="r_acef6f1936eb864945ba03a3c8077334f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#acef6f1936eb864945ba03a3c8077334f">brix_cache_verify_report_mismatch</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *part_path, const char *alg_used, const <a class="el" href="structbrix__cache__digest__t.html">brix_cache_digest_t</a> *origin, const char *<a class="el" href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a>)</td></tr>
+<tr class="separator:acef6f1936eb864945ba03a3c8077334f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a30375a62e7b57fbabd0712c2259aee86" id="r_a30375a62e7b57fbabd0712c2259aee86"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#a30375a62e7b57fbabd0712c2259aee86">brix_cache_verify_emit</a> (char *out_alg, char *out_hex, const char *alg_used, const char *<a class="el" href="ssi__rrinfo__unittest_8c.html#ae0513c6c74e3f0a241a4585ac7f27507">hex</a>)</td></tr>
+<tr class="separator:a30375a62e7b57fbabd0712c2259aee86"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a41951f8fbf825e8e51b95f91924643c9" id="r_a41951f8fbf825e8e51b95f91924643c9"><td class="memItemLeft" align="right" valign="top"><a class="el" href="verify_8h.html#a9b00514f203efa83ffd986700969dfdc">brix_cache_verify_result_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#a41951f8fbf825e8e51b95f91924643c9">brix_cache_verify_part</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, const char *part_path, const <a class="el" href="structbrix__cache__digest__t.html">brix_cache_digest_t</a> *origin, <a class="el" href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22d">brix_cache_verify_mode_e</a> mode, char *out_alg, char *out_hex)</td></tr>
 <tr class="separator:a41951f8fbf825e8e51b95f91924643c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6b647a94a12673dc0170c8dad4efb275" id="r_a6b647a94a12673dc0170c8dad4efb275"><td class="memItemLeft" align="right" valign="top"><a class="el" href="verify_8h.html#a9b00514f203efa83ffd986700969dfdc">brix_cache_verify_result_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#a6b647a94a12673dc0170c8dad4efb275">brix_cache_verify_cvmfs_cas</a> (const char *part_path, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, char *out_alg, char *out_hex)</td></tr>
+<tr class="memitem:a6b647a94a12673dc0170c8dad4efb275" id="r_a6b647a94a12673dc0170c8dad4efb275"><td class="memItemLeft" align="right" valign="top"><a class="el" href="verify_8h.html#a9b00514f203efa83ffd986700969dfdc">brix_cache_verify_result_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#a6b647a94a12673dc0170c8dad4efb275">brix_cache_verify_cvmfs_cas</a> (const char *part_path, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, char *out_alg, char *out_hex)</td></tr>
 <tr class="separator:a6b647a94a12673dc0170c8dad4efb275"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a967446778c9a965f22a8c44800f9ba19" id="r_a967446778c9a965f22a8c44800f9ba19"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="verify_8c.html#a967446778c9a965f22a8c44800f9ba19">brix_cache_quarantine_part</a> (const char *part_path, const char *quarantine_dir, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a967446778c9a965f22a8c44800f9ba19"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -162,7 +170,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00027">27</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="verify_8c_source.html#l00133">brix_cache_verify_cvmfs_cas()</a>, and <a class="el" href="verify_8c_source.html#l00040">brix_cache_verify_part()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="verify_8c_source.html#l00230">brix_cache_verify_cvmfs_cas()</a>, and <a class="el" href="verify_8c_source.html#l00171">brix_cache_verify_part()</a>.</p>
 
 </div>
 </div>
@@ -198,11 +206,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00189">189</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00286">286</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
 
 <p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00039">sd_cache_fill()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00228">cache_fill_verify()</a>.</p>
 
 </div>
 </div>
@@ -250,11 +258,107 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00133">133</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00230">230</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
 
-<p class="reference">References <a class="el" href="verify_8c_source.html#l00027">brix_cache_hex_ieq()</a>, <a class="el" href="verify_8h_source.html#l00051">BRIX_CACHE_VERIFY_ERROR</a>, <a class="el" href="verify_8h_source.html#l00050">BRIX_CACHE_VERIFY_MISMATCH</a>, <a class="el" href="verify_8h_source.html#l00049">BRIX_CACHE_VERIFY_UNVERIFIED</a>, <a class="el" href="verify_8h_source.html#l00048">BRIX_CACHE_VERIFY_VERIFIED</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00414">brix_checksum_hex_name_fd()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
+<p class="reference">References <a class="el" href="verify_8c_source.html#l00027">brix_cache_hex_ieq()</a>, <a class="el" href="verify_8h_source.html#l00051">BRIX_CACHE_VERIFY_ERROR</a>, <a class="el" href="verify_8h_source.html#l00050">BRIX_CACHE_VERIFY_MISMATCH</a>, <a class="el" href="verify_8h_source.html#l00049">BRIX_CACHE_VERIFY_UNVERIFIED</a>, <a class="el" href="verify_8h_source.html#l00048">BRIX_CACHE_VERIFY_VERIFIED</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00460">brix_checksum_hex_name_fd()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00039">sd_cache_fill()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00228">cache_fill_verify()</a>.</p>
+
+</div>
+</div>
+<a id="a30375a62e7b57fbabd0712c2259aee86" name="a30375a62e7b57fbabd0712c2259aee86"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a30375a62e7b57fbabd0712c2259aee86">&#9670;&#160;</a></span>brix_cache_verify_emit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_cache_verify_emit </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out_alg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out_hex</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>alg_used</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>hex</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00154">154</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="verify_8c_source.html#l00171">brix_cache_verify_part()</a>.</p>
+
+</div>
+</div>
+<a id="a86090eb2e6e7e84ea5ac09f22ba8c1ce" name="a86090eb2e6e7e84ea5ac09f22ba8c1ce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a86090eb2e6e7e84ea5ac09f22ba8c1ce">&#9670;&#160;</a></span>brix_cache_verify_no_origin()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="verify_8h.html#a9b00514f203efa83ffd986700969dfdc">brix_cache_verify_result_e</a> brix_cache_verify_no_origin </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22d">brix_cache_verify_mode_e</a>&#160;</td>
+          <td class="paramname"><em>mode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00053">53</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
+
+<p class="reference">References <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="verify_8h_source.html#l00051">BRIX_CACHE_VERIFY_ERROR</a>, <a class="el" href="verify_8h_source.html#l00040">BRIX_CACHE_VERIFY_REQUIRE</a>, <a class="el" href="verify_8h_source.html#l00049">BRIX_CACHE_VERIFY_UNVERIFIED</a>, and <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="verify_8c_source.html#l00171">brix_cache_verify_part()</a>.</p>
 
 </div>
 </div>
@@ -308,9 +412,135 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00040">40</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00171">171</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
 
-<p class="reference">References <a class="el" href="transport_8h_source.html#l00067">brix_cache_digest_t::alg</a>, <a class="el" href="verify_8c_source.html#l00027">brix_cache_hex_ieq()</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="errors_8c_source.html#l00030">brix_cache_set_syserror()</a>, <a class="el" href="verify_8h_source.html#l00051">BRIX_CACHE_VERIFY_ERROR</a>, <a class="el" href="verify_8h_source.html#l00050">BRIX_CACHE_VERIFY_MISMATCH</a>, <a class="el" href="verify_8h_source.html#l00038">BRIX_CACHE_VERIFY_OFF</a>, <a class="el" href="verify_8h_source.html#l00040">BRIX_CACHE_VERIFY_REQUIRE</a>, <a class="el" href="verify_8h_source.html#l00049">BRIX_CACHE_VERIFY_UNVERIFIED</a>, <a class="el" href="verify_8h_source.html#l00048">BRIX_CACHE_VERIFY_VERIFIED</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00414">brix_checksum_hex_name_fd()</a>, <a class="el" href="cache__internal_8h_source.html#l00086">brix_cache_fill_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="transport_8h_source.html#l00068">brix_cache_digest_t::hex</a>, <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
+<p class="reference">References <a class="el" href="transport_8h_source.html#l00067">brix_cache_digest_t::alg</a>, <a class="el" href="verify_8c_source.html#l00027">brix_cache_hex_ieq()</a>, <a class="el" href="errors_8c_source.html#l00030">brix_cache_set_syserror()</a>, <a class="el" href="verify_8c_source.html#l00154">brix_cache_verify_emit()</a>, <a class="el" href="verify_8h_source.html#l00051">BRIX_CACHE_VERIFY_ERROR</a>, <a class="el" href="verify_8h_source.html#l00050">BRIX_CACHE_VERIFY_MISMATCH</a>, <a class="el" href="verify_8c_source.html#l00053">brix_cache_verify_no_origin()</a>, <a class="el" href="verify_8h_source.html#l00038">BRIX_CACHE_VERIFY_OFF</a>, <a class="el" href="verify_8c_source.html#l00121">brix_cache_verify_report_mismatch()</a>, <a class="el" href="verify_8c_source.html#l00082">brix_cache_verify_unsupported()</a>, <a class="el" href="verify_8h_source.html#l00049">BRIX_CACHE_VERIFY_UNVERIFIED</a>, <a class="el" href="verify_8h_source.html#l00048">BRIX_CACHE_VERIFY_VERIFIED</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00460">brix_checksum_hex_name_fd()</a>, <a class="el" href="cache__internal_8h_source.html#l00089">brix_cache_fill_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="transport_8h_source.html#l00068">brix_cache_digest_t::hex</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
+
+</div>
+</div>
+<a id="acef6f1936eb864945ba03a3c8077334f" name="acef6f1936eb864945ba03a3c8077334f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acef6f1936eb864945ba03a3c8077334f">&#9670;&#160;</a></span>brix_cache_verify_report_mismatch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_cache_verify_report_mismatch </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>part_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>alg_used</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__cache__digest__t.html">brix_cache_digest_t</a> *&#160;</td>
+          <td class="paramname"><em>origin</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>hex</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00121">121</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
+
+<p class="reference">References <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="transport_8h_source.html#l00068">brix_cache_digest_t::hex</a>, <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="verify_8c_source.html#l00171">brix_cache_verify_part()</a>.</p>
+
+</div>
+</div>
+<a id="aaec54563ccd5224c5859614f25b61e7b" name="aaec54563ccd5224c5859614f25b61e7b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaec54563ccd5224c5859614f25b61e7b">&#9670;&#160;</a></span>brix_cache_verify_unsupported()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="verify_8h.html#a9b00514f203efa83ffd986700969dfdc">brix_cache_verify_result_e</a> brix_cache_verify_unsupported </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__cache__digest__t.html">brix_cache_digest_t</a> *&#160;</td>
+          <td class="paramname"><em>origin</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22d">brix_cache_verify_mode_e</a>&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>part_path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="verify_8c_source.html#l00082">82</a> of file <a class="el" href="verify_8c_source.html">verify.c</a>.</p>
+
+<p class="reference">References <a class="el" href="transport_8h_source.html#l00067">brix_cache_digest_t::alg</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="verify_8h_source.html#l00051">BRIX_CACHE_VERIFY_ERROR</a>, <a class="el" href="verify_8h_source.html#l00040">BRIX_CACHE_VERIFY_REQUIRE</a>, <a class="el" href="verify_8h_source.html#l00049">BRIX_CACHE_VERIFY_UNVERIFIED</a>, <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="verify_8c_source.html#l00171">brix_cache_verify_part()</a>.</p>
 
 </div>
 </div>

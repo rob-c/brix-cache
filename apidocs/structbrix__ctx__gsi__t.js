@@ -1,5 +1,7 @@
 var structbrix__ctx__gsi__t =
 [
+    [ "client_fullproxy_len", "structbrix__ctx__gsi__t.html#aa0db68b85c13339db8e6afe26f59cc99", null ],
+    [ "client_fullproxy_pem", "structbrix__ctx__gsi__t.html#a0680c6615a1ba1c34d5afb57eaebc7c0", null ],
     [ "clnt_opts", "structbrix__ctx__gsi__t.html#ab29a9ea0c51abde08f9a33ba123ff481", null ],
     [ "deleg_await", "structbrix__ctx__gsi__t.html#a7829db2a8c0abaf446b5e01b5133530c", null ],
     [ "deleg_chain_len", "structbrix__ctx__gsi__t.html#a9ee2b15ee2ad1c2c5b9bd65a62f4e89a", null ],

@@ -1,15 +1,17 @@
 <map id="src/protocols/ssi/ssi_rrinfo.h" name="src/protocols/ssi/ssi_rrinfo.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="487,5,636,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="573,5,723,45"/>
 <area shape="rect" id="Node000002" href="$deliver_8c.html" title=" " alt="" coords="5,101,192,126"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="474,46,161,103,160,98,473,40"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="560,42,204,96,162,103,161,98,204,91,559,37"/>
 <area shape="rect" id="Node000003" href="$ssi_8c.html" title=" " alt="" coords="216,101,376,126"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="491,52,332,103,330,98,490,47"/>
-<area shape="rect" id="Node000004" href="$ssi__reply_8c.html" title=" " alt="" coords="400,93,549,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="534,57,496,95,492,91,531,53"/>
-<area shape="rect" id="Node000005" href="$ssi__reply__unittest_8c.html" title=" " alt="" coords="573,93,723,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="592,53,631,91,627,95,588,57"/>
-<area shape="rect" id="Node000006" href="$ssi__rrinfo_8c.html" title=" " alt="" coords="747,93,896,133"/>
-<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="632,47,765,91,764,96,631,52"/>
-<area shape="rect" id="Node000007" href="$ssi__rrinfo__unittest_8c.html" title=" " alt="" coords="920,93,1069,133"/>
-<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="650,40,909,91,921,93,919,98,907,96,649,46"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="561,51,344,103,342,98,559,45"/>
+<area shape="rect" id="Node000004" href="$ssi__dispatch_8c.html" title=" " alt="" coords="400,93,549,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="599,54,514,96,511,91,597,49"/>
+<area shape="rect" id="Node000005" href="$ssi__reply_8c.html" title=" " alt="" coords="573,93,723,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="651,59,651,93,645,93,645,59"/>
+<area shape="rect" id="Node000006" href="$ssi__reply__unittest_8c.html" title=" " alt="" coords="747,93,896,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="699,49,785,91,782,96,697,54"/>
+<area shape="rect" id="Node000007" href="$ssi__rrinfo_8c.html" title=" " alt="" coords="920,93,1069,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="737,46,920,91,919,96,735,51"/>
+<area shape="rect" id="Node000008" href="$ssi__rrinfo__unittest_8c.html" title=" " alt="" coords="1093,93,1243,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="737,36,898,60,1082,91,1093,93,1092,98,1081,96,897,65,736,41"/>
 </map>

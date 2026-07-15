@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('md_src_2net_2tap_2README.html',''); in
   <div class="headertitle"><div class="title">tap — ngx-free protocol observation tap (decode + sink fan-out)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md261"></a> </p>
-<h1><a class="anchor" id="autotoc_md262"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md262"></a> </p>
+<h1><a class="anchor" id="autotoc_md263"></a>
 Overview</h1>
 <p>A passive observation layer that turns raw XRootD wire bytes into frame descriptors and fans them out to registered sinks (JSON audit log, guard, metrics) — without consuming, reordering, or altering the stream. The core is deliberately ngx-free (plain C, no nginx types) so it is testable standalone and reusable from any pump.</p>
 <p><code><a class="el" href="tap__decode_8c.html">tap_decode.c</a></code> decodes request/response frames and classifies path-bearing vs non-path opcodes; <code><a class="el" href="tap__stream_8c.html">tap_stream.c</a></code> is the streaming decoder for mid-stream observation (the client→upstream direction skips the 20-byte handshake preamble before framing, and descriptor-only <code>dlen</code> framing for kXR_writev/chkpoint is handled correctly); <code><a class="el" href="tap__emit_8c.html">tap_emit.c</a></code> fans decoded frames out to sinks; <code><a class="el" href="tap__audit_8c.html">tap_audit.c</a></code> provides the compact opcode → name mapping for the JSON audit format.</p>
 <p>Consumers: the transparent relay (<a href="../../protocols/root/relay/">../../protocols/root/relay/</a>) and the terminating tap proxy (<a href="../proxy/">../proxy/</a>).</p>
-<h1><a class="anchor" id="autotoc_md263"></a>
+<h1><a class="anchor" id="autotoc_md264"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -115,7 +115,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="tap__audit_8c.html">tap_audit.c</a></code>   </td><td class="markdownTableBodyNone">opcode → name mapping for the JSON audit sink   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md264"></a>
+<h1><a class="anchor" id="autotoc_md265"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li>Non-consuming: a tap failure must never affect the relayed byte stream.</li>
@@ -123,7 +123,7 @@ Invariants, security &amp; gotchas</h1>
 <li>kXR_writev and chkpoint/ckpXeq frame descriptors only in <code>dlen</code> (body streamed after) — the decoder must not expect body bytes inside the frame.</li>
 <li>Keep this directory ngx-free — it is built and tested standalone.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md265"></a>
+<h1><a class="anchor" id="autotoc_md266"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2root_2relay_2README.html">../../protocols/root/relay/README.md</a> — the passive relay consumer</li>

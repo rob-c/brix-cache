@@ -125,6 +125,8 @@ $(document).ready(function(){initNavTree('search_8c.html',''); initResizable(); 
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structwebdav__search__query__t.html">webdav_search_query_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -145,8 +147,22 @@ Functions</h2></td></tr>
 <tr class="separator:a23846a8dda499cf75297ce9c63c5b99b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5f160bbc4bef361d885b5271c1352bc3" id="r_a5f160bbc4bef361d885b5271c1352bc3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#a5f160bbc4bef361d885b5271c1352bc3">webdav_search_append_response</a> (ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail, const char *href, const <a class="el" href="structwebdav__search__query__t.html">webdav_search_query_t</a> *q)</td></tr>
 <tr class="separator:a5f160bbc4bef361d885b5271c1352bc3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6b7431d0ac63308db9ca53497f392a08" id="r_a6b7431d0ac63308db9ca53497f392a08"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#a6b7431d0ac63308db9ca53497f392a08">webdav_search_walk</a> (ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail, const char *dir_path, const char *base_href, ngx_uint_t *count, const <a class="el" href="structwebdav__search__query__t.html">webdav_search_query_t</a> *q)</td></tr>
-<tr class="separator:a6b7431d0ac63308db9ca53497f392a08"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac4cdcbb612b525f912b6be8f5b18960d" id="r_ac4cdcbb612b525f912b6be8f5b18960d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#ac4cdcbb612b525f912b6be8f5b18960d">webdav_search_walk</a> (<a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *w, const char *dir_path, const char *base_href)</td></tr>
+<tr class="separator:ac4cdcbb612b525f912b6be8f5b18960d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7e857a82824524d80470c8b79e237998" id="r_a7e857a82824524d80470c8b79e237998"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#a7e857a82824524d80470c8b79e237998">webdav_search_entry_skip</a> (const char *dname)</td></tr>
+<tr class="separator:a7e857a82824524d80470c8b79e237998"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac2400b8b48968fc3515f470217ecf959" id="r_ac2400b8b48968fc3515f470217ecf959"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#ac2400b8b48968fc3515f470217ecf959">webdav_search_child_href</a> (const char *base_href, const char *dname, char *child_href, size_t child_href_size)</td></tr>
+<tr class="separator:ac2400b8b48968fc3515f470217ecf959"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7822a86e789f2a35815695406b33f735" id="r_a7822a86e789f2a35815695406b33f735"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#a7822a86e789f2a35815695406b33f735">webdav_search_entry_is_dir</a> (<a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *w, const char *root_canon, <a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a> dkind, const char *child_path)</td></tr>
+<tr class="separator:a7822a86e789f2a35815695406b33f735"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab163fd4d8762b40ecb66c43c397124f3" id="r_ab163fd4d8762b40ecb66c43c397124f3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#ab163fd4d8762b40ecb66c43c397124f3">webdav_search_visit_child</a> (<a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *w, const char *root_canon, <a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a> dkind, const char *child_path, const char *child_href)</td></tr>
+<tr class="separator:ab163fd4d8762b40ecb66c43c397124f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a769db734ee16f6a0b8b1e423480f472b" id="r_a769db734ee16f6a0b8b1e423480f472b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#a769db734ee16f6a0b8b1e423480f472b">webdav_search_scan_dir</a> (<a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *w, brix_vfs_dir_t *dp, const char *root_canon, const char *dir_path, const char *base_href)</td></tr>
+<tr class="separator:a769db734ee16f6a0b8b1e423480f472b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6a751299a2b3aefcaae3efbe218e75dd" id="r_a6a751299a2b3aefcaae3efbe218e75dd"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#a6a751299a2b3aefcaae3efbe218e75dd">webdav_search_build_body</a> (<a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *w, const char *path, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *sb, const <a class="el" href="structwebdav__search__query__t.html">webdav_search_query_t</a> *q)</td></tr>
+<tr class="separator:a6a751299a2b3aefcaae3efbe218e75dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef352a53a53545d864eca10ecdaf9725" id="r_aef352a53a53545d864eca10ecdaf9725"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#aef352a53a53545d864eca10ecdaf9725">webdav_search_finalize</a> (ngx_http_request_t *r, ngx_chain_t *head, ngx_chain_t *tail)</td></tr>
+<tr class="separator:aef352a53a53545d864eca10ecdaf9725"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa1275c026d12466bfcb482feb63cbe2e" id="r_aa1275c026d12466bfcb482feb63cbe2e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#aa1275c026d12466bfcb482feb63cbe2e">webdav_search_do</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:aa1275c026d12466bfcb482feb63cbe2e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a48824e3e28ce8a94435910da4532c417" id="r_a48824e3e28ce8a94435910da4532c417"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="search_8c.html#a48824e3e28ce8a94435910da4532c417">webdav_search_body_handler</a> (ngx_http_request_t *r)</td></tr>
@@ -204,11 +220,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00446">446</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00606">606</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00419">brix_http_read_body()</a>, and <a class="el" href="search_8c_source.html#l00428">webdav_search_body_handler()</a>.</p>
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00443">brix_http_read_body()</a>, and <a class="el" href="search_8c_source.html#l00588">webdav_search_body_handler()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00320">webdav_dispatch_lock_patch_search()</a>.</p>
 
 </div>
 </div>
@@ -264,11 +280,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00177">177</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00192">192</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>, and <a class="el" href="search_8c_source.html#l00154">webdav_search_matches()</a>.</p>
+<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>, and <a class="el" href="search_8c_source.html#l00169">webdav_search_matches()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00336">webdav_search_do()</a>, and <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00449">webdav_search_build_body()</a>, and <a class="el" href="search_8c_source.html#l00303">webdav_search_visit_child()</a>.</p>
 
 </div>
 </div>
@@ -296,11 +312,117 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00428">428</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00588">588</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00547">brix_imp_request_begin()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00560">brix_imp_request_end()</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="search_8c_source.html#l00336">webdav_search_do()</a>.</p>
+<p class="reference">References <a class="el" href="lifecycle__worker_8c_source.html#l00114">brix_imp_request_begin()</a>, <a class="el" href="lifecycle__worker_8c_source.html#l00127">brix_imp_request_end()</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="search_8c_source.html#l00541">webdav_search_do()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00446">webdav_handle_search()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00606">webdav_handle_search()</a>.</p>
+
+</div>
+</div>
+<a id="a6a751299a2b3aefcaae3efbe218e75dd" name="a6a751299a2b3aefcaae3efbe218e75dd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6a751299a2b3aefcaae3efbe218e75dd">&#9670;&#160;</a></span>webdav_search_build_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_search_build_body </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>sb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structwebdav__search__query__t.html">webdav_search_query_t</a> *&#160;</td>
+          <td class="paramname"><em>q</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00449">449</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="search_8c_source.html#l00029">webdav_search_query_t::depth</a>, <a class="el" href="search_8c_source.html#l00042">webdav_search_walk_ctx_t::head</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="search_8c_source.html#l00041">webdav_search_walk_ctx_t::r</a>, <a class="el" href="search_8c_source.html#l00043">webdav_search_walk_ctx_t::tail</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="search_8c_source.html#l00192">webdav_search_append_response()</a>, and <a class="el" href="search_8c_source.html#l00397">webdav_search_walk()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00541">webdav_search_do()</a>.</p>
+
+</div>
+</div>
+<a id="ac2400b8b48968fc3515f470217ecf959" name="ac2400b8b48968fc3515f470217ecf959"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac2400b8b48968fc3515f470217ecf959">&#9670;&#160;</a></span>webdav_search_child_href()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_search_child_href </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>base_href</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dname</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>child_href</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>child_href_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00247">247</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00340">webdav_search_scan_dir()</a>.</p>
 
 </div>
 </div>
@@ -328,11 +450,143 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00336">336</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00541">541</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="search_8c_source.html#l00029">webdav_search_query_t::depth</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>, <a class="el" href="search_8c_source.html#l00177">webdav_search_append_response()</a>, <a class="el" href="search_8c_source.html#l00089">webdav_search_parse()</a>, and <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>.</p>
+<p class="reference">References <a class="el" href="search_8c_source.html#l00044">webdav_search_walk_ctx_t::count</a>, <a class="el" href="search_8c_source.html#l00042">webdav_search_walk_ctx_t::head</a>, <a class="el" href="search_8c_source.html#l00045">webdav_search_walk_ctx_t::q</a>, <a class="el" href="search_8c_source.html#l00041">webdav_search_walk_ctx_t::r</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="search_8c_source.html#l00043">webdav_search_walk_ctx_t::tail</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>, <a class="el" href="search_8c_source.html#l00449">webdav_search_build_body()</a>, <a class="el" href="search_8c_source.html#l00498">webdav_search_finalize()</a>, and <a class="el" href="search_8c_source.html#l00104">webdav_search_parse()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00428">webdav_search_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00588">webdav_search_body_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a7822a86e789f2a35815695406b33f735" name="a7822a86e789f2a35815695406b33f735"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7822a86e789f2a35815695406b33f735">&#9670;&#160;</a></span>webdav_search_entry_is_dir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int webdav_search_entry_is_dir </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a>&#160;</td>
+          <td class="paramname"><em>dkind</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>child_path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00271">271</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00353">BRIX_VFS_DT_DIR</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00352">BRIX_VFS_DT_UNKNOWN</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::is_directory</a>, and <a class="el" href="search_8c_source.html#l00041">webdav_search_walk_ctx_t::r</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00303">webdav_search_visit_child()</a>.</p>
+
+</div>
+</div>
+<a id="a7e857a82824524d80470c8b79e237998" name="a7e857a82824524d80470c8b79e237998"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7e857a82824524d80470c8b79e237998">&#9670;&#160;</a></span>webdav_search_entry_skip()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int webdav_search_entry_skip </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dname</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00225">225</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+
+<p class="reference">References <a class="el" href="reserved__names_8h_source.html#l00043">brix_is_internal_name()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00340">webdav_search_scan_dir()</a>.</p>
+
+</div>
+</div>
+<a id="aef352a53a53545d864eca10ecdaf9725" name="aef352a53a53545d864eca10ecdaf9725"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aef352a53a53545d864eca10ecdaf9725">&#9670;&#160;</a></span>webdav_search_finalize()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_search_finalize </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_chain_t *&#160;</td>
+          <td class="paramname"><em>head</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_chain_t *&#160;</td>
+          <td class="paramname"><em>tail</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00498">498</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00541">webdav_search_do()</a>.</p>
 
 </div>
 </div>
@@ -370,11 +624,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00037">37</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00052">52</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00089">webdav_search_parse()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00104">webdav_search_parse()</a>.</p>
 
 </div>
 </div>
@@ -412,11 +666,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00059">59</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00074">74</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
-<p class="reference">References <a class="el" href="search_8c_source.html#l00030">webdav_search_query_t::literal</a>, and <a class="el" href="search_8c_source.html#l00059">webdav_search_find_literal()</a>.</p>
+<p class="reference">References <a class="el" href="search_8c_source.html#l00030">webdav_search_query_t::literal</a>, and <a class="el" href="search_8c_source.html#l00074">webdav_search_find_literal()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00059">webdav_search_find_literal()</a>, and <a class="el" href="search_8c_source.html#l00089">webdav_search_parse()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00074">webdav_search_find_literal()</a>, and <a class="el" href="search_8c_source.html#l00104">webdav_search_parse()</a>.</p>
 
 </div>
 </div>
@@ -454,11 +708,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00154">154</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00169">169</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
 <p class="reference">References <a class="el" href="search_8c_source.html#l00030">webdav_search_query_t::literal</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00177">webdav_search_append_response()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00192">webdav_search_append_response()</a>.</p>
 
 </div>
 </div>
@@ -496,16 +750,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00089">89</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00104">104</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="search_8c_source.html#l00029">webdav_search_query_t::depth</a>, <a class="el" href="search_8c_source.html#l00030">webdav_search_query_t::literal</a>, <a class="el" href="search_8c_source.html#l00025">WEBDAV_SEARCH_BODY_MAX</a>, <a class="el" href="search_8c_source.html#l00037">webdav_search_find_child()</a>, and <a class="el" href="search_8c_source.html#l00059">webdav_search_find_literal()</a>.</p>
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00365">brix_http_body_read_all()</a>, <a class="el" href="search_8c_source.html#l00029">webdav_search_query_t::depth</a>, <a class="el" href="search_8c_source.html#l00030">webdav_search_query_t::literal</a>, <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>, <a class="el" href="search_8c_source.html#l00025">WEBDAV_SEARCH_BODY_MAX</a>, <a class="el" href="search_8c_source.html#l00052">webdav_search_find_child()</a>, and <a class="el" href="search_8c_source.html#l00074">webdav_search_find_literal()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00336">webdav_search_do()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00541">webdav_search_do()</a>.</p>
 
 </div>
 </div>
-<a id="a6b7431d0ac63308db9ca53497f392a08" name="a6b7431d0ac63308db9ca53497f392a08"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6b7431d0ac63308db9ca53497f392a08">&#9670;&#160;</a></span>webdav_search_walk()</h2>
+<a id="a769db734ee16f6a0b8b1e423480f472b" name="a769db734ee16f6a0b8b1e423480f472b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a769db734ee16f6a0b8b1e423480f472b">&#9670;&#160;</a></span>webdav_search_scan_dir()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -514,22 +768,22 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t webdav_search_walk </td>
+          <td class="memname">static ngx_int_t webdav_search_scan_dir </td>
           <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
+          <td class="paramtype"><a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">ngx_chain_t **&#160;</td>
-          <td class="paramname"><em>head</em>, </td>
+          <td class="paramtype">brix_vfs_dir_t *&#160;</td>
+          <td class="paramname"><em>dp</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">ngx_chain_t **&#160;</td>
-          <td class="paramname"><em>tail</em>, </td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -541,19 +795,7 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>base_href</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t *&#160;</td>
-          <td class="paramname"><em>count</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structwebdav__search__query__t.html">webdav_search_query_t</a> *&#160;</td>
-          <td class="paramname"><em>q</em>&#160;</td>
+          <td class="paramname"><em>base_href</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -568,11 +810,119 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00205">205</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00340">340</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="fs__walk_8c_source.html#l00059">brix_fs_join_path()</a>, <a class="el" href="reserved__names_8h_source.html#l00043">brix_is_internal_name()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__dir_8c_source.html#l00359">brix_vfs_closedir()</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00248">BRIX_VFS_DT_DIR</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00247">BRIX_VFS_DT_UNKNOWN</a>, <a class="el" href="vfs__dir_8c_source.html#l00161">brix_vfs_opendir_quiet()</a>, <a class="el" href="vfs__stat_8c_source.html#l00172">brix_vfs_probe()</a>, <a class="el" href="vfs__dir_8c_source.html#l00278">brix_vfs_readdir_kind()</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="search_8c_source.html#l00029">webdav_search_query_t::depth</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::is_directory</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="search_8c_source.html#l00177">webdav_search_append_response()</a>, <a class="el" href="search_8c_source.html#l00026">WEBDAV_SEARCH_MAX_ENTRIES</a>, and <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>.</p>
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00057">brix_fs_join_path()</a>, <a class="el" href="vfs__dir_8c_source.html#l00458">brix_vfs_readdir_kind()</a>, <a class="el" href="search_8c_source.html#l00044">webdav_search_walk_ctx_t::count</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="search_8c_source.html#l00247">webdav_search_child_href()</a>, <a class="el" href="search_8c_source.html#l00225">webdav_search_entry_skip()</a>, <a class="el" href="search_8c_source.html#l00026">WEBDAV_SEARCH_MAX_ENTRIES</a>, and <a class="el" href="search_8c_source.html#l00303">webdav_search_visit_child()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00336">webdav_search_do()</a>, and <a class="el" href="search_8c_source.html#l00205">webdav_search_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00397">webdav_search_walk()</a>.</p>
+
+</div>
+</div>
+<a id="ab163fd4d8762b40ecb66c43c397124f3" name="ab163fd4d8762b40ecb66c43c397124f3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab163fd4d8762b40ecb66c43c397124f3">&#9670;&#160;</a></span>webdav_search_visit_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_search_visit_child </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="src_2fs_2vfs_2vfs_8h.html#a72786b9dbe1c899e1b648ea596bb0c3a">brix_vfs_dirent_kind_t</a>&#160;</td>
+          <td class="paramname"><em>dkind</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>child_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>child_href</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00303">303</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+
+<p class="reference">References <a class="el" href="search_8c_source.html#l00044">webdav_search_walk_ctx_t::count</a>, <a class="el" href="search_8c_source.html#l00029">webdav_search_query_t::depth</a>, <a class="el" href="search_8c_source.html#l00042">webdav_search_walk_ctx_t::head</a>, <a class="el" href="search_8c_source.html#l00045">webdav_search_walk_ctx_t::q</a>, <a class="el" href="search_8c_source.html#l00041">webdav_search_walk_ctx_t::r</a>, <a class="el" href="search_8c_source.html#l00043">webdav_search_walk_ctx_t::tail</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="search_8c_source.html#l00192">webdav_search_append_response()</a>, <a class="el" href="search_8c_source.html#l00271">webdav_search_entry_is_dir()</a>, and <a class="el" href="search_8c_source.html#l00397">webdav_search_walk()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00340">webdav_search_scan_dir()</a>.</p>
+
+</div>
+</div>
+<a id="ac4cdcbb612b525f912b6be8f5b18960d" name="ac4cdcbb612b525f912b6be8f5b18960d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac4cdcbb612b525f912b6be8f5b18960d">&#9670;&#160;</a></span>webdav_search_walk()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_search_walk </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structwebdav__search__walk__ctx__t.html">webdav_search_walk_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>base_href</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="search_8c_source.html#l00397">397</a> of file <a class="el" href="search_8c_source.html">search.c</a>.</p>
+
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__dir_8c_source.html#l00499">brix_vfs_closedir()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__dir_8c_source.html#l00221">brix_vfs_opendir_quiet()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="search_8c_source.html#l00041">webdav_search_walk_ctx_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, and <a class="el" href="search_8c_source.html#l00340">webdav_search_scan_dir()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="search_8c_source.html#l00449">webdav_search_build_body()</a>, and <a class="el" href="search_8c_source.html#l00303">webdav_search_visit_child()</a>.</p>
 
 </div>
 </div>

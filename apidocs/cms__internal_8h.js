@@ -60,6 +60,7 @@ var cms__internal_8h =
     [ "NGX_BRIX_CMS_MAX_FRAME", "cms__internal_8h.html#a673775380eb74d794ec780386160bd4b", null ],
     [ "NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP", "cms__internal_8h.html#acbdff4a429d2f938bc3692e40474074f", null ],
     [ "NGX_BRIX_CMS_MIN_FREE_MB", "cms__internal_8h.html#adc10d37603db270b13e65900a915d8bb", null ],
+    [ "NGX_BRIX_CMS_SRV_DROP_BLACKLIST_MS", "cms__internal_8h.html#a9a1f610e622af3019dbbe8ede832739d", null ],
     [ "ngx_brix_cms_arm_read_deadline", "cms__internal_8h.html#a873f3f4f20b953dc154b465ad18fa10b", null ],
     [ "ngx_brix_cms_disconnect", "cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e", null ],
     [ "ngx_brix_cms_export_paths", "cms__internal_8h.html#a63f8f651b0689f7aa5b58c7f50e69a2d", null ],

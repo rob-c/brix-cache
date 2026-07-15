@@ -113,10 +113,144 @@ $(document).ready(function(){initNavTree('prepare__cmd_8c.html',''); initResizab
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a28ce536afc55cd075bd017dfe4652c71" id="r_a28ce536afc55cd075bd017dfe4652c71"><td class="memItemLeft" align="right" valign="top">static char **&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prepare__cmd_8c.html#a28ce536afc55cd075bd017dfe4652c71">brix_prepare_build_argv</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, const char **paths, ngx_uint_t count)</td></tr>
+<tr class="separator:a28ce536afc55cd075bd017dfe4652c71"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac0fb6d48028f7ec331c7d6b2ef70ef80" id="r_ac0fb6d48028f7ec331c7d6b2ef70ef80"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prepare__cmd_8c.html#ac0fb6d48028f7ec331c7d6b2ef70ef80">brix_prepare_close_inherited_fds</a> (void)</td></tr>
+<tr class="separator:ac0fb6d48028f7ec331c7d6b2ef70ef80"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a94af21ece21a078fa76bec264b39c2d5" id="r_a94af21ece21a078fa76bec264b39c2d5"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prepare__cmd_8c.html#a94af21ece21a078fa76bec264b39c2d5">brix_prepare_exec_child</a> (char **argv, ngx_flag_t coloc)</td></tr>
+<tr class="separator:a94af21ece21a078fa76bec264b39c2d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1a521f07f701db78cefc7017d7f8e499" id="r_a1a521f07f701db78cefc7017d7f8e499"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prepare__cmd_8c.html#a1a521f07f701db78cefc7017d7f8e499">brix_prepare_invoke_command</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, const char **paths, ngx_uint_t count, ngx_flag_t coloc)</td></tr>
 <tr class="separator:a1a521f07f701db78cefc7017d7f8e499"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a28ce536afc55cd075bd017dfe4652c71" name="a28ce536afc55cd075bd017dfe4652c71"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a28ce536afc55cd075bd017dfe4652c71">&#9670;&#160;</a></span>brix_prepare_build_argv()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static char ** brix_prepare_build_argv </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>paths</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>count</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="prepare__cmd_8c_source.html#l00060">60</a> of file <a class="el" href="prepare__cmd_8c_source.html">prepare_cmd.c</a>.</p>
+
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="prepare__cmd_8c_source.html#l00169">brix_prepare_invoke_command()</a>.</p>
+
+</div>
+</div>
+<a id="ac0fb6d48028f7ec331c7d6b2ef70ef80" name="ac0fb6d48028f7ec331c7d6b2ef70ef80"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac0fb6d48028f7ec331c7d6b2ef70ef80">&#9670;&#160;</a></span>brix_prepare_close_inherited_fds()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_prepare_close_inherited_fds </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="prepare__cmd_8c_source.html#l00099">99</a> of file <a class="el" href="prepare__cmd_8c_source.html">prepare_cmd.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="prepare__cmd_8c_source.html#l00154">brix_prepare_exec_child()</a>.</p>
+
+</div>
+</div>
+<a id="a94af21ece21a078fa76bec264b39c2d5" name="a94af21ece21a078fa76bec264b39c2d5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a94af21ece21a078fa76bec264b39c2d5">&#9670;&#160;</a></span>brix_prepare_exec_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_prepare_exec_child </td>
+          <td>(</td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>coloc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="prepare__cmd_8c_source.html#l00154">154</a> of file <a class="el" href="prepare__cmd_8c_source.html">prepare_cmd.c</a>.</p>
+
+<p class="reference">References <a class="el" href="prepare__cmd_8c_source.html#l00099">brix_prepare_close_inherited_fds()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="prepare__cmd_8c_source.html#l00169">brix_prepare_invoke_command()</a>.</p>
+
+</div>
+</div>
 <a id="a1a521f07f701db78cefc7017d7f8e499" name="a1a521f07f701db78cefc7017d7f8e499"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a1a521f07f701db78cefc7017d7f8e499">&#9670;&#160;</a></span>brix_prepare_invoke_command()</h2>
 
@@ -161,11 +295,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="prepare__cmd_8c_source.html#l00044">44</a> of file <a class="el" href="prepare__cmd_8c_source.html">prepare_cmd.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="prepare__cmd_8c_source.html#l00169">169</a> of file <a class="el" href="prepare__cmd_8c_source.html">prepare_cmd.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="types_2config_8h_source.html#l00207">ngx_stream_brix_srv_conf_t::prepare_command</a>.</p>
+<p class="reference">References <a class="el" href="prepare__cmd_8c_source.html#l00060">brix_prepare_build_argv()</a>, <a class="el" href="prepare__cmd_8c_source.html#l00154">brix_prepare_exec_child()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="prepare_8c_source.html#l00322">brix_handle_prepare()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="prepare_8c_source.html#l00497">prepare_emit_stage()</a>.</p>
 
 </div>
 </div>

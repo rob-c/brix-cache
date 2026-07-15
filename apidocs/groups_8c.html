@@ -126,6 +126,8 @@ Macros</h2></td></tr>
 <tr class="separator:a12bf3aceae188b59edeacd195e70859c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a526e7dacbe1fd9a6d35f13f2b0a4041e" id="r_a526e7dacbe1fd9a6d35f13f2b0a4041e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#a526e7dacbe1fd9a6d35f13f2b0a4041e">ACC_GRP_CACHE_SLOTS</a>&#160;&#160;&#160;256</td></tr>
 <tr class="separator:a526e7dacbe1fd9a6d35f13f2b0a4041e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a49b5b7f0f19f2cccade9a48328a90573" id="r_a49b5b7f0f19f2cccade9a48328a90573"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#a49b5b7f0f19f2cccade9a48328a90573">ACC_DJB2_SEED</a>&#160;&#160;&#160;5381   /* djb2 hash initial basis */</td></tr>
+<tr class="separator:a49b5b7f0f19f2cccade9a48328a90573"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a37c2f003c09966ec50d56aa70612fed6" id="r_a37c2f003c09966ec50d56aa70612fed6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#a37c2f003c09966ec50d56aa70612fed6">ACC_GRP_USER_MAX</a>&#160;&#160;&#160;128</td></tr>
 <tr class="separator:a37c2f003c09966ec50d56aa70612fed6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0d82b6fb3d884f4d0f9fa20b9442691f" id="r_a0d82b6fb3d884f4d0f9fa20b9442691f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#a0d82b6fb3d884f4d0f9fa20b9442691f">ACC_NSS_NEG_TTL_SECS</a>&#160;&#160;&#160;60      /* negative-cache lifetime */</td></tr>
@@ -157,6 +159,12 @@ Functions</h2></td></tr>
 <tr class="separator:a995de475cb71ce99d63c5d6cd5c84f98"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ade43e2e798ad3129a35d0abf25b1ed5c" id="r_ade43e2e798ad3129a35d0abf25b1ed5c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#ade43e2e798ad3129a35d0abf25b1ed5c">acc_resolve_unix</a> (const char *user, char ***namesp)</td></tr>
 <tr class="separator:ade43e2e798ad3129a35d0abf25b1ed5c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6803b490a01848c95d69b0353d286aa8" id="r_a6803b490a01848c95d69b0353d286aa8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#a6803b490a01848c95d69b0353d286aa8">acc_nss_note_latency</a> (int64_t elapsed, time_t now)</td></tr>
+<tr class="separator:a6803b490a01848c95d69b0353d286aa8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8851172df7f6577661a588bfbbeed299" id="r_a8851172df7f6577661a588bfbbeed299"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#a8851172df7f6577661a588bfbbeed299">acc_cache_refresh</a> (<a class="el" href="structacc__grp__cache__t.html">acc_grp_cache_t</a> *e, const char *user, time_t now)</td></tr>
+<tr class="separator:a8851172df7f6577661a588bfbbeed299"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b2b5452a99e40494bd97ad35b376181" id="r_a8b2b5452a99e40494bd97ad35b376181"><td class="memItemLeft" align="right" valign="top">static ngx_array_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#a8b2b5452a99e40494bd97ad35b376181">acc_cache_to_array</a> (ngx_pool_t *pool, <a class="el" href="structacc__grp__cache__t.html">acc_grp_cache_t</a> *e)</td></tr>
+<tr class="separator:a8b2b5452a99e40494bd97ad35b376181"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1fc70d99f49910339d75940a1ec52e56" id="r_a1fc70d99f49910339d75940a1ec52e56"><td class="memItemLeft" align="right" valign="top">static ngx_array_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#a1fc70d99f49910339d75940a1ec52e56">brix_acc_unix_groups</a> (ngx_pool_t *pool, const char *user)</td></tr>
 <tr class="separator:a1fc70d99f49910339d75940a1ec52e56"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af006b11b774b42c63ec020e76e01bbab" id="r_af006b11b774b42c63ec020e76e01bbab"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#af006b11b774b42c63ec020e76e01bbab">brix_acc_in_netgroup</a> (const char *netgroup, const char *user, const char *host)</td></tr>
@@ -178,16 +186,32 @@ Variables</h2></td></tr>
 <tr class="separator:a679621545fa60b0025ae7841b2784d37"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abf707bd4d72d6e92d54964d5d92f0d55" id="r_abf707bd4d72d6e92d54964d5d92f0d55"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structacc__grp__cache__t.html">acc_grp_cache_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#abf707bd4d72d6e92d54964d5d92f0d55">acc_grp_cache</a> [256]</td></tr>
 <tr class="separator:abf707bd4d72d6e92d54964d5d92f0d55"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adaf3aba7fb022a2657deaabe090dc1b9" id="r_adaf3aba7fb022a2657deaabe090dc1b9"><td class="memItemLeft" >struct {&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="memitem:ab9b0d45583472975f9e527ac83e5e72f" id="r_ab9b0d45583472975f9e527ac83e5e72f"><td class="memItemLeft" >struct {&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a984981a589c9b8f05f822a54d447df56" id="r_a984981a589c9b8f05f822a54d447df56"><td class="memItemLeft" >&#160;&#160;&#160;int&#160;&#160;&#160;<a class="el" href="groups_8c.html#a9be0ec909794bc5a05a5ae29b4df3f02">consecutive_slow</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:a984981a589c9b8f05f822a54d447df56"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5231a5e7c0a6f622505331fcfab0c5a2" id="r_a5231a5e7c0a6f622505331fcfab0c5a2"><td class="memItemLeft" >&#160;&#160;&#160;time_t&#160;&#160;&#160;<a class="el" href="groups_8c.html#a161e5c4b39e5738c7be25f1e31e405ca">open_until</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:a5231a5e7c0a6f622505331fcfab0c5a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adaf3aba7fb022a2657deaabe090dc1b9" id="r_adaf3aba7fb022a2657deaabe090dc1b9"><td class="memItemLeft" valign="top">}&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#adaf3aba7fb022a2657deaabe090dc1b9">acc_nss_breaker</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:adaf3aba7fb022a2657deaabe090dc1b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a86097f51a5e34522b38ee2d2eb198f6c" id="r_a86097f51a5e34522b38ee2d2eb198f6c"><td class="memItemLeft" >&#160;&#160;&#160;int&#160;&#160;&#160;<a class="el" href="groups_8c.html#a9be0ec909794bc5a05a5ae29b4df3f02">consecutive_slow</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="separator:a86097f51a5e34522b38ee2d2eb198f6c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a428af01395f8d7ed92c38b65d3d9c948" id="r_a428af01395f8d7ed92c38b65d3d9c948"><td class="memItemLeft" >&#160;&#160;&#160;time_t&#160;&#160;&#160;<a class="el" href="groups_8c.html#a161e5c4b39e5738c7be25f1e31e405ca">open_until</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="separator:a428af01395f8d7ed92c38b65d3d9c948"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab9b0d45583472975f9e527ac83e5e72f" id="r_ab9b0d45583472975f9e527ac83e5e72f"><td class="memItemLeft" valign="top">}&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="groups_8c.html#ab9b0d45583472975f9e527ac83e5e72f">acc_nss_breaker</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="separator:ab9b0d45583472975f9e527ac83e5e72f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a49b5b7f0f19f2cccade9a48328a90573" name="a49b5b7f0f19f2cccade9a48328a90573"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a49b5b7f0f19f2cccade9a48328a90573">&#9670;&#160;</a></span>ACC_DJB2_SEED</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define ACC_DJB2_SEED&#160;&#160;&#160;5381   /* djb2 hash initial basis */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00097">97</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+
+</div>
+</div>
 <a id="a526e7dacbe1fd9a6d35f13f2b0a4041e" name="a526e7dacbe1fd9a6d35f13f2b0a4041e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a526e7dacbe1fd9a6d35f13f2b0a4041e">&#9670;&#160;</a></span>ACC_GRP_CACHE_SLOTS</h2>
 
@@ -216,7 +240,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00097">97</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00098">98</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 </div>
 </div>
@@ -232,7 +256,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00122">122</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00123">123</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 </div>
 </div>
@@ -248,7 +272,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00119">119</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00120">120</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 </div>
 </div>
@@ -264,7 +288,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00120">120</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00121">121</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 </div>
 </div>
@@ -280,7 +304,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00121">121</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00122">122</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 </div>
 </div>
@@ -325,11 +349,101 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00150">150</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00151">151</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">References <a class="el" href="groups_8c_source.html#l00102">acc_grp_cache_t::count</a>, <a class="el" href="groups_8c_source.html#l00101">acc_grp_cache_t::names</a>, and <a class="el" href="groups_8c_source.html#l00100">acc_grp_cache_t::user</a>.</p>
+<p class="reference">References <a class="el" href="groups_8c_source.html#l00103">acc_grp_cache_t::count</a>, <a class="el" href="groups_8c_source.html#l00102">acc_grp_cache_t::names</a>, and <a class="el" href="groups_8c_source.html#l00101">acc_grp_cache_t::user</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00276">acc_cache_refresh()</a>.</p>
+
+</div>
+</div>
+<a id="a8851172df7f6577661a588bfbbeed299" name="a8851172df7f6577661a588bfbbeed299"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8851172df7f6577661a588bfbbeed299">&#9670;&#160;</a></span>acc_cache_refresh()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t acc_cache_refresh </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structacc__grp__cache__t.html">acc_grp_cache_t</a> *&#160;</td>
+          <td class="paramname"><em>e</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>now</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00276">276</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+
+<p class="reference">References <a class="el" href="groups_8c_source.html#l00151">acc_cache_free()</a>, <a class="el" href="groups_8c_source.html#l00032">acc_gidlifetime</a>, <a class="el" href="groups_8c_source.html#l00133">acc_monotonic_ms()</a>, <a class="el" href="groups_8c.html#ab9b0d45583472975f9e527ac83e5e72f">acc_nss_breaker</a>, <a class="el" href="groups_8c_source.html#l00120">ACC_NSS_NEG_TTL_SECS</a>, <a class="el" href="groups_8c_source.html#l00231">acc_nss_note_latency()</a>, <a class="el" href="groups_8c_source.html#l00166">acc_resolve_unix()</a>, <a class="el" href="groups_8c_source.html#l00103">acc_grp_cache_t::count</a>, <a class="el" href="groups_8c_source.html#l00104">acc_grp_cache_t::expiry</a>, <a class="el" href="groups_8c_source.html#l00102">acc_grp_cache_t::names</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="groups_8c_source.html#l00101">acc_grp_cache_t::user</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00354">brix_acc_unix_groups()</a>.</p>
+
+</div>
+</div>
+<a id="a8b2b5452a99e40494bd97ad35b376181" name="a8b2b5452a99e40494bd97ad35b376181"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b2b5452a99e40494bd97ad35b376181">&#9670;&#160;</a></span>acc_cache_to_array()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_array_t * acc_cache_to_array </td>
+          <td>(</td>
+          <td class="paramtype">ngx_pool_t *&#160;</td>
+          <td class="paramname"><em>pool</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structacc__grp__cache__t.html">acc_grp_cache_t</a> *&#160;</td>
+          <td class="paramname"><em>e</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00329">329</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+
+<p class="reference">References <a class="el" href="groups_8c_source.html#l00103">acc_grp_cache_t::count</a>, <a class="el" href="groups_8c_source.html#l00102">acc_grp_cache_t::names</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00354">brix_acc_unix_groups()</a>.</p>
 
 </div>
 </div>
@@ -361,7 +475,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="groups_8c_source.html#l00040">acc_retrancnt</a>, and <a class="el" href="groups_8c_source.html#l00039">acc_retrangid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00165">acc_resolve_unix()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00166">acc_resolve_unix()</a>.</p>
 
 </div>
 </div>
@@ -389,9 +503,51 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00132">132</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00133">133</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00276">acc_cache_refresh()</a>.</p>
+
+</div>
+</div>
+<a id="a6803b490a01848c95d69b0353d286aa8" name="a6803b490a01848c95d69b0353d286aa8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6803b490a01848c95d69b0353d286aa8">&#9670;&#160;</a></span>acc_nss_note_latency()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void acc_nss_note_latency </td>
+          <td>(</td>
+          <td class="paramtype">int64_t&#160;</td>
+          <td class="paramname"><em>elapsed</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>now</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00231">231</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+
+<p class="reference">References <a class="el" href="groups_8c.html#ab9b0d45583472975f9e527ac83e5e72f">acc_nss_breaker</a>, <a class="el" href="groups_8c_source.html#l00123">ACC_NSS_COOLDOWN_SECS</a>, <a class="el" href="groups_8c_source.html#l00121">ACC_NSS_SLOW_MS</a>, <a class="el" href="groups_8c_source.html#l00122">ACC_NSS_TRIP_COUNT</a>, and <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00276">acc_cache_refresh()</a>.</p>
 
 </div>
 </div>
@@ -429,11 +585,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00165">165</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00166">166</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 <p class="reference">References <a class="el" href="groups_8c_source.html#l00074">acc_gid_retran()</a>, and <a class="el" href="groups_8c_source.html#l00033">acc_primary_only</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00276">acc_cache_refresh()</a>.</p>
 
 </div>
 </div>
@@ -461,11 +617,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00142">142</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00143">143</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">References <a class="el" href="groups_8c_source.html#l00096">ACC_GRP_CACHE_SLOTS</a>.</p>
+<p class="reference">References <a class="el" href="groups_8c_source.html#l00097">ACC_DJB2_SEED</a>, and <a class="el" href="groups_8c_source.html#l00096">ACC_GRP_CACHE_SLOTS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00354">brix_acc_unix_groups()</a>.</p>
 
 </div>
 </div>
@@ -485,9 +641,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00309">309</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00392">392</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">References <a class="el" href="groups_8c_source.html#l00299">brix_acc_in_netgroup()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00029">brix_acc_set_group_resolvers()</a>, and <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">References <a class="el" href="groups_8c_source.html#l00382">brix_acc_in_netgroup()</a>, <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00029">brix_acc_set_group_resolvers()</a>, and <a class="el" href="groups_8c_source.html#l00354">brix_acc_unix_groups()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00040">brix_acc_build()</a>.</p>
 
@@ -629,11 +785,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00299">299</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00382">382</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 <p class="reference">References <a class="el" href="groups_8c_source.html#l00034">acc_nisdomain</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00309">brix_acc_groups_init()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00392">brix_acc_groups_init()</a>.</p>
 
 </div>
 </div>
@@ -671,11 +827,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00214">214</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00354">354</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">References <a class="el" href="groups_8c_source.html#l00150">acc_cache_free()</a>, <a class="el" href="groups_8c_source.html#l00032">acc_gidlifetime</a>, <a class="el" href="groups_8c_source.html#l00106">acc_grp_cache</a>, <a class="el" href="groups_8c_source.html#l00097">ACC_GRP_USER_MAX</a>, <a class="el" href="groups_8c_source.html#l00132">acc_monotonic_ms()</a>, <a class="el" href="groups_8c.html#adaf3aba7fb022a2657deaabe090dc1b9">acc_nss_breaker</a>, <a class="el" href="groups_8c_source.html#l00122">ACC_NSS_COOLDOWN_SECS</a>, <a class="el" href="groups_8c_source.html#l00119">ACC_NSS_NEG_TTL_SECS</a>, <a class="el" href="groups_8c_source.html#l00120">ACC_NSS_SLOW_MS</a>, <a class="el" href="groups_8c_source.html#l00121">ACC_NSS_TRIP_COUNT</a>, <a class="el" href="groups_8c_source.html#l00165">acc_resolve_unix()</a>, <a class="el" href="groups_8c_source.html#l00142">acc_user_hash()</a>, <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>, <a class="el" href="groups_8c_source.html#l00102">acc_grp_cache_t::count</a>, <a class="el" href="groups_8c_source.html#l00103">acc_grp_cache_t::expiry</a>, <a class="el" href="groups_8c_source.html#l00101">acc_grp_cache_t::names</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="groups_8c_source.html#l00100">acc_grp_cache_t::user</a>.</p>
+<p class="reference">References <a class="el" href="groups_8c_source.html#l00276">acc_cache_refresh()</a>, <a class="el" href="groups_8c_source.html#l00329">acc_cache_to_array()</a>, <a class="el" href="groups_8c_source.html#l00107">acc_grp_cache</a>, <a class="el" href="groups_8c_source.html#l00098">ACC_GRP_USER_MAX</a>, <a class="el" href="groups_8c_source.html#l00143">acc_user_hash()</a>, <a class="el" href="groups_8c_source.html#l00103">acc_grp_cache_t::count</a>, <a class="el" href="groups_8c_source.html#l00104">acc_grp_cache_t::expiry</a>, and <a class="el" href="groups_8c_source.html#l00101">acc_grp_cache_t::user</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00309">brix_acc_groups_init()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00392">brix_acc_groups_init()</a>.</p>
 
 </div>
 </div>
@@ -702,7 +858,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00032">32</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00042">brix_acc_groups_set_gidlifetime()</a>, and <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00276">acc_cache_refresh()</a>, and <a class="el" href="groups_8c_source.html#l00042">brix_acc_groups_set_gidlifetime()</a>.</p>
 
 </div>
 </div>
@@ -726,9 +882,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00106">106</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00107">107</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00354">brix_acc_unix_groups()</a>.</p>
 
 </div>
 </div>
@@ -754,12 +910,12 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00034">34</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00086">brix_acc_groups_set_nisdomain()</a>, and <a class="el" href="groups_8c_source.html#l00299">brix_acc_in_netgroup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00086">brix_acc_groups_set_nisdomain()</a>, and <a class="el" href="groups_8c_source.html#l00382">brix_acc_in_netgroup()</a>.</p>
 
 </div>
 </div>
-<a id="adaf3aba7fb022a2657deaabe090dc1b9" name="adaf3aba7fb022a2657deaabe090dc1b9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adaf3aba7fb022a2657deaabe090dc1b9">&#9670;&#160;</a></span>[struct]</h2>
+<a id="ab9b0d45583472975f9e527ac83e5e72f" name="ab9b0d45583472975f9e527ac83e5e72f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab9b0d45583472975f9e527ac83e5e72f">&#9670;&#160;</a></span>[struct]</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -770,7 +926,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00214">brix_acc_unix_groups()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00276">acc_cache_refresh()</a>, and <a class="el" href="groups_8c_source.html#l00231">acc_nss_note_latency()</a>.</p>
 
 </div>
 </div>
@@ -796,7 +952,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00033">33</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00165">acc_resolve_unix()</a>, and <a class="el" href="groups_8c_source.html#l00043">brix_acc_groups_set_primary_only()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="groups_8c_source.html#l00166">acc_resolve_unix()</a>, and <a class="el" href="groups_8c_source.html#l00043">brix_acc_groups_set_primary_only()</a>.</p>
 
 </div>
 </div>
@@ -864,7 +1020,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00125">125</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00126">126</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 </div>
 </div>
@@ -880,7 +1036,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00126">126</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="groups_8c_source.html#l00127">127</a> of file <a class="el" href="groups_8c_source.html">groups.c</a>.</p>
 
 </div>
 </div>

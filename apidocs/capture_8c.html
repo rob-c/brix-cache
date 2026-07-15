@@ -93,6 +93,7 @@ $(document).ready(function(){initNavTree('capture_8c.html',''); initResizable();
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
+<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">capture.c File Reference</div></div>
 </div><!--header-->
@@ -115,6 +116,8 @@ $(document).ready(function(){initNavTree('capture_8c.html',''); initResizable();
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__capture.html">brix_capture</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structplayback__ctx.html">playback_ctx</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -125,6 +128,14 @@ Macros</h2></td></tr>
 <tr class="memitem:a88b05f51d34d81c0ecee82c266ba5da9" id="r_a88b05f51d34d81c0ecee82c266ba5da9"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a88b05f51d34d81c0ecee82c266ba5da9">XRDCAP_WIRE_MAX</a>&#160;&#160;&#160;(<a class="el" href="brix_8h.html#a94c75459b30cdfced4fda81f583ac6e1">XRDC_DLEN_MAX</a> + 64u)</td></tr>
 <tr class="separator:a88b05f51d34d81c0ecee82c266ba5da9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:acb4bb92440b1ffc759b845e9c6365d35" id="r_acb4bb92440b1ffc759b845e9c6365d35"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a> { <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35a9d5893f22f3dc86258c68a02ad05c35e">XRDCAP_REC_OK</a> = 0
+, <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35a28e68b3bba5e1b0d36f209154511afc8">XRDCAP_REC_END</a>
+, <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35ae4b43fb6a64d26d2db83ac810a87c8c1">XRDCAP_REC_TRUNC</a>
+ }</td></tr>
+<tr class="separator:acb4bb92440b1ffc759b845e9c6365d35"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a36d98fd52d1fe0462aeddd719bfa2e0e" id="r_a36d98fd52d1fe0462aeddd719bfa2e0e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a36d98fd52d1fe0462aeddd719bfa2e0e">put_u16</a> (FILE *fp, uint16_t v)</td></tr>
@@ -133,9 +144,9 @@ Functions</h2></td></tr>
 <tr class="separator:a5ee582e8c791679a4ae97101e9211856"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acb51849f9bfbd9f61a1b3d615404f47a" id="r_acb51849f9bfbd9f61a1b3d615404f47a"><td class="memItemLeft" align="right" valign="top">struct <a class="el" href="structbrix__capture.html">brix_capture</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#acb51849f9bfbd9f61a1b3d615404f47a">brix_capture_open</a> (const char *path)</td></tr>
 <tr class="separator:acb51849f9bfbd9f61a1b3d615404f47a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4cfde91cb7b906c338b8b137fbd65af1" id="r_a4cfde91cb7b906c338b8b137fbd65af1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a4cfde91cb7b906c338b8b137fbd65af1">brix_capture_meta</a> (struct <a class="el" href="structbrix__capture.html">brix_capture</a> *cap, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *val)</td></tr>
+<tr class="memitem:a4cfde91cb7b906c338b8b137fbd65af1" id="r_a4cfde91cb7b906c338b8b137fbd65af1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a4cfde91cb7b906c338b8b137fbd65af1">brix_capture_meta</a> (struct <a class="el" href="structbrix__capture.html">brix_capture</a> *cap, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *val)</td></tr>
 <tr class="separator:a4cfde91cb7b906c338b8b137fbd65af1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a95bd307c05f6027d8babe0c78b0d9ce3" id="r_a95bd307c05f6027d8babe0c78b0d9ce3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a95bd307c05f6027d8babe0c78b0d9ce3">brix_capture_frame</a> (struct <a class="el" href="structbrix__capture.html">brix_capture</a> *cap, int dir, uint16_t sid, int code, int is_request, const void *hdr, uint32_t hdrlen, const void *body, uint32_t blen)</td></tr>
+<tr class="memitem:a95bd307c05f6027d8babe0c78b0d9ce3" id="r_a95bd307c05f6027d8babe0c78b0d9ce3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a95bd307c05f6027d8babe0c78b0d9ce3">brix_capture_frame</a> (struct <a class="el" href="structbrix__capture.html">brix_capture</a> *cap, int dir, uint16_t sid, int <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, int is_request, const void *hdr, uint32_t hdrlen, const void *body, uint32_t blen)</td></tr>
 <tr class="separator:a95bd307c05f6027d8babe0c78b0d9ce3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9aef7ed10b3d5b7ed01e2af806e4606b" id="r_a9aef7ed10b3d5b7ed01e2af806e4606b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a9aef7ed10b3d5b7ed01e2af806e4606b">brix_capture_close</a> (struct <a class="el" href="structbrix__capture.html">brix_capture</a> *cap)</td></tr>
 <tr class="separator:a9aef7ed10b3d5b7ed01e2af806e4606b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -147,10 +158,22 @@ Functions</h2></td></tr>
 <tr class="separator:aac534936d9420ca34c572c10a9819e49"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a47c1b87a02543880f44bb29232da971d" id="r_a47c1b87a02543880f44bb29232da971d"><td class="memItemLeft" align="right" valign="top">static uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a47c1b87a02543880f44bb29232da971d">rd_u32</a> (FILE *fp)</td></tr>
 <tr class="separator:a47c1b87a02543880f44bb29232da971d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac09ad2d7e7748413aecd8805cb553f79" id="r_ac09ad2d7e7748413aecd8805cb553f79"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#ac09ad2d7e7748413aecd8805cb553f79">replay_meta_record</a> (FILE *fp, FILE *out, int *metas)</td></tr>
+<tr class="separator:ac09ad2d7e7748413aecd8805cb553f79"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a460091dfebb13a29c88a4c5bd5ffe4be" id="r_a460091dfebb13a29c88a4c5bd5ffe4be"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a460091dfebb13a29c88a4c5bd5ffe4be">replay_hexdump_wire</a> (FILE *out, const uint8_t *w, uint32_t wlen)</td></tr>
+<tr class="separator:a460091dfebb13a29c88a4c5bd5ffe4be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6392636d834a5234c43c4d83b54db345" id="r_a6392636d834a5234c43c4d83b54db345"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a6392636d834a5234c43c4d83b54db345">replay_frame_record</a> (FILE *fp, int verbose, FILE *out, int *frames)</td></tr>
+<tr class="separator:a6392636d834a5234c43c4d83b54db345"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7fc4cdb6453a0d8cb958b372521565ef" id="r_a7fc4cdb6453a0d8cb958b372521565ef"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a7fc4cdb6453a0d8cb958b372521565ef">brix_capture_replay</a> (const char *path, int verbose, FILE *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a7fc4cdb6453a0d8cb958b372521565ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a84b79323854893a1c1085e2656291fee" id="r_a84b79323854893a1c1085e2656291fee"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a84b79323854893a1c1085e2656291fee">is_session_op</a> (int reqid)</td></tr>
 <tr class="separator:a84b79323854893a1c1085e2656291fee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afe66ff3eedf056d531081509e72f7a54" id="r_afe66ff3eedf056d531081509e72f7a54"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#afe66ff3eedf056d531081509e72f7a54">playback_skip_meta</a> (FILE *fp)</td></tr>
+<tr class="separator:afe66ff3eedf056d531081509e72f7a54"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a29fa5cfb8466e3de77215a8e3f666aef" id="r_a29fa5cfb8466e3de77215a8e3f666aef"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a29fa5cfb8466e3de77215a8e3f666aef">playback_reissue_wire</a> (<a class="el" href="structplayback__ctx.html">playback_ctx</a> *pc, uint16_t <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, const uint8_t *w, uint32_t wlen)</td></tr>
+<tr class="separator:a29fa5cfb8466e3de77215a8e3f666aef"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a69c132b90e1c51df42c3ccc8b170f95e" id="r_a69c132b90e1c51df42c3ccc8b170f95e"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#a69c132b90e1c51df42c3ccc8b170f95e">playback_frame_record</a> (FILE *fp, <a class="el" href="structplayback__ctx.html">playback_ctx</a> *pc)</td></tr>
+<tr class="separator:a69c132b90e1c51df42c3ccc8b170f95e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaca1dc5e4e8d5995c1a7401e16a47176" id="r_aaca1dc5e4e8d5995c1a7401e16a47176"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="capture_8c.html#aaca1dc5e4e8d5995c1a7401e16a47176">brix_capture_playback</a> (const char *path, const char *url, const <a class="el" href="structbrix__opts.html">brix_opts</a> *co, FILE *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:aaca1dc5e4e8d5995c1a7401e16a47176"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -203,6 +226,28 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="acb4bb92440b1ffc759b845e9c6365d35" name="acb4bb92440b1ffc759b845e9c6365d35"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acb4bb92440b1ffc759b845e9c6365d35">&#9670;&#160;</a></span>xrdcap_rec_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="acb4bb92440b1ffc759b845e9c6365d35a9d5893f22f3dc86258c68a02ad05c35e" name="acb4bb92440b1ffc759b845e9c6365d35a9d5893f22f3dc86258c68a02ad05c35e"></a>XRDCAP_REC_OK&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="acb4bb92440b1ffc759b845e9c6365d35a28e68b3bba5e1b0d36f209154511afc8" name="acb4bb92440b1ffc759b845e9c6365d35a28e68b3bba5e1b0d36f209154511afc8"></a>XRDCAP_REC_END&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="acb4bb92440b1ffc759b845e9c6365d35ae4b43fb6a64d26d2db83ac810a87c8c1" name="acb4bb92440b1ffc759b845e9c6365d35ae4b43fb6a64d26d2db83ac810a87c8c1"></a>XRDCAP_REC_TRUNC&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00175">175</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a9aef7ed10b3d5b7ed01e2af806e4606b" name="a9aef7ed10b3d5b7ed01e2af806e4606b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9aef7ed10b3d5b7ed01e2af806e4606b">&#9670;&#160;</a></span>brix_capture_close()</h2>
@@ -224,7 +269,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>.</p>
 
 </div>
 </div>
@@ -298,9 +343,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00086">86</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
 
-<p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="capture_8c_source.html#l00034">put_u16()</a>, and <a class="el" href="capture_8c_source.html#l00041">put_u32()</a>.</p>
+<p class="reference">References <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="capture_8c_source.html#l00034">put_u16()</a>, and <a class="el" href="capture_8c_source.html#l00041">put_u32()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00229">brix_recv()</a>, and <a class="el" href="frame_8c_source.html#l00027">brix_send_ext()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00027">brix_send_ext()</a>, and <a class="el" href="frame_8c_source.html#l00333">recv_note_diag()</a>.</p>
 
 </div>
 </div>
@@ -338,9 +383,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00067">67</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
 
-<p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="capture_8c_source.html#l00034">put_u16()</a>.</p>
+<p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="capture_8c_source.html#l00034">put_u16()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>.</p>
 
 </div>
 </div>
@@ -364,7 +409,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="capture_8c_source.html#l00025">XRDCAP_MAGIC</a>, and <a class="el" href="capture_8c_source.html#l00026">XRDCAP_MAGIC_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>.</p>
 
 </div>
 </div>
@@ -412,11 +457,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00262">262</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00430">430</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="frame_8c_source.html#l00229">brix_recv()</a>, <a class="el" href="trace_8c_source.html#l00029">brix_reqid_name()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="trace_8c_source.html#l00035">brix_status_name()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="capture_8c_source.html#l00255">is_session_op()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="capture_8c_source.html#l00158">rd_u16()</a>, <a class="el" href="capture_8c_source.html#l00159">rd_u32()</a>, <a class="el" href="capture_8c_source.html#l00121">read_magic()</a>, <a class="el" href="capture_8c_source.html#l00145">skip_bytes()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="capture_8c_source.html#l00027">XRDCAP_WIRE_MAX</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="capture_8c_source.html#l00357">playback_ctx::conn</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="capture_8c_source.html#l00359">playback_ctx::issued</a>, <a class="el" href="capture_8c_source.html#l00360">playback_ctx::ok</a>, <a class="el" href="capture_8c_source.html#l00358">playback_ctx::out</a>, <a class="el" href="capture_8c_source.html#l00406">playback_frame_record()</a>, <a class="el" href="capture_8c_source.html#l00335">playback_skip_meta()</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="capture_8c_source.html#l00121">read_magic()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="capture_8c_source.html#l00176">XRDCAP_REC_OK</a>, and <a class="el" href="capture_8c_source.html#l00178">XRDCAP_REC_TRUNC</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="diag__misc_8c_source.html#l00178">do_replay()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__misc_8c_source.html#l00301">do_replay()</a>.</p>
 
 </div>
 </div>
@@ -458,11 +503,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00175">175</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00279">279</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
 
-<p class="reference">References <a class="el" href="trace_8c_source.html#l00029">brix_reqid_name()</a>, <a class="el" href="trace_8c_source.html#l00035">brix_status_name()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="capture_8c_source.html#l00158">rd_u16()</a>, <a class="el" href="capture_8c_source.html#l00159">rd_u32()</a>, <a class="el" href="capture_8c_source.html#l00121">read_magic()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="capture_8c_source.html#l00027">XRDCAP_WIRE_MAX</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="capture_8c_source.html#l00121">read_magic()</a>, <a class="el" href="capture_8c_source.html#l00242">replay_frame_record()</a>, <a class="el" href="capture_8c_source.html#l00190">replay_meta_record()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="capture_8c_source.html#l00176">XRDCAP_REC_OK</a>, and <a class="el" href="capture_8c_source.html#l00178">XRDCAP_REC_TRUNC</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="diag__misc_8c_source.html#l00178">do_replay()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__misc_8c_source.html#l00301">do_replay()</a>.</p>
 
 </div>
 </div>
@@ -490,11 +535,139 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00255">255</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00319">319</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
 
 <p class="reference">References <a class="el" href="opcodes_8h_source.html#l00045">kXR_auth</a>, <a class="el" href="opcodes_8h_source.html#l00069">kXR_bind</a>, <a class="el" href="opcodes_8h_source.html#l00068">kXR_endsess</a>, <a class="el" href="opcodes_8h_source.html#l00052">kXR_login</a>, <a class="el" href="opcodes_8h_source.html#l00051">kXR_protocol</a>, and <a class="el" href="opcodes_8h_source.html#l00074">kXR_sigver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00262">brix_capture_playback()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00406">playback_frame_record()</a>.</p>
+
+</div>
+</div>
+<a id="a69c132b90e1c51df42c3ccc8b170f95e" name="a69c132b90e1c51df42c3ccc8b170f95e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a69c132b90e1c51df42c3ccc8b170f95e">&#9670;&#160;</a></span>playback_frame_record()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a> playback_frame_record </td>
+          <td>(</td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>fp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structplayback__ctx.html">playback_ctx</a> *&#160;</td>
+          <td class="paramname"><em>pc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00406">406</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+
+<p class="reference">References <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="capture_8c_source.html#l00319">is_session_op()</a>, <a class="el" href="capture_8c_source.html#l00374">playback_reissue_wire()</a>, <a class="el" href="capture_8c_source.html#l00158">rd_u16()</a>, <a class="el" href="capture_8c_source.html#l00159">rd_u32()</a>, <a class="el" href="capture_8c_source.html#l00176">XRDCAP_REC_OK</a>, <a class="el" href="capture_8c_source.html#l00178">XRDCAP_REC_TRUNC</a>, and <a class="el" href="capture_8c_source.html#l00027">XRDCAP_WIRE_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00430">brix_capture_playback()</a>.</p>
+
+</div>
+</div>
+<a id="a29fa5cfb8466e3de77215a8e3f666aef" name="a29fa5cfb8466e3de77215a8e3f666aef"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a29fa5cfb8466e3de77215a8e3f666aef">&#9670;&#160;</a></span>playback_reissue_wire()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void playback_reissue_wire </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structplayback__ctx.html">playback_ctx</a> *&#160;</td>
+          <td class="paramname"><em>pc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>code</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>wlen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00374">374</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+
+<p class="reference">References <a class="el" href="frame_8c_source.html#l00425">brix_recv()</a>, <a class="el" href="trace_8c_source.html#l00029">brix_reqid_name()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="trace_8c_source.html#l00035">brix_status_name()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="capture_8c_source.html#l00357">playback_ctx::conn</a>, <a class="el" href="brix__net_8h_source.html#l00085">brix_conn::io</a>, <a class="el" href="capture_8c_source.html#l00359">playback_ctx::issued</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="capture_8c_source.html#l00360">playback_ctx::ok</a>, and <a class="el" href="capture_8c_source.html#l00358">playback_ctx::out</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00406">playback_frame_record()</a>.</p>
+
+</div>
+</div>
+<a id="afe66ff3eedf056d531081509e72f7a54" name="afe66ff3eedf056d531081509e72f7a54"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afe66ff3eedf056d531081509e72f7a54">&#9670;&#160;</a></span>playback_skip_meta()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a> playback_skip_meta </td>
+          <td>(</td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>fp</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00335">335</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+
+<p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="capture_8c_source.html#l00158">rd_u16()</a>, <a class="el" href="capture_8c_source.html#l00145">skip_bytes()</a>, <a class="el" href="capture_8c_source.html#l00176">XRDCAP_REC_OK</a>, and <a class="el" href="capture_8c_source.html#l00178">XRDCAP_REC_TRUNC</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00430">brix_capture_playback()</a>.</p>
 
 </div>
 </div>
@@ -606,7 +779,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00262">brix_capture_playback()</a>, and <a class="el" href="capture_8c_source.html#l00175">brix_capture_replay()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00406">playback_frame_record()</a>, <a class="el" href="capture_8c_source.html#l00335">playback_skip_meta()</a>, <a class="el" href="capture_8c_source.html#l00242">replay_frame_record()</a>, and <a class="el" href="capture_8c_source.html#l00190">replay_meta_record()</a>.</p>
 
 </div>
 </div>
@@ -636,9 +809,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00159">159</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00262">brix_capture_playback()</a>, and <a class="el" href="capture_8c_source.html#l00175">brix_capture_replay()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00406">playback_frame_record()</a>, and <a class="el" href="capture_8c_source.html#l00242">replay_frame_record()</a>.</p>
 
 </div>
 </div>
@@ -680,7 +853,155 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="capture_8c_source.html#l00025">XRDCAP_MAGIC</a>, and <a class="el" href="capture_8c_source.html#l00026">XRDCAP_MAGIC_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00262">brix_capture_playback()</a>, and <a class="el" href="capture_8c_source.html#l00175">brix_capture_replay()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00430">brix_capture_playback()</a>, and <a class="el" href="capture_8c_source.html#l00279">brix_capture_replay()</a>.</p>
+
+</div>
+</div>
+<a id="a6392636d834a5234c43c4d83b54db345" name="a6392636d834a5234c43c4d83b54db345"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6392636d834a5234c43c4d83b54db345">&#9670;&#160;</a></span>replay_frame_record()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a> replay_frame_record </td>
+          <td>(</td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>fp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>verbose</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>frames</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00242">242</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+
+<p class="reference">References <a class="el" href="trace_8c_source.html#l00029">brix_reqid_name()</a>, <a class="el" href="trace_8c_source.html#l00035">brix_status_name()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="capture_8c_source.html#l00158">rd_u16()</a>, <a class="el" href="capture_8c_source.html#l00159">rd_u32()</a>, <a class="el" href="capture_8c_source.html#l00222">replay_hexdump_wire()</a>, <a class="el" href="capture_8c_source.html#l00176">XRDCAP_REC_OK</a>, <a class="el" href="capture_8c_source.html#l00178">XRDCAP_REC_TRUNC</a>, and <a class="el" href="capture_8c_source.html#l00027">XRDCAP_WIRE_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00279">brix_capture_replay()</a>.</p>
+
+</div>
+</div>
+<a id="a460091dfebb13a29c88a4c5bd5ffe4be" name="a460091dfebb13a29c88a4c5bd5ffe4be"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a460091dfebb13a29c88a4c5bd5ffe4be">&#9670;&#160;</a></span>replay_hexdump_wire()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void replay_hexdump_wire </td>
+          <td>(</td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>wlen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00222">222</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00242">replay_frame_record()</a>.</p>
+
+</div>
+</div>
+<a id="ac09ad2d7e7748413aecd8805cb553f79" name="ac09ad2d7e7748413aecd8805cb553f79"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac09ad2d7e7748413aecd8805cb553f79">&#9670;&#160;</a></span>replay_meta_record()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="capture_8c.html#acb4bb92440b1ffc759b845e9c6365d35">xrdcap_rec_t</a> replay_meta_record </td>
+          <td>(</td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>fp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>metas</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="capture_8c_source.html#l00190">190</a> of file <a class="el" href="capture_8c_source.html">capture.c</a>.</p>
+
+<p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="capture_8c_source.html#l00158">rd_u16()</a>, <a class="el" href="capture_8c_source.html#l00176">XRDCAP_REC_OK</a>, and <a class="el" href="capture_8c_source.html#l00178">XRDCAP_REC_TRUNC</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00279">brix_capture_replay()</a>.</p>
 
 </div>
 </div>
@@ -722,7 +1043,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="capture_8c_source.html#l00030">brix_capture::fp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00262">brix_capture_playback()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="capture_8c_source.html#l00335">playback_skip_meta()</a>.</p>
 
 </div>
 </div>

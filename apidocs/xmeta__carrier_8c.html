@@ -113,19 +113,29 @@ $(document).ready(function(){initNavTree('xmeta__carrier_8c.html',''); initResiz
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a45b058042c1f1939567cfe69bad07f1a" id="r_a45b058042c1f1939567cfe69bad07f1a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a45b058042c1f1939567cfe69bad07f1a">xmeta_sidecar_key</a> (const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *out, size_t cap)</td></tr>
+<tr class="memitem:a45b058042c1f1939567cfe69bad07f1a" id="r_a45b058042c1f1939567cfe69bad07f1a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a45b058042c1f1939567cfe69bad07f1a">xmeta_sidecar_key</a> (const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *out, size_t cap)</td></tr>
 <tr class="separator:a45b058042c1f1939567cfe69bad07f1a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa51360d7ca318c854078bf36376e67ea" id="r_aa51360d7ca318c854078bf36376e67ea"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#aa51360d7ca318c854078bf36376e67ea">xmeta_xattr_unfit</a> (int err)</td></tr>
 <tr class="separator:aa51360d7ca318c854078bf36376e67ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acc8be269f893bd978f0c26ed310a8bc1" id="r_acc8be269f893bd978f0c26ed310a8bc1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#acc8be269f893bd978f0c26ed310a8bc1">xmeta_sidecar_write</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const uint8_t *buf, size_t len)</td></tr>
+<tr class="memitem:acc8be269f893bd978f0c26ed310a8bc1" id="r_acc8be269f893bd978f0c26ed310a8bc1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#acc8be269f893bd978f0c26ed310a8bc1">xmeta_sidecar_write</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const uint8_t *buf, size_t len)</td></tr>
 <tr class="separator:acc8be269f893bd978f0c26ed310a8bc1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7f03e4ec5f08e6ffc654787c8c0c1b54" id="r_a7f03e4ec5f08e6ffc654787c8c0c1b54"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a7f03e4ec5f08e6ffc654787c8c0c1b54">xmeta_sidecar_read</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, uint8_t **out, size_t *out_len)</td></tr>
+<tr class="memitem:a82f27bbbb2c7763ee9362ab87333d75d" id="r_a82f27bbbb2c7763ee9362ab87333d75d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a82f27bbbb2c7763ee9362ab87333d75d">xmeta_obj_close</a> (brix_sd_instance_t *store, brix_sd_obj_t *obj)</td></tr>
+<tr class="separator:a82f27bbbb2c7763ee9362ab87333d75d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab04d67c469bf2ba31824c049e087275a" id="r_ab04d67c469bf2ba31824c049e087275a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#ab04d67c469bf2ba31824c049e087275a">xmeta_read_buf_ensure</a> (uint8_t **bufp, size_t *capp, size_t got)</td></tr>
+<tr class="separator:ab04d67c469bf2ba31824c049e087275a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aae92f4609565f06fc186d47d9e343dd7" id="r_aae92f4609565f06fc186d47d9e343dd7"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#aae92f4609565f06fc186d47d9e343dd7">xmeta_obj_slurp</a> (brix_sd_instance_t *store, brix_sd_obj_t *obj, uint8_t **out, size_t *out_len)</td></tr>
+<tr class="separator:aae92f4609565f06fc186d47d9e343dd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7f03e4ec5f08e6ffc654787c8c0c1b54" id="r_a7f03e4ec5f08e6ffc654787c8c0c1b54"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a7f03e4ec5f08e6ffc654787c8c0c1b54">xmeta_sidecar_read</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, uint8_t **out, size_t *out_len)</td></tr>
 <tr class="separator:a7f03e4ec5f08e6ffc654787c8c0c1b54"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a62adc9f0b1ec85cba310dab095bdf5cf" id="r_a62adc9f0b1ec85cba310dab095bdf5cf"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a62adc9f0b1ec85cba310dab095bdf5cf">brix_xmeta_save</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__xmeta__t.html">brix_xmeta_t</a> *m)</td></tr>
+<tr class="memitem:a62adc9f0b1ec85cba310dab095bdf5cf" id="r_a62adc9f0b1ec85cba310dab095bdf5cf"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a62adc9f0b1ec85cba310dab095bdf5cf">brix_xmeta_save</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__xmeta__t.html">brix_xmeta_t</a> *m)</td></tr>
 <tr class="separator:a62adc9f0b1ec85cba310dab095bdf5cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a24949b50f990ac87cc5d50a71cbfdaef" id="r_a24949b50f990ac87cc5d50a71cbfdaef"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a24949b50f990ac87cc5d50a71cbfdaef">brix_xmeta_load</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structbrix__xmeta__t.html">brix_xmeta_t</a> *m)</td></tr>
+<tr class="memitem:ae29567d02ddadab0379c9cde05fa339f" id="r_ae29567d02ddadab0379c9cde05fa339f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#ae29567d02ddadab0379c9cde05fa339f">xmeta_decode_rc</a> (int drc)</td></tr>
+<tr class="separator:ae29567d02ddadab0379c9cde05fa339f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b01bb75fdeaa68bc60c246ce15857c9" id="r_a2b01bb75fdeaa68bc60c246ce15857c9"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a2b01bb75fdeaa68bc60c246ce15857c9">xmeta_load_from_xattr</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structbrix__xmeta__t.html">brix_xmeta_t</a> *m)</td></tr>
+<tr class="separator:a2b01bb75fdeaa68bc60c246ce15857c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a24949b50f990ac87cc5d50a71cbfdaef" id="r_a24949b50f990ac87cc5d50a71cbfdaef"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a24949b50f990ac87cc5d50a71cbfdaef">brix_xmeta_load</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structbrix__xmeta__t.html">brix_xmeta_t</a> *m)</td></tr>
 <tr class="separator:a24949b50f990ac87cc5d50a71cbfdaef"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a95e2150256571fc5c7bce6150f6e8a15" id="r_a95e2150256571fc5c7bce6150f6e8a15"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a95e2150256571fc5c7bce6150f6e8a15">brix_xmeta_remove</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)</td></tr>
+<tr class="memitem:a95e2150256571fc5c7bce6150f6e8a15" id="r_a95e2150256571fc5c7bce6150f6e8a15"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xmeta__carrier_8c.html#a95e2150256571fc5c7bce6150f6e8a15">brix_xmeta_remove</a> (brix_sd_instance_t *store, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)</td></tr>
 <tr class="separator:a95e2150256571fc5c7bce6150f6e8a15"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -161,9 +171,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00195">195</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00354">354</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xmeta_8c_source.html#l00519">brix_xmeta_decode()</a>, <a class="el" href="xmeta_8h_source.html#l00142">BRIX_XMETA_FOREIGN</a>, <a class="el" href="xmeta_8h_source.html#l00140">BRIX_XMETA_OK</a>, <a class="el" href="xmeta__carrier_8h_source.html#l00035">BRIX_XMETA_XATTR_MAX</a>, <a class="el" href="xmeta__carrier_8h_source.html#l00031">BRIX_XMETA_XATTR_NAME</a>, <a class="el" href="dead__props_8c_source.html#l00056">ENOATTR</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00080">xmeta_sidecar_read()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00025">xmeta_xattr_unfit()</a>.</p>
+<p class="reference">References <a class="el" href="xmeta__decode_8c_source.html#l00412">brix_xmeta_decode()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00289">xmeta_decode_rc()</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00319">xmeta_load_from_xattr()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00200">xmeta_sidecar_read()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00299">brix_cstore_cinfo_load()</a>.</p>
 
@@ -195,9 +205,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00251">251</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00383">383</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xmeta__carrier_8h_source.html#l00031">BRIX_XMETA_XATTR_NAME</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00016">xmeta_sidecar_key()</a>.</p>
+<p class="reference">References <a class="el" href="xmeta__carrier_8h_source.html#l00031">BRIX_XMETA_XATTR_NAME</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00016">xmeta_sidecar_key()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00266">brix_cstore_evict()</a>.</p>
 
@@ -235,11 +245,231 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00149">149</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00229">229</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xmeta_8c_source.html#l00290">brix_xmeta_encode()</a>, <a class="el" href="xmeta_8h_source.html#l00140">BRIX_XMETA_OK</a>, <a class="el" href="xmeta__carrier_8h_source.html#l00035">BRIX_XMETA_XATTR_MAX</a>, <a class="el" href="xmeta__carrier_8h_source.html#l00031">BRIX_XMETA_XATTR_NAME</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00037">xmeta_sidecar_write()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00025">xmeta_xattr_unfit()</a>.</p>
+<p class="reference">References <a class="el" href="xmeta__encode_8c_source.html#l00267">brix_xmeta_encode()</a>, <a class="el" href="xmeta_8h_source.html#l00140">BRIX_XMETA_OK</a>, <a class="el" href="xmeta__carrier_8h_source.html#l00035">BRIX_XMETA_XATTR_MAX</a>, <a class="el" href="xmeta__carrier_8h_source.html#l00031">BRIX_XMETA_XATTR_NAME</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00040">xmeta_sidecar_write()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00025">xmeta_xattr_unfit()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00343">brix_cstore_cinfo_store()</a>.</p>
+
+</div>
+</div>
+<a id="ae29567d02ddadab0379c9cde05fa339f" name="ae29567d02ddadab0379c9cde05fa339f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae29567d02ddadab0379c9cde05fa339f">&#9670;&#160;</a></span>xmeta_decode_rc()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t xmeta_decode_rc </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>drc</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00289">289</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xmeta_8h_source.html#l00142">BRIX_XMETA_FOREIGN</a>, and <a class="el" href="xmeta_8h_source.html#l00140">BRIX_XMETA_OK</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00354">brix_xmeta_load()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00319">xmeta_load_from_xattr()</a>.</p>
+
+</div>
+</div>
+<a id="a2b01bb75fdeaa68bc60c246ce15857c9" name="a2b01bb75fdeaa68bc60c246ce15857c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b01bb75fdeaa68bc60c246ce15857c9">&#9670;&#160;</a></span>xmeta_load_from_xattr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t xmeta_load_from_xattr </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>store</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__xmeta__t.html">brix_xmeta_t</a> *&#160;</td>
+          <td class="paramname"><em>m</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00319">319</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xmeta__decode_8c_source.html#l00412">brix_xmeta_decode()</a>, <a class="el" href="xmeta__carrier_8h_source.html#l00035">BRIX_XMETA_XATTR_MAX</a>, <a class="el" href="xmeta__carrier_8h_source.html#l00031">BRIX_XMETA_XATTR_NAME</a>, <a class="el" href="dead__props__internal_8h_source.html#l00017">ENOATTR</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00289">xmeta_decode_rc()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00025">xmeta_xattr_unfit()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00354">brix_xmeta_load()</a>.</p>
+
+</div>
+</div>
+<a id="a82f27bbbb2c7763ee9362ab87333d75d" name="a82f27bbbb2c7763ee9362ab87333d75d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a82f27bbbb2c7763ee9362ab87333d75d">&#9670;&#160;</a></span>xmeta_obj_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void xmeta_obj_close </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>store</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00098">98</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00200">xmeta_sidecar_read()</a>.</p>
+
+</div>
+</div>
+<a id="aae92f4609565f06fc186d47d9e343dd7" name="aae92f4609565f06fc186d47d9e343dd7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aae92f4609565f06fc186d47d9e343dd7">&#9670;&#160;</a></span>xmeta_obj_slurp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t xmeta_obj_slurp </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>store</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t **&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>out_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00163">163</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xmeta__carrier_8c_source.html#l00124">xmeta_read_buf_ensure()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00200">xmeta_sidecar_read()</a>.</p>
+
+</div>
+</div>
+<a id="ab04d67c469bf2ba31824c049e087275a" name="ab04d67c469bf2ba31824c049e087275a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab04d67c469bf2ba31824c049e087275a">&#9670;&#160;</a></span>xmeta_read_buf_ensure()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xmeta_read_buf_ensure </td>
+          <td>(</td>
+          <td class="paramtype">uint8_t **&#160;</td>
+          <td class="paramname"><em>bufp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>capp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>got</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00124">124</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00163">xmeta_obj_slurp()</a>.</p>
 
 </div>
 </div>
@@ -285,9 +515,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00016">16</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xmeta__carrier_8h_source.html#l00032">BRIX_XMETA_SIDECAR_SUFFIX</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="xmeta__carrier_8h_source.html#l00032">BRIX_XMETA_SIDECAR_SUFFIX</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00251">brix_xmeta_remove()</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00080">xmeta_sidecar_read()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00037">xmeta_sidecar_write()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00383">brix_xmeta_remove()</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00200">xmeta_sidecar_read()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00040">xmeta_sidecar_write()</a>.</p>
 
 </div>
 </div>
@@ -337,11 +567,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00080">80</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00200">200</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00109">BRIX_SD_O_READ</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00016">xmeta_sidecar_key()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00098">xmeta_obj_close()</a>, <a class="el" href="xmeta__carrier_8c_source.html#l00163">xmeta_obj_slurp()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00016">xmeta_sidecar_key()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00195">brix_xmeta_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00354">brix_xmeta_load()</a>.</p>
 
 </div>
 </div>
@@ -391,11 +621,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00037">37</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00040">40</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00016">xmeta_sidecar_key()</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00016">xmeta_sidecar_key()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00149">brix_xmeta_save()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00229">brix_xmeta_save()</a>.</p>
 
 </div>
 </div>
@@ -425,7 +655,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xmeta__carrier_8c_source.html#l00025">25</a> of file <a class="el" href="xmeta__carrier_8c_source.html">xmeta_carrier.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00195">brix_xmeta_load()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00149">brix_xmeta_save()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xmeta__carrier_8c_source.html#l00229">brix_xmeta_save()</a>, and <a class="el" href="xmeta__carrier_8c_source.html#l00319">xmeta_load_from_xattr()</a>.</p>
 
 </div>
 </div>

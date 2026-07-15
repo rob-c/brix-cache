@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('http__compress_8c.html',''); initResiz
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
@@ -111,6 +112,11 @@ $(document).ready(function(){initNavTree('http__compress_8c.html',''); initResiz
 </div>
 <p><a href="http__compress_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structcompress__send__t.html">compress_send_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a05621c284f25ffbde60d64f2aeffd785" id="r_a05621c284f25ffbde60d64f2aeffd785"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a05621c284f25ffbde60d64f2aeffd785">BRIX_COMPRESS_CHUNK</a>&#160;&#160;&#160;(64 * 1024)</td></tr>
@@ -120,12 +126,24 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a561d84b707c101209f51149f093c3d2b" id="r_a561d84b707c101209f51149f093c3d2b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a561d84b707c101209f51149f093c3d2b">content_type_incompressible</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a561d84b707c101209f51149f093c3d2b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a35386a58239590ec69d418f40fdf04a6" id="r_a35386a58239590ec69d418f40fdf04a6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a35386a58239590ec69d418f40fdf04a6">accept_encoding_q_is_zero</a> (const u_char *semi, const u_char *seg_end)</td></tr>
+<tr class="separator:a35386a58239590ec69d418f40fdf04a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a83d6a700c4d7929706f0f3eec3668339" id="r_a83d6a700c4d7929706f0f3eec3668339"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a83d6a700c4d7929706f0f3eec3668339">accept_encoding_segment_has</a> (const u_char *seg, const u_char *seg_end, const char *token, size_t tlen)</td></tr>
+<tr class="separator:a83d6a700c4d7929706f0f3eec3668339"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a833db0ecde1c26c1406c4658e6df3e4e" id="r_a833db0ecde1c26c1406c4658e6df3e4e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a833db0ecde1c26c1406c4658e6df3e4e">accept_encoding_has</a> (const u_char *ae, size_t ae_len, const char *token)</td></tr>
 <tr class="separator:a833db0ecde1c26c1406c4658e6df3e4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a152e58895a57869b24be42c85de38ca5" id="r_a152e58895a57869b24be42c85de38ca5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="codec__core_8h.html#a03591542b2bcc7791920c2cdc0246793">brix_codec_id_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a152e58895a57869b24be42c85de38ca5">brix_http_compress_negotiate</a> (ngx_http_request_t *r, off_t file_size, ngx_flag_t is_range)</td></tr>
 <tr class="separator:a152e58895a57869b24be42c85de38ca5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0e70c589504f7c483531e852553d80d9" id="r_a0e70c589504f7c483531e852553d80d9"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a0e70c589504f7c483531e852553d80d9">compress_emit</a> (ngx_http_request_t *r, const u_char *data, size_t len, int last)</td></tr>
 <tr class="separator:a0e70c589504f7c483531e852553d80d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a89a143c3789d6f54e408cbfc08a8e22b" id="r_a89a143c3789d6f54e408cbfc08a8e22b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a89a143c3789d6f54e408cbfc08a8e22b">compress_set_headers</a> (ngx_http_request_t *r, const <a class="el" href="structbrix__codec__desc__t.html">brix_codec_desc_t</a> *desc, off_t size, time_t mtime, unsigned etag_flags)</td></tr>
+<tr class="separator:a89a143c3789d6f54e408cbfc08a8e22b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1fc7278da594c6af756578f6f4a12780" id="r_a1fc7278da594c6af756578f6f4a12780"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a1fc7278da594c6af756578f6f4a12780">compress_drain_chunk</a> (<a class="el" href="structcompress__send__t.html">compress_send_t</a> *st, size_t fill, int finish, int *ended)</td></tr>
+<tr class="separator:a1fc7278da594c6af756578f6f4a12780"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1ef9146bc16d4f3c56642f833bc1ccde" id="r_a1ef9146bc16d4f3c56642f833bc1ccde"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a1ef9146bc16d4f3c56642f833bc1ccde">compress_stream_step</a> (<a class="el" href="structcompress__send__t.html">compress_send_t</a> *st, int *done)</td></tr>
+<tr class="separator:a1ef9146bc16d4f3c56642f833bc1ccde"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7fd6d9f789b5ac13bc31bbbc388d384e" id="r_a7fd6d9f789b5ac13bc31bbbc388d384e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a7fd6d9f789b5ac13bc31bbbc388d384e">compress_stream_body</a> (<a class="el" href="structcompress__send__t.html">compress_send_t</a> *st)</td></tr>
+<tr class="separator:a7fd6d9f789b5ac13bc31bbbc388d384e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a12cbbea1bfb42fdd738355996aea4213" id="r_a12cbbea1bfb42fdd738355996aea4213"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__compress_8c.html#a12cbbea1bfb42fdd738355996aea4213">brix_http_send_file_compressed</a> (ngx_http_request_t *r, ngx_fd_t send_fd, const char *fs_path, off_t size, <a class="el" href="codec__core_8h.html#a03591542b2bcc7791920c2cdc0246793">brix_codec_id_t</a> codec, time_t mtime, unsigned etag_flags, off_t *bytes_in_out)</td></tr>
 <tr class="separator:a12cbbea1bfb42fdd738355996aea4213"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -192,9 +210,105 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00055">55</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00117">117</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00112">brix_http_compress_negotiate()</a>.</p>
+<p class="reference">References <a class="el" href="http__compress_8c_source.html#l00094">accept_encoding_segment_has()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00138">brix_http_compress_negotiate()</a>.</p>
+
+</div>
+</div>
+<a id="a35386a58239590ec69d418f40fdf04a6" name="a35386a58239590ec69d418f40fdf04a6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a35386a58239590ec69d418f40fdf04a6">&#9670;&#160;</a></span>accept_encoding_q_is_zero()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int accept_encoding_q_is_zero </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>semi</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>seg_end</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00063">63</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00094">accept_encoding_segment_has()</a>.</p>
+
+</div>
+</div>
+<a id="a83d6a700c4d7929706f0f3eec3668339" name="a83d6a700c4d7929706f0f3eec3668339"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a83d6a700c4d7929706f0f3eec3668339">&#9670;&#160;</a></span>accept_encoding_segment_has()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int accept_encoding_segment_has </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>seg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>seg_end</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>token</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>tlen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00094">94</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__compress_8c_source.html#l00063">accept_encoding_q_is_zero()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00117">accept_encoding_has()</a>.</p>
 
 </div>
 </div>
@@ -230,11 +344,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00112">112</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00138">138</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__compress_8c_source.html#l00055">accept_encoding_has()</a>, <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="codec__core_8c_source.html#l00092">brix_codec_by_id()</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__compress_8h_source.html#l00025">BRIX_COMPRESS_MIN_SIZE</a>, <a class="el" href="http__compress_8c_source.html#l00020">brix_compress_pref</a>, <a class="el" href="http__compress_8c_source.html#l00028">content_type_incompressible()</a>, and <a class="el" href="codec__core_8h_source.html#l00124">brix_codec_desc_t::http_token</a>.</p>
+<p class="reference">References <a class="el" href="http__compress_8c_source.html#l00117">accept_encoding_has()</a>, <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="codec__core_8c_source.html#l00092">brix_codec_by_id()</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__compress_8h_source.html#l00025">BRIX_COMPRESS_MIN_SIZE</a>, <a class="el" href="http__compress_8c_source.html#l00020">brix_compress_pref</a>, <a class="el" href="http__compress_8c_source.html#l00028">content_type_incompressible()</a>, and <a class="el" href="codec__core_8h_source.html#l00124">brix_codec_desc_t::http_token</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00274">serve_try_compressed()</a>.</p>
 
 </div>
 </div>
@@ -300,11 +414,65 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00170">170</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00338">338</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
 
-<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="codec__core_8c_source.html#l00092">brix_codec_by_id()</a>, <a class="el" href="codec__core_8c_source.html#l00229">brix_codec_close()</a>, <a class="el" href="codec__core_8h_source.html#l00046">BRIX_CODEC_DIR_COMPRESS</a>, <a class="el" href="codec__core_8h_source.html#l00053">BRIX_CODEC_END</a>, <a class="el" href="codec__core_8c_source.html#l00159">brix_codec_open()</a>, <a class="el" href="codec__core_8c_source.html#l00191">brix_codec_step()</a>, <a class="el" href="http__compress_8c_source.html#l00017">BRIX_COMPRESS_CHUNK</a>, <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, <a class="el" href="vfs__read_8c_source.html#l00029">brix_vfs_pread_full()</a>, <a class="el" href="http__compress_8c_source.html#l00144">compress_emit()</a>, <a class="el" href="codec__core_8h_source.html#l00124">brix_codec_desc_t::http_token</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="codec__core_8c_source.html#l00092">brix_codec_by_id()</a>, <a class="el" href="codec__core_8c_source.html#l00229">brix_codec_close()</a>, <a class="el" href="codec__core_8h_source.html#l00046">BRIX_CODEC_DIR_COMPRESS</a>, <a class="el" href="codec__core_8c_source.html#l00159">brix_codec_open()</a>, <a class="el" href="http__compress_8c_source.html#l00017">BRIX_COMPRESS_CHUNK</a>, <a class="el" href="http__compress_8c_source.html#l00212">compress_send_t::bytes_in_out</a>, <a class="el" href="http__compress_8c_source.html#l00224">compress_set_headers()</a>, <a class="el" href="http__compress_8c_source.html#l00325">compress_stream_body()</a>, <a class="el" href="http__compress_8c_source.html#l00206">compress_send_t::fd</a>, <a class="el" href="http__compress_8c_source.html#l00210">compress_send_t::inbuf</a>, <a class="el" href="http__compress_8c_source.html#l00211">compress_send_t::outbuf</a>, <a class="el" href="http__compress_8c_source.html#l00205">compress_send_t::r</a>, <a class="el" href="http__compress_8c_source.html#l00207">compress_send_t::size</a>, and <a class="el" href="http__compress_8c_source.html#l00209">compress_send_t::stream</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00131">brix_http_serve_file_ranged()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00274">serve_try_compressed()</a>.</p>
+
+</div>
+</div>
+<a id="a1fc7278da594c6af756578f6f4a12780" name="a1fc7278da594c6af756578f6f4a12780"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1fc7278da594c6af756578f6f4a12780">&#9670;&#160;</a></span>compress_drain_chunk()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t compress_drain_chunk </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structcompress__send__t.html">compress_send_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>fill</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>finish</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>ended</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00265">265</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+
+<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00053">BRIX_CODEC_END</a>, <a class="el" href="codec__core_8c_source.html#l00191">brix_codec_step()</a>, <a class="el" href="http__compress_8c_source.html#l00017">BRIX_COMPRESS_CHUNK</a>, <a class="el" href="http__compress_8c_source.html#l00212">compress_send_t::bytes_in_out</a>, <a class="el" href="http__compress_8c_source.html#l00170">compress_emit()</a>, <a class="el" href="http__compress_8c_source.html#l00210">compress_send_t::inbuf</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="http__compress_8c_source.html#l00211">compress_send_t::outbuf</a>, <a class="el" href="http__compress_8c_source.html#l00205">compress_send_t::r</a>, and <a class="el" href="http__compress_8c_source.html#l00209">compress_send_t::stream</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00301">compress_stream_step()</a>.</p>
 
 </div>
 </div>
@@ -354,11 +522,145 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00144">144</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00170">170</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00170">brix_http_send_file_compressed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00265">compress_drain_chunk()</a>.</p>
+
+</div>
+</div>
+<a id="a89a143c3789d6f54e408cbfc08a8e22b" name="a89a143c3789d6f54e408cbfc08a8e22b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a89a143c3789d6f54e408cbfc08a8e22b">&#9670;&#160;</a></span>compress_set_headers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t compress_set_headers </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__codec__desc__t.html">brix_codec_desc_t</a> *&#160;</td>
+          <td class="paramname"><em>desc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>mtime</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>etag_flags</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00224">224</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__file__response_8c_source.html#l00151">brix_http_set_file_headers()</a>, and <a class="el" href="codec__core_8h_source.html#l00124">brix_codec_desc_t::http_token</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00338">brix_http_send_file_compressed()</a>.</p>
+
+</div>
+</div>
+<a id="a7fd6d9f789b5ac13bc31bbbc388d384e" name="a7fd6d9f789b5ac13bc31bbbc388d384e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7fd6d9f789b5ac13bc31bbbc388d384e">&#9670;&#160;</a></span>compress_stream_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t compress_stream_body </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structcompress__send__t.html">compress_send_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00325">325</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__compress_8c_source.html#l00301">compress_stream_step()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00338">brix_http_send_file_compressed()</a>.</p>
+
+</div>
+</div>
+<a id="a1ef9146bc16d4f3c56642f833bc1ccde" name="a1ef9146bc16d4f3c56642f833bc1ccde"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ef9146bc16d4f3c56642f833bc1ccde">&#9670;&#160;</a></span>compress_stream_step()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t compress_stream_step </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structcompress__send__t.html">compress_send_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>done</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00301">301</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__compress_8c_source.html#l00017">BRIX_COMPRESS_CHUNK</a>, <a class="el" href="vfs__read_8c_source.html#l00029">brix_vfs_pread_full()</a>, <a class="el" href="http__compress_8c_source.html#l00265">compress_drain_chunk()</a>, <a class="el" href="http__compress_8c_source.html#l00206">compress_send_t::fd</a>, <a class="el" href="http__compress_8c_source.html#l00210">compress_send_t::inbuf</a>, <a class="el" href="http__compress_8c_source.html#l00208">compress_send_t::off</a>, and <a class="el" href="http__compress_8c_source.html#l00207">compress_send_t::size</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00325">compress_stream_body()</a>.</p>
 
 </div>
 </div>
@@ -388,7 +690,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00028">28</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00112">brix_http_compress_negotiate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00138">brix_http_compress_negotiate()</a>.</p>
 
 </div>
 </div>
@@ -427,7 +729,7 @@ Variables</h2></td></tr>
 </div><!-- fragment -->
 <p class="definition">Definition at line <a class="el" href="http__compress_8c_source.html#l00020">20</a> of file <a class="el" href="http__compress_8c_source.html">http_compress.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00112">brix_http_compress_negotiate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__compress_8c_source.html#l00138">brix_http_compress_negotiate()</a>.</p>
 
 </div>
 </div>

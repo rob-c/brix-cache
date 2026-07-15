@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('weblist_8c.html',''); initResizable();
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">weblist.c File Reference</div></div>
@@ -112,6 +113,15 @@ $(document).ready(function(){initNavTree('weblist_8c.html',''); initResizable();
 </div>
 <p><a href="weblist_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__list__req__t.html">s3_list_req_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structweblist__acc__t.html">weblist_acc_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__list__out__t.html">s3_list_out_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:ab4e785bfedcf2c7973cd6e188b16267e" id="r_ab4e785bfedcf2c7973cd6e188b16267e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#ab4e785bfedcf2c7973cd6e188b16267e">XRDC_WEBLIST_MAX</a>&#160;&#160;&#160;200000   /* hard cap on files returned */</td></tr>
@@ -121,18 +131,32 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a351fd800a897f58c497c460b461e1c46" id="r_a351fd800a897f58c497c460b461e1c46"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a351fd800a897f58c497c460b461e1c46">push</a> (char ***arr, size_t *n, size_t *cap, const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
-<tr class="separator:a351fd800a897f58c497c460b461e1c46"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a30cb7a326bc0322cc341fd905af74db9" id="r_a30cb7a326bc0322cc341fd905af74db9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a30cb7a326bc0322cc341fd905af74db9">push</a> (<a class="el" href="structweblist__acc__t.html">weblist_acc_t</a> *acc, const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
+<tr class="separator:a30cb7a326bc0322cc341fd905af74db9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2ed2447773c3a4688bddd30a10fbb01e" id="r_a2ed2447773c3a4688bddd30a10fbb01e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a2ed2447773c3a4688bddd30a10fbb01e">brix_strv_free</a> (char **arr, size_t n)</td></tr>
 <tr class="separator:a2ed2447773c3a4688bddd30a10fbb01e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad9cf6181fa5bc88dae30cdcbcdfee9e6" id="r_ad9cf6181fa5bc88dae30cdcbcdfee9e6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#ad9cf6181fa5bc88dae30cdcbcdfee9e6">xml_tag</a> (const char **p, const char *otag, const char *ctag, char *out, size_t osz)</td></tr>
 <tr class="separator:ad9cf6181fa5bc88dae30cdcbcdfee9e6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad2a39e8585832c2dd789148df044ae8b" id="r_ad2a39e8585832c2dd789148df044ae8b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#ad2a39e8585832c2dd789148df044ae8b">s3_canon_qs</a> (const char *token, const char *encp, int have_prefix, char *out, size_t outsz)</td></tr>
 <tr class="separator:ad2a39e8585832c2dd789148df044ae8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a70aff712e551ed0ae6e1478bcbe956a7" id="r_a70aff712e551ed0ae6e1478bcbe956a7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a70aff712e551ed0ae6e1478bcbe956a7">brix_s3_list</a> (const <a class="el" href="structbrix__weburl.html">brix_weburl</a> *u, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, int verify, const char *ca_dir, char ***keys, size_t *n_out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a0cb80bc031c38edb538fe292731920dc" id="r_a0cb80bc031c38edb538fe292731920dc"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a0cb80bc031c38edb538fe292731920dc">s3_list_split_path</a> (const <a class="el" href="structbrix__weburl.html">brix_weburl</a> *u, <a class="el" href="structs3__list__req__t.html">s3_list_req_t</a> *req, char *prefix, size_t prefixsz, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a0cb80bc031c38edb538fe292731920dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b772f952fa66780531844150a72b79f" id="r_a9b772f952fa66780531844150a72b79f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a9b772f952fa66780531844150a72b79f">s3_list_build_request</a> (const <a class="el" href="structs3__list__req__t.html">s3_list_req_t</a> *req, const char *token, const <a class="el" href="structs3__list__out__t.html">s3_list_out_t</a> *out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a9b772f952fa66780531844150a72b79f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae80ca95414d3c14e647bc2d10a953154" id="r_ae80ca95414d3c14e647bc2d10a953154"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#ae80ca95414d3c14e647bc2d10a953154">s3_list_scan_keys</a> (const <a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *r, <a class="el" href="structweblist__acc__t.html">weblist_acc_t</a> *acc, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:ae80ca95414d3c14e647bc2d10a953154"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7748ce48b5e824db430cdcac39733308" id="r_a7748ce48b5e824db430cdcac39733308"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a7748ce48b5e824db430cdcac39733308">s3_list_next_token</a> (const <a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *r, char *token, size_t tokensz, int *more, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a7748ce48b5e824db430cdcac39733308"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a70aff712e551ed0ae6e1478bcbe956a7" id="r_a70aff712e551ed0ae6e1478bcbe956a7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a70aff712e551ed0ae6e1478bcbe956a7">brix_s3_list</a> (const <a class="el" href="structbrix__weburl.html">brix_weburl</a> *u, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, int verify, const char *ca_dir, char ***keys, size_t *n_out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a70aff712e551ed0ae6e1478bcbe956a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4e79982b55851ec186b77ea507ef7d28" id="r_a4e79982b55851ec186b77ea507ef7d28"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a4e79982b55851ec186b77ea507ef7d28">brix_webdav_mkcol</a> (const <a class="el" href="structbrix__weburl.html">brix_weburl</a> *u, const char *path, const char *bearer, int verify, const char *ca_dir, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a4e79982b55851ec186b77ea507ef7d28"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2336d9213b822f2fbde7ba3c4fb27e1a" id="r_a2336d9213b822f2fbde7ba3c4fb27e1a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a2336d9213b822f2fbde7ba3c4fb27e1a">webdav_list_build_headers</a> (const char *bearer, char *headers, size_t headerssz)</td></tr>
+<tr class="separator:a2336d9213b822f2fbde7ba3c4fb27e1a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5a2470093ee392844869e41f6ce72386" id="r_a5a2470093ee392844869e41f6ce72386"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a5a2470093ee392844869e41f6ce72386">webdav_list_emit_block</a> (const char *p, const char *end, <a class="el" href="structweblist__acc__t.html">weblist_acc_t</a> *acc, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a5a2470093ee392844869e41f6ce72386"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a54963948aa3a5b49406e06d7cd30aa25" id="r_a54963948aa3a5b49406e06d7cd30aa25"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a54963948aa3a5b49406e06d7cd30aa25">webdav_list_scan_body</a> (const char *body, <a class="el" href="structweblist__acc__t.html">weblist_acc_t</a> *acc, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a54963948aa3a5b49406e06d7cd30aa25"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6102d6d72094c4e7fb5491df85e09631" id="r_a6102d6d72094c4e7fb5491df85e09631"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="weblist_8c.html#a6102d6d72094c4e7fb5491df85e09631">brix_webdav_list</a> (const <a class="el" href="structbrix__weburl.html">brix_weburl</a> *u, const char *bearer, int verify, const char *ca_dir, char ***paths, size_t *n_out, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a6102d6d72094c4e7fb5491df85e09631"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -238,11 +262,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00112">112</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00313">313</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="http__req_8c_source.html#l00177">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00165">brix_http_resp_free()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00036">brix_s3_sign_v4_q()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="weblist_8c_source.html#l00048">brix_strv_free()</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="weblist_8c_source.html#l00032">push()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>, <a class="el" href="weblist_8c_source.html#l00084">s3_canon_qs()</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="weblist_8c_source.html#l00062">xml_tag()</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, <a class="el" href="weblist_8c_source.html#l00027">XRDC_WEBLIST_MAX</a>, and <a class="el" href="weblist_8c_source.html#l00028">XRDC_WEBLIST_TIMEOUT</a>.</p>
+<p class="reference">References <a class="el" href="weblist_8c_source.html#l00045">s3_list_req_t::ak</a>, <a class="el" href="weblist_8c_source.html#l00060">weblist_acc_t::arr</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="weblist_8c_source.html#l00098">brix_strv_free()</a>, <a class="el" href="weblist_8c_source.html#l00042">s3_list_req_t::encp</a>, <a class="el" href="weblist_8c_source.html#l00044">s3_list_req_t::have_prefix</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="weblist_8c_source.html#l00043">s3_list_req_t::hostport</a>, <a class="el" href="weblist_8c_source.html#l00061">weblist_acc_t::n</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="weblist_8c_source.html#l00047">s3_list_req_t::region</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="weblist_8c_source.html#l00215">s3_list_build_request()</a>, <a class="el" href="weblist_8c_source.html#l00288">s3_list_next_token()</a>, <a class="el" href="weblist_8c_source.html#l00251">s3_list_scan_keys()</a>, <a class="el" href="weblist_8c_source.html#l00173">s3_list_split_path()</a>, <a class="el" href="weblist_8c_source.html#l00046">s3_list_req_t::sk</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="weblist_8c_source.html#l00028">XRDC_WEBLIST_TIMEOUT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00413">battery_s3()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00228">recursive_s3_download()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00623">battery_s3()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00400">recursive_s3_download()</a>.</p>
 
 </div>
 </div>
@@ -272,9 +296,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00048">48</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00098">98</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00413">battery_s3()</a>, <a class="el" href="weblist_8c_source.html#l00112">brix_s3_list()</a>, <a class="el" href="weblist_8c_source.html#l00279">brix_webdav_list()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00228">recursive_s3_download()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00319">recursive_web_download()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00623">battery_s3()</a>, <a class="el" href="weblist_8c_source.html#l00313">brix_s3_list()</a>, <a class="el" href="weblist_8c_source.html#l00523">brix_webdav_list()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00400">recursive_s3_download()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00478">recursive_web_download()</a>.</p>
 
 </div>
 </div>
@@ -334,11 +358,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00279">279</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00523">523</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="http__req_8c_source.html#l00177">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00165">brix_http_resp_free()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="weblist_8c_source.html#l00048">brix_strv_free()</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="weblist_8c_source.html#l00032">push()</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, <a class="el" href="weblist_8c_source.html#l00027">XRDC_WEBLIST_MAX</a>, and <a class="el" href="weblist_8c_source.html#l00028">XRDC_WEBLIST_TIMEOUT</a>.</p>
+<p class="reference">References <a class="el" href="weblist_8c_source.html#l00060">weblist_acc_t::arr</a>, <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="weblist_8c_source.html#l00098">brix_strv_free()</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="weblist_8c_source.html#l00061">weblist_acc_t::n</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="weblist_8c_source.html#l00428">webdav_list_build_headers()</a>, <a class="el" href="weblist_8c_source.html#l00505">webdav_list_scan_body()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="weblist_8c_source.html#l00028">XRDC_WEBLIST_TIMEOUT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00319">recursive_web_download()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00478">recursive_web_download()</a>.</p>
 
 </div>
 </div>
@@ -392,16 +416,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00251">251</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00391">391</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__req_8c_source.html#l00177">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00165">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="weblist_8c_source.html#l00028">XRDC_WEBLIST_TIMEOUT</a>.</p>
+<p class="reference">References <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http_8c_source.html#l00236">brix_http_resp_free()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix_8h_source.html#l00097">brix_weburl::host</a>, <a class="el" href="brix_8h_source.html#l00098">brix_weburl::port</a>, <a class="el" href="brix__net_8h_source.html#l00275">brix_http_resp::status</a>, <a class="el" href="brix_8h_source.html#l00095">brix_weburl::tls</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="weblist_8c_source.html#l00028">XRDC_WEBLIST_TIMEOUT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00199">ensure_web_dst_base()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00114">mkcol_parents()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00518">recursive_web_upload()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00421">web_upload_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00228">ensure_web_dst_base()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00114">mkcol_parents()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00703">recursive_web_upload()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00591">walk_handle_dir()</a>.</p>
 
 </div>
 </div>
-<a id="a351fd800a897f58c497c460b461e1c46" name="a351fd800a897f58c497c460b461e1c46"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a351fd800a897f58c497c460b461e1c46">&#9670;&#160;</a></span>push()</h2>
+<a id="a30cb7a326bc0322cc341fd905af74db9" name="a30cb7a326bc0322cc341fd905af74db9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a30cb7a326bc0322cc341fd905af74db9">&#9670;&#160;</a></span>push()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -412,20 +436,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">static int push </td>
           <td>(</td>
-          <td class="paramtype">char ***&#160;</td>
-          <td class="paramname"><em>arr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>n</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>cap</em>, </td>
+          <td class="paramtype"><a class="el" href="structweblist__acc__t.html">weblist_acc_t</a> *&#160;</td>
+          <td class="paramname"><em>acc</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -446,11 +458,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00032">32</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00082">82</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="weblist_8c_source.html#l00060">weblist_acc_t::arr</a>, <a class="el" href="weblist_8c_source.html#l00062">weblist_acc_t::cap</a>, <a class="el" href="weblist_8c_source.html#l00061">weblist_acc_t::n</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00112">brix_s3_list()</a>, and <a class="el" href="weblist_8c_source.html#l00279">brix_webdav_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00251">s3_list_scan_keys()</a>, and <a class="el" href="weblist_8c_source.html#l00453">webdav_list_emit_block()</a>.</p>
 
 </div>
 </div>
@@ -506,11 +518,381 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00084">84</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00134">134</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
 
 <p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00112">brix_s3_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00215">s3_list_build_request()</a>.</p>
+
+</div>
+</div>
+<a id="a9b772f952fa66780531844150a72b79f" name="a9b772f952fa66780531844150a72b79f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9b772f952fa66780531844150a72b79f">&#9670;&#160;</a></span>s3_list_build_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int s3_list_build_request </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structs3__list__req__t.html">s3_list_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>token</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structs3__list__out__t.html">s3_list_out_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00215">215</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+
+<p class="reference">References <a class="el" href="weblist_8c_source.html#l00045">s3_list_req_t::ak</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">brix_s3_sign_v4_q()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="weblist_8c_source.html#l00041">s3_list_req_t::bucket</a>, <a class="el" href="weblist_8c_source.html#l00042">s3_list_req_t::encp</a>, <a class="el" href="weblist_8c_source.html#l00044">s3_list_req_t::have_prefix</a>, <a class="el" href="weblist_8c_source.html#l00076">s3_list_out_t::hdrs</a>, <a class="el" href="weblist_8c_source.html#l00077">s3_list_out_t::hdrssz</a>, <a class="el" href="weblist_8c_source.html#l00043">s3_list_req_t::hostport</a>, <a class="el" href="weblist_8c_source.html#l00074">s3_list_out_t::path</a>, <a class="el" href="weblist_8c_source.html#l00075">s3_list_out_t::pathsz</a>, <a class="el" href="weblist_8c_source.html#l00047">s3_list_req_t::region</a>, <a class="el" href="weblist_8c_source.html#l00134">s3_canon_qs()</a>, <a class="el" href="weblist_8c_source.html#l00046">s3_list_req_t::sk</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00313">brix_s3_list()</a>.</p>
+
+</div>
+</div>
+<a id="a7748ce48b5e824db430cdcac39733308" name="a7748ce48b5e824db430cdcac39733308"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7748ce48b5e824db430cdcac39733308">&#9670;&#160;</a></span>s3_list_next_token()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int s3_list_next_token </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>token</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>tokensz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>more</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00288">288</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="weblist_8c_source.html#l00112">xml_tag()</a>, and <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00313">brix_s3_list()</a>.</p>
+
+</div>
+</div>
+<a id="ae80ca95414d3c14e647bc2d10a953154" name="ae80ca95414d3c14e647bc2d10a953154"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae80ca95414d3c14e647bc2d10a953154">&#9670;&#160;</a></span>s3_list_scan_keys()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int s3_list_scan_keys </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__http__resp.html">brix_http_resp</a> *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structweblist__acc__t.html">weblist_acc_t</a> *&#160;</td>
+          <td class="paramname"><em>acc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00251">251</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00278">brix_http_resp::body</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="weblist_8c_source.html#l00061">weblist_acc_t::n</a>, <a class="el" href="weblist_8c_source.html#l00082">push()</a>, <a class="el" href="weblist_8c_source.html#l00112">xml_tag()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="weblist_8c_source.html#l00027">XRDC_WEBLIST_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00313">brix_s3_list()</a>.</p>
+
+</div>
+</div>
+<a id="a0cb80bc031c38edb538fe292731920dc" name="a0cb80bc031c38edb538fe292731920dc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0cb80bc031c38edb538fe292731920dc">&#9670;&#160;</a></span>s3_list_split_path()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int s3_list_split_path </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__weburl.html">brix_weburl</a> *&#160;</td>
+          <td class="paramname"><em>u</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structs3__list__req__t.html">s3_list_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>prefix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>prefixsz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00173">173</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="weblist_8c_source.html#l00041">s3_list_req_t::bucket</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00313">brix_s3_list()</a>.</p>
+
+</div>
+</div>
+<a id="a2336d9213b822f2fbde7ba3c4fb27e1a" name="a2336d9213b822f2fbde7ba3c4fb27e1a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2336d9213b822f2fbde7ba3c4fb27e1a">&#9670;&#160;</a></span>webdav_list_build_headers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void webdav_list_build_headers </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>bearer</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>headers</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>headerssz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00428">428</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00523">brix_webdav_list()</a>.</p>
+
+</div>
+</div>
+<a id="a5a2470093ee392844869e41f6ce72386" name="a5a2470093ee392844869e41f6ce72386"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5a2470093ee392844869e41f6ce72386">&#9670;&#160;</a></span>webdav_list_emit_block()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int webdav_list_emit_block </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>p</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>end</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structweblist__acc__t.html">weblist_acc_t</a> *&#160;</td>
+          <td class="paramname"><em>acc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00453">453</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+
+<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="weblist_8c_source.html#l00082">push()</a>, <a class="el" href="brix_8h_source.html#l00056">XRDC_EPROTO</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00505">webdav_list_scan_body()</a>.</p>
+
+</div>
+</div>
+<a id="a54963948aa3a5b49406e06d7cd30aa25" name="a54963948aa3a5b49406e06d7cd30aa25"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a54963948aa3a5b49406e06d7cd30aa25">&#9670;&#160;</a></span>webdav_list_scan_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int webdav_list_scan_body </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>body</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structweblist__acc__t.html">weblist_acc_t</a> *&#160;</td>
+          <td class="paramname"><em>acc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00505">505</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+
+<p class="reference">References <a class="el" href="weblist_8c_source.html#l00061">weblist_acc_t::n</a>, <a class="el" href="weblist_8c_source.html#l00453">webdav_list_emit_block()</a>, and <a class="el" href="weblist_8c_source.html#l00027">XRDC_WEBLIST_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00523">brix_webdav_list()</a>.</p>
 
 </div>
 </div>
@@ -566,11 +948,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00062">62</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="weblist_8c_source.html#l00112">112</a> of file <a class="el" href="weblist_8c_source.html">weblist.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00112">brix_s3_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="weblist_8c_source.html#l00288">s3_list_next_token()</a>, and <a class="el" href="weblist_8c_source.html#l00251">s3_list_scan_keys()</a>.</p>
 
 </div>
 </div>

@@ -115,7 +115,7 @@ $(document).ready(function(){initNavTree('impersonate_8h.html',''); initResizabl
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="impersonate_8h__dep__incl.svg" width="100%" height="470"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="impersonate_8h__dep__incl.svg" width="100%" height="536"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="impersonate_8h_source.html">Go to the source code of this file.</a></p>
@@ -139,7 +139,7 @@ Macros</h2></td></tr>
 <tr class="separator:abe6f954e94f9fa18d80d37fb5ef3b545"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a49c64ddc96968c58eb5eba4883981b0f" id="r_a49c64ddc96968c58eb5eba4883981b0f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#a49c64ddc96968c58eb5eba4883981b0f">BRIX_IDMAP_OK</a>&#160;&#160;&#160;0  /* mapped to a concrete account (out filled)     */</td></tr>
 <tr class="separator:a49c64ddc96968c58eb5eba4883981b0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa762a076dc8285ad1fe439b039fa4525" id="r_aa762a076dc8285ad1fe439b039fa4525"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#aa762a076dc8285ad1fe439b039fa4525">BRIX_IDMAP_SQUASH</a>&#160;&#160;&#160;1  /* no direct map; squashed to <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a33809b3d1476dd4386db6f8ab79df5a9">default_user</a>       */</td></tr>
+<tr class="memitem:aa762a076dc8285ad1fe439b039fa4525" id="r_aa762a076dc8285ad1fe439b039fa4525"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#aa762a076dc8285ad1fe439b039fa4525">BRIX_IDMAP_SQUASH</a>&#160;&#160;&#160;1  /* no direct map; squashed to default_user       */</td></tr>
 <tr class="separator:aa762a076dc8285ad1fe439b039fa4525"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af095a2a9e7779b6fd70e7cd54e68f449" id="r_af095a2a9e7779b6fd70e7cd54e68f449"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#af095a2a9e7779b6fd70e7cd54e68f449">BRIX_IDMAP_DENY</a>&#160;&#160;&#160;2  /* no map + deny policy (out NOT filled)         */</td></tr>
 <tr class="separator:af095a2a9e7779b6fd70e7cd54e68f449"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -178,11 +178,11 @@ Functions</h2></td></tr>
 <tr class="separator:a02e437ef7e22483d3c65398b9027d05f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2b43d404c71b1da7f3959a0de8438dcb" id="r_a2b43d404c71b1da7f3959a0de8438dcb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#a2b43d404c71b1da7f3959a0de8438dcb">brix_imp_clear_principal</a> (void)</td></tr>
 <tr class="separator:a2b43d404c71b1da7f3959a0de8438dcb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1583ff660afb481526fa3fc5b8bcc5a1" id="r_a1583ff660afb481526fa3fc5b8bcc5a1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#a1583ff660afb481526fa3fc5b8bcc5a1">brix_imp_open</a> (const char *reqpath, int flags, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:a1583ff660afb481526fa3fc5b8bcc5a1" id="r_a1583ff660afb481526fa3fc5b8bcc5a1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#a1583ff660afb481526fa3fc5b8bcc5a1">brix_imp_open</a> (const char *reqpath, int flags, mode_t mode)</td></tr>
 <tr class="separator:a1583ff660afb481526fa3fc5b8bcc5a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6f7372fe0fbc53bdb8cf23a5b976e345" id="r_a6f7372fe0fbc53bdb8cf23a5b976e345"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#a6f7372fe0fbc53bdb8cf23a5b976e345">brix_imp_stat</a> (const char *reqpath, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, int nofollow)</td></tr>
 <tr class="separator:a6f7372fe0fbc53bdb8cf23a5b976e345"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af8744082ff59c425053c7a8a99bc90f2" id="r_af8744082ff59c425053c7a8a99bc90f2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#af8744082ff59c425053c7a8a99bc90f2">brix_imp_mkdir</a> (const char *reqpath, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:af8744082ff59c425053c7a8a99bc90f2" id="r_af8744082ff59c425053c7a8a99bc90f2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#af8744082ff59c425053c7a8a99bc90f2">brix_imp_mkdir</a> (const char *reqpath, mode_t mode)</td></tr>
 <tr class="separator:af8744082ff59c425053c7a8a99bc90f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4bd19fa51eb50688c38abccc8f883c21" id="r_a4bd19fa51eb50688c38abccc8f883c21"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#a4bd19fa51eb50688c38abccc8f883c21">brix_imp_unlink</a> (const char *reqpath, int is_dir)</td></tr>
 <tr class="separator:a4bd19fa51eb50688c38abccc8f883c21"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -196,7 +196,7 @@ Functions</h2></td></tr>
 <tr class="separator:a1779217b801031d51faed3f63a1bfa27"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6c0e91ff4f492bfd2e67e1ca92edf1c6" id="r_a6c0e91ff4f492bfd2e67e1ca92edf1c6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#a6c0e91ff4f492bfd2e67e1ca92edf1c6">brix_imp_truncate</a> (const char *reqpath, off_t length)</td></tr>
 <tr class="separator:a6c0e91ff4f492bfd2e67e1ca92edf1c6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acdcb9b263abbb339b6067a6d91eb2fa0" id="r_acdcb9b263abbb339b6067a6d91eb2fa0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#acdcb9b263abbb339b6067a6d91eb2fa0">brix_imp_chmod</a> (const char *reqpath, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:acdcb9b263abbb339b6067a6d91eb2fa0" id="r_acdcb9b263abbb339b6067a6d91eb2fa0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#acdcb9b263abbb339b6067a6d91eb2fa0">brix_imp_chmod</a> (const char *reqpath, mode_t mode)</td></tr>
 <tr class="separator:acdcb9b263abbb339b6067a6d91eb2fa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aabf0085df2a8227298051b34a98b98d9" id="r_aabf0085df2a8227298051b34a98b98d9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="impersonate_8h.html#aabf0085df2a8227298051b34a98b98d9">brix_imp_chown_gid</a> (const char *reqpath, gid_t gid)</td></tr>
 <tr class="separator:aabf0085df2a8227298051b34a98b98d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -312,7 +312,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define BRIX_IDMAP_SQUASH&#160;&#160;&#160;1  /* no direct map; squashed to <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a33809b3d1476dd4386db6f8ab79df5a9">default_user</a>       */</td>
+          <td class="memname">#define BRIX_IDMAP_SQUASH&#160;&#160;&#160;1  /* no direct map; squashed to default_user       */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -448,11 +448,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="idmap_8c_source.html#l00479">479</a> of file <a class="el" href="idmap_8c_source.html">idmap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="idmap_8c_source.html#l00097">97</a> of file <a class="el" href="idmap_8c_source.html">idmap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00119">BRIX_IDMAP_DEFAULT_MIN_UID</a>, <a class="el" href="impersonate_8h_source.html#l00121">BRIX_IDMAP_DEFAULT_TTL</a>, <a class="el" href="impersonate_8h_source.html#l00140">BRIX_IMP_DEFAULT_FORBIDDEN_GROUPS</a>, <a class="el" href="impersonate_8h_source.html#l00150">BRIX_IMP_DEFAULT_FORBIDDEN_USERS</a>, <a class="el" href="impersonate_8h_source.html#l00131">BRIX_IMP_HARD_MIN_ID</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="impersonate_8h_source.html#l00075">brix_idmap_conf_t::cache_ttl</a>, <a class="el" href="impersonate_8h_source.html#l00072">brix_idmap_conf_t::default_user</a>, <a class="el" href="impersonate_8h_source.html#l00089">brix_idmap_conf_t::forbidden_groups</a>, <a class="el" href="impersonate_8h_source.html#l00088">brix_idmap_conf_t::forbidden_users</a>, <a class="el" href="impersonate_8h_source.html#l00071">brix_idmap_conf_t::gridmap_path</a>, <a class="el" href="idmap_8c_source.html#l00046">idmap_cache</a>, <a class="el" href="idmap_8c_source.html#l00054">idmap_default_user</a>, <a class="el" href="idmap_8c_source.html#l00383">idmap_forbid_load()</a>, <a class="el" href="idmap_8c_source.html#l00061">IDMAP_FORBID_MAX</a>, <a class="el" href="idmap_8c_source.html#l00345">idmap_forbid_uid()</a>, <a class="el" href="idmap_8c_source.html#l00065">idmap_forbidden_gids_n</a>, <a class="el" href="idmap_8c_source.html#l00063">idmap_forbidden_uids_n</a>, <a class="el" href="idmap_8c_source.html#l00130">idmap_gridmap_load()</a>, <a class="el" href="idmap_8c_source.html#l00052">idmap_min_uid</a>, <a class="el" href="idmap_8c_source.html#l00053">idmap_primary_only</a>, <a class="el" href="idmap_8c_source.html#l00032">IDMAP_PRINC_MAX</a>, <a class="el" href="idmap_8c_source.html#l00051">idmap_ttl</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="impersonate_8h_source.html#l00074">brix_idmap_conf_t::min_uid</a>, <a class="el" href="impersonate_8h_source.html#l00076">brix_idmap_conf_t::primary_only</a>, and <a class="el" href="impersonate_8h_source.html#l00090">brix_idmap_conf_t::worker_uid</a>.</p>
+<p class="reference">References <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="impersonate_8h_source.html#l00072">brix_idmap_conf_t::default_user</a>, <a class="el" href="impersonate_8h_source.html#l00071">brix_idmap_conf_t::gridmap_path</a>, <a class="el" href="idmap_8c_source.html#l00043">idmap_cache</a>, <a class="el" href="idmap_8c_source.html#l00048">idmap_default_user</a>, <a class="el" href="idmap__gridmap_8c_source.html#l00136">idmap_gridmap_load()</a>, <a class="el" href="idmap__denylist_8c_source.html#l00345">idmap_init_denylists()</a>, <a class="el" href="idmap_8c_source.html#l00070">idmap_init_policy()</a>, <a class="el" href="idmap__internal_8h_source.html#l00024">IDMAP_PRINC_MAX</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00324">brix_imp_init_module()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00223">imp_load_idmap()</a>.</p>
 
 </div>
 </div>
@@ -494,11 +494,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="idmap_8c_source.html#l00573">573</a> of file <a class="el" href="idmap_8c_source.html">idmap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="idmap_8c_source.html#l00192">192</a> of file <a class="el" href="idmap_8c_source.html">idmap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00051">BRIX_IDMAP_DENY</a>, <a class="el" href="impersonate_8h_source.html#l00049">BRIX_IDMAP_OK</a>, <a class="el" href="impersonate_8h_source.html#l00050">BRIX_IDMAP_SQUASH</a>, <a class="el" href="idmap_8c_source.html#l00036">idmap_cache_slot_t::creds</a>, <a class="el" href="idmap_8c_source.html#l00038">idmap_cache_slot_t::expiry</a>, <a class="el" href="idmap_8c_source.html#l00046">idmap_cache</a>, <a class="el" href="idmap_8c_source.html#l00458">idmap_creds_allowed()</a>, <a class="el" href="idmap_8c_source.html#l00054">idmap_default_user</a>, <a class="el" href="idmap_8c_source.html#l00191">idmap_gridmap_lookup()</a>, <a class="el" href="idmap_8c_source.html#l00467">idmap_hash()</a>, <a class="el" href="idmap_8c_source.html#l00032">IDMAP_PRINC_MAX</a>, <a class="el" href="idmap_8c_source.html#l00231">idmap_resolve_user()</a>, <a class="el" href="idmap_8c_source.html#l00051">idmap_ttl</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="idmap_8c_source.html#l00035">idmap_cache_slot_t::principal</a>, and <a class="el" href="idmap_8c_source.html#l00037">idmap_cache_slot_t::rc</a>.</p>
+<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00051">BRIX_IDMAP_DENY</a>, <a class="el" href="impersonate_8h_source.html#l00049">BRIX_IDMAP_OK</a>, <a class="el" href="impersonate_8h_source.html#l00050">BRIX_IDMAP_SQUASH</a>, <a class="el" href="idmap_8c_source.html#l00043">idmap_cache</a>, <a class="el" href="idmap_8c_source.html#l00132">idmap_cache_get()</a>, <a class="el" href="idmap_8c_source.html#l00180">idmap_cache_put()</a>, <a class="el" href="idmap_8c_source.html#l00052">idmap_hash()</a>, <a class="el" href="idmap__internal_8h_source.html#l00024">IDMAP_PRINC_MAX</a>, <a class="el" href="idmap_8c_source.html#l00153">idmap_resolve_uncached()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00106">imp_serve_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00240">imp_serve_one()</a>.</p>
 
 </div>
 </div>
@@ -518,11 +518,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00137">137</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00203">203</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">References <a class="el" href="broker__creds_8c_source.html#l00028">imp_capset_setuid_setgid()</a>, <a class="el" href="broker__creds_8c_source.html#l00059">imp_drop_to_service_user()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="broker__creds_8c_source.html#l00028">imp_capset_setuid_setgid()</a>, <a class="el" href="broker__creds_8c_source.html#l00177">imp_drop_to_service_user()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00227">brix_imp_broker_run()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00314">imp_broker_init_creds()</a>.</p>
 
 </div>
 </div>
@@ -564,11 +564,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00227">227</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00413">413</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00043">BRIX_IDMAP_MAXGROUPS</a>, <a class="el" href="broker__creds_8c_source.html#l00137">brix_imp_broker_drop_caps()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="broker_8c_source.html#l00010">imp_base_gid</a>, <a class="el" href="broker_8c_source.html#l00012">imp_base_groups</a>, <a class="el" href="broker_8c_source.html#l00014">imp_base_ngroups</a>, <a class="el" href="broker_8c_source.html#l00008">imp_base_uid</a>, <a class="el" href="broker__internal_8h_source.html#l00027">IMP_BROKER_MAXCONN</a>, <a class="el" href="broker_8c_source.html#l00020">imp_peer_allowed()</a>, <a class="el" href="broker_8c_source.html#l00016">imp_self_uid</a>, <a class="el" href="broker_8c_source.html#l00106">imp_serve_one()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="broker_8c_source.html#l00344">imp_broker_accept()</a>, <a class="el" href="broker_8c_source.html#l00314">imp_broker_init_creds()</a>, <a class="el" href="broker__internal_8h_source.html#l00027">IMP_BROKER_MAXCONN</a>, <a class="el" href="broker_8c_source.html#l00387">imp_broker_reap()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00307">imp_broker_child()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00133">imp_broker_child()</a>.</p>
 
 </div>
 </div>
@@ -600,7 +600,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00477">477</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00054">IMP_OP_CHMOD</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00054">IMP_OP_CHMOD</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00444">brix_chmod_confined_canon()</a>.</p>
 
@@ -658,7 +658,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00039">imp_principal</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00560">brix_imp_request_end()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__worker_8c_source.html#l00127">brix_imp_request_end()</a>.</p>
 
 </div>
 </div>
@@ -682,7 +682,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00035">imp_enabled</a>, <a class="el" href="client_8c_source.html#l00040">imp_in_request</a>, and <a class="el" href="client_8c_source.html#l00039">imp_principal</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00444">brix_chmod_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00593">brix_getxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00360">brix_link_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00625">brix_listxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00095">brix_open_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00524">brix_readlink_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00609">brix_removexattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00325">brix_rename_beneath_excl()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00395">brix_setattr_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00576">brix_setxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00485">brix_symlink_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00185">brix_unlink_confined_canon()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00258">rename_confined_canon_impl()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00444">brix_chmod_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00593">brix_getxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00363">brix_link_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00625">brix_listxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00095">brix_open_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00524">brix_readlink_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00609">brix_removexattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00327">brix_rename_beneath_excl()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00395">brix_setattr_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00576">brix_setxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00485">brix_symlink_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00185">brix_unlink_confined_canon()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00258">rename_confined_canon_impl()</a>.</p>
 
 </div>
 </div>
@@ -716,7 +716,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00084">imp_drop_conn()</a>, <a class="el" href="client_8c_source.html#l00035">imp_enabled</a>, <a class="el" href="client_8c_source.html#l00073">imp_ensure_conn()</a>, <a class="el" href="client_8c_source.html#l00038">imp_log</a>, <a class="el" href="client_8c_source.html#l00037">imp_sock_path</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00509">brix_imp_init_worker()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__worker_8c_source.html#l00076">brix_imp_init_worker()</a>.</p>
 
 </div>
 </div>
@@ -758,11 +758,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="idmap_8c_source.html#l00307">307</a> of file <a class="el" href="idmap_8c_source.html">idmap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="idmap__denylist_8c_source.html#l00161">161</a> of file <a class="el" href="idmap__denylist_8c_source.html">idmap_denylist.c</a>.</p>
 
-<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00043">BRIX_IDMAP_MAXGROUPS</a>, <a class="el" href="impersonate_8h_source.html#l00060">brix_idmap_creds_t::gid</a>, <a class="el" href="impersonate_8h_source.html#l00062">brix_idmap_creds_t::groups</a>, <a class="el" href="impersonate_8h_source.html#l00061">brix_idmap_creds_t::ngroups</a>, and <a class="el" href="impersonate_8h_source.html#l00059">brix_idmap_creds_t::uid</a>.</p>
+<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00043">BRIX_IDMAP_MAXGROUPS</a>, <a class="el" href="impersonate_8h_source.html#l00060">brix_idmap_creds_t::gid</a>, <a class="el" href="impersonate_8h_source.html#l00062">brix_idmap_creds_t::groups</a>, <a class="el" href="idmap__denylist_8c_source.html#l00148">imp_id_reserved()</a>, <a class="el" href="idmap__denylist_8c_source.html#l00140">imp_priv_report()</a>, <a class="el" href="impersonate_8h_source.html#l00061">brix_idmap_creds_t::ngroups</a>, and <a class="el" href="impersonate_8h_source.html#l00059">brix_idmap_creds_t::uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="idmap_8c_source.html#l00458">idmap_creds_allowed()</a>, and <a class="el" href="broker__creds_8c_source.html#l00203">imp_become()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="idmap__denylist_8c_source.html#l00330">idmap_creds_allowed()</a>, and <a class="el" href="broker__creds_8c_source.html#l00269">imp_become()</a>.</p>
 
 </div>
 </div>
@@ -786,7 +786,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00035">imp_enabled</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00182">webdav_copy_collection_post_task()</a>, and <a class="el" href="move_8c_source.html#l00154">webdav_move_collection_post_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00325">webdav_copy_collection_post_task()</a>, and <a class="el" href="move_8c_source.html#l00237">webdav_move_collection_post_task()</a>.</p>
 
 </div>
 </div>
@@ -866,7 +866,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00053">IMP_OP_LINK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00360">brix_link_beneath()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00363">brix_link_beneath()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>.</p>
 
 </div>
 </div>
@@ -930,7 +930,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00040">imp_in_request</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00547">brix_imp_request_begin()</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00560">brix_imp_request_end()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__worker_8c_source.html#l00114">brix_imp_request_begin()</a>, and <a class="el" href="lifecycle__worker_8c_source.html#l00127">brix_imp_request_end()</a>.</p>
 
 </div>
 </div>
@@ -962,7 +962,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00434">434</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00049">IMP_OP_MKDIR</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00049">IMP_OP_MKDIR</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>.</p>
 
@@ -1002,7 +1002,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00366">366</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00046">IMP_OP_OPEN</a>, <a class="el" href="impersonate__proto_8h_source.html#l00081">IMP_REP_HAS_FD</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00077">IMP_STATUS_INTERNAL</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="impersonate__proto_8h_source.html#l00130">imp_rep_t::rep_flags</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00046">IMP_OP_OPEN</a>, <a class="el" href="impersonate__proto_8h_source.html#l00081">IMP_REP_HAS_FD</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00077">IMP_STATUS_INTERNAL</a>, <a class="el" href="impersonate__proto_8h_source.html#l00130">imp_rep_t::rep_flags</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00095">brix_open_confined_canon()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>.</p>
 
@@ -1146,7 +1146,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00064">IMP_OP_RENAME_NOREPLACE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00325">brix_rename_beneath_excl()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00258">rename_confined_canon_impl()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00327">brix_rename_beneath_excl()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00258">rename_confined_canon_impl()</a>.</p>
 
 </div>
 </div>
@@ -1192,7 +1192,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00039">imp_principal</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00547">brix_imp_request_begin()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__worker_8c_source.html#l00114">brix_imp_request_begin()</a>.</p>
 
 </div>
 </div>
@@ -1469,7 +1469,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker_8c_source.html#l00007">7</a> of file <a class="el" href="broker_8c_source.html">broker.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00324">brix_imp_init_module()</a>, <a class="el" href="broker__creds_8c_source.html#l00203">imp_become()</a>, and <a class="el" href="broker_8c_source.html#l00020">imp_peer_allowed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00356">brix_imp_init_module()</a>, <a class="el" href="broker__creds_8c_source.html#l00269">imp_become()</a>, and <a class="el" href="broker_8c_source.html#l00020">imp_peer_allowed()</a>.</p>
 
 </div>
 </div>
@@ -1495,7 +1495,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00024">24</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00324">brix_imp_init_module()</a>, and <a class="el" href="broker__creds_8c_source.html#l00059">imp_drop_to_service_user()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00178">imp_resolve_broker_user()</a>, and <a class="el" href="broker__creds_8c_source.html#l00061">imp_resolve_service_ids()</a>.</p>
 
 </div>
 </div>
@@ -1521,7 +1521,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00023">23</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00324">brix_imp_init_module()</a>, and <a class="el" href="broker__creds_8c_source.html#l00059">imp_drop_to_service_user()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00178">imp_resolve_broker_user()</a>, and <a class="el" href="broker__creds_8c_source.html#l00061">imp_resolve_service_ids()</a>.</p>
 
 </div>
 </div>

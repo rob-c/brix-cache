@@ -1,4 +1,20 @@
 var searchData=
 [
-  ['unzip_5fsink_5fctx_0',['unzip_sink_ctx',['../structunzip__sink__ctx.html',1,'']]]
+  ['rc_5falias_5ffield_0',['rc_alias_field',['../structrc__alias__field.html',1,'']]],
+  ['rc_5fdefault_5ffield_1',['rc_default_field',['../structrc__default__field.html',1,'']]],
+  ['readahead_5flist_2',['readahead_list',['../structreadahead__list.html',1,'']]],
+  ['readdir_5fctx_5ft_3',['readdir_ctx_t',['../structreaddir__ctx__t.html',1,'']]],
+  ['reap_5fctx_5ft_4',['reap_ctx_t',['../structreap__ctx__t.html',1,'']]],
+  ['rec_5ft_5',['rec_t',['../structrec__t.html',1,'']]],
+  ['recdl_5fctx_5ft_6',['recdl_ctx_t',['../structrecdl__ctx__t.html',1,'']]],
+  ['redact_5fparts_5ft_7',['redact_parts_t',['../structredact__parts__t.html',1,'']]],
+  ['redir_5ftgt_5ft_8',['redir_tgt_t',['../structredir__tgt__t.html',1,'']]],
+  ['remote_5ftree_5fctx_9',['remote_tree_ctx',['../structremote__tree__ctx.html',1,'']]],
+  ['reqmap_10',['reqmap',['../structreqmap.html',1,'']]],
+  ['rl_5fkey_5freq_5ft_11',['rl_key_req_t',['../structrl__key__req__t.html',1,'']]],
+  ['rl_5frule_5fparse_5ft_12',['rl_rule_parse_t',['../structrl__rule__parse__t.html',1,'']]],
+  ['rt_5freq_5ft_13',['rt_req_t',['../structrt__req__t.html',1,'']]],
+  ['rw_5flowcount_5ft_14',['rw_lowcount_t',['../structrw__lowcount__t.html',1,'']]],
+  ['rw_5flowdir_5ft_15',['rw_lowdir_t',['../structrw__lowdir__t.html',1,'']]],
+  ['rx_5fframe_5ft_16',['rx_frame_t',['../structrx__frame__t.html',1,'']]]
 ];

@@ -1,0 +1,15 @@
+<map id="mpu_scan_t" name="mpu_scan_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="298,284,398,309"/>
+<area shape="rect" id="Node000002" href="$structngx__http__s3__loc__conf__t.html" title=" " alt="" coords="166,196,341,221"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="278,229,337,281,333,285,275,233"/>
+<area shape="rect" id="Node000003" href="$structngx__http__brix__shared__conf__t.html" title=" " alt="" coords="5,93,168,133"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="132,138,188,170,232,193,230,198,185,174,129,143"/>
+<area shape="rect" id="Node000004" href="$structbrix__pmark__conf__t.html" title=" " alt="" coords="15,5,158,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="89,44,89,93,84,93,84,44"/>
+<area shape="rect" id="Node000005" href="$structbrix__acc__http__t.html" title=" " alt="" coords="193,101,314,126"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="256,140,256,196,251,196,251,140"/>
+<area shape="rect" id="Node000006" href="$structbrix__jwks__key__t.html" title=" " alt="" coords="338,101,465,126"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="373,135,273,198,270,194,370,131"/>
+<area shape="rect" id="Node000007" href="$structmpu__upload__entry__t.html" title=" " alt="" coords="365,196,520,221"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="421,233,363,285,359,281,418,229"/>
+</map>

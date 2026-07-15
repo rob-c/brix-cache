@@ -118,8 +118,8 @@ $(document).ready(function(){initNavTree('auth__bearer_8h_source.html',''); init
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="comment"> *       and returns NGX_OK on success or an already-sent 403 XML error response.</span></div>
 <div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span> </div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#ifndef _BRIX_S3_AUTH_BEARER_H</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#define _BRIX_S3_AUTH_BEARER_H</span></div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#ifndef BRIX_S3_AUTH_BEARER_H</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#define BRIX_S3_AUTH_BEARER_H</span></div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span> </div>
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="preprocessor">#include &lt;ngx_http.h&gt;</span></div>
 <div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#include &quot;<a class="code" href="s3_8h.html">s3.h</a>&quot;</span></div>
@@ -148,7 +148,7 @@ $(document).ready(function(){initNavTree('auth__bearer_8h_source.html',''); init
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>ngx_int_t <a class="code hl_function" href="auth__bearer_8h.html#aa02877d6b8b395ed2109b58ddb554a3f">s3_verify_bearer</a>(ngx_http_request_t *r,</div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, <a class="code hl_struct" href="structbrix__identity__t.html">brix_identity_t</a> *identity);</div>
 <div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="preprocessor">#endif </span><span class="comment">/* _BRIX_S3_AUTH_BEARER_H */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_S3_AUTH_BEARER_H */</span><span class="preprocessor"></span></div>
 <div class="ttc" id="aauth__bearer_8h_html_aa02877d6b8b395ed2109b58ddb554a3f"><div class="ttname"><a href="auth__bearer_8h.html#aa02877d6b8b395ed2109b58ddb554a3f">s3_verify_bearer</a></div><div class="ttdeci">ngx_int_t s3_verify_bearer(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, brix_identity_t *identity)</div><div class="ttdef"><b>Definition</b> <a href="auth__bearer_8c_source.html#l00088">auth_bearer.c:88</a></div></div>
 <div class="ttc" id="aauth__bearer_8h_html_aad0e3cb6160b1636064cb23b53588da5"><div class="ttname"><a href="auth__bearer_8h.html#aad0e3cb6160b1636064cb23b53588da5">s3_bearer_present</a></div><div class="ttdeci">int s3_bearer_present(ngx_http_request_t *r)</div><div class="ttdef"><b>Definition</b> <a href="auth__bearer_8c_source.html#l00055">auth_bearer.c:55</a></div></div>
 <div class="ttc" id="as3_8h_html"><div class="ttname"><a href="s3_8h.html">s3.h</a></div></div>

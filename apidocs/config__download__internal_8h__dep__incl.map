@@ -1,0 +1,9 @@
+<map id="src/observability/dashboard/config_download_internal.h" name="src/observability/dashboard/config_download_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="231,5,435,45"/>
+<area shape="rect" id="Node000002" href="$config__download_8c.html" title=" " alt="" coords="5,93,208,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="272,53,157,96,155,91,270,48"/>
+<area shape="rect" id="Node000003" href="$config__download__classify_8c.html" title=" " alt="" coords="232,93,435,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="336,59,336,93,331,93,331,59"/>
+<area shape="rect" id="Node000004" href="$config__download__scrub_8c.html" title=" " alt="" coords="459,93,661,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="397,48,511,91,509,96,395,53"/>
+</map>

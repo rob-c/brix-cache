@@ -123,8 +123,10 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a9c4221c727193f0f338b663070ae8f0a" id="r_a9c4221c727193f0f338b663070ae8f0a"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__s3_8c.html#a9c4221c727193f0f338b663070ae8f0a">trim_inplace</a> (char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:a9c4221c727193f0f338b663070ae8f0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7db985678e9dad0593927e75ae33590b" id="r_a7db985678e9dad0593927e75ae33590b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__s3_8c.html#a7db985678e9dad0593927e75ae33590b">parse_ini_key_value</a> (char *buf, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *out, size_t outsz)</td></tr>
+<tr class="memitem:a7db985678e9dad0593927e75ae33590b" id="r_a7db985678e9dad0593927e75ae33590b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__s3_8c.html#a7db985678e9dad0593927e75ae33590b">parse_ini_key_value</a> (char *buf, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *out, size_t outsz)</td></tr>
 <tr class="separator:a7db985678e9dad0593927e75ae33590b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a63df83a4f10f56def03b404c49ea6fa3" id="r_a63df83a4f10f56def03b404c49ea6fa3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__s3_8c.html#a63df83a4f10f56def03b404c49ea6fa3">aws_extract_default_keys</a> (char *t, char *access_out, size_t access_sz, int *got_access, char *secret_out, size_t secret_sz, int *got_secret)</td></tr>
+<tr class="separator:a63df83a4f10f56def03b404c49ea6fa3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a63e158a27a1aae89d7f3d456bd71fd80" id="r_a63e158a27a1aae89d7f3d456bd71fd80"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__s3_8c.html#a63e158a27a1aae89d7f3d456bd71fd80">parse_aws_credentials_default</a> (const char *path, char *access_out, size_t access_sz, char *secret_out, size_t secret_sz)</td></tr>
 <tr class="separator:a63e158a27a1aae89d7f3d456bd71fd80"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abe25e15ed5fe72dd0f09a59f7beab64d" id="r_abe25e15ed5fe72dd0f09a59f7beab64d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__s3_8c.html#abe25e15ed5fe72dd0f09a59f7beab64d">try_credentials_file</a> (char *access_out, size_t access_sz, char *secret_out, size_t secret_sz)</td></tr>
@@ -177,6 +179,78 @@ Variables</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a63df83a4f10f56def03b404c49ea6fa3" name="a63df83a4f10f56def03b404c49ea6fa3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a63df83a4f10f56def03b404c49ea6fa3">&#9670;&#160;</a></span>aws_extract_default_keys()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void aws_extract_default_keys </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>access_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>access_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>got_access</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>secret_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>secret_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>got_secret</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00129">129</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00089">parse_ini_key_value()</a>, and <a class="el" href="cred__s3_8c_source.html#l00047">S3KEY_BUFSZ</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00166">parse_aws_credentials_default()</a>.</p>
+
+</div>
+</div>
 <a id="a38e785c91d84abb06c88294fe7a7ebe9" name="a38e785c91d84abb06c88294fe7a7ebe9"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a38e785c91d84abb06c88294fe7a7ebe9">&#9670;&#160;</a></span>brix_cred_s3keys()</h2>
 
@@ -193,9 +267,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00332">332</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00358">358</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00316">s_s3keys_handler</a>.</p>
+<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00342">s_s3keys_handler</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cred_8c_source.html#l00261">brix_cred_store_new()</a>.</p>
 
@@ -253,11 +327,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00226">226</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00252">252</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred_8h_source.html#l00051">brix_cred_config::s3_access</a>, <a class="el" href="cred_8h_source.html#l00052">brix_cred_config::s3_secret</a>, and <a class="el" href="cred__s3_8c_source.html#l00199">try_credentials_file()</a>.</p>
+<p class="reference">References <a class="el" href="cred_8h_source.html#l00051">brix_cred_config::s3_access</a>, <a class="el" href="cred_8h_source.html#l00052">brix_cred_config::s3_secret</a>, and <a class="el" href="cred__s3_8c_source.html#l00225">try_credentials_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00289">s3keys_acquire()</a>, and <a class="el" href="cred__s3_8c_source.html#l00265">s3keys_available()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00315">s3keys_acquire()</a>, and <a class="el" href="cred__s3_8c_source.html#l00291">s3keys_available()</a>.</p>
 
 </div>
 </div>
@@ -313,11 +387,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00126">126</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00166">166</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00089">parse_ini_key_value()</a>, <a class="el" href="cred__s3_8c_source.html#l00047">S3KEY_BUFSZ</a>, and <a class="el" href="cred__s3_8c_source.html#l00060">trim_inplace()</a>.</p>
+<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00129">aws_extract_default_keys()</a>, and <a class="el" href="cred__s3_8c_source.html#l00060">trim_inplace()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00199">try_credentials_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00225">try_credentials_file()</a>.</p>
 
 </div>
 </div>
@@ -369,9 +443,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00089">89</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="cred__s3_8c_source.html#l00060">trim_inplace()</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="cred__s3_8c_source.html#l00060">trim_inplace()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00126">parse_aws_credentials_default()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00129">aws_extract_default_keys()</a>.</p>
 
 </div>
 </div>
@@ -421,9 +495,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00289">289</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00315">315</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="cred__s3_8c_source.html#l00226">discover_s3_keys()</a>, <a class="el" href="cred_8h_source.html#l00035">brix_cred_view::kind</a>, <a class="el" href="cred_8h_source.html#l00036">brix_cred_view::path</a>, <a class="el" href="cred_8h_source.html#l00038">brix_cred_view::s3_access</a>, <a class="el" href="cred_8h_source.html#l00039">brix_cred_view::s3_secret</a>, <a class="el" href="cred__s3_8c_source.html#l00047">S3KEY_BUFSZ</a>, <a class="el" href="cred_8h_source.html#l00037">brix_cred_view::token</a>, <a class="el" href="cred_8h_source.html#l00028">XRDC_CRED_S3KEYS</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="cred__s3_8c_source.html#l00252">discover_s3_keys()</a>, <a class="el" href="cred_8h_source.html#l00035">brix_cred_view::kind</a>, <a class="el" href="cred_8h_source.html#l00036">brix_cred_view::path</a>, <a class="el" href="cred_8h_source.html#l00038">brix_cred_view::s3_access</a>, <a class="el" href="cred_8h_source.html#l00039">brix_cred_view::s3_secret</a>, <a class="el" href="cred__s3_8c_source.html#l00047">S3KEY_BUFSZ</a>, <a class="el" href="cred_8h_source.html#l00037">brix_cred_view::token</a>, <a class="el" href="cred_8h_source.html#l00028">XRDC_CRED_S3KEYS</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
 
 </div>
 </div>
@@ -451,9 +525,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00265">265</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00291">291</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="cred__s3_8c_source.html#l00226">discover_s3_keys()</a>, and <a class="el" href="cred__s3_8c_source.html#l00047">S3KEY_BUFSZ</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="cred__s3_8c_source.html#l00252">discover_s3_keys()</a>, and <a class="el" href="cred__s3_8c_source.html#l00047">S3KEY_BUFSZ</a>.</p>
 
 </div>
 </div>
@@ -485,7 +559,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00126">parse_aws_credentials_default()</a>, and <a class="el" href="cred__s3_8c_source.html#l00089">parse_ini_key_value()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00166">parse_aws_credentials_default()</a>, and <a class="el" href="cred__s3_8c_source.html#l00089">parse_ini_key_value()</a>.</p>
 
 </div>
 </div>
@@ -535,11 +609,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00199">199</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00225">225</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00126">parse_aws_credentials_default()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="cred__s3_8c_source.html#l00166">parse_aws_credentials_default()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00226">discover_s3_keys()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00252">discover_s3_keys()</a>.</p>
 
 </div>
 </div>
@@ -570,12 +644,12 @@ Variables</h2></td></tr>
 <div class="line">    .refresh   = NULL,   </div>
 <div class="line">}</div>
 <div class="ttc" id="acred_8h_html_a73edff8be345a72632a247158eaafd23a04b4f93ddd734a25c7a4d8e9536fb26e"><div class="ttname"><a href="cred_8h.html#a73edff8be345a72632a247158eaafd23a04b4f93ddd734a25c7a4d8e9536fb26e">XRDC_CRED_S3KEYS</a></div><div class="ttdeci">@ XRDC_CRED_S3KEYS</div><div class="ttdef"><b>Definition</b> <a href="cred_8h_source.html#l00028">cred.h:28</a></div></div>
-<div class="ttc" id="acred__s3_8c_html_aadaaf6ac7c0360fe305c530144989dbb"><div class="ttname"><a href="cred__s3_8c.html#aadaaf6ac7c0360fe305c530144989dbb">s3keys_available</a></div><div class="ttdeci">static int s3keys_available(const brix_cred_config *cfg)</div><div class="ttdef"><b>Definition</b> <a href="cred__s3_8c_source.html#l00265">cred_s3.c:265</a></div></div>
-<div class="ttc" id="acred__s3_8c_html_ab07d14a59136e1faf70c94eb017bf0ed"><div class="ttname"><a href="cred__s3_8c.html#ab07d14a59136e1faf70c94eb017bf0ed">s3keys_acquire</a></div><div class="ttdeci">static int s3keys_acquire(const brix_cred_config *cfg, brix_cred_view *out, int64_t *not_after, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="cred__s3_8c_source.html#l00289">cred_s3.c:289</a></div></div>
+<div class="ttc" id="acred__s3_8c_html_aadaaf6ac7c0360fe305c530144989dbb"><div class="ttname"><a href="cred__s3_8c.html#aadaaf6ac7c0360fe305c530144989dbb">s3keys_available</a></div><div class="ttdeci">static int s3keys_available(const brix_cred_config *cfg)</div><div class="ttdef"><b>Definition</b> <a href="cred__s3_8c_source.html#l00291">cred_s3.c:291</a></div></div>
+<div class="ttc" id="acred__s3_8c_html_ab07d14a59136e1faf70c94eb017bf0ed"><div class="ttname"><a href="cred__s3_8c.html#ab07d14a59136e1faf70c94eb017bf0ed">s3keys_acquire</a></div><div class="ttdeci">static int s3keys_acquire(const brix_cred_config *cfg, brix_cred_view *out, int64_t *not_after, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="cred__s3_8c_source.html#l00315">cred_s3.c:315</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00316">316</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__s3_8c_source.html#l00342">342</a> of file <a class="el" href="cred__s3_8c_source.html">cred_s3.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00332">brix_cred_s3keys()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__s3_8c_source.html#l00358">brix_cred_s3keys()</a>.</p>
 
 </div>
 </div>

@@ -92,7 +92,6 @@ $(document).ready(function(){initNavTree('tpc__marker_8c.html',''); initResizabl
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
-<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">tpc_marker.c File Reference</div></div>
 </div><!--header-->
@@ -104,6 +103,7 @@ $(document).ready(function(){initNavTree('tpc__marker_8c.html',''); initResizabl
 <code>#include &quot;<a class="el" href="src_2core_2aio_2aio_8h_source.html">core/aio/aio.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="tpc_2common_2metrics_8h_source.html">tpc/common/metrics.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="tpc_2common_2registry_8h_source.html">tpc/common/registry.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="tpc__marker__internal_8h_source.html">tpc_marker_internal.h</a>&quot;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;signal.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
@@ -123,55 +123,61 @@ $(document).ready(function(){initNavTree('tpc__marker_8c.html',''); initResizabl
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__marker__trailer__t.html">tpc_marker_trailer_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__marker__thread__ctx__t.html">tpc_marker_thread_ctx_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:aa6432aa87fbc74ba261058a5adf47874" id="r_aa6432aa87fbc74ba261058a5adf47874"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#aa6432aa87fbc74ba261058a5adf47874">TPC_MARKER_POLL_MSEC</a>&#160;&#160;&#160;200u</td></tr>
-<tr class="separator:aa6432aa87fbc74ba261058a5adf47874"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a3f7291e138ff4686b03cbda4acafc66a" id="r_a3f7291e138ff4686b03cbda4acafc66a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a3f7291e138ff4686b03cbda4acafc66a">tpc_marker_send_one</a> (ngx_http_request_t *r, time_t ts, ngx_uint_t stripe_index, off_t bytes, ngx_uint_t total_stripes)</td></tr>
 <tr class="separator:a3f7291e138ff4686b03cbda4acafc66a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a171463d2e7a7a17085e3d2802bf843b7" id="r_a171463d2e7a7a17085e3d2802bf843b7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a171463d2e7a7a17085e3d2802bf843b7">tpc_marker_send_all</a> (ngx_http_request_t *r, time_t ts, <a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *ctx)</td></tr>
-<tr class="separator:a171463d2e7a7a17085e3d2802bf843b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6797c598b5dc4d1314f83e8bee9bd9bd" id="r_a6797c598b5dc4d1314f83e8bee9bd9bd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a6797c598b5dc4d1314f83e8bee9bd9bd">tpc_marker_send_all</a> (ngx_http_request_t *r, time_t ts, <a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a6797c598b5dc4d1314f83e8bee9bd9bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aefe9f0ce87358653482b375041e785a8" id="r_aefe9f0ce87358653482b375041e785a8"><td class="memItemLeft" align="right" valign="top">static off_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#aefe9f0ce87358653482b375041e785a8">tpc_marker_final_bytes</a> (<a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:aefe9f0ce87358653482b375041e785a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad5c94be7c6ef05f489fc996eda98c9b7" id="r_ad5c94be7c6ef05f489fc996eda98c9b7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#ad5c94be7c6ef05f489fc996eda98c9b7">tpc_marker_commit_pull</a> (ngx_http_request_t *r, <a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:ad5c94be7c6ef05f489fc996eda98c9b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4eb0afd4b6af85f172d0b1519907669c" id="r_a4eb0afd4b6af85f172d0b1519907669c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a4eb0afd4b6af85f172d0b1519907669c">tpc_marker_settle_temp</a> (ngx_http_request_t *r, <a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *ctx, int failed)</td></tr>
+<tr class="separator:a4eb0afd4b6af85f172d0b1519907669c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2e9f0b0753112b736dca29e4cca9caf6" id="r_a2e9f0b0753112b736dca29e4cca9caf6"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structtpc__marker__trailer__t.html">tpc_marker_trailer_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a2e9f0b0753112b736dca29e4cca9caf6">tpc_marker_record_result</a> (ngx_http_request_t *r, <a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *ctx, int failed, off_t final_bytes)</td></tr>
+<tr class="separator:a2e9f0b0753112b736dca29e4cca9caf6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad54f7a2c45d404aa882a5f5f797195f0" id="r_ad54f7a2c45d404aa882a5f5f797195f0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#ad54f7a2c45d404aa882a5f5f797195f0">tpc_marker_send_trailer</a> (ngx_http_request_t *r, <a class="el" href="structtpc__marker__trailer__t.html">tpc_marker_trailer_t</a> trailer)</td></tr>
+<tr class="separator:ad54f7a2c45d404aa882a5f5f797195f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9365bdff722b474bb37bc06f5e1fd23a" id="r_a9365bdff722b474bb37bc06f5e1fd23a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a9365bdff722b474bb37bc06f5e1fd23a">tpc_marker_finish</a> (ngx_http_request_t *r, <a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *ctx, int failed)</td></tr>
 <tr class="separator:a9365bdff722b474bb37bc06f5e1fd23a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1ad0293945510f4fe9eb7563a610ec6e" id="r_a1ad0293945510f4fe9eb7563a610ec6e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a1ad0293945510f4fe9eb7563a610ec6e">tpc_marker_poll</a> (ngx_event_t *ev)</td></tr>
-<tr class="separator:a1ad0293945510f4fe9eb7563a610ec6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a27ef65639d4749a4c015052440a338a1" id="r_a27ef65639d4749a4c015052440a338a1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a27ef65639d4749a4c015052440a338a1">tpc_marker_thread_done</a> (ngx_event_t *ev)</td></tr>
-<tr class="separator:a27ef65639d4749a4c015052440a338a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac19116b3472135f7f30bb77363a93a5d" id="r_ac19116b3472135f7f30bb77363a93a5d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#ac19116b3472135f7f30bb77363a93a5d">tpc_marker_cleanup</a> (void *data)</td></tr>
-<tr class="separator:ac19116b3472135f7f30bb77363a93a5d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3130ffa6466d73f87568489cd0ceb52b" id="r_a3130ffa6466d73f87568489cd0ceb52b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a3130ffa6466d73f87568489cd0ceb52b">tpc_marker_thread_func</a> (void *data, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:a3130ffa6466d73f87568489cd0ceb52b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abdb43daa9936ab2522e010825eb777e8" id="r_abdb43daa9936ab2522e010825eb777e8"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#abdb43daa9936ab2522e010825eb777e8">webdav_tpc_marker_start</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, ngx_uint_t n_streams, const char *url, const char *tmp_path, const char *final_path, ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed, ngx_array_t *transfer_headers, uint64_t transfer_id)</td></tr>
-<tr class="separator:abdb43daa9936ab2522e010825eb777e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a425c67873e8383f28d43c512a907aeb7" id="r_a425c67873e8383f28d43c512a907aeb7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a425c67873e8383f28d43c512a907aeb7">tpc_marker_poll</a> (ngx_event_t *ev)</td></tr>
+<tr class="separator:a425c67873e8383f28d43c512a907aeb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa7f6749a5b014d1baca764987d11c3d8" id="r_aa7f6749a5b014d1baca764987d11c3d8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#aa7f6749a5b014d1baca764987d11c3d8">tpc_marker_thread_done</a> (ngx_event_t *ev)</td></tr>
+<tr class="separator:aa7f6749a5b014d1baca764987d11c3d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3b85ca70f714d5151db9b5a0bd871b08" id="r_a3b85ca70f714d5151db9b5a0bd871b08"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__marker_8c.html#a3b85ca70f714d5151db9b5a0bd871b08">tpc_marker_cleanup</a> (void *data)</td></tr>
+<tr class="separator:a3b85ca70f714d5151db9b5a0bd871b08"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="aa6432aa87fbc74ba261058a5adf47874" name="aa6432aa87fbc74ba261058a5adf47874"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa6432aa87fbc74ba261058a5adf47874">&#9670;&#160;</a></span>TPC_MARKER_POLL_MSEC</h2>
+<h2 class="groupheader">Function Documentation</h2>
+<a id="a3b85ca70f714d5151db9b5a0bd871b08" name="a3b85ca70f714d5151db9b5a0bd871b08"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3b85ca70f714d5151db9b5a0bd871b08">&#9670;&#160;</a></span>tpc_marker_cleanup()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define TPC_MARKER_POLL_MSEC&#160;&#160;&#160;200u</td>
+          <td class="memname">void tpc_marker_cleanup </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00048">48</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00369">369</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tpc_2common_2registry_8c_source.html#l00390">brix_tpc_registry_request_cancel()</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00037">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00029">tpc_marker_ctx_t::timer</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00032">tpc_marker_ctx_t::tmp_path</a>, and <a class="el" href="tpc__marker__internal_8h_source.html#l00039">tpc_marker_ctx_t::transfer_id</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__marker__start_8c_source.html#l00218">tpc_marker_arm_lifecycle()</a>.</p>
 
 </div>
 </div>
-<h2 class="groupheader">Function Documentation</h2>
-<a id="ac19116b3472135f7f30bb77363a93a5d" name="ac19116b3472135f7f30bb77363a93a5d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac19116b3472135f7f30bb77363a93a5d">&#9670;&#160;</a></span>tpc_marker_cleanup()</h2>
+<a id="ad5c94be7c6ef05f489fc996eda98c9b7" name="ad5c94be7c6ef05f489fc996eda98c9b7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad5c94be7c6ef05f489fc996eda98c9b7">&#9670;&#160;</a></span>tpc_marker_commit_pull()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -180,10 +186,52 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void tpc_marker_cleanup </td>
+          <td class="memname">static int tpc_marker_commit_pull </td>
           <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>data</em></td><td>)</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00142">142</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00323">brix_rename_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00185">brix_unlink_confined_canon()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00065">BRIX_WEBDAV_TPC_COMMIT_ERROR</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00033">tpc_marker_ctx_t::final_path</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00035">tpc_marker_ctx_t::overwrite</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00034">tpc_marker_ctx_t::root_canon</a>, and <a class="el" href="tpc__marker__internal_8h_source.html#l00032">tpc_marker_ctx_t::tmp_path</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00186">tpc_marker_settle_temp()</a>.</p>
+
+</div>
+</div>
+<a id="aefe9f0ce87358653482b375041e785a8" name="aefe9f0ce87358653482b375041e785a8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aefe9f0ce87358653482b375041e785a8">&#9670;&#160;</a></span>tpc_marker_final_bytes()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static off_t tpc_marker_final_bytes </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -194,11 +242,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00317">317</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00122">122</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tpc_2common_2registry_8c_source.html#l00390">brix_tpc_registry_request_cancel()</a>, <a class="el" href="tpc__marker_8c_source.html#l00066">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="tpc__marker_8c_source.html#l00058">tpc_marker_ctx_t::timer</a>, <a class="el" href="tpc__marker_8c_source.html#l00061">tpc_marker_ctx_t::tmp_path</a>, and <a class="el" href="tpc__marker_8c_source.html#l00068">tpc_marker_ctx_t::transfer_id</a>.</p>
+<p class="reference">References <a class="el" href="tpc__marker__internal_8h_source.html#l00037">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00038">tpc_marker_ctx_t::push_file_size</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="tpc__marker__internal_8h_source.html#l00032">tpc_marker_ctx_t::tmp_path</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00416">webdav_tpc_marker_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00301">tpc_marker_finish()</a>.</p>
 
 </div>
 </div>
@@ -242,16 +290,40 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00150">150</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00301">301</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00162">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00188">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00314">brix_dashboard_http_finish()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00323">brix_rename_confined_canon()</a>, <a class="el" href="transfer_8h_source.html#l00032">BRIX_TPC_DIR_PULL</a>, <a class="el" href="transfer_8h_source.html#l00033">BRIX_TPC_DIR_PUSH</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00011">BRIX_TPC_METRIC_ERROR</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00010">BRIX_TPC_METRIC_SUCCESS</a>, <a class="el" href="tpc_2common_2metrics_8c_source.html#l00017">brix_tpc_metric_transfer()</a>, <a class="el" href="progress_8c_source.html#l00026">brix_tpc_progress_emit()</a>, <a class="el" href="transfer_8h_source.html#l00030">BRIX_TPC_PROTO_WEBDAV</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00421">brix_tpc_registry_remove()</a>, <a class="el" href="transfer_8h_source.html#l00037">BRIX_TPC_STATE_DONE</a>, <a class="el" href="transfer_8h_source.html#l00038">BRIX_TPC_STATE_ERROR</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00185">brix_unlink_confined_canon()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00065">BRIX_WEBDAV_TPC_COMMIT_ERROR</a>, <a class="el" href="metrics__webdav_8h_source.html#l00061">BRIX_WEBDAV_TPC_CURL_ERROR</a>, <a class="el" href="metrics__webdav_8h_source.html#l00060">BRIX_WEBDAV_TPC_CURL_SUCCESS</a>, <a class="el" href="metrics__webdav_8h_source.html#l00058">BRIX_WEBDAV_TPC_PULL_SUCCESS</a>, <a class="el" href="metrics__webdav_8h_source.html#l00063">BRIX_WEBDAV_TPC_PUSH_SUCCESS</a>, <a class="el" href="tpc__marker_8c_source.html#l00062">tpc_marker_ctx_t::final_path</a>, <a class="el" href="tpc__marker_8c_source.html#l00066">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="tpc__marker_8c_source.html#l00064">tpc_marker_ctx_t::overwrite</a>, <a class="el" href="tpc__marker_8c_source.html#l00067">tpc_marker_ctx_t::push_file_size</a>, <a class="el" href="tpc__marker_8c_source.html#l00063">tpc_marker_ctx_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="tpc__marker_8c_source.html#l00061">tpc_marker_ctx_t::tmp_path</a>, <a class="el" href="tpc__marker_8c_source.html#l00122">tpc_marker_send_all()</a>, and <a class="el" href="tpc__marker_8c_source.html#l00068">tpc_marker_ctx_t::transfer_id</a>.</p>
+<p class="reference">References <a class="el" href="progress_8c_source.html#l00026">brix_tpc_progress_emit()</a>, <a class="el" href="transfer_8h_source.html#l00037">BRIX_TPC_STATE_DONE</a>, <a class="el" href="transfer_8h_source.html#l00038">BRIX_TPC_STATE_ERROR</a>, <a class="el" href="tpc__marker_8c_source.html#l00122">tpc_marker_final_bytes()</a>, <a class="el" href="tpc__marker_8c_source.html#l00224">tpc_marker_record_result()</a>, <a class="el" href="tpc__marker_8c_source.html#l00086">tpc_marker_send_all()</a>, <a class="el" href="tpc__marker_8c_source.html#l00274">tpc_marker_send_trailer()</a>, <a class="el" href="tpc__marker_8c_source.html#l00186">tpc_marker_settle_temp()</a>, and <a class="el" href="tpc__marker__internal_8h_source.html#l00039">tpc_marker_ctx_t::transfer_id</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00269">tpc_marker_poll()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00321">tpc_marker_poll()</a>.</p>
 
 </div>
 </div>
-<a id="a1ad0293945510f4fe9eb7563a610ec6e" name="a1ad0293945510f4fe9eb7563a610ec6e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1ad0293945510f4fe9eb7563a610ec6e">&#9670;&#160;</a></span>tpc_marker_poll()</h2>
+<a id="a425c67873e8383f28d43c512a907aeb7" name="a425c67873e8383f28d43c512a907aeb7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a425c67873e8383f28d43c512a907aeb7">&#9670;&#160;</a></span>tpc_marker_poll()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void tpc_marker_poll </td>
+          <td>(</td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>ev</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00321">321</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+
+<p class="reference">References <a class="el" href="webdav__tpc_8h_source.html#l00028">tpc_ms_progress_t::completed</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00030">tpc_marker_ctx_t::last_marker_time</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00031">tpc_marker_ctx_t::marker_interval_secs</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00028">tpc_marker_ctx_t::progress</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00027">tpc_marker_ctx_t::r</a>, <a class="el" href="webdav__tpc_8h_source.html#l00029">tpc_ms_progress_t::result</a>, <a class="el" href="tpc__marker_8c_source.html#l00301">tpc_marker_finish()</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00019">TPC_MARKER_POLL_MSEC</a>, and <a class="el" href="tpc__marker_8c_source.html#l00086">tpc_marker_send_all()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__marker__start_8c_source.html#l00218">tpc_marker_arm_lifecycle()</a>.</p>
+
+</div>
+</div>
+<a id="a2e9f0b0753112b736dca29e4cca9caf6" name="a2e9f0b0753112b736dca29e4cca9caf6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2e9f0b0753112b736dca29e4cca9caf6">&#9670;&#160;</a></span>tpc_marker_record_result()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -260,11 +332,33 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void tpc_marker_poll </td>
+          <td class="memname">static <a class="el" href="structtpc__marker__trailer__t.html">tpc_marker_trailer_t</a> tpc_marker_record_result </td>
           <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>ev</em></td><td>)</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>failed</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>final_bytes</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -274,25 +368,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00269">269</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00224">224</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__tpc_8h_source.html#l00028">tpc_ms_progress_t::completed</a>, <a class="el" href="tpc__marker_8c_source.html#l00059">tpc_marker_ctx_t::last_marker_time</a>, <a class="el" href="tpc__marker_8c_source.html#l00060">tpc_marker_ctx_t::marker_interval_secs</a>, <a class="el" href="tpc__marker_8c_source.html#l00057">tpc_marker_ctx_t::progress</a>, <a class="el" href="tpc__marker_8c_source.html#l00056">tpc_marker_ctx_t::r</a>, <a class="el" href="webdav__tpc_8h_source.html#l00029">tpc_ms_progress_t::result</a>, <a class="el" href="tpc__marker_8c_source.html#l00150">tpc_marker_finish()</a>, <a class="el" href="tpc__marker_8c_source.html#l00048">TPC_MARKER_POLL_MSEC</a>, and <a class="el" href="tpc__marker_8c_source.html#l00122">tpc_marker_send_all()</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="transfer_8h_source.html#l00032">BRIX_TPC_DIR_PULL</a>, <a class="el" href="transfer_8h_source.html#l00033">BRIX_TPC_DIR_PUSH</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00011">BRIX_TPC_METRIC_ERROR</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00010">BRIX_TPC_METRIC_SUCCESS</a>, <a class="el" href="tpc_2common_2metrics_8c_source.html#l00017">brix_tpc_metric_transfer()</a>, <a class="el" href="transfer_8h_source.html#l00030">BRIX_TPC_PROTO_WEBDAV</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00421">brix_tpc_registry_remove()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00061">BRIX_WEBDAV_TPC_CURL_ERROR</a>, <a class="el" href="metrics__webdav_8h_source.html#l00060">BRIX_WEBDAV_TPC_CURL_SUCCESS</a>, <a class="el" href="metrics__webdav_8h_source.html#l00058">BRIX_WEBDAV_TPC_PULL_SUCCESS</a>, <a class="el" href="metrics__webdav_8h_source.html#l00063">BRIX_WEBDAV_TPC_PUSH_SUCCESS</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00037">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="tpc__marker_8c_source.html#l00210">tpc_marker_trailer_t::len</a>, <a class="el" href="tpc__marker_8c_source.html#l00209">tpc_marker_trailer_t::line</a>, and <a class="el" href="tpc__marker__internal_8h_source.html#l00039">tpc_marker_ctx_t::transfer_id</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00416">webdav_tpc_marker_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00301">tpc_marker_finish()</a>.</p>
 
 </div>
 </div>
-<a id="a171463d2e7a7a17085e3d2802bf843b7" name="a171463d2e7a7a17085e3d2802bf843b7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a171463d2e7a7a17085e3d2802bf843b7">&#9670;&#160;</a></span>tpc_marker_send_all()</h2>
+<a id="a6797c598b5dc4d1314f83e8bee9bd9bd" name="a6797c598b5dc4d1314f83e8bee9bd9bd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6797c598b5dc4d1314f83e8bee9bd9bd">&#9670;&#160;</a></span>tpc_marker_send_all()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void tpc_marker_send_all </td>
+          <td class="memname">void tpc_marker_send_all </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -315,18 +406,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00122">122</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00086">86</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__tpc_8h_source.html#l00027">tpc_ms_progress_t::bytes_per_stream</a>, <a class="el" href="tpc__marker_8c_source.html#l00066">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="webdav__tpc_8h_source.html#l00030">tpc_ms_progress_t::n_streams</a>, <a class="el" href="tpc__marker_8c_source.html#l00057">tpc_marker_ctx_t::progress</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="tpc__marker_8c_source.html#l00061">tpc_marker_ctx_t::tmp_path</a>, and <a class="el" href="tpc__marker_8c_source.html#l00087">tpc_marker_send_one()</a>.</p>
+<p class="reference">References <a class="el" href="webdav__tpc_8h_source.html#l00027">tpc_ms_progress_t::bytes_per_stream</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00037">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="webdav__tpc_8h_source.html#l00030">tpc_ms_progress_t::n_streams</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00028">tpc_marker_ctx_t::progress</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00032">tpc_marker_ctx_t::tmp_path</a>, and <a class="el" href="tpc__marker_8c_source.html#l00051">tpc_marker_send_one()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00150">tpc_marker_finish()</a>, <a class="el" href="tpc__marker_8c_source.html#l00269">tpc_marker_poll()</a>, and <a class="el" href="tpc__marker_8c_source.html#l00416">webdav_tpc_marker_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00301">tpc_marker_finish()</a>, <a class="el" href="tpc__marker_8c_source.html#l00321">tpc_marker_poll()</a>, and <a class="el" href="tpc__marker__start_8c_source.html#l00296">webdav_tpc_marker_start()</a>.</p>
 
 </div>
 </div>
@@ -382,16 +468,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00087">87</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00051">51</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00122">tpc_marker_send_all()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00086">tpc_marker_send_all()</a>.</p>
 
 </div>
 </div>
-<a id="a27ef65639d4749a4c015052440a338a1" name="a27ef65639d4749a4c015052440a338a1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a27ef65639d4749a4c015052440a338a1">&#9670;&#160;</a></span>tpc_marker_thread_done()</h2>
+<a id="ad54f7a2c45d404aa882a5f5f797195f0" name="ad54f7a2c45d404aa882a5f5f797195f0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad54f7a2c45d404aa882a5f5f797195f0">&#9670;&#160;</a></span>tpc_marker_send_trailer()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -400,78 +486,7 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void tpc_marker_thread_done </td>
-          <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>ev</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00304">304</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
-
-<p class="reference">References <a class="el" href="tpc__marker_8c_source.html#l00076">tpc_marker_thread_ctx_t::marker_ctx</a>, and <a class="el" href="tpc__marker_8c_source.html#l00058">tpc_marker_ctx_t::timer</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00416">webdav_tpc_marker_start()</a>.</p>
-
-</div>
-</div>
-<a id="a3130ffa6466d73f87568489cd0ceb52b" name="a3130ffa6466d73f87568489cd0ceb52b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3130ffa6466d73f87568489cd0ceb52b">&#9670;&#160;</a></span>tpc_marker_thread_func()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void tpc_marker_thread_func </td>
-          <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>data</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00345">345</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
-
-<p class="reference">References <a class="el" href="net__target_8h_source.html#l00052">brix_net_target_policy_t::allow_local</a>, <a class="el" href="net__target_8h_source.html#l00053">brix_net_target_policy_t::allow_private</a>, <a class="el" href="net__target_8h_source.html#l00051">brix_net_target_policy_t::allow_root_scheme</a>, <a class="el" href="net__target_8c_source.html#l00337">brix_net_target_check_dns()</a>, <a class="el" href="net__target_8c_source.html#l00175">brix_net_target_parse()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00028">tpc_ms_progress_t::completed</a>, <a class="el" href="tpc__marker_8c_source.html#l00078">tpc_marker_thread_ctx_t::conf</a>, <a class="el" href="net__target_8h_source.html#l00054">brix_net_target_policy_t::default_https_port</a>, <a class="el" href="tpc__marker_8c_source.html#l00079">tpc_marker_thread_ctx_t::is_push</a>, <a class="el" href="tpc__marker_8c_source.html#l00081">tpc_marker_thread_ctx_t::local_path</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="tpc__marker_8c_source.html#l00077">tpc_marker_thread_ctx_t::log</a>, <a class="el" href="tpc__marker_8c_source.html#l00076">tpc_marker_thread_ctx_t::marker_ctx</a>, <a class="el" href="webdav__tpc_8h_source.html#l00030">tpc_ms_progress_t::n_streams</a>, <a class="el" href="tpc__marker_8c_source.html#l00057">tpc_marker_ctx_t::progress</a>, <a class="el" href="net__target_8h_source.html#l00050">brix_net_target_policy_t::require_https</a>, <a class="el" href="webdav__tpc_8h_source.html#l00029">tpc_ms_progress_t::result</a>, <a class="el" href="webdav_8h_source.html#l00175">ngx_http_brix_webdav_loc_conf_t::tpc_allow_local</a>, <a class="el" href="webdav_8h_source.html#l00176">ngx_http_brix_webdav_loc_conf_t::tpc_allow_private</a>, <a class="el" href="tpc__marker_8c_source.html#l00082">tpc_marker_thread_ctx_t::transfer_headers</a>, <a class="el" href="tpc__marker_8c_source.html#l00080">tpc_marker_thread_ctx_t::url</a>, <a class="el" href="tpc__curl_8c_source.html#l00198">webdav_tpc_run_curl_pull()</a>, <a class="el" href="tpc__curl_8c_source.html#l00280">webdav_tpc_run_curl_pull_multi()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00211">webdav_tpc_run_curl_push()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00416">webdav_tpc_marker_start()</a>.</p>
-
-</div>
-</div>
-<a id="abdb43daa9936ab2522e010825eb777e8" name="abdb43daa9936ab2522e010825eb777e8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abdb43daa9936ab2522e010825eb777e8">&#9670;&#160;</a></span>webdav_tpc_marker_start()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t webdav_tpc_marker_start </td>
+          <td class="memname">static void tpc_marker_send_trailer </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -479,62 +494,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>n_streams</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>url</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>tmp_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>final_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>is_pull</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>overwrite</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t&#160;</td>
-          <td class="paramname"><em>existed</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_array_t *&#160;</td>
-          <td class="paramname"><em>transfer_headers</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>transfer_id</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="structtpc__marker__trailer__t.html">tpc_marker_trailer_t</a>&#160;</td>
+          <td class="paramname"><em>trailer</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -542,13 +503,90 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00416">416</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00274">274</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__tpc_8h_source.html#l00018">BRIX_TPC_MAX_STREAMS</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="tpc__marker_8c_source.html#l00078">tpc_marker_thread_ctx_t::conf</a>, <a class="el" href="tpc__marker_8c_source.html#l00065">tpc_marker_ctx_t::existed</a>, <a class="el" href="tpc__marker_8c_source.html#l00062">tpc_marker_ctx_t::final_path</a>, <a class="el" href="tpc__marker_8c_source.html#l00066">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="tpc__marker_8c_source.html#l00079">tpc_marker_thread_ctx_t::is_push</a>, <a class="el" href="tpc__marker_8c_source.html#l00059">tpc_marker_ctx_t::last_marker_time</a>, <a class="el" href="tpc__marker_8c_source.html#l00081">tpc_marker_thread_ctx_t::local_path</a>, <a class="el" href="tpc__marker_8c_source.html#l00077">tpc_marker_thread_ctx_t::log</a>, <a class="el" href="tpc__marker_8c_source.html#l00076">tpc_marker_thread_ctx_t::marker_ctx</a>, <a class="el" href="tpc__marker_8c_source.html#l00060">tpc_marker_ctx_t::marker_interval_secs</a>, <a class="el" href="webdav__tpc_8h_source.html#l00030">tpc_ms_progress_t::n_streams</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="tpc__marker_8c_source.html#l00064">tpc_marker_ctx_t::overwrite</a>, <a class="el" href="tpc__marker_8c_source.html#l00057">tpc_marker_ctx_t::progress</a>, <a class="el" href="tpc__marker_8c_source.html#l00067">tpc_marker_ctx_t::push_file_size</a>, <a class="el" href="tpc__marker_8c_source.html#l00056">tpc_marker_ctx_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="tpc__marker_8c_source.html#l00063">tpc_marker_ctx_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="tpc__marker_8c_source.html#l00058">tpc_marker_ctx_t::timer</a>, <a class="el" href="tpc__marker_8c_source.html#l00061">tpc_marker_ctx_t::tmp_path</a>, <a class="el" href="webdav__tpc_8h_source.html#l00031">tpc_ms_progress_t::total_size</a>, <a class="el" href="tpc__marker_8c_source.html#l00317">tpc_marker_cleanup()</a>, <a class="el" href="webdav_8h_source.html#l00193">ngx_http_brix_webdav_loc_conf_t::tpc_marker_interval</a>, <a class="el" href="tpc__marker_8c_source.html#l00269">tpc_marker_poll()</a>, <a class="el" href="tpc__marker_8c_source.html#l00048">TPC_MARKER_POLL_MSEC</a>, <a class="el" href="tpc__marker_8c_source.html#l00122">tpc_marker_send_all()</a>, <a class="el" href="tpc__marker_8c_source.html#l00304">tpc_marker_thread_done()</a>, <a class="el" href="tpc__marker_8c_source.html#l00345">tpc_marker_thread_func()</a>, <a class="el" href="tpc__marker_8c_source.html#l00082">tpc_marker_thread_ctx_t::transfer_headers</a>, <a class="el" href="tpc__marker_8c_source.html#l00068">tpc_marker_ctx_t::transfer_id</a>, and <a class="el" href="tpc__marker_8c_source.html#l00080">tpc_marker_thread_ctx_t::url</a>.</p>
+<p class="reference">References <a class="el" href="tpc__marker_8c_source.html#l00210">tpc_marker_trailer_t::len</a>, <a class="el" href="tpc__marker_8c_source.html#l00209">tpc_marker_trailer_t::line</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00301">tpc_marker_finish()</a>.</p>
+
+</div>
+</div>
+<a id="a4eb0afd4b6af85f172d0b1519907669c" name="a4eb0afd4b6af85f172d0b1519907669c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4eb0afd4b6af85f172d0b1519907669c">&#9670;&#160;</a></span>tpc_marker_settle_temp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tpc_marker_settle_temp </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structtpc__marker__ctx__t.html">tpc_marker_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>failed</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00186">186</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00185">brix_unlink_confined_canon()</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00037">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00034">tpc_marker_ctx_t::root_canon</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00032">tpc_marker_ctx_t::tmp_path</a>, and <a class="el" href="tpc__marker_8c_source.html#l00142">tpc_marker_commit_pull()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00301">tpc_marker_finish()</a>.</p>
+
+</div>
+</div>
+<a id="aa7f6749a5b014d1baca764987d11c3d8" name="aa7f6749a5b014d1baca764987d11c3d8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa7f6749a5b014d1baca764987d11c3d8">&#9670;&#160;</a></span>tpc_marker_thread_done()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void tpc_marker_thread_done </td>
+          <td>(</td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>ev</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00356">356</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tpc__marker__internal_8h_source.html#l00047">tpc_marker_thread_ctx_t::marker_ctx</a>, and <a class="el" href="tpc__marker__internal_8h_source.html#l00029">tpc_marker_ctx_t::timer</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__marker__start_8c_source.html#l00179">tpc_marker_build_task()</a>.</p>
 
 </div>
 </div>

@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('api__transfers_8c.html',''); initResiz
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">api_transfers.c File Reference</div></div>
 </div><!--header-->
@@ -106,8 +107,27 @@ $(document).ready(function(){initNavTree('api__transfers_8c.html',''); initResiz
 </div>
 <p><a href="api__transfers_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:afce14a82808382c3704f3df0042c055c" id="r_afce14a82808382c3704f3df0042c055c"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#afce14a82808382c3704f3df0042c055c">dashboard_decay_instant_bps</a> (const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *slot, int64_t now_ms)</td></tr>
+<tr class="separator:afce14a82808382c3704f3df0042c055c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a86f7eda011d70a08fa74c2c0c75c008f" id="r_a86f7eda011d70a08fa74c2c0c75c008f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#a86f7eda011d70a08fa74c2c0c75c008f">dashboard_snap_str</a> (char *dst, const char *src, size_t size)</td></tr>
+<tr class="separator:a86f7eda011d70a08fa74c2c0c75c008f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ace479d16562afc95ba77cd9c0855ddd1" id="r_ace479d16562afc95ba77cd9c0855ddd1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#ace479d16562afc95ba77cd9c0855ddd1">dashboard_snapshot_slot</a> (<a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a> *snap, const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *slot, int64_t now_ms)</td></tr>
+<tr class="separator:ace479d16562afc95ba77cd9c0855ddd1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abdd0a4b635d5202b68907ad568407913" id="r_abdd0a4b635d5202b68907ad568407913"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#abdd0a4b635d5202b68907ad568407913">dashboard_emit_base_fields</a> (json_t *obj, const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *slot, const <a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a> *snap, ngx_uint_t redact)</td></tr>
+<tr class="separator:abdd0a4b635d5202b68907ad568407913"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab258648250d173fbc0883ec329817971" id="r_ab258648250d173fbc0883ec329817971"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#ab258648250d173fbc0883ec329817971">dashboard_emit_v1_fields</a> (json_t *obj, const <a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *conf, const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *slot, const <a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a> *snap, ngx_uint_t redact)</td></tr>
+<tr class="separator:ab258648250d173fbc0883ec329817971"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2bf10478f611f994d86735e85c509458" id="r_a2bf10478f611f994d86735e85c509458"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#a2bf10478f611f994d86735e85c509458">dashboard_emit_tpc_object</a> (json_t *obj, const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *slot, const <a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a> *snap, ngx_uint_t redact)</td></tr>
+<tr class="separator:a2bf10478f611f994d86735e85c509458"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae7ae6a8ed475d2eb03c09027f82118c5" id="r_ae7ae6a8ed475d2eb03c09027f82118c5"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#ae7ae6a8ed475d2eb03c09027f82118c5">dashboard_emit_detail_fields</a> (json_t *obj, const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *slot)</td></tr>
+<tr class="separator:ae7ae6a8ed475d2eb03c09027f82118c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adea63cab9f07839b520180eb14784ce0" id="r_adea63cab9f07839b520180eb14784ce0"><td class="memItemLeft" align="right" valign="top">json_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#adea63cab9f07839b520180eb14784ce0">dashboard_build_transfer_object</a> (const <a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *conf, const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *slot, int64_t now_ms, ngx_uint_t v1_fields, ngx_uint_t detail_fields, ngx_uint_t redact)</td></tr>
 <tr class="separator:adea63cab9f07839b520180eb14784ce0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a98e0ddd353329422791e13df09d58d10" id="r_a98e0ddd353329422791e13df09d58d10"><td class="memItemLeft" align="right" valign="top">json_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__transfers_8c.html#a98e0ddd353329422791e13df09d58d10">dashboard_build_transfer_rows</a> (int64_t now_ms, const <a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *conf, ngx_uint_t v1_fields, ngx_uint_t redact)</td></tr>
@@ -162,11 +182,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00237">237</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00336">336</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="api__snapshot_8c_source.html#l00159">dashboard_build_totals()</a>, and <a class="el" href="api__transfers_8c_source.html#l00156">dashboard_build_transfer_rows()</a>.</p>
+<p class="reference">References <a class="el" href="api__snapshot_8c_source.html#l00158">dashboard_build_totals()</a>, and <a class="el" href="api__transfers_8c_source.html#l00255">dashboard_build_transfer_rows()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00181">ngx_http_brix_dashboard_api_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00197">dashboard_dispatch_builder()</a>.</p>
 
 </div>
 </div>
@@ -196,11 +216,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00204">204</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00303">303</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tpc_2common_2registry_8c_source.html#l00457">brix_tpc_registry_snapshot()</a>, <a class="el" href="api_8c_source.html#l00072">dashboard_tpc_direction_name()</a>, <a class="el" href="api_8c_source.html#l00061">dashboard_tpc_protocol_name()</a>, <a class="el" href="api_8c_source.html#l00083">dashboard_tpc_state_name()</a>, <a class="el" href="tpc_2common_2registry_8h_source.html#l00041">brix_tpc_transfer_snapshot_t::dst_path</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="tpc_2common_2registry_8h_source.html#l00040">brix_tpc_transfer_snapshot_t::src_url</a>, and <a class="el" href="dashboard__api__internal_8h_source.html#l00018">TPC_REGISTRY_JSON_LIMIT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api__snapshot_8c_source.html#l00624">dashboard_build_v1_snapshot()</a>, and <a class="el" href="api__transfers_8c_source.html#l00252">dashboard_build_v1_transfers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api__snapshot_8c_source.html#l00373">dashboard_build_v1_snapshot()</a>, and <a class="el" href="api__transfers_8c_source.html#l00351">dashboard_build_v1_transfers()</a>.</p>
 
 </div>
 </div>
@@ -254,11 +274,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00021">21</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00224">224</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00044">BRIX_DASHBOARD_HOST_LEN</a>, <a class="el" href="dashboard_8h_source.html#l00040">BRIX_DASHBOARD_IDENTITY_LEN</a>, <a class="el" href="dashboard_8h_source.html#l00041">BRIX_DASHBOARD_IP_LEN</a>, <a class="el" href="dashboard_8h_source.html#l00042">BRIX_DASHBOARD_OP_LEN</a>, <a class="el" href="dashboard_8h_source.html#l00039">BRIX_DASHBOARD_PATH_LEN</a>, <a class="el" href="dashboard_8h_source.html#l00043">BRIX_DASHBOARD_REASON_LEN</a>, <a class="el" href="dashboard_8h_source.html#l00045">BRIX_DASHBOARD_VO_LEN</a>, <a class="el" href="dashboard_8h_source.html#l00063">BRIX_XFER_DIR_TPC</a>, <a class="el" href="dashboard_8h_source.html#l00086">BRIX_XFER_SAMPLE_MS</a>, <a class="el" href="dashboard_8h_source.html#l00132">brix_transfer_slot_t::bytes</a>, <a class="el" href="dashboard_8h_source.html#l00123">brix_transfer_slot_t::client_ip</a>, <a class="el" href="dashboard_8h_source.html#l00143">brix_transfer_slot_t::close_ops</a>, <a class="el" href="api_8c_source.html#l00134">dashboard_avg_bps()</a>, <a class="el" href="api_8c_source.html#l00008">dashboard_direction_name()</a>, <a class="el" href="api_8c_source.html#l00019">dashboard_proto_name()</a>, <a class="el" href="api_8c_source.html#l00117">dashboard_session_hash()</a>, <a class="el" href="api_8c_source.html#l00037">dashboard_state_name()</a>, <a class="el" href="dashboard_8h_source.html#l00128">brix_transfer_slot_t::direction</a>, <a class="el" href="dashboard_8h_source.html#l00136">brix_transfer_slot_t::expected_bytes</a>, <a class="el" href="dashboard_8h_source.html#l00124">brix_transfer_slot_t::identity</a>, <a class="el" href="dashboard_8h_source.html#l00135">brix_transfer_slot_t::instant_bps</a>, <a class="el" href="dashboard_8h_source.html#l00144">brix_transfer_slot_t::last_error</a>, <a class="el" href="dashboard_8h_source.html#l00138">brix_transfer_slot_t::last_ms</a>, <a class="el" href="dashboard_8h_source.html#l00134">brix_transfer_slot_t::last_sample_ms</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="dashboard_8h_source.html#l00127">brix_transfer_slot_t::op</a>, <a class="el" href="dashboard_8h_source.html#l00126">brix_transfer_slot_t::path</a>, <a class="el" href="dashboard_8h_source.html#l00129">brix_transfer_slot_t::proto</a>, <a class="el" href="dashboard_8h_source.html#l00140">brix_transfer_slot_t::read_ops</a>, <a class="el" href="dashboard_8h_source.html#l00120">brix_transfer_slot_t::serial</a>, <a class="el" href="dashboard_8h_source.html#l00121">brix_transfer_slot_t::sessid</a>, <a class="el" href="dashboard_8h_source.html#l00137">brix_transfer_slot_t::start_ms</a>, <a class="el" href="dashboard_8h_source.html#l00130">brix_transfer_slot_t::state</a>, <a class="el" href="dashboard_8h_source.html#l00139">brix_transfer_slot_t::state_since_ms</a>, <a class="el" href="dashboard_8h_source.html#l00142">brix_transfer_slot_t::sync_ops</a>, <a class="el" href="dashboard_8h_source.html#l00148">brix_transfer_slot_t::tpc_curl_exit</a>, <a class="el" href="dashboard_8h_source.html#l00145">brix_transfer_slot_t::tpc_remote_host</a>, <a class="el" href="dashboard_8h_source.html#l00146">brix_transfer_slot_t::tpc_remote_path_hint</a>, <a class="el" href="dashboard_8h_source.html#l00147">brix_transfer_slot_t::tpc_remote_status</a>, <a class="el" href="dashboard_8h_source.html#l00125">brix_transfer_slot_t::vo</a>, <a class="el" href="dashboard_8h_source.html#l00122">brix_transfer_slot_t::worker_pid</a>, and <a class="el" href="dashboard_8h_source.html#l00141">brix_transfer_slot_t::write_ops</a>.</p>
+<p class="reference">References <a class="el" href="api__transfers_8c_source.html#l00118">dashboard_emit_base_fields()</a>, <a class="el" href="api__transfers_8c_source.html#l00194">dashboard_emit_detail_fields()</a>, <a class="el" href="api__transfers_8c_source.html#l00166">dashboard_emit_tpc_object()</a>, <a class="el" href="api__transfers_8c_source.html#l00140">dashboard_emit_v1_fields()</a>, and <a class="el" href="api__transfers_8c_source.html#l00084">dashboard_snapshot_slot()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00156">dashboard_build_transfer_rows()</a>, and <a class="el" href="api__transfers_8c_source.html#l00299">dashboard_build_v1_transfer_detail()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00255">dashboard_build_transfer_rows()</a>, and <a class="el" href="api__transfers_8c_source.html#l00398">dashboard_build_v1_transfer_detail()</a>.</p>
 
 </div>
 </div>
@@ -300,11 +320,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00156">156</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00255">255</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00098">BRIX_DASH_EVENT_DASHBOARD</a>, <a class="el" href="observability_2dashboard_2events_8c_source.html#l00109">brix_dashboard_event_add()</a>, <a class="el" href="dashboard_8h_source.html#l00036">BRIX_DASHBOARD_MAX_TRANSFERS</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00162">brix_transfer_slot_free()</a>, <a class="el" href="api__transfers_8c_source.html#l00021">dashboard_build_transfer_object()</a>, <a class="el" href="dashboard_8h_source.html#l00119">brix_transfer_slot_t::in_use</a>, <a class="el" href="dashboard_8h_source.html#l00138">brix_transfer_slot_t::last_ms</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="dashboard_8h_source.html#l00126">brix_transfer_slot_t::path</a>, <a class="el" href="dashboard_8h_source.html#l00129">brix_transfer_slot_t::proto</a>, <a class="el" href="dashboard_8h_source.html#l00160">brix_transfer_table_t::slots</a>, and <a class="el" href="dashboard__api__internal_8h_source.html#l00017">STALE_GC_MS</a>.</p>
+<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00098">BRIX_DASH_EVENT_DASHBOARD</a>, <a class="el" href="observability_2dashboard_2events_8c_source.html#l00109">brix_dashboard_event_add()</a>, <a class="el" href="dashboard_8h_source.html#l00036">BRIX_DASHBOARD_MAX_TRANSFERS</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00162">brix_transfer_slot_free()</a>, <a class="el" href="api__transfers_8c_source.html#l00224">dashboard_build_transfer_object()</a>, <a class="el" href="dashboard_8h_source.html#l00119">brix_transfer_slot_t::in_use</a>, <a class="el" href="dashboard_8h_source.html#l00138">brix_transfer_slot_t::last_ms</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="dashboard_8h_source.html#l00126">brix_transfer_slot_t::path</a>, <a class="el" href="dashboard_8h_source.html#l00129">brix_transfer_slot_t::proto</a>, <a class="el" href="dashboard_8h_source.html#l00160">brix_transfer_table_t::slots</a>, and <a class="el" href="dashboard__api__internal_8h_source.html#l00017">STALE_GC_MS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00237">dashboard_build_compat_transfers()</a>, <a class="el" href="api__snapshot_8c_source.html#l00624">dashboard_build_v1_snapshot()</a>, and <a class="el" href="api__transfers_8c_source.html#l00252">dashboard_build_v1_transfers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00336">dashboard_build_compat_transfers()</a>, <a class="el" href="api__snapshot_8c_source.html#l00373">dashboard_build_v1_snapshot()</a>, and <a class="el" href="api__transfers_8c_source.html#l00351">dashboard_build_v1_transfers()</a>.</p>
 
 </div>
 </div>
@@ -346,11 +366,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00299">299</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00398">398</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00036">BRIX_DASHBOARD_MAX_TRANSFERS</a>, <a class="el" href="api__transfers_8c_source.html#l00021">dashboard_build_transfer_object()</a>, <a class="el" href="api__snapshot_8c_source.html#l00611">dashboard_new_v1_root()</a>, <a class="el" href="api__transfers_8c_source.html#l00273">dashboard_parse_detail_id()</a>, <a class="el" href="dashboard_8h_source.html#l00119">brix_transfer_slot_t::in_use</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="dashboard_8h_source.html#l00120">brix_transfer_slot_t::serial</a>, and <a class="el" href="dashboard_8h_source.html#l00160">brix_transfer_table_t::slots</a>.</p>
+<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00036">BRIX_DASHBOARD_MAX_TRANSFERS</a>, <a class="el" href="api__transfers_8c_source.html#l00224">dashboard_build_transfer_object()</a>, <a class="el" href="api__snapshot_8c_source.html#l00360">dashboard_new_v1_root()</a>, <a class="el" href="api__transfers_8c_source.html#l00372">dashboard_parse_detail_id()</a>, <a class="el" href="dashboard_8h_source.html#l00119">brix_transfer_slot_t::in_use</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="dashboard_8h_source.html#l00120">brix_transfer_slot_t::serial</a>, and <a class="el" href="dashboard_8h_source.html#l00160">brix_transfer_table_t::slots</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00181">ngx_http_brix_dashboard_api_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00197">dashboard_dispatch_builder()</a>.</p>
 
 </div>
 </div>
@@ -398,11 +418,263 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00252">252</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00351">351</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="api__snapshot_8c_source.html#l00159">dashboard_build_totals()</a>, <a class="el" href="api__transfers_8c_source.html#l00204">dashboard_build_tpc_registry()</a>, <a class="el" href="api__transfers_8c_source.html#l00156">dashboard_build_transfer_rows()</a>, and <a class="el" href="api__snapshot_8c_source.html#l00611">dashboard_new_v1_root()</a>.</p>
+<p class="reference">References <a class="el" href="api__snapshot_8c_source.html#l00158">dashboard_build_totals()</a>, <a class="el" href="api__transfers_8c_source.html#l00303">dashboard_build_tpc_registry()</a>, <a class="el" href="api__transfers_8c_source.html#l00255">dashboard_build_transfer_rows()</a>, and <a class="el" href="api__snapshot_8c_source.html#l00360">dashboard_new_v1_root()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00181">ngx_http_brix_dashboard_api_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00197">dashboard_dispatch_builder()</a>.</p>
+
+</div>
+</div>
+<a id="afce14a82808382c3704f3df0042c055c" name="afce14a82808382c3704f3df0042c055c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afce14a82808382c3704f3df0042c055c">&#9670;&#160;</a></span>dashboard_decay_instant_bps()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static uint64_t dashboard_decay_instant_bps </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *&#160;</td>
+          <td class="paramname"><em>slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int64_t&#160;</td>
+          <td class="paramname"><em>now_ms</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00049">49</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00086">BRIX_XFER_SAMPLE_MS</a>, <a class="el" href="dashboard_8h_source.html#l00135">brix_transfer_slot_t::instant_bps</a>, and <a class="el" href="dashboard_8h_source.html#l00134">brix_transfer_slot_t::last_sample_ms</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00084">dashboard_snapshot_slot()</a>.</p>
+
+</div>
+</div>
+<a id="abdd0a4b635d5202b68907ad568407913" name="abdd0a4b635d5202b68907ad568407913"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abdd0a4b635d5202b68907ad568407913">&#9670;&#160;</a></span>dashboard_emit_base_fields()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_emit_base_fields </td>
+          <td>(</td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *&#160;</td>
+          <td class="paramname"><em>slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a> *&#160;</td>
+          <td class="paramname"><em>snap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>redact</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00118">118</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="api__transfers_8c_source.html#l00022">dashboard_xfer_snapshot_t::bytes</a>, <a class="el" href="api__transfers_8c_source.html#l00027">dashboard_xfer_snapshot_t::client_ip</a>, <a class="el" href="api_8c_source.html#l00008">dashboard_direction_name()</a>, <a class="el" href="api_8c_source.html#l00019">dashboard_proto_name()</a>, <a class="el" href="dashboard_8h_source.html#l00128">brix_transfer_slot_t::direction</a>, <a class="el" href="api__transfers_8c_source.html#l00028">dashboard_xfer_snapshot_t::identity</a>, <a class="el" href="api__transfers_8c_source.html#l00021">dashboard_xfer_snapshot_t::last_ms</a>, <a class="el" href="api__transfers_8c_source.html#l00030">dashboard_xfer_snapshot_t::path</a>, <a class="el" href="dashboard_8h_source.html#l00129">brix_transfer_slot_t::proto</a>, <a class="el" href="dashboard_8h_source.html#l00120">brix_transfer_slot_t::serial</a>, and <a class="el" href="api__transfers_8c_source.html#l00023">dashboard_xfer_snapshot_t::start_ms</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00224">dashboard_build_transfer_object()</a>.</p>
+
+</div>
+</div>
+<a id="ae7ae6a8ed475d2eb03c09027f82118c5" name="ae7ae6a8ed475d2eb03c09027f82118c5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae7ae6a8ed475d2eb03c09027f82118c5">&#9670;&#160;</a></span>dashboard_emit_detail_fields()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_emit_detail_fields </td>
+          <td>(</td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *&#160;</td>
+          <td class="paramname"><em>slot</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00194">194</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00143">brix_transfer_slot_t::close_ops</a>, <a class="el" href="api_8c_source.html#l00117">dashboard_session_hash()</a>, <a class="el" href="dashboard_8h_source.html#l00140">brix_transfer_slot_t::read_ops</a>, <a class="el" href="dashboard_8h_source.html#l00121">brix_transfer_slot_t::sessid</a>, <a class="el" href="dashboard_8h_source.html#l00142">brix_transfer_slot_t::sync_ops</a>, and <a class="el" href="dashboard_8h_source.html#l00141">brix_transfer_slot_t::write_ops</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00224">dashboard_build_transfer_object()</a>.</p>
+
+</div>
+</div>
+<a id="a2bf10478f611f994d86735e85c509458" name="a2bf10478f611f994d86735e85c509458"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2bf10478f611f994d86735e85c509458">&#9670;&#160;</a></span>dashboard_emit_tpc_object()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_emit_tpc_object </td>
+          <td>(</td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *&#160;</td>
+          <td class="paramname"><em>slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a> *&#160;</td>
+          <td class="paramname"><em>snap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>redact</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00166">166</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="dashboard_8h_source.html#l00063">BRIX_XFER_DIR_TPC</a>, <a class="el" href="dashboard_8h_source.html#l00128">brix_transfer_slot_t::direction</a>, <a class="el" href="api__transfers_8c_source.html#l00033">dashboard_xfer_snapshot_t::remote_host</a>, <a class="el" href="api__transfers_8c_source.html#l00034">dashboard_xfer_snapshot_t::remote_path</a>, <a class="el" href="dashboard_8h_source.html#l00148">brix_transfer_slot_t::tpc_curl_exit</a>, and <a class="el" href="dashboard_8h_source.html#l00147">brix_transfer_slot_t::tpc_remote_status</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00224">dashboard_build_transfer_object()</a>.</p>
+
+</div>
+</div>
+<a id="ab258648250d173fbc0883ec329817971" name="ab258648250d173fbc0883ec329817971"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab258648250d173fbc0883ec329817971">&#9670;&#160;</a></span>dashboard_emit_v1_fields()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_emit_v1_fields </td>
+          <td>(</td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *&#160;</td>
+          <td class="paramname"><em>slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a> *&#160;</td>
+          <td class="paramname"><em>snap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>redact</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00140">140</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="api__transfers_8c_source.html#l00025">dashboard_xfer_snapshot_t::avg_bps</a>, <a class="el" href="api_8c_source.html#l00037">dashboard_state_name()</a>, <a class="el" href="dashboard_8h_source.html#l00136">brix_transfer_slot_t::expected_bytes</a>, <a class="el" href="api__transfers_8c_source.html#l00024">dashboard_xfer_snapshot_t::idle_ms</a>, <a class="el" href="api__transfers_8c_source.html#l00026">dashboard_xfer_snapshot_t::instant_bps</a>, <a class="el" href="api__transfers_8c_source.html#l00032">dashboard_xfer_snapshot_t::last_error</a>, <a class="el" href="api__transfers_8c_source.html#l00031">dashboard_xfer_snapshot_t::op</a>, <a class="el" href="dashboard_8h_source.html#l00130">brix_transfer_slot_t::state</a>, <a class="el" href="dashboard_8h_source.html#l00139">brix_transfer_slot_t::state_since_ms</a>, <a class="el" href="api__transfers_8c_source.html#l00029">dashboard_xfer_snapshot_t::vo</a>, and <a class="el" href="dashboard_8h_source.html#l00122">brix_transfer_slot_t::worker_pid</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00224">dashboard_build_transfer_object()</a>.</p>
 
 </div>
 </div>
@@ -432,11 +704,107 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00273">273</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00372">372</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00299">dashboard_build_v1_transfer_detail()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00398">dashboard_build_v1_transfer_detail()</a>.</p>
+
+</div>
+</div>
+<a id="a86f7eda011d70a08fa74c2c0c75c008f" name="a86f7eda011d70a08fa74c2c0c75c008f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a86f7eda011d70a08fa74c2c0c75c008f">&#9670;&#160;</a></span>dashboard_snap_str()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_snap_str </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00069">69</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00084">dashboard_snapshot_slot()</a>.</p>
+
+</div>
+</div>
+<a id="ace479d16562afc95ba77cd9c0855ddd1" name="ace479d16562afc95ba77cd9c0855ddd1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ace479d16562afc95ba77cd9c0855ddd1">&#9670;&#160;</a></span>dashboard_snapshot_slot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dashboard_snapshot_slot </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structdashboard__xfer__snapshot__t.html">dashboard_xfer_snapshot_t</a> *&#160;</td>
+          <td class="paramname"><em>snap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__transfer__slot__t.html">brix_transfer_slot_t</a> *&#160;</td>
+          <td class="paramname"><em>slot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int64_t&#160;</td>
+          <td class="paramname"><em>now_ms</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__transfers_8c_source.html#l00084">84</a> of file <a class="el" href="api__transfers_8c_source.html">api_transfers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="api__transfers_8c_source.html#l00025">dashboard_xfer_snapshot_t::avg_bps</a>, <a class="el" href="api__transfers_8c_source.html#l00022">dashboard_xfer_snapshot_t::bytes</a>, <a class="el" href="dashboard_8h_source.html#l00132">brix_transfer_slot_t::bytes</a>, <a class="el" href="api__transfers_8c_source.html#l00027">dashboard_xfer_snapshot_t::client_ip</a>, <a class="el" href="dashboard_8h_source.html#l00123">brix_transfer_slot_t::client_ip</a>, <a class="el" href="api_8c_source.html#l00134">dashboard_avg_bps()</a>, <a class="el" href="api__transfers_8c_source.html#l00049">dashboard_decay_instant_bps()</a>, <a class="el" href="api__transfers_8c_source.html#l00069">dashboard_snap_str()</a>, <a class="el" href="api__transfers_8c_source.html#l00028">dashboard_xfer_snapshot_t::identity</a>, <a class="el" href="dashboard_8h_source.html#l00124">brix_transfer_slot_t::identity</a>, <a class="el" href="api__transfers_8c_source.html#l00024">dashboard_xfer_snapshot_t::idle_ms</a>, <a class="el" href="api__transfers_8c_source.html#l00026">dashboard_xfer_snapshot_t::instant_bps</a>, <a class="el" href="api__transfers_8c_source.html#l00032">dashboard_xfer_snapshot_t::last_error</a>, <a class="el" href="dashboard_8h_source.html#l00144">brix_transfer_slot_t::last_error</a>, <a class="el" href="api__transfers_8c_source.html#l00021">dashboard_xfer_snapshot_t::last_ms</a>, <a class="el" href="dashboard_8h_source.html#l00138">brix_transfer_slot_t::last_ms</a>, <a class="el" href="api__transfers_8c_source.html#l00031">dashboard_xfer_snapshot_t::op</a>, <a class="el" href="dashboard_8h_source.html#l00127">brix_transfer_slot_t::op</a>, <a class="el" href="api__transfers_8c_source.html#l00030">dashboard_xfer_snapshot_t::path</a>, <a class="el" href="dashboard_8h_source.html#l00126">brix_transfer_slot_t::path</a>, <a class="el" href="api__transfers_8c_source.html#l00033">dashboard_xfer_snapshot_t::remote_host</a>, <a class="el" href="api__transfers_8c_source.html#l00034">dashboard_xfer_snapshot_t::remote_path</a>, <a class="el" href="api__transfers_8c_source.html#l00023">dashboard_xfer_snapshot_t::start_ms</a>, <a class="el" href="dashboard_8h_source.html#l00137">brix_transfer_slot_t::start_ms</a>, <a class="el" href="dashboard_8h_source.html#l00145">brix_transfer_slot_t::tpc_remote_host</a>, <a class="el" href="dashboard_8h_source.html#l00146">brix_transfer_slot_t::tpc_remote_path_hint</a>, <a class="el" href="api__transfers_8c_source.html#l00029">dashboard_xfer_snapshot_t::vo</a>, and <a class="el" href="dashboard_8h_source.html#l00125">brix_transfer_slot_t::vo</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00224">dashboard_build_transfer_object()</a>.</p>
 
 </div>
 </div>

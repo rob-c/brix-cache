@@ -123,7 +123,7 @@ $(document).ready(function(){initNavTree('proxy__response_8c_source.html',''); i
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>{</div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>    <a class="code hl_struct" href="structwebdav__proxy__ctx__t.html">webdav_proxy_ctx_t</a> *ctx;</div>
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    ctx = ngx_http_get_module_ctx(r, <a class="code hl_variable" href="kv_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    ctx = ngx_http_get_module_ctx(r, <a class="code hl_variable" href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
 <div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <span class="keywordflow">if</span> (ctx == NULL) <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span> </div>
 <div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    ngx_memzero(&amp;ctx-&gt;<a class="code hl_variable" href="structwebdav__proxy__ctx__t.html#adf4f16883a22a99c8fe442acda5f1f57">status</a>, <span class="keyword">sizeof</span>(ngx_http_status_t));</div>
@@ -150,7 +150,7 @@ $(document).ready(function(){initNavTree('proxy__response_8c_source.html',''); i
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <a class="code hl_struct" href="structwebdav__proxy__ctx__t.html">webdav_proxy_ctx_t</a>    *ctx;</div>
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keywordtype">size_t</span>                 len;</div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span> </div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    ctx = ngx_http_get_module_ctx(r, <a class="code hl_variable" href="kv_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    ctx = ngx_http_get_module_ctx(r, <a class="code hl_variable" href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <span class="keywordflow">if</span> (ctx == NULL) <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    u  = r-&gt;upstream;</div>
@@ -290,7 +290,7 @@ $(document).ready(function(){initNavTree('proxy__response_8c_source.html',''); i
 <div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span> </div>
 <div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="comment">/* Phase 21 Step D — passive health: count gateway-class failures against</span></div>
 <div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment">     * the selected backend, reset the counter on a clean completion. */</span></div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    ctx = ngx_http_get_module_ctx(r, <a class="code hl_variable" href="kv_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    ctx = ngx_http_get_module_ctx(r, <a class="code hl_variable" href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
 <div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keywordflow">if</span> (ctx == NULL || ctx-&gt;<a class="code hl_variable" href="structwebdav__proxy__ctx__t.html#ac3ccb806f388e3281b4320d20836fe80">selected_backend</a> == NULL) {</div>
 <div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
@@ -316,7 +316,7 @@ $(document).ready(function(){initNavTree('proxy__response_8c_source.html',''); i
 <div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    }</div>
 <div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>}</div>
 </div>
-<div class="ttc" id="akv_8c_html_ac0d274f302a4c56fb72c0077d7a8d2d8"><div class="ttname"><a href="kv_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_webdav_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2webdav_2module_8c_source.html#l00548">module.c:548</a></div></div>
+<div class="ttc" id="akv__config_8c_html_ac0d274f302a4c56fb72c0077d7a8d2d8"><div class="ttname"><a href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_webdav_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2webdav_2module_8c_source.html#l00010">module.c:10</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="aprotocols_2webdav_2proxy__internal_8h_html"><div class="ttname"><a href="protocols_2webdav_2proxy__internal_8h.html">proxy_internal.h</a></div></div>

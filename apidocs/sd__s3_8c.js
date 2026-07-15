@@ -1,26 +1,8 @@
 var sd__s3_8c =
 [
-    [ "sd_s3_abort", "sd__s3_8c.html#a9a0c6f593d77c4f77a888030fadc80ec", null ],
-    [ "sd_s3_check_sequential", "sd__s3_8c.html#af6fc03d56915c73dd71d0ce76f74945a", null ],
     [ "sd_s3_close", "sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2", null ],
-    [ "sd_s3_commit", "sd__s3_8c.html#a45e610f048eaa8deef486fb2203e2b71", null ],
     [ "sd_s3_delete", "sd__s3_8c.html#a9ada0ff9cbf3b0c9e061315ae80fa453", null ],
-    [ "sd_s3_etag_ensure_cap", "sd__s3_8c.html#a38c1afa3a6dc6ed5848b0eb1ccf3e62b", null ],
-    [ "sd_s3_mpu_abort", "sd__s3_8c.html#a9290ec4eca04c3519b8b0950a966da78", null ],
-    [ "sd_s3_mpu_complete", "sd__s3_8c.html#a970038e8a76315d34e6b2737b3fd3afd", null ],
-    [ "sd_s3_mpu_create", "sd__s3_8c.html#af4806bdb657ce2c283196552cce498d9", null ],
-    [ "sd_s3_mpu_flush", "sd__s3_8c.html#a6c3312b9014eddf9ca9c9b4f5e14b88a", null ],
-    [ "sd_s3_mpu_upload_part", "sd__s3_8c.html#ab10526c93a94f041772d7e221e891030", null ],
     [ "sd_s3_open_read", "sd__s3_8c.html#a03da992ca2890d86c6dd2eaf7523e93e", null ],
-    [ "sd_s3_open_write", "sd__s3_8c.html#ae7a8357c3141c1e3764c310cd81c153c", null ],
     [ "sd_s3_pread", "sd__s3_8c.html#adaaffa87d9516591ab36b900b029a4d4", null ],
-    [ "sd_s3_pwrite", "sd__s3_8c.html#a1c2f9ec7a028f0549dbbdcf262d7beb7", null ],
-    [ "sd_s3_set_err", "sd__s3_8c.html#a3ef1c585355c55ac6c05bf8ade9543ef", null ],
-    [ "sd_s3_sha256_hex", "sd__s3_8c.html#abdb8ae2a472d21ba23fa236df7efbf16", null ],
-    [ "sd_s3_sign", "sd__s3_8c.html#aac61986828b1aa7c0a7b335787a3d007", null ],
-    [ "sd_s3_size", "sd__s3_8c.html#a0546f4ee55bd5ace26f152e74ef2b277", null ],
-    [ "sd_s3_status_err", "sd__s3_8c.html#a9f2c0498f8e5598dc72dca7fbe62ea56", null ],
-    [ "sd_s3_utc_now", "sd__s3_8c.html#a3aa582c6006af3da3ae830c8532cb4f2", null ],
-    [ "sd_s3_write_size", "sd__s3_8c.html#a3605c6e3235c7c1f48e94a94ddb55742", null ],
-    [ "sd_s3_xml_tag", "sd__s3_8c.html#abe8b31cf7f7cacf032085e632b7ab314", null ]
+    [ "sd_s3_size", "sd__s3_8c.html#a0546f4ee55bd5ace26f152e74ef2b277", null ]
 ];

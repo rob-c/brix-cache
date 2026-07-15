@@ -124,6 +124,16 @@ Data Structures</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sess__t.html">brix_sess_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sesslog__auth__fields__t.html">brix_sesslog_auth_fields_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sesslog__attempt__fields__t.html">brix_sesslog_attempt_fields_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sesslog__result__fields__t.html">brix_sesslog_result_fields_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sesslog__xfer__fields__t.html">brix_sesslog_xfer_fields_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sesslog__end__fields__t.html">brix_sesslog_end_fields_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -216,16 +226,16 @@ Enumerations</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a561c1a95423d29eecc85a07817945177" id="r_a561c1a95423d29eecc85a07817945177"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a561c1a95423d29eecc85a07817945177">brix_sesslog_fmt_connect</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
 <tr class="separator:a561c1a95423d29eecc85a07817945177"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5617381dcd5c554040b2370aba7cf441" id="r_a5617381dcd5c554040b2370aba7cf441"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a5617381dcd5c554040b2370aba7cf441">brix_sesslog_fmt_auth</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, int ok, <a class="el" href="sesslog_8h.html#a423ea74f1f8a2e20c2e6c87f5c12113f">brix_sess_am_t</a> method, const char *user, const char *vo, const char *err, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
-<tr class="separator:a5617381dcd5c554040b2370aba7cf441"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa2a28261685795c4327ee28cd97c5b02" id="r_aa2a28261685795c4327ee28cd97c5b02"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#aa2a28261685795c4327ee28cd97c5b02">brix_sesslog_fmt_attempt</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const char *path, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
-<tr class="separator:aa2a28261685795c4327ee28cd97c5b02"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2deec12ea5109a4f721b8d6a82dfb8f0" id="r_a2deec12ea5109a4f721b8d6a82dfb8f0"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a2deec12ea5109a4f721b8d6a82dfb8f0">brix_sesslog_fmt_result</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, int ok, const char *path, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, const char *err, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
-<tr class="separator:a2deec12ea5109a4f721b8d6a82dfb8f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a82b312a17c5a502ff69cf6af33608b94" id="r_a82b312a17c5a502ff69cf6af33608b94"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a82b312a17c5a502ff69cf6af33608b94">brix_sesslog_fmt_xfer</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const <a class="el" href="structbrix__sess__xfer__t.html">brix_sess_xfer_t</a> *x, <a class="el" href="sesslog_8h.html#aed82e27732dc1aab2958badc613c29c4">brix_sess_xfer_status_t</a> st, uint64_t now_msec, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
-<tr class="separator:a82b312a17c5a502ff69cf6af33608b94"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a18cde0d91f807709edcb1415c47ae122" id="r_a18cde0d91f807709edcb1415c47ae122"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a18cde0d91f807709edcb1415c47ae122">brix_sesslog_fmt_end</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, <a class="el" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7">brix_sess_end_t</a> why, uint64_t now_msec, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
-<tr class="separator:a18cde0d91f807709edcb1415c47ae122"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9d316949df999ff348a16d0b3e233d6a" id="r_a9d316949df999ff348a16d0b3e233d6a"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a9d316949df999ff348a16d0b3e233d6a">brix_sesslog_fmt_auth</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const <a class="el" href="structbrix__sesslog__auth__fields__t.html">brix_sesslog_auth_fields_t</a> *f, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
+<tr class="separator:a9d316949df999ff348a16d0b3e233d6a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a47f459d4d5825b50487273ca2ae49f50" id="r_a47f459d4d5825b50487273ca2ae49f50"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a47f459d4d5825b50487273ca2ae49f50">brix_sesslog_fmt_attempt</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const <a class="el" href="structbrix__sesslog__attempt__fields__t.html">brix_sesslog_attempt_fields_t</a> *f, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
+<tr class="separator:a47f459d4d5825b50487273ca2ae49f50"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a71792efd1ef5581998dc4de445af4c8d" id="r_a71792efd1ef5581998dc4de445af4c8d"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a71792efd1ef5581998dc4de445af4c8d">brix_sesslog_fmt_result</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const <a class="el" href="structbrix__sesslog__result__fields__t.html">brix_sesslog_result_fields_t</a> *f, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
+<tr class="separator:a71792efd1ef5581998dc4de445af4c8d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9c2444476bd32e76e0716ce61d805874" id="r_a9c2444476bd32e76e0716ce61d805874"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a9c2444476bd32e76e0716ce61d805874">brix_sesslog_fmt_xfer</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const <a class="el" href="structbrix__sesslog__xfer__fields__t.html">brix_sesslog_xfer_fields_t</a> *f, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
+<tr class="separator:a9c2444476bd32e76e0716ce61d805874"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acd96486c03a5e967b4bbfee84c4c6158" id="r_acd96486c03a5e967b4bbfee84c4c6158"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#acd96486c03a5e967b4bbfee84c4c6158">brix_sesslog_fmt_end</a> (char *line, size_t line_max, const <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const <a class="el" href="structbrix__sesslog__end__fields__t.html">brix_sesslog_end_fields_t</a> *f, <a class="el" href="sesslog_8h.html#a77c4401835b0229a302e815484321e26">brix_sess_sanitize_fn</a> san)</td></tr>
+<tr class="separator:acd96486c03a5e967b4bbfee84c4c6158"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adb45a272e2665f16c351ffc31eb5b1a2" id="r_adb45a272e2665f16c351ffc31eb5b1a2"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#adb45a272e2665f16c351ffc31eb5b1a2">brix_sesslog_proto_label</a> (<a class="el" href="sesslog_8h.html#a3d503660e524d6e1056c860df444ee19">brix_sess_proto_t</a> p)</td></tr>
 <tr class="separator:adb45a272e2665f16c351ffc31eb5b1a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a04da9b3b3e524979445b1a4edbeb9ea8" id="r_a04da9b3b3e524979445b1a4edbeb9ea8"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sesslog_8h.html#a04da9b3b3e524979445b1a4edbeb9ea8">brix_sesslog_dir_label</a> (<a class="el" href="sesslog_8h.html#a87fcb8a56194d26a0b2f7ee6876138fa">brix_sess_dir_t</a> d)</td></tr>
@@ -552,11 +562,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00280">280</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00283">283</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sesslog_8c_source.html#l00023">brix_sess_am_labels</a>, and <a class="el" href="sesslog_8h_source.html#l00042">BRIX_SESS_AM_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00340">brix_sesslog_fmt_auth()</a>, and <a class="el" href="sesslog_8c_source.html#l00316">brix_sesslog_fmt_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00343">brix_sesslog_fmt_auth()</a>, and <a class="el" href="sesslog_8c_source.html#l00319">brix_sesslog_fmt_connect()</a>.</p>
 
 </div>
 </div>
@@ -576,11 +586,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00271">271</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00274">274</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sesslog_8c_source.html#l00019">brix_sess_dir_labels</a>, and <a class="el" href="sesslog_8h_source.html#l00029">BRIX_SESS_DIR_OUT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00316">brix_sesslog_fmt_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00319">brix_sesslog_fmt_connect()</a>.</p>
 
 </div>
 </div>
@@ -600,11 +610,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00307">307</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00310">310</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, and <a class="el" href="sesslog_8c_source.html#l00036">brix_sess_end_labels</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00438">brix_sesslog_fmt_end()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00440">brix_sesslog_fmt_end()</a>.</p>
 
 </div>
 </div>
@@ -640,7 +650,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00463">463</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00583">583</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00482">brix_sess_err_lookup()</a>, and <a class="el" href="sesslog_8c_source.html#l00506">brix_sess_errno_table</a>.</p>
 
 </div>
 </div>
@@ -676,9 +688,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00557">557</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00611">611</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00224">cvmfs_finalize_observe()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">s3_metrics_response_method()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00482">brix_sess_err_lookup()</a>, and <a class="el" href="sesslog_8c_source.html#l00559">brix_sess_http_table</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00299">cvmfs_finalize_sesslog()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00283">s3_metrics_response_method()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
 
 </div>
 </div>
@@ -714,16 +728,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00504">504</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00597">597</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00170">kXR_AttrNotFound</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00163">kXR_Cancelled</a>, <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>, <a class="el" href="opcodes_8h_source.html#l00174">kXR_Conflict</a>, <a class="el" href="opcodes_8h_source.html#l00149">kXR_FileLocked</a>, <a class="el" href="opcodes_8h_source.html#l00151">kXR_FSError</a>, <a class="el" href="opcodes_8h_source.html#l00169">kXR_fsReadOnly</a>, <a class="el" href="opcodes_8h_source.html#l00173">kXR_Impossible</a>, <a class="el" href="opcodes_8h_source.html#l00166">kXR_inProgress</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00162">kXR_isDirectory</a>, <a class="el" href="opcodes_8h_source.html#l00164">kXR_ItExists</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00155">kXR_NoSpace</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00161">kXR_NotFile</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="opcodes_8h_source.html#l00168">kXR_Overloaded</a>, <a class="el" href="opcodes_8h_source.html#l00167">kXR_overQuota</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="opcodes_8h_source.html#l00171">kXR_TLSRequired</a>, and <a class="el" href="opcodes_8h_source.html#l00159">kXR_Unsupported</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00482">brix_sess_err_lookup()</a>, and <a class="el" href="sesslog_8c_source.html#l00528">brix_sess_kxr_table</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00310">brix_access_maybe_sesslog()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00207">brix_access_sess_auth_err()</a>, and <a class="el" href="done_8c_source.html#l00017">tpc_sess_finish_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00211">brix_access_sess_auth_err()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00379">brix_access_sesslog_namespace()</a>, and <a class="el" href="done_8c_source.html#l00017">tpc_sess_finish_pull()</a>.</p>
 
 </div>
 </div>
-<a id="aa2a28261685795c4327ee28cd97c5b02" name="aa2a28261685795c4327ee28cd97c5b02"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa2a28261685795c4327ee28cd97c5b02">&#9670;&#160;</a></span>brix_sesslog_fmt_attempt()</h2>
+<a id="a47f459d4d5825b50487273ca2ae49f50" name="a47f459d4d5825b50487273ca2ae49f50"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a47f459d4d5825b50487273ca2ae49f50">&#9670;&#160;</a></span>brix_sesslog_fmt_attempt()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -749,14 +763,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a>&#160;</td>
-          <td class="paramname"><em>mode</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__sesslog__attempt__fields__t.html">brix_sesslog_attempt_fields_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -772,16 +780,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00364">364</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00366">366</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00161">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00211">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00289">brix_sesslog_mode_label()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00164">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00214">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00292">brix_sesslog_mode_label()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00134">brix_sesslog_attempt_fields_t::mode</a>, <a class="el" href="sesslog_8h_source.html#l00133">brix_sesslog_attempt_fields_t::path</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00327">brix_sess_attempt()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00333">brix_sess_attempt()</a>.</p>
 
 </div>
 </div>
-<a id="a5617381dcd5c554040b2370aba7cf441" name="a5617381dcd5c554040b2370aba7cf441"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5617381dcd5c554040b2370aba7cf441">&#9670;&#160;</a></span>brix_sesslog_fmt_auth()</h2>
+<a id="a9d316949df999ff348a16d0b3e233d6a" name="a9d316949df999ff348a16d0b3e233d6a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9d316949df999ff348a16d0b3e233d6a">&#9670;&#160;</a></span>brix_sesslog_fmt_auth()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -807,32 +815,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ok</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="sesslog_8h.html#a423ea74f1f8a2e20c2e6c87f5c12113f">brix_sess_am_t</a>&#160;</td>
-          <td class="paramname"><em>method</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>user</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>vo</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>err</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__sesslog__auth__fields__t.html">brix_sesslog_auth_fields_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -848,9 +832,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00340">340</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00343">343</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00161">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00211">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00280">brix_sesslog_am_label()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00011">BRIX_SESSLOG_USER_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00012">BRIX_SESSLOG_VO_MAX</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00164">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00214">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00283">brix_sesslog_am_label()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00011">BRIX_SESSLOG_USER_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00012">BRIX_SESSLOG_VO_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00122">brix_sesslog_auth_fields_t::err</a>, <a class="el" href="sesslog_8h_source.html#l00119">brix_sesslog_auth_fields_t::method</a>, <a class="el" href="sesslog_8h_source.html#l00118">brix_sesslog_auth_fields_t::ok</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>, <a class="el" href="sesslog_8h_source.html#l00120">brix_sesslog_auth_fields_t::user</a>, and <a class="el" href="sesslog_8h_source.html#l00121">brix_sesslog_auth_fields_t::vo</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00279">brix_sess_auth()</a>.</p>
 
@@ -894,16 +878,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00316">316</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00319">319</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00161">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00211">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00280">brix_sesslog_am_label()</a>, <a class="el" href="sesslog_8c_source.html#l00271">brix_sesslog_dir_label()</a>, <a class="el" href="sesslog_8h_source.html#l00013">BRIX_SESSLOG_PEER_MAX</a>, <a class="el" href="sesslog_8c_source.html#l00262">brix_sesslog_proto_label()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00164">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00214">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00283">brix_sesslog_am_label()</a>, <a class="el" href="sesslog_8c_source.html#l00274">brix_sesslog_dir_label()</a>, <a class="el" href="sesslog_8h_source.html#l00013">BRIX_SESSLOG_PEER_MAX</a>, <a class="el" href="sesslog_8c_source.html#l00265">brix_sesslog_proto_label()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00242">brix_sess_begin()</a>.</p>
 
 </div>
 </div>
-<a id="a18cde0d91f807709edcb1415c47ae122" name="a18cde0d91f807709edcb1415c47ae122"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a18cde0d91f807709edcb1415c47ae122">&#9670;&#160;</a></span>brix_sesslog_fmt_end()</h2>
+<a id="acd96486c03a5e967b4bbfee84c4c6158" name="acd96486c03a5e967b4bbfee84c4c6158"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acd96486c03a5e967b4bbfee84c4c6158">&#9670;&#160;</a></span>brix_sesslog_fmt_end()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -929,14 +913,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7">brix_sess_end_t</a>&#160;</td>
-          <td class="paramname"><em>why</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>now_msec</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__sesslog__end__fields__t.html">brix_sesslog_end_fields_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -952,16 +930,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00438">438</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00440">440</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00211">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00234">brix_sess_duration()</a>, <a class="el" href="sesslog_8c_source.html#l00307">brix_sesslog_end_label()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00214">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00237">brix_sess_duration()</a>, <a class="el" href="sesslog_8c_source.html#l00310">brix_sesslog_end_label()</a>, <a class="el" href="sesslog_8h_source.html#l00174">brix_sesslog_end_fields_t::now_msec</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>, and <a class="el" href="sesslog_8h_source.html#l00173">brix_sesslog_end_fields_t::why</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00435">brix_sess_end()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00454">brix_sess_end()</a>.</p>
 
 </div>
 </div>
-<a id="a2deec12ea5109a4f721b8d6a82dfb8f0" name="a2deec12ea5109a4f721b8d6a82dfb8f0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2deec12ea5109a4f721b8d6a82dfb8f0">&#9670;&#160;</a></span>brix_sesslog_fmt_result()</h2>
+<a id="a71792efd1ef5581998dc4de445af4c8d" name="a71792efd1ef5581998dc4de445af4c8d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a71792efd1ef5581998dc4de445af4c8d">&#9670;&#160;</a></span>brix_sesslog_fmt_result()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -987,26 +965,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ok</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a>&#160;</td>
-          <td class="paramname"><em>mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>err</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__sesslog__result__fields__t.html">brix_sesslog_result_fields_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -1022,16 +982,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00381">381</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00383">383</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00161">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00211">brix_sess_buf()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8c_source.html#l00289">brix_sesslog_mode_label()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00164">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00214">brix_sess_buf()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8c_source.html#l00292">brix_sesslog_mode_label()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00148">brix_sesslog_result_fields_t::err</a>, <a class="el" href="sesslog_8h_source.html#l00147">brix_sesslog_result_fields_t::mode</a>, <a class="el" href="sesslog_8h_source.html#l00145">brix_sesslog_result_fields_t::ok</a>, <a class="el" href="sesslog_8h_source.html#l00146">brix_sesslog_result_fields_t::path</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00353">brix_sess_result()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00361">brix_sess_result()</a>.</p>
 
 </div>
 </div>
-<a id="a82b312a17c5a502ff69cf6af33608b94" name="a82b312a17c5a502ff69cf6af33608b94"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a82b312a17c5a502ff69cf6af33608b94">&#9670;&#160;</a></span>brix_sesslog_fmt_xfer()</h2>
+<a id="a9c2444476bd32e76e0716ce61d805874" name="a9c2444476bd32e76e0716ce61d805874"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9c2444476bd32e76e0716ce61d805874">&#9670;&#160;</a></span>brix_sesslog_fmt_xfer()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1057,20 +1017,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__sess__xfer__t.html">brix_sess_xfer_t</a> *&#160;</td>
-          <td class="paramname"><em>x</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="sesslog_8h.html#aed82e27732dc1aab2958badc613c29c4">brix_sess_xfer_status_t</a>&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>now_msec</em>, </td>
+          <td class="paramtype">const <a class="el" href="structbrix__sesslog__xfer__fields__t.html">brix_sesslog_xfer_fields_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -1086,11 +1034,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00404">404</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00405">405</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00161">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00211">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00234">brix_sess_duration()</a>, <a class="el" href="sesslog_8c_source.html#l00250">brix_sess_rate()</a>, <a class="el" href="sesslog_8c_source.html#l00289">brix_sesslog_mode_label()</a>, <a class="el" href="sesslog_8h_source.html#l00010">BRIX_SESSLOG_PENDING_PATH_MAX</a>, <a class="el" href="sesslog_8c_source.html#l00298">brix_sesslog_xfer_label()</a>, <a class="el" href="sesslog_8h_source.html#l00077">brix_sess_xfer_t::bytes</a>, <a class="el" href="sesslog_8h_source.html#l00078">brix_sess_xfer_t::expected</a>, <a class="el" href="sesslog_8h_source.html#l00076">brix_sess_xfer_t::mode</a>, <a class="el" href="sesslog_8h_source.html#l00075">brix_sess_xfer_t::path</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="sesslog_8h_source.html#l00079">brix_sess_xfer_t::start_msec</a>, and <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8c_source.html#l00123">brix_sess_append()</a>, <a class="el" href="sesslog_8c_source.html#l00164">brix_sess_append_quoted()</a>, <a class="el" href="sesslog_8c_source.html#l00214">brix_sess_buf()</a>, <a class="el" href="sesslog_8c_source.html#l00237">brix_sess_duration()</a>, <a class="el" href="sesslog_8c_source.html#l00253">brix_sess_rate()</a>, <a class="el" href="sesslog_8c_source.html#l00292">brix_sesslog_mode_label()</a>, <a class="el" href="sesslog_8h_source.html#l00010">BRIX_SESSLOG_PENDING_PATH_MAX</a>, <a class="el" href="sesslog_8c_source.html#l00301">brix_sesslog_xfer_label()</a>, <a class="el" href="sesslog_8h_source.html#l00077">brix_sess_xfer_t::bytes</a>, <a class="el" href="sesslog_8h_source.html#l00078">brix_sess_xfer_t::expected</a>, <a class="el" href="sesslog_8h_source.html#l00076">brix_sess_xfer_t::mode</a>, <a class="el" href="sesslog_8h_source.html#l00162">brix_sesslog_xfer_fields_t::now_msec</a>, <a class="el" href="sesslog_8h_source.html#l00075">brix_sess_xfer_t::path</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="sesslog_8h_source.html#l00161">brix_sesslog_xfer_fields_t::st</a>, <a class="el" href="sesslog_8h_source.html#l00079">brix_sess_xfer_t::start_msec</a>, <a class="el" href="sesslog_8c_source.html#l00012">brix_sess_buf_t::used</a>, and <a class="el" href="sesslog_8h_source.html#l00160">brix_sesslog_xfer_fields_t::x</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00408">brix_sess_xfer_end()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00422">brix_sess_xfer_end()</a>.</p>
 
 </div>
 </div>
@@ -1110,11 +1058,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00289">289</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00292">292</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sesslog_8c_source.html#l00028">brix_sess_mode_labels</a>, and <a class="el" href="sesslog_8h_source.html#l00052">BRIX_SESS_MODE_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00364">brix_sesslog_fmt_attempt()</a>, <a class="el" href="sesslog_8c_source.html#l00381">brix_sesslog_fmt_result()</a>, and <a class="el" href="sesslog_8c_source.html#l00404">brix_sesslog_fmt_xfer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00366">brix_sesslog_fmt_attempt()</a>, <a class="el" href="sesslog_8c_source.html#l00383">brix_sesslog_fmt_result()</a>, and <a class="el" href="sesslog_8c_source.html#l00405">brix_sesslog_fmt_xfer()</a>.</p>
 
 </div>
 </div>
@@ -1134,11 +1082,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00262">262</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00265">265</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sesslog_8c_source.html#l00015">brix_sess_proto_labels</a>, and <a class="el" href="sesslog_8h_source.html#l00024">BRIX_SESS_PROTO_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00316">brix_sesslog_fmt_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00319">brix_sesslog_fmt_connect()</a>.</p>
 
 </div>
 </div>
@@ -1158,11 +1106,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00298">298</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sesslog_8c_source.html#l00301">301</a> of file <a class="el" href="sesslog_8c_source.html">sesslog.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sesslog_8c_source.html#l00032">brix_sess_xfer_labels</a>, and <a class="el" href="sesslog_8h_source.html#l00058">BRIX_SESS_XFER_SHUTDOWN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00404">brix_sesslog_fmt_xfer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sesslog_8c_source.html#l00405">brix_sesslog_fmt_xfer()</a>.</p>
 
 </div>
 </div>

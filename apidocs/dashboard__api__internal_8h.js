@@ -35,6 +35,7 @@ var dashboard__api__internal_8h =
     [ "dashboard_fill_cluster", "dashboard__api__internal_8h.html#a7f0067d68822a5ff9b8118216a6247a3", null ],
     [ "dashboard_fill_cvmfs", "dashboard__api__internal_8h.html#accd654826fb5794304ebeb32636b8999", null ],
     [ "dashboard_fill_history", "dashboard__api__internal_8h.html#ab6e62a3bb52100447481734dc9472c9b", null ],
+    [ "dashboard_fill_storage", "dashboard__api__internal_8h.html#af223ec7d0506485fc9397613b5733194", null ],
     [ "dashboard_new_v1_root", "dashboard__api__internal_8h.html#a2b420c29a522c98e604f04b915c918a2", null ],
     [ "dashboard_parse_detail_id", "dashboard__api__internal_8h.html#a1a954d6b921fe9993434f808208b45c7", null ],
     [ "dashboard_proto_name", "dashboard__api__internal_8h.html#a719051af8509f131d2fb670812f36cef", null ],

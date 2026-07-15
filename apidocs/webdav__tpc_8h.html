@@ -103,7 +103,7 @@ $(document).ready(function(){initNavTree('webdav__tpc_8h.html',''); initResizabl
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="webdav__tpc_8h__incl.svg" width="100%" height="580"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="webdav__tpc_8h__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div><div class="textblock"><div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-1-trigger" src="closed.png" alt="+"/> This graph shows which files directly or indirectly include this file:</div>
@@ -118,6 +118,8 @@ $(document).ready(function(){initNavTree('webdav__tpc_8h.html',''); initResizabl
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structtpc__ms__progress__t.html">tpc_ms_progress_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structwebdav__tpc__req__t.html">webdav_tpc_req_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
@@ -141,22 +143,23 @@ Functions</h2></td></tr>
 <tr class="separator:a707be1f1cbb7817747d4fb2ae59d36bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8f0ef42f257d0e4e80bc3b977cf10b77" id="r_a8f0ef42f257d0e4e80bc3b977cf10b77"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a8f0ef42f257d0e4e80bc3b977cf10b77">webdav_tpc_collect_transfer_headers</a> (ngx_http_request_t *r, ngx_array_t **out)</td></tr>
 <tr class="separator:a8f0ef42f257d0e4e80bc3b977cf10b77"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a17d24b50620d30badfdc9b447daa3a1c" id="r_a17d24b50620d30badfdc9b447daa3a1c"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a17d24b50620d30badfdc9b447daa3a1c">webdav_tpc_run_curl_pull</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *source_url, const char *tmp_path, ngx_array_t *transfer_headers, uint64_t transfer_id)</td></tr>
-<tr class="separator:a17d24b50620d30badfdc9b447daa3a1c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ade939e517537a8b9de96b7d082bb4f00" id="r_ade939e517537a8b9de96b7d082bb4f00"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#ade939e517537a8b9de96b7d082bb4f00">webdav_tpc_run_curl_pull</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *source_url, const char *tmp_path, ngx_array_t *transfer_headers, uint64_t transfer_id, const char *user_cert, const char *user_key)</td></tr>
+<tr class="separator:ade939e517537a8b9de96b7d082bb4f00"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2bc102039361d71d73c838033cb87d7e" id="r_a2bc102039361d71d73c838033cb87d7e"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a2bc102039361d71d73c838033cb87d7e">webdav_tpc_run_curl_push</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *dest_url, const char *local_path, ngx_array_t *transfer_headers, uint64_t transfer_id)</td></tr>
 <tr class="separator:a2bc102039361d71d73c838033cb87d7e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9ae1949a7fcdf288d846b6e8313d04fd" id="r_a9ae1949a7fcdf288d846b6e8313d04fd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a9ae1949a7fcdf288d846b6e8313d04fd">webdav_tpc_post_thread_task</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, int is_push, ngx_flag_t existed, ngx_flag_t overwrite, const char *url, const char *local_path, const char *dest_path, ngx_array_t *transfer_headers, ngx_uint_t n_streams)</td></tr>
-<tr class="separator:a9ae1949a7fcdf288d846b6e8313d04fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af761363f5517e166321cf80551f590bc" id="r_af761363f5517e166321cf80551f590bc"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#af761363f5517e166321cf80551f590bc">webdav_tpc_run_curl_pull_multi</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *source_url, const char *tmp_path, ngx_array_t *transfer_headers, ngx_uint_t n_streams, uint64_t transfer_id, <a class="el" href="structtpc__ms__progress__t.html">tpc_ms_progress_t</a> *progress)</td></tr>
-<tr class="separator:af761363f5517e166321cf80551f590bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abdb43daa9936ab2522e010825eb777e8" id="r_abdb43daa9936ab2522e010825eb777e8"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#abdb43daa9936ab2522e010825eb777e8">webdav_tpc_marker_start</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, ngx_uint_t n_streams, const char *url, const char *tmp_path, const char *final_path, ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed, ngx_array_t *transfer_headers, uint64_t transfer_id)</td></tr>
-<tr class="separator:abdb43daa9936ab2522e010825eb777e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad68ce4b1c5f2da3fb7dc1a5c74f41cbd" id="r_ad68ce4b1c5f2da3fb7dc1a5c74f41cbd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#ad68ce4b1c5f2da3fb7dc1a5c74f41cbd">webdav_tpc_post_thread_task</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, int is_push, ngx_flag_t existed, ngx_flag_t overwrite, const char *url, const char *local_path, const char *dest_path, ngx_array_t *transfer_headers, ngx_uint_t n_streams, const char *user_cert, const char *user_key)</td></tr>
+<tr class="separator:ad68ce4b1c5f2da3fb7dc1a5c74f41cbd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab34ad78259b5493647012f6edd5b13a3" id="r_ab34ad78259b5493647012f6edd5b13a3"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#ab34ad78259b5493647012f6edd5b13a3">webdav_tpc_run_curl_pull_multi</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *source_url, const char *tmp_path, ngx_array_t *transfer_headers, ngx_uint_t n_streams, uint64_t transfer_id, <a class="el" href="structtpc__ms__progress__t.html">tpc_ms_progress_t</a> *progress, const char *user_cert, const char *user_key)</td></tr>
+<tr class="separator:ab34ad78259b5493647012f6edd5b13a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a207be56122fc953b82b670f6a8c3dadf" id="r_a207be56122fc953b82b670f6a8c3dadf"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a207be56122fc953b82b670f6a8c3dadf">webdav_tpc_marker_start</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, ngx_uint_t n_streams, const char *url, const char *tmp_path, const char *final_path, ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed, ngx_array_t *transfer_headers, uint64_t transfer_id, const char *user_cert, const char *user_key)</td></tr>
+<tr class="separator:a207be56122fc953b82b670f6a8c3dadf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a18681fc630aeb741d774adf041e2a3e4" id="r_a18681fc630aeb741d774adf041e2a3e4"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a18681fc630aeb741d774adf041e2a3e4">ngx_http_brix_webdav_tpc_handle_copy</a> (ngx_http_request_t *r)</td></tr>
+<tr class="memdesc:a18681fc630aeb741d774adf041e2a3e4"><td class="mdescLeft">&#160;</td><td class="mdescRight">WHAT: Handle HTTP-TPC (Third-Party Copy) COPY requests — implements GridFTP-style cross-server file transfer layered on WebDAV.  <br /></td></tr>
 <tr class="separator:a18681fc630aeb741d774adf041e2a3e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d923ce80d2dd056271fd0a6f20c216d" id="r_a2d923ce80d2dd056271fd0a6f20c216d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="tpc__cred_8h.html#a3e88d81dc91410be0857bc2c6ffa6437">brix_tpc_cred_mode_e</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a2d923ce80d2dd056271fd0a6f20c216d">webdav_tpc_cred_parse_mode</a> (const char *value, size_t len)</td></tr>
 <tr class="memdesc:a2d923ce80d2dd056271fd0a6f20c216d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Parse a Credential: header value into a mode enum.  <br /></td></tr>
 <tr class="separator:a2d923ce80d2dd056271fd0a6f20c216d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8bfd69b6ee4fd13daf09bae3810c5c19" id="r_a8bfd69b6ee4fd13daf09bae3810c5c19"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a8bfd69b6ee4fd13daf09bae3810c5c19">webdav_tpc_cred_obtain_token</a> (ngx_http_request_t *r, <a class="el" href="tpc__cred_8h.html#a3e88d81dc91410be0857bc2c6ffa6437">brix_tpc_cred_mode_e</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, const char *source_url, const char *subject_token, const char *scope, ngx_str_t *token_out)</td></tr>
+<tr class="memitem:a8bfd69b6ee4fd13daf09bae3810c5c19" id="r_a8bfd69b6ee4fd13daf09bae3810c5c19"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a8bfd69b6ee4fd13daf09bae3810c5c19">webdav_tpc_cred_obtain_token</a> (ngx_http_request_t *r, <a class="el" href="tpc__cred_8h.html#a3e88d81dc91410be0857bc2c6ffa6437">brix_tpc_cred_mode_e</a> mode, const char *source_url, const char *subject_token, const char *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, ngx_str_t *token_out)</td></tr>
 <tr class="memdesc:a8bfd69b6ee4fd13daf09bae3810c5c19"><td class="mdescLeft">&#160;</td><td class="mdescRight">Obtain an access token for a TPC pull transfer.  <br /></td></tr>
 <tr class="separator:a8bfd69b6ee4fd13daf09bae3810c5c19"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1c70784bd44317387215b37f6bbdd9df" id="r_a1c70784bd44317387215b37f6bbdd9df"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__tpc_8h.html#a1c70784bd44317387215b37f6bbdd9df">webdav_tpc_cred_metric_name</a> (<a class="el" href="tpc__cred_8h.html#a60b3cd37ef95e1b184ff6ae6c1867ba5">brix_tpc_cred_metrics_e</a> idx)</td></tr>
@@ -212,7 +215,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webdav__tpc_8h_source.html#l00046">46</a> of file <a class="el" href="webdav__tpc_8h_source.html">webdav_tpc.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webdav__tpc_8h_source.html#l00070">70</a> of file <a class="el" href="webdav__tpc_8h_source.html">webdav_tpc.h</a>.</p>
 
 </div>
 </div>
@@ -242,7 +245,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webdav__tpc_8h_source.html#l00050">50</a> of file <a class="el" href="webdav__tpc_8h_source.html">webdav_tpc.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webdav__tpc_8h_source.html#l00074">74</a> of file <a class="el" href="webdav__tpc_8h_source.html">webdav_tpc.h</a>.</p>
 
 </div>
 </div>
@@ -272,7 +275,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webdav__tpc_8h_source.html#l00048">48</a> of file <a class="el" href="webdav__tpc_8h_source.html">webdav_tpc.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webdav__tpc_8h_source.html#l00072">72</a> of file <a class="el" href="webdav__tpc_8h_source.html">webdav_tpc.h</a>.</p>
 
 </div>
 </div>
@@ -295,9 +298,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__config_8c_source.html#l00009">9</a> of file <a class="el" href="tpc__config_8c_source.html">tpc_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00160">ngx_http_brix_webdav_loc_conf_t::tpc</a>, <a class="el" href="webdav_8h_source.html#l00175">ngx_http_brix_webdav_loc_conf_t::tpc_allow_local</a>, <a class="el" href="webdav_8h_source.html#l00176">ngx_http_brix_webdav_loc_conf_t::tpc_allow_private</a>, <a class="el" href="webdav_8h_source.html#l00191">ngx_http_brix_webdav_loc_conf_t::tpc_low_speed_bytes</a>, <a class="el" href="webdav_8h_source.html#l00192">ngx_http_brix_webdav_loc_conf_t::tpc_low_speed_secs</a>, <a class="el" href="webdav_8h_source.html#l00193">ngx_http_brix_webdav_loc_conf_t::tpc_marker_interval</a>, <a class="el" href="webdav_8h_source.html#l00194">ngx_http_brix_webdav_loc_conf_t::tpc_max_streams</a>, and <a class="el" href="webdav_8h_source.html#l00184">ngx_http_brix_webdav_loc_conf_t::tpc_timeout</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00040">ngx_http_brix_webdav_loc_conf_t::tpc</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00055">ngx_http_brix_webdav_loc_conf_t::tpc_allow_local</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00056">ngx_http_brix_webdav_loc_conf_t::tpc_allow_private</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00085">ngx_http_brix_webdav_loc_conf_t::tpc_credential_forward</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00071">ngx_http_brix_webdav_loc_conf_t::tpc_low_speed_bytes</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00072">ngx_http_brix_webdav_loc_conf_t::tpc_low_speed_secs</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00073">ngx_http_brix_webdav_loc_conf_t::tpc_marker_interval</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00074">ngx_http_brix_webdav_loc_conf_t::tpc_max_streams</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00064">ngx_http_brix_webdav_loc_conf_t::tpc_timeout</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00115">ngx_http_brix_webdav_create_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00117">ngx_http_brix_webdav_create_loc_conf()</a>.</p>
 
 </div>
 </div>
@@ -317,11 +320,14 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00551">551</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p>WHAT: Handle HTTP-TPC (Third-Party Copy) COPY requests — implements GridFTP-style cross-server file transfer layered on WebDAV. </p>
+<p>Supports two modes: pull (fetch remote → local) and push (local → upload remote). Both modes use external curl process to perform the actual data transfer while nginx handles authentication, path confinement, and HTTP header management. Returns 201 Created for new files or 204 No Content for overwrites on pull; 201 Created on push success. Rejects requests with ambiguous headers (both Source + Destination present) or missing required headers via 400 Bad Request. Uses temporary file staging (&lt;path&gt;.nginx-xrootd-tpc.&lt;pid&gt;.&lt;time&gt;) for pull mode to ensure atomic commit — rename/link on success, unlink on failure. </p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00162">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00188">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00314">brix_dashboard_http_finish()</a>, <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__tracking_8c_source.html#l00296">brix_dashboard_http_tpc_remote()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="staged__file_8c_source.html#l00770">brix_staged_abort()</a>, <a class="el" href="staged__file_8c_source.html#l00739">brix_staged_commit()</a>, <a class="el" href="staged__file_8c_source.html#l00059">brix_staged_open()</a>, <a class="el" href="transfer_8h_source.html#l00032">BRIX_TPC_DIR_PULL</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00011">BRIX_TPC_METRIC_ERROR</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00009">BRIX_TPC_METRIC_STARTED</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00010">BRIX_TPC_METRIC_SUCCESS</a>, <a class="el" href="tpc_2common_2metrics_8c_source.html#l00017">brix_tpc_metric_transfer()</a>, <a class="el" href="transfer_8h_source.html#l00030">BRIX_TPC_PROTO_WEBDAV</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00421">brix_tpc_registry_remove()</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00344">brix_tpc_registry_update()</a>, <a class="el" href="transfer_8h_source.html#l00037">BRIX_TPC_STATE_DONE</a>, <a class="el" href="transfer_8h_source.html#l00038">BRIX_TPC_STATE_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00064">BRIX_WEBDAV_TPC_BAD_REQUEST</a>, <a class="el" href="metrics__webdav_8h_source.html#l00065">BRIX_WEBDAV_TPC_COMMIT_ERROR</a>, <a class="el" href="metrics__webdav_8h_source.html#l00057">BRIX_WEBDAV_TPC_PULL_STARTED</a>, <a class="el" href="metrics__webdav_8h_source.html#l00058">BRIX_WEBDAV_TPC_PULL_SUCCESS</a>, <a class="el" href="dashboard_8h_source.html#l00063">BRIX_XFER_DIR_TPC</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_WEBDAV</a>, <a class="el" href="xfer_8h_source.html#l00064">BRIX_XFER_SRC_ERR</a>, <a class="el" href="xfer_8h_source.html#l00040">BRIX_XFER_TPC</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00058">ngx_http_brix_webdav_resolve_path()</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>, <a class="el" href="webdav_8h_source.html#l00193">ngx_http_brix_webdav_loc_conf_t::tpc_marker_interval</a>, <a class="el" href="webdav_8h_source.html#l00194">ngx_http_brix_webdav_loc_conf_t::tpc_max_streams</a>, <a class="el" href="tpc_8c_source.html#l00055">webdav_dashboard_identity()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="webdav_8h_source.html#l00511">webdav_send_no_body()</a>, <a class="el" href="tpc_8c_source.html#l00474">webdav_tpc_apply_credential_delegation()</a>, <a class="el" href="tpc_8c_source.html#l00134">webdav_tpc_authorize()</a>, <a class="el" href="tpc__headers_8c_source.html#l00020">webdav_tpc_collect_transfer_headers()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00046">webdav_tpc_find_header</a>, <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00050">webdav_tpc_header_value_equals</a>, <a class="el" href="tpc__marker_8c_source.html#l00416">webdav_tpc_marker_start()</a>, <a class="el" href="tpc_8c_source.html#l00075">webdav_tpc_note_client_copy_xfer()</a>, <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>, <a class="el" href="tpc_8c_source.html#l00026">webdav_tpc_probe()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00055">webdav_tpc_pstrndup0()</a>, <a class="el" href="tpc_8c_source.html#l00155">webdav_tpc_register_transfer()</a>, <a class="el" href="tpc__curl_8c_source.html#l00198">webdav_tpc_run_curl_pull()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00048">webdav_tpc_str_has_ctl</a>, and <a class="el" href="tpc_8c_source.html#l00103">webdav_tpc_url_path()</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00218">218</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">References <a class="el" href="tpc__internal__split_8h_source.html#l00060">webdav_tpc_pull_ctx_t::conf</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00070">webdav_tpc_pull_ctx_t::n_streams</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00071">webdav_tpc_pull_ctx_t::overwrite</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00062">webdav_tpc_pull_ctx_t::path</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00063">webdav_tpc_pull_ctx_t::path_len</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00059">webdav_tpc_pull_ctx_t::r</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00064">webdav_tpc_pull_ctx_t::sb</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00061">webdav_tpc_pull_ctx_t::source_url</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00066">webdav_tpc_pull_ctx_t::staged</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00065">webdav_tpc_pull_ctx_t::transfer_headers</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="tpc__copy_8c_source.html#l00050">webdav_tpc_apply_credential_delegation()</a>, <a class="el" href="tpc__copy_8c_source.html#l00312">webdav_tpc_apply_user_proxy()</a>, <a class="el" href="tpc__headers_8c_source.html#l00020">webdav_tpc_collect_transfer_headers()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00070">webdav_tpc_find_header</a>, <a class="el" href="tpc__copy_8c_source.html#l00260">webdav_tpc_forward_user_bearer()</a>, <a class="el" href="tpc__push_8c_source.html#l00278">webdav_tpc_handle_push()</a>, <a class="el" href="tpc__copy_8c_source.html#l00182">webdav_tpc_parse_overwrite()</a>, <a class="el" href="tpc__copy_8c_source.html#l00140">webdav_tpc_parse_stream_count()</a>, <a class="el" href="tpc__pull_8c_source.html#l00106">webdav_tpc_prepare_pull_target()</a>, <a class="el" href="tpc__pull_8c_source.html#l00396">webdav_tpc_pull_execute()</a>, <a class="el" href="tpc__pull_8c_source.html#l00160">webdav_tpc_pull_start_accounting()</a>, <a class="el" href="tpc__copy_8c_source.html#l00161">webdav_tpc_source_url()</a>, and <a class="el" href="tpc__copy_8c_source.html#l00127">webdav_tpc_validate_copy_headers()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00219">webdav_dispatch_copy()</a>.</p>
 
 </div>
 </div>
@@ -351,11 +357,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__config_8c_source.html#l00023">23</a> of file <a class="el" href="tpc__config_8c_source.html">tpc_config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__config_8c_source.html#l00024">24</a> of file <a class="el" href="tpc__config_8c_source.html">tpc_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_loc_conf_t::cadir</a>, <a class="el" href="webdav_8h_source.html#l00148">ngx_http_brix_webdav_loc_conf_t::cafile</a>, <a class="el" href="tpc__config_8h_source.html#l00023">ngx_http_brix_tpc_conf_t::token_client_id</a>, <a class="el" href="tpc__config_8h_source.html#l00026">ngx_http_brix_tpc_conf_t::token_client_secret</a>, <a class="el" href="tpc__config_8h_source.html#l00020">ngx_http_brix_tpc_conf_t::token_endpoint</a>, <a class="el" href="tpc__config_8h_source.html#l00029">ngx_http_brix_tpc_conf_t::token_scope</a>, <a class="el" href="webdav_8h_source.html#l00160">ngx_http_brix_webdav_loc_conf_t::tpc</a>, <a class="el" href="webdav_8h_source.html#l00175">ngx_http_brix_webdav_loc_conf_t::tpc_allow_local</a>, <a class="el" href="webdav_8h_source.html#l00176">ngx_http_brix_webdav_loc_conf_t::tpc_allow_private</a>, <a class="el" href="webdav_8h_source.html#l00182">ngx_http_brix_webdav_loc_conf_t::tpc_cadir</a>, <a class="el" href="webdav_8h_source.html#l00183">ngx_http_brix_webdav_loc_conf_t::tpc_cafile</a>, <a class="el" href="webdav_8h_source.html#l00180">ngx_http_brix_webdav_loc_conf_t::tpc_cert</a>, <a class="el" href="webdav_8h_source.html#l00197">ngx_http_brix_webdav_loc_conf_t::tpc_cred</a>, <a class="el" href="webdav_8h_source.html#l00179">ngx_http_brix_webdav_loc_conf_t::tpc_curl</a>, <a class="el" href="webdav_8h_source.html#l00181">ngx_http_brix_webdav_loc_conf_t::tpc_key</a>, <a class="el" href="webdav_8h_source.html#l00191">ngx_http_brix_webdav_loc_conf_t::tpc_low_speed_bytes</a>, <a class="el" href="webdav_8h_source.html#l00192">ngx_http_brix_webdav_loc_conf_t::tpc_low_speed_secs</a>, <a class="el" href="webdav_8h_source.html#l00193">ngx_http_brix_webdav_loc_conf_t::tpc_marker_interval</a>, <a class="el" href="webdav_8h_source.html#l00194">ngx_http_brix_webdav_loc_conf_t::tpc_max_streams</a>, and <a class="el" href="webdav_8h_source.html#l00184">ngx_http_brix_webdav_loc_conf_t::tpc_timeout</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00027">ngx_http_brix_webdav_loc_conf_t::cadir</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00028">ngx_http_brix_webdav_loc_conf_t::cafile</a>, <a class="el" href="tpc__config_8h_source.html#l00023">ngx_http_brix_tpc_conf_t::token_client_id</a>, <a class="el" href="tpc__config_8h_source.html#l00026">ngx_http_brix_tpc_conf_t::token_client_secret</a>, <a class="el" href="tpc__config_8h_source.html#l00020">ngx_http_brix_tpc_conf_t::token_endpoint</a>, <a class="el" href="tpc__config_8h_source.html#l00029">ngx_http_brix_tpc_conf_t::token_scope</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00040">ngx_http_brix_webdav_loc_conf_t::tpc</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00055">ngx_http_brix_webdav_loc_conf_t::tpc_allow_local</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00056">ngx_http_brix_webdav_loc_conf_t::tpc_allow_private</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00062">ngx_http_brix_webdav_loc_conf_t::tpc_cadir</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00063">ngx_http_brix_webdav_loc_conf_t::tpc_cafile</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00060">ngx_http_brix_webdav_loc_conf_t::tpc_cert</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00088">ngx_http_brix_webdav_loc_conf_t::tpc_cred</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00085">ngx_http_brix_webdav_loc_conf_t::tpc_credential_forward</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00059">ngx_http_brix_webdav_loc_conf_t::tpc_curl</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00061">ngx_http_brix_webdav_loc_conf_t::tpc_key</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00071">ngx_http_brix_webdav_loc_conf_t::tpc_low_speed_bytes</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00072">ngx_http_brix_webdav_loc_conf_t::tpc_low_speed_secs</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00073">ngx_http_brix_webdav_loc_conf_t::tpc_marker_interval</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00074">ngx_http_brix_webdav_loc_conf_t::tpc_max_streams</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00064">ngx_http_brix_webdav_loc_conf_t::tpc_timeout</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2config_8c_source.html#l00308">ngx_http_brix_webdav_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="config__merge_8c_source.html#l00049">webdav_merge_base_conf()</a>.</p>
 
 </div>
 </div>
@@ -387,9 +393,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__headers_8c_source.html#l00020">20</a> of file <a class="el" href="tpc__headers_8c_source.html">tpc_headers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="webdav_8h_source.html#l00083">WEBDAV_TPC_MAX_HEADERS</a>, and <a class="el" href="webdav__tpc_8h_source.html#l00048">webdav_tpc_str_has_ctl</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="webdav_8h_source.html#l00083">WEBDAV_TPC_MAX_HEADERS</a>, and <a class="el" href="webdav__tpc_8h_source.html#l00072">webdav_tpc_str_has_ctl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00218">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="tpc__push_8c_source.html#l00278">webdav_tpc_handle_push()</a>.</p>
 
 </div>
 </div>
@@ -411,7 +417,7 @@ Functions</h2></td></tr>
 
 <p>Return the name string for a cred-metrics counter index. </p>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00541">541</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00228">228</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tpc__cred_8h_source.html#l00043">BRIX_TPC_CRED_NERROR</a>, <a class="el" href="tpc__cred_8h_source.html#l00045">BRIX_TPC_CRED_NPARSE_ERROR</a>, <a class="el" href="tpc__cred_8h_source.html#l00041">BRIX_TPC_CRED_NSTARTED</a>, <a class="el" href="tpc__cred_8h_source.html#l00042">BRIX_TPC_CRED_NSUCCESS</a>, and <a class="el" href="tpc__cred_8h_source.html#l00044">BRIX_TPC_CRED_NUNKNOWN_MODE</a>.</p>
 
@@ -481,11 +487,11 @@ Functions</h2></td></tr>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>NGX_OK on success; NGX_ERROR on failure (error already logged) </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00461">461</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00190">190</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="tpc__cred_8h_source.html#l00043">BRIX_TPC_CRED_NERROR</a>, <a class="el" href="tpc__cred_8h_source.html#l00041">BRIX_TPC_CRED_NSTARTED</a>, <a class="el" href="tpc__cred_8h_source.html#l00042">BRIX_TPC_CRED_NSUCCESS</a>, <a class="el" href="tpc__cred_8h_source.html#l00044">BRIX_TPC_CRED_NUNKNOWN_MODE</a>, <a class="el" href="tpc__cred_8h_source.html#l00031">BRIX_TPC_CRED_OIDC_AGENT</a>, <a class="el" href="tpc__cred_8h_source.html#l00032">BRIX_TPC_CRED_TOKEN_EXCHANGE</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="tpc__config_8h_source.html#l00023">ngx_http_brix_tpc_conf_t::token_client_id</a>, <a class="el" href="tpc__config_8h_source.html#l00026">ngx_http_brix_tpc_conf_t::token_client_secret</a>, <a class="el" href="tpc__config_8h_source.html#l00020">ngx_http_brix_tpc_conf_t::token_endpoint</a>, <a class="el" href="webdav_8h_source.html#l00197">ngx_http_brix_webdav_loc_conf_t::tpc_cred</a>, <a class="el" href="tpc__cred_8c_source.html#l00112">tpc_cred_oidc_agent_fetch()</a>, <a class="el" href="tpc__cred_8c_source.html#l00340">tpc_cred_rfc8693_exchange()</a>, <a class="el" href="tpc__cred_8c_source.html#l00039">webdav_tpc_cred_metric_increment()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00048">webdav_tpc_cred_validate_token()</a>.</p>
+<p class="reference">References <a class="el" href="tpc__cred_8h_source.html#l00041">BRIX_TPC_CRED_NSTARTED</a>, <a class="el" href="tpc__cred_8h_source.html#l00044">BRIX_TPC_CRED_NUNKNOWN_MODE</a>, <a class="el" href="tpc__cred_8h_source.html#l00031">BRIX_TPC_CRED_OIDC_AGENT</a>, <a class="el" href="tpc__cred_8h_source.html#l00032">BRIX_TPC_CRED_TOKEN_EXCHANGE</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>, <a class="el" href="tpc__cred_8c_source.html#l00135">tpc_cred_run_oidc_agent()</a>, <a class="el" href="tpc__cred_8c_source.html#l00151">tpc_cred_run_token_exchange()</a>, and <a class="el" href="tpc__cred_8c_source.html#l00043">webdav_tpc_cred_metric_increment()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00474">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__copy_8c_source.html#l00050">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc__push_8c_source.html#l00042">webdav_tpc_push_apply_credential()</a>.</p>
 
 </div>
 </div>
@@ -518,16 +524,16 @@ Functions</h2></td></tr>
 <p>Parse a Credential: header value into a mode enum. </p>
 <p>Returns BRIX_TPC_CRED_UNKNOWN for unrecognised values. </p>
 
-<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00443">443</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__cred_8c_source.html#l00072">72</a> of file <a class="el" href="tpc__cred_8c_source.html">tpc_cred.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tpc__cred_8h_source.html#l00030">BRIX_TPC_CRED_NONE</a>, <a class="el" href="tpc__cred_8h_source.html#l00031">BRIX_TPC_CRED_OIDC_AGENT</a>, <a class="el" href="tpc__cred_8h_source.html#l00032">BRIX_TPC_CRED_TOKEN_EXCHANGE</a>, and <a class="el" href="tpc__cred_8h_source.html#l00033">BRIX_TPC_CRED_UNKNOWN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00474">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__copy_8c_source.html#l00050">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc__push_8c_source.html#l00042">webdav_tpc_push_apply_credential()</a>.</p>
 
 </div>
 </div>
-<a id="abdb43daa9936ab2522e010825eb777e8" name="abdb43daa9936ab2522e010825eb777e8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abdb43daa9936ab2522e010825eb777e8">&#9670;&#160;</a></span>webdav_tpc_marker_start()</h2>
+<a id="a207be56122fc953b82b670f6a8c3dadf" name="a207be56122fc953b82b670f6a8c3dadf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a207be56122fc953b82b670f6a8c3dadf">&#9670;&#160;</a></span>webdav_tpc_marker_start()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -596,7 +602,19 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>transfer_id</em>&#160;</td>
+          <td class="paramname"><em>transfer_id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user_cert</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user_key</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -606,16 +624,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__marker_8c_source.html#l00416">416</a> of file <a class="el" href="tpc__marker_8c_source.html">tpc_marker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__marker__start_8c_source.html#l00296">296</a> of file <a class="el" href="tpc__marker__start_8c_source.html">tpc_marker_start.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__tpc_8h_source.html#l00018">BRIX_TPC_MAX_STREAMS</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="tpc__marker_8c_source.html#l00078">tpc_marker_thread_ctx_t::conf</a>, <a class="el" href="tpc__marker_8c_source.html#l00065">tpc_marker_ctx_t::existed</a>, <a class="el" href="tpc__marker_8c_source.html#l00062">tpc_marker_ctx_t::final_path</a>, <a class="el" href="tpc__marker_8c_source.html#l00066">tpc_marker_ctx_t::is_pull</a>, <a class="el" href="tpc__marker_8c_source.html#l00079">tpc_marker_thread_ctx_t::is_push</a>, <a class="el" href="tpc__marker_8c_source.html#l00059">tpc_marker_ctx_t::last_marker_time</a>, <a class="el" href="tpc__marker_8c_source.html#l00081">tpc_marker_thread_ctx_t::local_path</a>, <a class="el" href="tpc__marker_8c_source.html#l00077">tpc_marker_thread_ctx_t::log</a>, <a class="el" href="tpc__marker_8c_source.html#l00076">tpc_marker_thread_ctx_t::marker_ctx</a>, <a class="el" href="tpc__marker_8c_source.html#l00060">tpc_marker_ctx_t::marker_interval_secs</a>, <a class="el" href="webdav__tpc_8h_source.html#l00030">tpc_ms_progress_t::n_streams</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="tpc__marker_8c_source.html#l00064">tpc_marker_ctx_t::overwrite</a>, <a class="el" href="tpc__marker_8c_source.html#l00057">tpc_marker_ctx_t::progress</a>, <a class="el" href="tpc__marker_8c_source.html#l00067">tpc_marker_ctx_t::push_file_size</a>, <a class="el" href="tpc__marker_8c_source.html#l00056">tpc_marker_ctx_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="tpc__marker_8c_source.html#l00063">tpc_marker_ctx_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="tpc__marker_8c_source.html#l00058">tpc_marker_ctx_t::timer</a>, <a class="el" href="tpc__marker_8c_source.html#l00061">tpc_marker_ctx_t::tmp_path</a>, <a class="el" href="webdav__tpc_8h_source.html#l00031">tpc_ms_progress_t::total_size</a>, <a class="el" href="tpc__marker_8c_source.html#l00317">tpc_marker_cleanup()</a>, <a class="el" href="webdav_8h_source.html#l00193">ngx_http_brix_webdav_loc_conf_t::tpc_marker_interval</a>, <a class="el" href="tpc__marker_8c_source.html#l00269">tpc_marker_poll()</a>, <a class="el" href="tpc__marker_8c_source.html#l00048">TPC_MARKER_POLL_MSEC</a>, <a class="el" href="tpc__marker_8c_source.html#l00122">tpc_marker_send_all()</a>, <a class="el" href="tpc__marker_8c_source.html#l00304">tpc_marker_thread_done()</a>, <a class="el" href="tpc__marker_8c_source.html#l00345">tpc_marker_thread_func()</a>, <a class="el" href="tpc__marker_8c_source.html#l00082">tpc_marker_thread_ctx_t::transfer_headers</a>, <a class="el" href="tpc__marker_8c_source.html#l00068">tpc_marker_ctx_t::transfer_id</a>, and <a class="el" href="tpc__marker_8c_source.html#l00080">tpc_marker_thread_ctx_t::url</a>.</p>
+<p class="reference">References <a class="el" href="webdav__tpc_8h_source.html#l00018">BRIX_TPC_MAX_STREAMS</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00103">tpc_marker_start_args_t::conf</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00110">tpc_marker_start_args_t::existed</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00107">tpc_marker_start_args_t::final_path</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00108">tpc_marker_start_args_t::is_pull</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00030">tpc_marker_ctx_t::last_marker_time</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00104">tpc_marker_start_args_t::n_streams</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00109">tpc_marker_start_args_t::overwrite</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00102">tpc_marker_start_args_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00183">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00029">tpc_marker_ctx_t::timer</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00106">tpc_marker_start_args_t::tmp_path</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00218">tpc_marker_arm_lifecycle()</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00126">tpc_marker_build_ctx()</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00179">tpc_marker_build_task()</a>, <a class="el" href="tpc__marker__internal_8h_source.html#l00019">TPC_MARKER_POLL_MSEC</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00246">tpc_marker_send_accepted()</a>, <a class="el" href="tpc__marker_8c_source.html#l00086">tpc_marker_send_all()</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00111">tpc_marker_start_args_t::transfer_headers</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00114">tpc_marker_start_args_t::transfer_id</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00105">tpc_marker_start_args_t::url</a>, <a class="el" href="tpc__marker__start_8c_source.html#l00112">tpc_marker_start_args_t::user_cert</a>, and <a class="el" href="tpc__marker__start_8c_source.html#l00113">tpc_marker_start_args_t::user_key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__pull_8c_source.html#l00173">webdav_tpc_pull_marker_exec()</a>.</p>
 
 </div>
 </div>
-<a id="a9ae1949a7fcdf288d846b6e8313d04fd" name="a9ae1949a7fcdf288d846b6e8313d04fd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9ae1949a7fcdf288d846b6e8313d04fd">&#9670;&#160;</a></span>webdav_tpc_post_thread_task()</h2>
+<a id="ad68ce4b1c5f2da3fb7dc1a5c74f41cbd" name="ad68ce4b1c5f2da3fb7dc1a5c74f41cbd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad68ce4b1c5f2da3fb7dc1a5c74f41cbd">&#9670;&#160;</a></span>webdav_tpc_post_thread_task()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -678,7 +696,19 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>n_streams</em>&#160;</td>
+          <td class="paramname"><em>n_streams</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user_cert</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user_key</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -688,11 +718,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00326">326</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__thread_8c_source.html#l00437">437</a> of file <a class="el" href="tpc__thread_8c_source.html">tpc_thread.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tpc_2common_2registry_8c_source.html#l00421">brix_tpc_registry_remove()</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="tpc__thread_8c_source.html#l00028">tpc_thread_ctx_t::conf</a>, <a class="el" href="tpc__thread_8c_source.html#l00035">tpc_thread_ctx_t::dest_path</a>, <a class="el" href="tpc__thread_8c_source.html#l00031">tpc_thread_ctx_t::existed</a>, <a class="el" href="tpc__thread_8c_source.html#l00030">tpc_thread_ctx_t::is_push</a>, <a class="el" href="tpc__thread_8c_source.html#l00034">tpc_thread_ctx_t::local_path</a>, <a class="el" href="tpc__thread_8c_source.html#l00029">tpc_thread_ctx_t::log</a>, <a class="el" href="tpc__thread_8c_source.html#l00041">tpc_thread_ctx_t::n_streams</a>, <a class="el" href="tpc__thread_8c_source.html#l00032">tpc_thread_ctx_t::overwrite</a>, <a class="el" href="tpc__thread_8c_source.html#l00027">tpc_thread_ctx_t::r</a>, <a class="el" href="tpc__thread_8c_source.html#l00036">tpc_thread_ctx_t::root_canon</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, <a class="el" href="tpc__thread_8c_source.html#l00037">tpc_thread_ctx_t::transfer_headers</a>, <a class="el" href="tpc__thread_8c_source.html#l00040">tpc_thread_ctx_t::transfer_id</a>, <a class="el" href="tpc__thread_8c_source.html#l00033">tpc_thread_ctx_t::url</a>, and <a class="el" href="tpc__thread_8c_source.html#l00051">webdav_tpc_thread_register()</a>.</p>
+<p class="reference">References <a class="el" href="tpc_2common_2registry_8c_source.html#l00421">brix_tpc_registry_remove()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="tpc__thread_8c_source.html#l00028">tpc_thread_ctx_t::conf</a>, <a class="el" href="tpc__thread_8c_source.html#l00031">tpc_thread_ctx_t::existed</a>, <a class="el" href="tpc__thread_8c_source.html#l00030">tpc_thread_ctx_t::is_push</a>, <a class="el" href="tpc__thread_8c_source.html#l00029">tpc_thread_ctx_t::log</a>, <a class="el" href="tpc__thread_8c_source.html#l00043">tpc_thread_ctx_t::n_streams</a>, <a class="el" href="tpc__thread_8c_source.html#l00032">tpc_thread_ctx_t::overwrite</a>, <a class="el" href="tpc__thread_8c_source.html#l00027">tpc_thread_ctx_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00183">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="tpc__thread_8c_source.html#l00412">tpc_thread_ctx_copy_paths()</a>, <a class="el" href="tpc__thread_8c_source.html#l00361">tpc_thread_done()</a>, <a class="el" href="tpc__thread_8c_source.html#l00333">tpc_thread_func()</a>, <a class="el" href="tpc__thread_8c_source.html#l00037">tpc_thread_ctx_t::transfer_headers</a>, <a class="el" href="tpc__thread_8c_source.html#l00042">tpc_thread_ctx_t::transfer_id</a>, <a class="el" href="tpc__thread_8c_source.html#l00033">tpc_thread_ctx_t::url</a>, <a class="el" href="tpc__thread_8c_source.html#l00038">tpc_thread_ctx_t::user_cert</a>, <a class="el" href="tpc__thread_8c_source.html#l00039">tpc_thread_ctx_t::user_key</a>, and <a class="el" href="tpc__thread_8c_source.html#l00053">webdav_tpc_thread_register()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__pull_8c_source.html#l00219">webdav_tpc_pull_thread_exec()</a>, and <a class="el" href="tpc__push_8c_source.html#l00163">webdav_tpc_push_post_thread()</a>.</p>
 
 </div>
 </div>
@@ -736,16 +766,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="webdav__tpc_8h_source.html#l00055">55</a> of file <a class="el" href="webdav__tpc_8h_source.html">webdav_tpc.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="webdav__tpc_8h_source.html#l00079">79</a> of file <a class="el" href="webdav__tpc_8h_source.html">webdav_tpc.h</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, <a class="el" href="tpc_8c_source.html#l00191">webdav_tpc_extract_subject_token()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00152">webdav_tpc_extract_subject_token()</a>, <a class="el" href="tpc__push_8c_source.html#l00097">webdav_tpc_push_dest_url()</a>, and <a class="el" href="tpc__copy_8c_source.html#l00161">webdav_tpc_source_url()</a>.</p>
 
 </div>
 </div>
-<a id="a17d24b50620d30badfdc9b447daa3a1c" name="a17d24b50620d30badfdc9b447daa3a1c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a17d24b50620d30badfdc9b447daa3a1c">&#9670;&#160;</a></span>webdav_tpc_run_curl_pull()</h2>
+<a id="ade939e517537a8b9de96b7d082bb4f00" name="ade939e517537a8b9de96b7d082bb4f00"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ade939e517537a8b9de96b7d082bb4f00">&#9670;&#160;</a></span>webdav_tpc_run_curl_pull()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -784,7 +814,19 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>transfer_id</em>&#160;</td>
+          <td class="paramname"><em>transfer_id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user_cert</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user_key</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -794,16 +836,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__curl_8c_source.html#l00198">198</a> of file <a class="el" href="tpc__curl_8c_source.html">tpc_curl.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__curl_8c_source.html#l00379">379</a> of file <a class="el" href="tpc__curl_8c_source.html">tpc_curl.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="tpc__curl_8c_source.html#l00019">webdav_tpc_run_curl_core()</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="tpc__curl_8c_source.html#l00321">webdav_tpc_run_curl_core()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, <a class="el" href="tpc__marker_8c_source.html#l00345">tpc_marker_thread_func()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00280">webdav_tpc_run_curl_pull_multi()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker__start_8c_source.html#l00033">tpc_marker_thread_func()</a>, <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>, <a class="el" href="tpc__pull_8c_source.html#l00249">webdav_tpc_pull_sync_exec()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00628">webdav_tpc_run_curl_pull_multi()</a>.</p>
 
 </div>
 </div>
-<a id="af761363f5517e166321cf80551f590bc" name="af761363f5517e166321cf80551f590bc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af761363f5517e166321cf80551f590bc">&#9670;&#160;</a></span>webdav_tpc_run_curl_pull_multi()</h2>
+<a id="ab34ad78259b5493647012f6edd5b13a3" name="ab34ad78259b5493647012f6edd5b13a3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab34ad78259b5493647012f6edd5b13a3">&#9670;&#160;</a></span>webdav_tpc_run_curl_pull_multi()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -854,7 +896,19 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype"><a class="el" href="structtpc__ms__progress__t.html">tpc_ms_progress_t</a> *&#160;</td>
-          <td class="paramname"><em>progress</em>&#160;</td>
+          <td class="paramname"><em>progress</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user_cert</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user_key</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -864,11 +918,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__curl_8c_source.html#l00280">280</a> of file <a class="el" href="tpc__curl_8c_source.html">tpc_curl.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__curl_8c_source.html#l00628">628</a> of file <a class="el" href="tpc__curl_8c_source.html">tpc_curl.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00731">brix_sd_posix_driver</a>, <a class="el" href="sd_8h_source.html#l00457">brix_sd_posix_wrap()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00018">BRIX_TPC_MAX_STREAMS</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00059">BRIX_WEBDAV_TPC_CURL_STARTED</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00043">ms_stream_ctx_t::cur_offset</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00042">ms_stream_ctx_t::fd</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="tpc__curl__pmark_8c_source.html#l00089">ms_write_cb()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00045">ms_stream_ctx_t::progress</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00044">ms_stream_ctx_t::stream_idx</a>, <a class="el" href="webdav__tpc_8h_source.html#l00031">tpc_ms_progress_t::total_size</a>, <a class="el" href="tpc__curl__setup_8c_source.html#l00121">tpc_curl_apply_conf()</a>, <a class="el" href="tpc__curl__setup_8c_source.html#l00190">tpc_curl_head_size()</a>, <a class="el" href="tpc__curl__pmark_8c_source.html#l00049">webdav_tpc_pmark_attach()</a>, <a class="el" href="tpc__curl_8c_source.html#l00234">webdav_tpc_run_curl_multi_finish()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00198">webdav_tpc_run_curl_pull()</a>.</p>
+<p class="reference">References <a class="el" href="webdav__tpc_8h_source.html#l00018">BRIX_TPC_MAX_STREAMS</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00059">BRIX_WEBDAV_TPC_CURL_STARTED</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00061">webdav_tpc_ms_ctx_t::cm</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00052">webdav_tpc_ms_ctx_t::conf</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00062">webdav_tpc_ms_ctx_t::easy</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00060">webdav_tpc_ms_ctx_t::fd</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00063">webdav_tpc_ms_ctx_t::hdrs</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00051">webdav_tpc_ms_ctx_t::log</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00058">webdav_tpc_ms_ctx_t::n_streams</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00066">webdav_tpc_ms_ctx_t::progress</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00064">webdav_tpc_ms_ctx_t::resolve</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00053">webdav_tpc_ms_ctx_t::source_url</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00054">webdav_tpc_ms_ctx_t::tmp_path</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00059">webdav_tpc_ms_ctx_t::total_size</a>, <a class="el" href="webdav__tpc_8h_source.html#l00031">tpc_ms_progress_t::total_size</a>, <a class="el" href="tpc__curl__setup_8c_source.html#l00224">tpc_curl_head_size()</a>, <a class="el" href="tpc__curl_8c_source.html#l00558">tpc_ms_drive()</a>, <a class="el" href="tpc__curl_8c_source.html#l00588">tpc_ms_harvest()</a>, <a class="el" href="tpc__curl_8c_source.html#l00459">tpc_ms_prepare_output()</a>, <a class="el" href="tpc__curl_8c_source.html#l00503">tpc_ms_setup_stream()</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00055">webdav_tpc_ms_ctx_t::transfer_headers</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00056">webdav_tpc_ms_ctx_t::user_cert</a>, <a class="el" href="tpc__curl__internal_8h_source.html#l00057">webdav_tpc_ms_ctx_t::user_key</a>, <a class="el" href="tpc__curl_8c_source.html#l00418">webdav_tpc_run_curl_multi_finish()</a>, <a class="el" href="tpc__curl_8c_source.html#l00379">webdav_tpc_run_curl_pull()</a>, and <a class="el" href="tpc__curl__internal_8h_source.html#l00065">webdav_tpc_ms_ctx_t::write_ctx</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00345">tpc_marker_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker__start_8c_source.html#l00033">tpc_marker_thread_func()</a>, and <a class="el" href="tpc__thread_8c_source.html#l00221">tpc_thread_pull_fetch()</a>.</p>
 
 </div>
 </div>
@@ -922,11 +976,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__curl_8c_source.html#l00211">211</a> of file <a class="el" href="tpc__curl_8c_source.html">tpc_curl.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__curl_8c_source.html#l00393">393</a> of file <a class="el" href="tpc__curl_8c_source.html">tpc_curl.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="tpc__curl_8c_source.html#l00019">webdav_tpc_run_curl_core()</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="tpc__curl_8c_source.html#l00321">webdav_tpc_run_curl_core()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__marker_8c_source.html#l00345">tpc_marker_thread_func()</a>, <a class="el" href="tpc__thread_8c_source.html#l00093">tpc_thread_func()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__marker__start_8c_source.html#l00033">tpc_marker_thread_func()</a>, <a class="el" href="tpc__thread_8c_source.html#l00185">tpc_thread_run_push()</a>, and <a class="el" href="tpc__push_8c_source.html#l00222">webdav_tpc_push_sync_exec()</a>.</p>
 
 </div>
 </div>

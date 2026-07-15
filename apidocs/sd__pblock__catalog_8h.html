@@ -113,7 +113,7 @@ $(document).ready(function(){initNavTree('sd__pblock__catalog_8h.html',''); init
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="sd__pblock__catalog_8h__dep__incl.svg" width="600" height="227"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="sd__pblock__catalog_8h__dep__incl.svg" width="100%" height="470"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="sd__pblock__catalog_8h_source.html">Go to the source code of this file.</a></p>
@@ -134,48 +134,46 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
-<tr class="memitem:a753b386f350a6be3233f4aa4f5600edb" id="r_a753b386f350a6be3233f4aa4f5600edb"><td class="memItemLeft" align="right" valign="top">typedef struct <a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a></td></tr>
-<tr class="separator:a753b386f350a6be3233f4aa4f5600edb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a69f603ad5435db36e3ce5838b4334e4e" id="r_a69f603ad5435db36e3ce5838b4334e4e"><td class="memItemLeft" align="right" valign="top">typedef struct <a class="el" href="sd__pblock__catalog_8h.html#a69f603ad5435db36e3ce5838b4334e4e">pblock_catalog_iter</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a69f603ad5435db36e3ce5838b4334e4e">pblock_catalog_iter</a></td></tr>
 <tr class="separator:a69f603ad5435db36e3ce5838b4334e4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a3480a6839303b722d13688f883925f8d" id="r_a3480a6839303b722d13688f883925f8d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a3480a6839303b722d13688f883925f8d">pblock_catalog_open</a> (const char *db_path, int busy_timeout_ms)</td></tr>
+<tr class="memitem:a3480a6839303b722d13688f883925f8d" id="r_a3480a6839303b722d13688f883925f8d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a3480a6839303b722d13688f883925f8d">pblock_catalog_open</a> (const char *db_path, int busy_timeout_ms)</td></tr>
 <tr class="separator:a3480a6839303b722d13688f883925f8d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a84ab430455e51a7de01a1ab221ee3a69" id="r_a84ab430455e51a7de01a1ab221ee3a69"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a84ab430455e51a7de01a1ab221ee3a69">pblock_catalog_close</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat)</td></tr>
+<tr class="memitem:a84ab430455e51a7de01a1ab221ee3a69" id="r_a84ab430455e51a7de01a1ab221ee3a69"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a84ab430455e51a7de01a1ab221ee3a69">pblock_catalog_close</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat)</td></tr>
 <tr class="separator:a84ab430455e51a7de01a1ab221ee3a69"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6b14b6cd37cb6bba9fb64f2bc7a2cc14" id="r_a6b14b6cd37cb6bba9fb64f2bc7a2cc14"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a6b14b6cd37cb6bba9fb64f2bc7a2cc14">pblock_catalog_lookup</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, <a class="el" href="structpblock__meta.html">pblock_meta</a> *out)</td></tr>
+<tr class="memitem:a6b14b6cd37cb6bba9fb64f2bc7a2cc14" id="r_a6b14b6cd37cb6bba9fb64f2bc7a2cc14"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a6b14b6cd37cb6bba9fb64f2bc7a2cc14">pblock_catalog_lookup</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, <a class="el" href="structpblock__meta.html">pblock_meta</a> *out)</td></tr>
 <tr class="separator:a6b14b6cd37cb6bba9fb64f2bc7a2cc14"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af4427bc43a46d40f2a4b02688d2ad5ef" id="r_af4427bc43a46d40f2a4b02688d2ad5ef"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#af4427bc43a46d40f2a4b02688d2ad5ef">pblock_catalog_put</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, const <a class="el" href="structpblock__meta.html">pblock_meta</a> *meta)</td></tr>
+<tr class="memitem:af4427bc43a46d40f2a4b02688d2ad5ef" id="r_af4427bc43a46d40f2a4b02688d2ad5ef"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#af4427bc43a46d40f2a4b02688d2ad5ef">pblock_catalog_put</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, const <a class="el" href="structpblock__meta.html">pblock_meta</a> *meta)</td></tr>
 <tr class="separator:af4427bc43a46d40f2a4b02688d2ad5ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7370ab920b21048b720e586fad8cfccc" id="r_a7370ab920b21048b720e586fad8cfccc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a7370ab920b21048b720e586fad8cfccc">pblock_catalog_create</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, const <a class="el" href="structpblock__meta.html">pblock_meta</a> *meta)</td></tr>
+<tr class="memitem:a7370ab920b21048b720e586fad8cfccc" id="r_a7370ab920b21048b720e586fad8cfccc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a7370ab920b21048b720e586fad8cfccc">pblock_catalog_create</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, const <a class="el" href="structpblock__meta.html">pblock_meta</a> *meta)</td></tr>
 <tr class="separator:a7370ab920b21048b720e586fad8cfccc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aceedd95fc99f0de49a577d4b35ff3252" id="r_aceedd95fc99f0de49a577d4b35ff3252"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#aceedd95fc99f0de49a577d4b35ff3252">pblock_catalog_setattr</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, int set_mode, uint32_t perm, int set_mtime, int64_t mtime, int64_t now)</td></tr>
+<tr class="memitem:aceedd95fc99f0de49a577d4b35ff3252" id="r_aceedd95fc99f0de49a577d4b35ff3252"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#aceedd95fc99f0de49a577d4b35ff3252">pblock_catalog_setattr</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, int set_mode, uint32_t perm, int set_mtime, int64_t mtime, int64_t now)</td></tr>
 <tr class="separator:aceedd95fc99f0de49a577d4b35ff3252"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3996a2d25692feebe05b4b9594ecba46" id="r_a3996a2d25692feebe05b4b9594ecba46"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a3996a2d25692feebe05b4b9594ecba46">pblock_catalog_touch</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, int64_t size, int64_t mtime)</td></tr>
+<tr class="memitem:a3996a2d25692feebe05b4b9594ecba46" id="r_a3996a2d25692feebe05b4b9594ecba46"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a3996a2d25692feebe05b4b9594ecba46">pblock_catalog_touch</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, int64_t size, int64_t mtime)</td></tr>
 <tr class="separator:a3996a2d25692feebe05b4b9594ecba46"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3cb33bd4258e3ef28d281d419accdc4c" id="r_a3cb33bd4258e3ef28d281d419accdc4c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a3cb33bd4258e3ef28d281d419accdc4c">pblock_catalog_remove</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path)</td></tr>
+<tr class="memitem:a3cb33bd4258e3ef28d281d419accdc4c" id="r_a3cb33bd4258e3ef28d281d419accdc4c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a3cb33bd4258e3ef28d281d419accdc4c">pblock_catalog_remove</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path)</td></tr>
 <tr class="separator:a3cb33bd4258e3ef28d281d419accdc4c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adb79a859108661aa890d80046a37017b" id="r_adb79a859108661aa890d80046a37017b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#adb79a859108661aa890d80046a37017b">pblock_catalog_child_count</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path)</td></tr>
+<tr class="memitem:adb79a859108661aa890d80046a37017b" id="r_adb79a859108661aa890d80046a37017b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#adb79a859108661aa890d80046a37017b">pblock_catalog_child_count</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path)</td></tr>
 <tr class="separator:adb79a859108661aa890d80046a37017b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a18a3be0c2f53c6d1d57199f0ce7dd7c0" id="r_a18a3be0c2f53c6d1d57199f0ce7dd7c0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a18a3be0c2f53c6d1d57199f0ce7dd7c0">pblock_catalog_rename</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *src, const char *dst)</td></tr>
+<tr class="memitem:a18a3be0c2f53c6d1d57199f0ce7dd7c0" id="r_a18a3be0c2f53c6d1d57199f0ce7dd7c0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a18a3be0c2f53c6d1d57199f0ce7dd7c0">pblock_catalog_rename</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *src, const char *dst)</td></tr>
 <tr class="separator:a18a3be0c2f53c6d1d57199f0ce7dd7c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac9ae7baed295b4c213744f49b1f7d9d1" id="r_ac9ae7baed295b4c213744f49b1f7d9d1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#ac9ae7baed295b4c213744f49b1f7d9d1">pblock_catalog_parent_ok</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path)</td></tr>
+<tr class="memitem:ac9ae7baed295b4c213744f49b1f7d9d1" id="r_ac9ae7baed295b4c213744f49b1f7d9d1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#ac9ae7baed295b4c213744f49b1f7d9d1">pblock_catalog_parent_ok</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path)</td></tr>
 <tr class="separator:ac9ae7baed295b4c213744f49b1f7d9d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6f059779bd28e928cd521b098745f617" id="r_a6f059779bd28e928cd521b098745f617"><td class="memItemLeft" align="right" valign="top"><a class="el" href="sd__pblock__catalog_8h.html#a69f603ad5435db36e3ce5838b4334e4e">pblock_catalog_iter</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a6f059779bd28e928cd521b098745f617">pblock_catalog_opendir</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *parent)</td></tr>
+<tr class="memitem:a6f059779bd28e928cd521b098745f617" id="r_a6f059779bd28e928cd521b098745f617"><td class="memItemLeft" align="right" valign="top"><a class="el" href="sd__pblock__catalog_8h.html#a69f603ad5435db36e3ce5838b4334e4e">pblock_catalog_iter</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a6f059779bd28e928cd521b098745f617">pblock_catalog_opendir</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *parent)</td></tr>
 <tr class="separator:a6f059779bd28e928cd521b098745f617"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a742b5931f84e759186c63138c810995a" id="r_a742b5931f84e759186c63138c810995a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a742b5931f84e759186c63138c810995a">pblock_catalog_readdir</a> (<a class="el" href="sd__pblock__catalog_8h.html#a69f603ad5435db36e3ce5838b4334e4e">pblock_catalog_iter</a> *it, char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t cap)</td></tr>
 <tr class="separator:a742b5931f84e759186c63138c810995a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a34300cf5186c1b9e837b52e304c407db" id="r_a34300cf5186c1b9e837b52e304c407db"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a34300cf5186c1b9e837b52e304c407db">pblock_catalog_closedir</a> (<a class="el" href="sd__pblock__catalog_8h.html#a69f603ad5435db36e3ce5838b4334e4e">pblock_catalog_iter</a> *it)</td></tr>
 <tr class="separator:a34300cf5186c1b9e837b52e304c407db"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6398333d38f451e8c35b92d15a0a4a4e" id="r_a6398333d38f451e8c35b92d15a0a4a4e"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a6398333d38f451e8c35b92d15a0a4a4e">pblock_catalog_getxattr</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *buf, size_t cap)</td></tr>
+<tr class="memitem:a6398333d38f451e8c35b92d15a0a4a4e" id="r_a6398333d38f451e8c35b92d15a0a4a4e"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a6398333d38f451e8c35b92d15a0a4a4e">pblock_catalog_getxattr</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *buf, size_t cap)</td></tr>
 <tr class="separator:a6398333d38f451e8c35b92d15a0a4a4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab69d6ee2251f213c9b2cdff8785e9777" id="r_ab69d6ee2251f213c9b2cdff8785e9777"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#ab69d6ee2251f213c9b2cdff8785e9777">pblock_catalog_listxattr</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, void *buf, size_t cap)</td></tr>
+<tr class="memitem:ab69d6ee2251f213c9b2cdff8785e9777" id="r_ab69d6ee2251f213c9b2cdff8785e9777"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#ab69d6ee2251f213c9b2cdff8785e9777">pblock_catalog_listxattr</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, void *buf, size_t cap)</td></tr>
 <tr class="separator:ab69d6ee2251f213c9b2cdff8785e9777"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a928383c831cccd7da2822082c97d4832" id="r_a928383c831cccd7da2822082c97d4832"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a928383c831cccd7da2822082c97d4832">pblock_catalog_setxattr</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const void *val, size_t len)</td></tr>
+<tr class="memitem:a928383c831cccd7da2822082c97d4832" id="r_a928383c831cccd7da2822082c97d4832"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#a928383c831cccd7da2822082c97d4832">pblock_catalog_setxattr</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const void *val, size_t len)</td></tr>
 <tr class="separator:a928383c831cccd7da2822082c97d4832"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac50be636a3b73c92f261f783da2a9e2d" id="r_ac50be636a3b73c92f261f783da2a9e2d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#ac50be636a3b73c92f261f783da2a9e2d">pblock_catalog_removexattr</a> (<a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *cat, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="memitem:ac50be636a3b73c92f261f783da2a9e2d" id="r_ac50be636a3b73c92f261f783da2a9e2d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__catalog_8h.html#ac50be636a3b73c92f261f783da2a9e2d">pblock_catalog_removexattr</a> (<a class="el" href="structpblock__catalog.html">pblock_catalog</a> *cat, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
 <tr class="separator:ac50be636a3b73c92f261f783da2a9e2d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -228,22 +226,6 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Typedef Documentation</h2>
-<a id="a753b386f350a6be3233f4aa4f5600edb" name="a753b386f350a6be3233f4aa4f5600edb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a753b386f350a6be3233f4aa4f5600edb">&#9670;&#160;</a></span>pblock_catalog</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">typedef struct <a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> <a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__pblock__catalog_8h_source.html#l00041">41</a> of file <a class="el" href="sd__pblock__catalog_8h_source.html">sd_pblock_catalog.h</a>.</p>
-
-</div>
-</div>
 <a id="a69f603ad5435db36e3ce5838b4334e4e" name="a69f603ad5435db36e3ce5838b4334e4e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a69f603ad5435db36e3ce5838b4334e4e">&#9670;&#160;</a></span>pblock_catalog_iter</h2>
 
@@ -270,7 +252,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_child_count </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -300,7 +282,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">void pblock_catalog_close </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em></td><td>)</td>
           <td></td>
         </tr>
@@ -340,7 +322,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_create </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -376,7 +358,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">ssize_t pblock_catalog_getxattr </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -424,7 +406,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">ssize_t pblock_catalog_listxattr </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -466,7 +448,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_lookup </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -500,7 +482,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> * pblock_catalog_open </td>
+          <td class="memname"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> * pblock_catalog_open </td>
           <td>(</td>
           <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>db_path</em>, </td>
@@ -532,7 +514,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname"><a class="el" href="sd__pblock__catalog_8h.html#a69f603ad5435db36e3ce5838b4334e4e">pblock_catalog_iter</a> * pblock_catalog_opendir </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -562,7 +544,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_parent_ok </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -590,7 +572,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_put </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -662,7 +644,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_remove </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -692,7 +674,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_removexattr </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -728,7 +710,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_rename </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -764,7 +746,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_setattr </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -822,7 +804,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_setxattr </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>
@@ -870,7 +852,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">int pblock_catalog_touch </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="sd__pblock__catalog_8h.html#a753b386f350a6be3233f4aa4f5600edb">pblock_catalog</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structpblock__catalog.html">pblock_catalog</a> *&#160;</td>
           <td class="paramname"><em>cat</em>, </td>
         </tr>
         <tr>

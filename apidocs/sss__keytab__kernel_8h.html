@@ -137,7 +137,7 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a51c2f7ddce15a9ac079d9f82db7a0b75" id="r_a51c2f7ddce15a9ac079d9f82db7a0b75"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8h.html#a51c2f7ddce15a9ac079d9f82db7a0b75">sss_keytab_parse_line</a> (char *line, <a class="el" href="structsss__keytab__entry__t.html">sss_keytab_entry_t</a> *out, int64_t now)</td></tr>
 <tr class="separator:a51c2f7ddce15a9ac079d9f82db7a0b75"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae99a55309d3104b26240b3266b285213" id="r_ae99a55309d3104b26240b3266b285213"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8h.html#ae99a55309d3104b26240b3266b285213">sss_keytab_mode_ok</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int allow_dotgrp)</td></tr>
+<tr class="memitem:ae99a55309d3104b26240b3266b285213" id="r_ae99a55309d3104b26240b3266b285213"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__keytab__kernel_8h.html#ae99a55309d3104b26240b3266b285213">sss_keytab_mode_ok</a> (const char *path, mode_t mode, int allow_dotgrp)</td></tr>
 <tr class="separator:ae99a55309d3104b26240b3266b285213"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -238,9 +238,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00141">141</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
-
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00190">190</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sss__keytab_8c_source.html#l00129">brix_sss_keytab_read()</a>, and <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>.</p>
 
@@ -278,11 +276,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00068">68</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sss__keytab__kernel_8c_source.html#l00163">163</a> of file <a class="el" href="sss__keytab__kernel_8c_source.html">sss_keytab_kernel.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sss__keytab__kernel_8h_source.html#l00044">sss_keytab_entry_t::exp</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00048">sss_keytab_entry_t::group</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00046">sss_keytab_entry_t::key</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00045">sss_keytab_entry_t::key_len</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00049">sss_keytab_entry_t::name</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00020">sss_copy_field()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00032">sss_decode_hex()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00053">sss_parse_i64()</a>, and <a class="el" href="sss__keytab__kernel_8h_source.html#l00047">sss_keytab_entry_t::user</a>.</p>
+<p class="reference">References <a class="el" href="sss__keytab__kernel_8h_source.html#l00044">sss_keytab_entry_t::exp</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00045">sss_keytab_entry_t::key_len</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00093">sss_check_version_tag()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00076">sss_entry_set_defaults()</a>, and <a class="el" href="sss__keytab__kernel_8c_source.html#l00144">sss_parse_fields()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2sss_2config_8c_source.html#l00033">brix_sss_parse_key_line()</a>, <a class="el" href="origin__auth_8c_source.html#l00357">cache_origin_load_sss_key()</a>, and <a class="el" href="sss__keytab_8c_source.html#l00107">parse_line()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2sss_2config_8c_source.html#l00033">brix_sss_parse_key_line()</a>, <a class="el" href="origin__auth_8c_source.html#l00590">cache_origin_load_sss_key()</a>, and <a class="el" href="sss__keytab_8c_source.html#l00107">parse_line()</a>.</p>
 
 </div>
 </div>

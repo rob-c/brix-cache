@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('cert__response_8c.html',''); initResiz
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">cert_response.c File Reference</div></div>
 </div><!--header-->
@@ -109,6 +110,11 @@ $(document).ready(function(){initNavTree('cert__response_8c.html',''); initResiz
 </div>
 <p><a href="cert__response_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structgsi__cert__chunks__t.html">gsi_cert_chunks_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:add502461f8a4d7d86133b3c0a8c4299b" id="r_add502461f8a4d7d86133b3c0a8c4299b"><td class="memItemLeft" align="right" valign="top">static uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#add502461f8a4d7d86133b3c0a8c4299b">gsi_certreq_version</a> (const u_char *payload, size_t plen)</td></tr>
@@ -119,7 +125,19 @@ Functions</h2></td></tr>
 <tr class="separator:a84f59413b9742dfa5d63a4f7c82476f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae71472ffc375778b6b22111a7db8751e" id="r_ae71472ffc375778b6b22111a7db8751e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#ae71472ffc375778b6b22111a7db8751e">gsi_build_cipher_alg_list</a> (const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *out, size_t outsz)</td></tr>
 <tr class="separator:ae71472ffc375778b6b22111a7db8751e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad46ba2d3f27c9563679a2eaf02dcc851" id="r_ad46ba2d3f27c9563679a2eaf02dcc851"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#ad46ba2d3f27c9563679a2eaf02dcc851">brix_gsi_send_cert</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="memitem:a04049d616c63e343ce86b3d5aec9e127" id="r_a04049d616c63e343ce86b3d5aec9e127"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#a04049d616c63e343ce86b3d5aec9e127">gsi_record_handshake_opts</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="separator:a04049d616c63e343ce86b3d5aec9e127"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a18a9b5f58c6862e6a474692467a99975" id="r_a18a9b5f58c6862e6a474692467a99975"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#a18a9b5f58c6862e6a474692467a99975">gsi_build_dh_public</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, u_char **puk_out, size_t *puk_len_out)</td></tr>
+<tr class="separator:a18a9b5f58c6862e6a474692467a99975"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad3175c19e61072832de4ba7ec5e565e1" id="r_ad3175c19e61072832de4ba7ec5e565e1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#ad3175c19e61072832de4ba7ec5e565e1">gsi_select_dh_public_bucket</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, int signed_dh, <a class="el" href="structgsi__cert__chunks__t.html">gsi_cert_chunks_t</a> *ch)</td></tr>
+<tr class="separator:ad3175c19e61072832de4ba7ec5e565e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7cb81736494466883306366a48649a16" id="r_a7cb81736494466883306366a48649a16"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#a7cb81736494466883306366a48649a16">gsi_sign_client_rtag</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, u_char **rtag_out, size_t *rtag_len_out)</td></tr>
+<tr class="separator:a7cb81736494466883306366a48649a16"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4e72b87dc9920ac0c4d16bf734a69ca2" id="r_a4e72b87dc9920ac0c4d16bf734a69ca2"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#a4e72b87dc9920ac0c4d16bf734a69ca2">gsi_build_main_container</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const u_char *signed_rtag, size_t signed_rtag_len, u_char **buf_out, size_t *len_out)</td></tr>
+<tr class="separator:a4e72b87dc9920ac0c4d16bf734a69ca2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b662d14df4e612c92a2e634b229e498" id="r_a6b662d14df4e612c92a2e634b229e498"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#a6b662d14df4e612c92a2e634b229e498">gsi_frame_cert_response</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const <a class="el" href="structgsi__cert__chunks__t.html">gsi_cert_chunks_t</a> *ch)</td></tr>
+<tr class="separator:a6b662d14df4e612c92a2e634b229e498"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad46ba2d3f27c9563679a2eaf02dcc851" id="r_ad46ba2d3f27c9563679a2eaf02dcc851"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cert__response_8c.html#ad46ba2d3f27c9563679a2eaf02dcc851">brix_gsi_send_cert</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:ad46ba2d3f27c9563679a2eaf02dcc851"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -149,11 +167,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00143">143</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00509">509</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
 
-<p class="reference">References <a class="el" href="basic_8c_source.html#l00033">brix_build_resp_hdr()</a>, <a class="el" href="gsi__dh_8c_source.html#l00009">brix_gsi_dh_keygen()</a>, <a class="el" href="keypool_8c_source.html#l00182">brix_gsi_keypool_pop()</a>, <a class="el" href="gsi__rsa_8c_source.html#l00042">brix_gsi_rsa_encrypt_private()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="write__helpers_8c_source.html#l00186">brix_queue_response()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00123">brix_ctx_gsi_t::clnt_opts</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="ctx__structs_8h_source.html#l00178">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00175">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="ctx__structs_8h_source.html#l00116">brix_ctx_gsi_t::dh_key</a>, <a class="el" href="context_8h_source.html#l00156">brix_ctx_t::gsi</a>, <a class="el" href="cert__response_8c_source.html#l00102">gsi_build_cipher_alg_list()</a>, <a class="el" href="types_2config_8h_source.html#l00162">ngx_stream_brix_srv_conf_t::gsi_cert_pem</a>, <a class="el" href="types_2config_8h_source.html#l00163">ngx_stream_brix_srv_conf_t::gsi_cert_pem_len</a>, <a class="el" href="cert__response_8c_source.html#l00054">gsi_certreq_clnt_opts()</a>, <a class="el" href="cert__response_8c_source.html#l00025">gsi_certreq_version()</a>, <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="types_2config_8h_source.html#l00160">ngx_stream_brix_srv_conf_t::gsi_key</a>, <a class="el" href="types_2config_8h_source.html#l00178">ngx_stream_brix_srv_conf_t::gsi_signed_dh</a>, <a class="el" href="cert__response_8c_source.html#l00083">gsi_use_signed_dh()</a>, <a class="el" href="gsi_8h_source.html#l00020">kXGS_cert</a>, <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, <a class="el" href="gsi_8h_source.html#l00041">kXRS_cipher</a>, <a class="el" href="gsi_8h_source.html#l00052">kXRS_cipher_alg</a>, <a class="el" href="gsi_8h_source.html#l00039">kXRS_main</a>, <a class="el" href="gsi_8h_source.html#l00053">kXRS_md_alg</a>, <a class="el" href="gsi_8h_source.html#l00036">kXRS_none</a>, <a class="el" href="gsi_8h_source.html#l00040">kXRS_puk</a>, <a class="el" href="gsi_8h_source.html#l00042">kXRS_rtag</a>, <a class="el" href="gsi_8h_source.html#l00043">kXRS_signed_rtag</a>, <a class="el" href="gsi_8h_source.html#l00049">kXRS_x509</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>, <a class="el" href="ctx__structs_8h_source.html#l00117">brix_ctx_gsi_t::signed_dh</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::thread_pool</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="cert__response_8c_source.html#l00151">gsi_cert_chunks_t::calg_len</a>, <a class="el" href="cert__response_8c_source.html#l00155">gsi_cert_chunks_t::cert_len</a>, <a class="el" href="cert__response_8c_source.html#l00154">gsi_cert_chunks_t::cert_pem</a>, <a class="el" href="cert__response_8c_source.html#l00150">gsi_cert_chunks_t::cipher_alg</a>, <a class="el" href="cert__response_8c_source.html#l00102">gsi_build_cipher_alg_list()</a>, <a class="el" href="cert__response_8c_source.html#l00211">gsi_build_dh_public()</a>, <a class="el" href="cert__response_8c_source.html#l00376">gsi_build_main_container()</a>, <a class="el" href="cert__response_8c_source.html#l00428">gsi_frame_cert_response()</a>, <a class="el" href="cert__response_8c_source.html#l00173">gsi_record_handshake_opts()</a>, <a class="el" href="cert__response_8c_source.html#l00286">gsi_select_dh_public_bucket()</a>, <a class="el" href="cert__response_8c_source.html#l00323">gsi_sign_client_rtag()</a>, <a class="el" href="cert__response_8c_source.html#l00156">gsi_cert_chunks_t::main_buf</a>, <a class="el" href="cert__response_8c_source.html#l00157">gsi_cert_chunks_t::main_len</a>, <a class="el" href="cert__response_8c_source.html#l00153">gsi_cert_chunks_t::malg_len</a>, <a class="el" href="cert__response_8c_source.html#l00152">gsi_cert_chunks_t::md_alg</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="cert__response_8c_source.html#l00148">gsi_cert_chunks_t::pub_data</a>, <a class="el" href="cert__response_8c_source.html#l00149">gsi_cert_chunks_t::pub_len</a>, <a class="el" href="cert__response_8c_source.html#l00158">gsi_cert_chunks_t::puk_len</a>, and <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00123">brix_handle_auth_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00334">gsi_auth_step_certreq()</a>.</p>
 
 </div>
 </div>
@@ -199,9 +217,129 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00102">102</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gsi__cipher_8c_source.html#l00134">brix_gsi_cipher_default_list()</a>, <a class="el" href="gsi__cipher_8c_source.html#l00155">brix_gsi_cipher_lookup()</a>, <a class="el" href="types_2config_8h_source.html#l00201">ngx_stream_brix_srv_conf_t::gsi_ciphers</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="gsi__cipher_8c_source.html#l00137">brix_gsi_cipher_default_list()</a>, <a class="el" href="gsi__cipher_8c_source.html#l00158">brix_gsi_cipher_lookup()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00143">brix_gsi_send_cert()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00509">brix_gsi_send_cert()</a>.</p>
+
+</div>
+</div>
+<a id="a18a9b5f58c6862e6a474692467a99975" name="a18a9b5f58c6862e6a474692467a99975"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a18a9b5f58c6862e6a474692467a99975">&#9670;&#160;</a></span>gsi_build_dh_public()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t gsi_build_dh_public </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>puk_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>puk_len_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00211">211</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
+
+<p class="reference">References <a class="el" href="gsi__dh_8c_source.html#l00009">brix_gsi_dh_keygen()</a>, <a class="el" href="keypool_8c_source.html#l00182">brix_gsi_keypool_pop()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00116">brix_ctx_gsi_t::dh_key</a>, <a class="el" href="context_8h_source.html#l00156">brix_ctx_t::gsi</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00509">brix_gsi_send_cert()</a>.</p>
+
+</div>
+</div>
+<a id="a4e72b87dc9920ac0c4d16bf734a69ca2" name="a4e72b87dc9920ac0c4d16bf734a69ca2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4e72b87dc9920ac0c4d16bf734a69ca2">&#9670;&#160;</a></span>gsi_build_main_container()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t gsi_build_main_container </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>signed_rtag</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>signed_rtag_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>buf_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>len_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00376">376</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
+
+<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="gsi_8h_source.html#l00020">kXGS_cert</a>, <a class="el" href="gsi_8h_source.html#l00036">kXRS_none</a>, <a class="el" href="gsi_8h_source.html#l00043">kXRS_signed_rtag</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00509">brix_gsi_send_cert()</a>.</p>
 
 </div>
 </div>
@@ -243,7 +381,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="gsi_8h_source.html#l00048">kXRS_clnt_opts</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00143">brix_gsi_send_cert()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00173">gsi_record_handshake_opts()</a>.</p>
 
 </div>
 </div>
@@ -285,7 +423,217 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="gsi_8h_source.html#l00046">kXRS_version</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00143">brix_gsi_send_cert()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00173">gsi_record_handshake_opts()</a>.</p>
+
+</div>
+</div>
+<a id="a6b662d14df4e612c92a2e634b229e498" name="a6b662d14df4e612c92a2e634b229e498"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b662d14df4e612c92a2e634b229e498">&#9670;&#160;</a></span>gsi_frame_cert_response()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t gsi_frame_cert_response </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structgsi__cert__chunks__t.html">gsi_cert_chunks_t</a> *&#160;</td>
+          <td class="paramname"><em>ch</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00428">428</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
+
+<p class="reference">References <a class="el" href="basic_8c_source.html#l00033">brix_build_resp_hdr()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="write__helpers_8c_source.html#l00189">brix_queue_response()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="cert__response_8c_source.html#l00151">gsi_cert_chunks_t::calg_len</a>, <a class="el" href="cert__response_8c_source.html#l00155">gsi_cert_chunks_t::cert_len</a>, <a class="el" href="cert__response_8c_source.html#l00154">gsi_cert_chunks_t::cert_pem</a>, <a class="el" href="cert__response_8c_source.html#l00150">gsi_cert_chunks_t::cipher_alg</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="gsi_8h_source.html#l00020">kXGS_cert</a>, <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, <a class="el" href="gsi_8h_source.html#l00052">kXRS_cipher_alg</a>, <a class="el" href="gsi_8h_source.html#l00039">kXRS_main</a>, <a class="el" href="gsi_8h_source.html#l00053">kXRS_md_alg</a>, <a class="el" href="gsi_8h_source.html#l00036">kXRS_none</a>, <a class="el" href="gsi_8h_source.html#l00049">kXRS_x509</a>, <a class="el" href="cert__response_8c_source.html#l00156">gsi_cert_chunks_t::main_buf</a>, <a class="el" href="cert__response_8c_source.html#l00157">gsi_cert_chunks_t::main_len</a>, <a class="el" href="cert__response_8c_source.html#l00153">gsi_cert_chunks_t::malg_len</a>, <a class="el" href="cert__response_8c_source.html#l00152">gsi_cert_chunks_t::md_alg</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="cert__response_8c_source.html#l00148">gsi_cert_chunks_t::pub_data</a>, <a class="el" href="cert__response_8c_source.html#l00149">gsi_cert_chunks_t::pub_len</a>, <a class="el" href="cert__response_8c_source.html#l00147">gsi_cert_chunks_t::pub_type</a>, <a class="el" href="cert__response_8c_source.html#l00158">gsi_cert_chunks_t::puk_len</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00509">brix_gsi_send_cert()</a>.</p>
+
+</div>
+</div>
+<a id="a04049d616c63e343ce86b3d5aec9e127" name="a04049d616c63e343ce86b3d5aec9e127"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a04049d616c63e343ce86b3d5aec9e127">&#9670;&#160;</a></span>gsi_record_handshake_opts()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int gsi_record_handshake_opts </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00173">173</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00123">brix_ctx_gsi_t::clnt_opts</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="context_8h_source.html#l00156">brix_ctx_t::gsi</a>, <a class="el" href="cert__response_8c_source.html#l00054">gsi_certreq_clnt_opts()</a>, <a class="el" href="cert__response_8c_source.html#l00025">gsi_certreq_version()</a>, <a class="el" href="cert__response_8c_source.html#l00083">gsi_use_signed_dh()</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="ctx__structs_8h_source.html#l00117">brix_ctx_gsi_t::signed_dh</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00509">brix_gsi_send_cert()</a>.</p>
+
+</div>
+</div>
+<a id="ad3175c19e61072832de4ba7ec5e565e1" name="ad3175c19e61072832de4ba7ec5e565e1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad3175c19e61072832de4ba7ec5e565e1">&#9670;&#160;</a></span>gsi_select_dh_public_bucket()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t gsi_select_dh_public_bucket </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>signed_dh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structgsi__cert__chunks__t.html">gsi_cert_chunks_t</a> *&#160;</td>
+          <td class="paramname"><em>ch</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00286">286</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
+
+<p class="reference">References <a class="el" href="gsi__rsa_8c_source.html#l00042">brix_gsi_rsa_encrypt_private()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="gsi_8h_source.html#l00041">kXRS_cipher</a>, <a class="el" href="gsi_8h_source.html#l00040">kXRS_puk</a>, <a class="el" href="cert__response_8c_source.html#l00148">gsi_cert_chunks_t::pub_data</a>, <a class="el" href="cert__response_8c_source.html#l00149">gsi_cert_chunks_t::pub_len</a>, and <a class="el" href="cert__response_8c_source.html#l00147">gsi_cert_chunks_t::pub_type</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00509">brix_gsi_send_cert()</a>.</p>
+
+</div>
+</div>
+<a id="a7cb81736494466883306366a48649a16" name="a7cb81736494466883306366a48649a16"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7cb81736494466883306366a48649a16">&#9670;&#160;</a></span>gsi_sign_client_rtag()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void gsi_sign_client_rtag </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>rtag_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>rtag_len_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cert__response_8c_source.html#l00323">323</a> of file <a class="el" href="cert__response_8c_source.html">cert_response.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="gsi_8h_source.html#l00039">kXRS_main</a>, <a class="el" href="gsi_8h_source.html#l00042">kXRS_rtag</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00509">brix_gsi_send_cert()</a>.</p>
 
 </div>
 </div>
@@ -327,7 +675,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="tunables_8h_source.html#l00241">BRIX_GSI_SDH_AUTO</a>, <a class="el" href="tunables_8h_source.html#l00242">BRIX_GSI_SDH_REQUIRE</a>, and <a class="el" href="tunables_8h_source.html#l00246">BRIX_GSI_VERS_DHSIGNED</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00143">brix_gsi_send_cert()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cert__response_8c_source.html#l00173">gsi_record_handshake_opts()</a>.</p>
 
 </div>
 </div>

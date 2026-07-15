@@ -91,7 +91,10 @@ $(document).ready(function(){initNavTree('xrdgsiproxy_8c.html',''); initResizabl
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a>  </div>
+<a href="#nested-classes">Data Structures</a> &#124;
+<a href="#typedef-members">Typedefs</a> &#124;
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">xrdgsiproxy.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -111,6 +114,16 @@ $(document).ready(function(){initNavTree('xrdgsiproxy_8c.html',''); initResizabl
 </div>
 <p><a href="xrdgsiproxy_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structarg__cursor.html">arg_cursor</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
+Typedefs</h2></td></tr>
+<tr class="memitem:a20e3661c81c94bbb1699a955461628bf" id="r_a20e3661c81c94bbb1699a955461628bf"><td class="memItemLeft" align="right" valign="top">typedef int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#a20e3661c81c94bbb1699a955461628bf">cmd_fn</a>) (int argc, char **argv, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a20e3661c81c94bbb1699a955461628bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a778c201c7a8ffaf2243712782fcae2f3" id="r_a778c201c7a8ffaf2243712782fcae2f3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#a778c201c7a8ffaf2243712782fcae2f3">parse_valid</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
@@ -119,10 +132,318 @@ Functions</h2></td></tr>
 <tr class="separator:a28999b7bf77e817ab21c70002c3ad233"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad96d407a911fbb914fa8e4cfbf2faf0f" id="r_ad96d407a911fbb914fa8e4cfbf2faf0f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a> (void)</td></tr>
 <tr class="separator:ad96d407a911fbb914fa8e4cfbf2faf0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad7e05c3b28cb0a9df80319071a3a96e9" id="r_ad7e05c3b28cb0a9df80319071a3a96e9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#ad7e05c3b28cb0a9df80319071a3a96e9">opt_take_value</a> (<a class="el" href="structarg__cursor.html">arg_cursor</a> *ac, const char *short_name, const char *long_name, const char **out)</td></tr>
+<tr class="separator:ad7e05c3b28cb0a9df80319071a3a96e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8f8fd1892cbc367e052e2a33bc776342" id="r_a8f8fd1892cbc367e052e2a33bc776342"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#a8f8fd1892cbc367e052e2a33bc776342">init_parse_opts</a> (int argc, char **argv, <a class="el" href="structbrix__proxy__opts.html">brix_proxy_opts</a> *o)</td></tr>
+<tr class="separator:a8f8fd1892cbc367e052e2a33bc776342"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a69b543dbd8e25aa97856af435f0254bb" id="r_a69b543dbd8e25aa97856af435f0254bb"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#a69b543dbd8e25aa97856af435f0254bb">cmd_init</a> (int argc, char **argv, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a69b543dbd8e25aa97856af435f0254bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af3328a1d403e6a7905eb6b709a42643b" id="r_af3328a1d403e6a7905eb6b709a42643b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#af3328a1d403e6a7905eb6b709a42643b">file_parse_opts</a> (int argc, char **argv, const char **file)</td></tr>
+<tr class="separator:af3328a1d403e6a7905eb6b709a42643b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab463c2273e20df7aab6c9ad3d813a27e" id="r_ab463c2273e20df7aab6c9ad3d813a27e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#ab463c2273e20df7aab6c9ad3d813a27e">cmd_info</a> (int argc, char **argv, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:ab463c2273e20df7aab6c9ad3d813a27e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a20c1f986b4002aefd9c34e4a57fb0ff4" id="r_a20c1f986b4002aefd9c34e4a57fb0ff4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#a20c1f986b4002aefd9c34e4a57fb0ff4">cmd_destroy</a> (int argc, char **argv, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a20c1f986b4002aefd9c34e4a57fb0ff4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aee23295ceca9bbc1b8979d9f0a0f7205" id="r_aee23295ceca9bbc1b8979d9f0a0f7205"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="xrdgsiproxy_8c.html#a20e3661c81c94bbb1699a955461628bf">cmd_fn</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#aee23295ceca9bbc1b8979d9f0a0f7205">cmd_lookup</a> (const char *<a class="el" href="structcmd.html">cmd</a>)</td></tr>
+<tr class="separator:aee23295ceca9bbc1b8979d9f0a0f7205"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c04138a5bfe5d72780bb7e82a18e627" id="r_a3c04138a5bfe5d72780bb7e82a18e627"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a3c04138a5bfe5d72780bb7e82a18e627"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a1f081b3f7fce6798f06534f423456fe9" id="r_a1f081b3f7fce6798f06534f423456fe9"><td class="memItemLeft" >struct {&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a85a825b34de3328c0b41484d8aa4d5cb" id="r_a85a825b34de3328c0b41484d8aa4d5cb"><td class="memItemLeft" >&#160;&#160;&#160;const char *&#160;&#160;&#160;<a class="el" href="xrdgsiproxy_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="separator:a85a825b34de3328c0b41484d8aa4d5cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a576cf810eff6a2fe58c94a5385f17f0b" id="r_a576cf810eff6a2fe58c94a5385f17f0b"><td class="memItemLeft" >&#160;&#160;&#160;<a class="el" href="xrdgsiproxy_8c.html#a20e3661c81c94bbb1699a955461628bf">cmd_fn</a>&#160;&#160;&#160;<a class="el" href="xrdgsiproxy_8c.html#ae504d8e57fbd0d2b4b58f3ee957f0bfd">fn</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="separator:a576cf810eff6a2fe58c94a5385f17f0b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1f081b3f7fce6798f06534f423456fe9" id="r_a1f081b3f7fce6798f06534f423456fe9"><td class="memItemLeft" valign="top">}&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdgsiproxy_8c.html#a1f081b3f7fce6798f06534f423456fe9">cmd_table</a> []&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="separator:a1f081b3f7fce6798f06534f423456fe9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Typedef Documentation</h2>
+<a id="a20e3661c81c94bbb1699a955461628bf" name="a20e3661c81c94bbb1699a955461628bf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a20e3661c81c94bbb1699a955461628bf">&#9670;&#160;</a></span>cmd_fn</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef int(* cmd_fn) (int argc, char **argv, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00216">216</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a20c1f986b4002aefd9c34e4a57fb0ff4" name="a20c1f986b4002aefd9c34e4a57fb0ff4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a20c1f986b4002aefd9c34e4a57fb0ff4">&#9670;&#160;</a></span>cmd_destroy()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cmd_destroy </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00198">198</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00428">brix_proxy_destroy()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00149">file_parse_opts()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
+
+</div>
+</div>
+<a id="ab463c2273e20df7aab6c9ad3d813a27e" name="ab463c2273e20df7aab6c9ad3d813a27e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab463c2273e20df7aab6c9ad3d813a27e">&#9670;&#160;</a></span>cmd_info()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cmd_info </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00170">170</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00340">brix_proxy_info()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00149">file_parse_opts()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>, and <a class="el" href="brix_8h_source.html#l00064">XRDC_ENOENT</a>.</p>
+
+</div>
+</div>
+<a id="a69b543dbd8e25aa97856af435f0254bb" name="a69b543dbd8e25aa97856af435f0254bb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a69b543dbd8e25aa97856af435f0254bb">&#9670;&#160;</a></span>cmd_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cmd_init </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00125">125</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00309">brix_proxy_create()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00340">brix_proxy_info()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00091">init_parse_opts()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__ops_8h_source.html#l00440">brix_proxy_opts::out_path</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
+
+</div>
+</div>
+<a id="aee23295ceca9bbc1b8979d9f0a0f7205" name="aee23295ceca9bbc1b8979d9f0a0f7205"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aee23295ceca9bbc1b8979d9f0a0f7205">&#9670;&#160;</a></span>cmd_lookup()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="xrdgsiproxy_8c.html#a20e3661c81c94bbb1699a955461628bf">cmd_fn</a> cmd_lookup </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>cmd</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00233">233</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdgsiproxy_8c.html#a1f081b3f7fce6798f06534f423456fe9">cmd_table</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00219">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00246">main()</a>.</p>
+
+</div>
+</div>
+<a id="af3328a1d403e6a7905eb6b709a42643b" name="af3328a1d403e6a7905eb6b709a42643b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af3328a1d403e6a7905eb6b709a42643b">&#9670;&#160;</a></span>file_parse_opts()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int file_parse_opts </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>file</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00149">149</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdgsiproxy_8c_source.html#l00055">arg_cursor::i</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00068">opt_take_value()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00198">cmd_destroy()</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00170">cmd_info()</a>.</p>
+
+</div>
+</div>
+<a id="a8f8fd1892cbc367e052e2a33bc776342" name="a8f8fd1892cbc367e052e2a33bc776342"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8f8fd1892cbc367e052e2a33bc776342">&#9670;&#160;</a></span>init_parse_opts()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int init_parse_opts </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__proxy__opts.html">brix_proxy_opts</a> *&#160;</td>
+          <td class="paramname"><em>o</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00091">91</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00442">brix_proxy_opts::bits</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00055">arg_cursor::i</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00068">opt_take_value()</a>, <a class="el" href="brix__ops_8h_source.html#l00440">brix_proxy_opts::out_path</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00020">parse_valid()</a>, <a class="el" href="brix__ops_8h_source.html#l00438">brix_proxy_opts::user_cert</a>, <a class="el" href="brix__ops_8h_source.html#l00439">brix_proxy_opts::user_key</a>, and <a class="el" href="brix__ops_8h_source.html#l00441">brix_proxy_opts::valid_hours</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00125">cmd_init()</a>.</p>
+
+</div>
+</div>
 <a id="a3c04138a5bfe5d72780bb7e82a18e627" name="a3c04138a5bfe5d72780bb7e82a18e627"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a3c04138a5bfe5d72780bb7e82a18e627">&#9670;&#160;</a></span>main()</h2>
 
@@ -149,9 +470,63 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00051">51</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00246">246</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00442">brix_proxy_opts::bits</a>, <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00151">brix_proxy_create()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00351">brix_proxy_destroy()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00263">brix_proxy_info()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__ops_8h_source.html#l00440">brix_proxy_opts::out_path</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00019">parse_valid()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00033">usage_fp()</a>, <a class="el" href="brix__ops_8h_source.html#l00438">brix_proxy_opts::user_cert</a>, <a class="el" href="brix__ops_8h_source.html#l00439">brix_proxy_opts::user_key</a>, <a class="el" href="brix__ops_8h_source.html#l00441">brix_proxy_opts::valid_hours</a>, and <a class="el" href="brix_8h_source.html#l00064">XRDC_ENOENT</a>.</p>
+<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00233">cmd_lookup()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00220">fn</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00034">usage_fp()</a>.</p>
+
+</div>
+</div>
+<a id="ad7e05c3b28cb0a9df80319071a3a96e9" name="ad7e05c3b28cb0a9df80319071a3a96e9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad7e05c3b28cb0a9df80319071a3a96e9">&#9670;&#160;</a></span>opt_take_value()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int opt_take_value </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structarg__cursor.html">arg_cursor</a> *&#160;</td>
+          <td class="paramname"><em>ac</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>short_name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>long_name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00068">68</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdgsiproxy_8c_source.html#l00054">arg_cursor::argc</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00053">arg_cursor::argv</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00055">arg_cursor::i</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00149">file_parse_opts()</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00091">init_parse_opts()</a>.</p>
 
 </div>
 </div>
@@ -179,11 +554,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00019">19</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00020">20</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00051">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00091">init_parse_opts()</a>.</p>
 
 </div>
 </div>
@@ -211,11 +586,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00045">45</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00046">46</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdgsiproxy_8c_source.html#l00033">usage_fp()</a>.</p>
+<p class="reference">References <a class="el" href="xrdgsiproxy_8c_source.html#l00034">usage_fp()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00277">brix_cache_evict_if_needed()</a>, <a class="el" href="evict__policy_8c_source.html#l00046">brix_cache_evict_one()</a>, <a class="el" href="evict__candidates_8c_source.html#l00039">brix_cache_fs_usage()</a>, <a class="el" href="evict__policy_8c_source.html#l00171">brix_cache_purge_to_target()</a>, <a class="el" href="evict__candidates_8c_source.html#l00065">brix_cache_usage_measure()</a>, <a class="el" href="reap__watermark_8c_source.html#l00012">brix_cache_watermark_purge()</a>, <a class="el" href="stage__admit_8c_source.html#l00019">brix_wt_stage_admit()</a>, <a class="el" href="xrdckverify_8c_source.html#l00048">brix_xrdckverify_main()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00499">cmd_bench()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00855">cmd_scan()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00165">cmd_verify()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00051">main()</a>, and <a class="el" href="builder_8c_source.html#l00149">ngx_http_brix_srr_build_json()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdstorascan_8c_source.html#l00702">bench_parse_args()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00743">bench_validate_args()</a>, <a class="el" href="evict__policy_8c_source.html#l00457">brix_cache_evict_if_needed()</a>, <a class="el" href="evict__candidates_8c_source.html#l00039">brix_cache_fs_usage()</a>, <a class="el" href="evict__policy_8c_source.html#l00242">brix_cache_purge_setup()</a>, <a class="el" href="evict__policy_8c_source.html#l00402">brix_cache_purge_to_target()</a>, <a class="el" href="evict__candidates_8c_source.html#l00065">brix_cache_usage_measure()</a>, <a class="el" href="reap__watermark_8c_source.html#l00012">brix_cache_watermark_purge()</a>, <a class="el" href="stage__admit_8c_source.html#l00019">brix_wt_stage_admit()</a>, <a class="el" href="xrdckverify_8c_source.html#l00102">ckv_parse_args()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00198">cmd_destroy()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00170">cmd_info()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00125">cmd_init()</a>, <a class="el" href="xrdstorascan_8c_source.html#l01280">cmd_scan()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00246">main()</a>, <a class="el" href="builder_8c_source.html#l00207">srr_share_usage()</a>, and <a class="el" href="xrdstorascan_8c_source.html#l00209">verify_parse_args()</a>.</p>
 
 </div>
 </div>
@@ -243,11 +618,72 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00033">33</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00034">34</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
 
 <p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00051">main()</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00246">main()</a>, and <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a1f081b3f7fce6798f06534f423456fe9" name="a1f081b3f7fce6798f06534f423456fe9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1f081b3f7fce6798f06534f423456fe9">&#9670;&#160;</a></span>[struct]</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const struct  { ... }  cmd_table[]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { <span class="stringliteral">&quot;init&quot;</span>,    <a class="code hl_function" href="xrdgsiproxy_8c.html#a69b543dbd8e25aa97856af435f0254bb">cmd_init</a>    },</div>
+<div class="line">    { <span class="stringliteral">&quot;info&quot;</span>,    <a class="code hl_function" href="xrdgsiproxy_8c.html#ab463c2273e20df7aab6c9ad3d813a27e">cmd_info</a>    },</div>
+<div class="line">    { <span class="stringliteral">&quot;destroy&quot;</span>, <a class="code hl_function" href="xrdgsiproxy_8c.html#a20c1f986b4002aefd9c34e4a57fb0ff4">cmd_destroy</a> },</div>
+<div class="line">}</div>
+<div class="ttc" id="axrdgsiproxy_8c_html_a20c1f986b4002aefd9c34e4a57fb0ff4"><div class="ttname"><a href="xrdgsiproxy_8c.html#a20c1f986b4002aefd9c34e4a57fb0ff4">cmd_destroy</a></div><div class="ttdeci">static int cmd_destroy(int argc, char **argv, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="xrdgsiproxy_8c_source.html#l00198">xrdgsiproxy.c:198</a></div></div>
+<div class="ttc" id="axrdgsiproxy_8c_html_a69b543dbd8e25aa97856af435f0254bb"><div class="ttname"><a href="xrdgsiproxy_8c.html#a69b543dbd8e25aa97856af435f0254bb">cmd_init</a></div><div class="ttdeci">static int cmd_init(int argc, char **argv, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="xrdgsiproxy_8c_source.html#l00125">xrdgsiproxy.c:125</a></div></div>
+<div class="ttc" id="axrdgsiproxy_8c_html_ab463c2273e20df7aab6c9ad3d813a27e"><div class="ttname"><a href="xrdgsiproxy_8c.html#ab463c2273e20df7aab6c9ad3d813a27e">cmd_info</a></div><div class="ttdeci">static int cmd_info(int argc, char **argv, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="xrdgsiproxy_8c_source.html#l00170">xrdgsiproxy.c:170</a></div></div>
+</div><!-- fragment -->
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00233">cmd_lookup()</a>.</p>
+
+</div>
+</div>
+<a id="ae504d8e57fbd0d2b4b58f3ee957f0bfd" name="ae504d8e57fbd0d2b4b58f3ee957f0bfd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae504d8e57fbd0d2b4b58f3ee957f0bfd">&#9670;&#160;</a></span>fn</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="xrdgsiproxy_8c.html#a20e3661c81c94bbb1699a955461628bf">cmd_fn</a> fn</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00220">220</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00246">main()</a>.</p>
+
+</div>
+</div>
+<a id="a8f8f80d37794cde9472343e4487ba3eb" name="a8f8f80d37794cde9472343e4487ba3eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8f8f80d37794cde9472343e4487ba3eb">&#9670;&#160;</a></span>name</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const char* name</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdgsiproxy_8c_source.html#l00219">219</a> of file <a class="el" href="xrdgsiproxy_8c_source.html">xrdgsiproxy.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdgsiproxy_8c_source.html#l00233">cmd_lookup()</a>.</p>
 
 </div>
 </div>

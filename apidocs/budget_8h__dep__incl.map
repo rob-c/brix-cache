@@ -1,13 +1,23 @@
 <map id="src/protocols/root/connection/budget.h" name="src/protocols/root/connection/budget.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="375,5,533,45"/>
-<area shape="rect" id="Node000002" href="$reads_8c.html" title=" " alt="" coords="5,101,153,126"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="362,50,130,103,129,98,361,45"/>
-<area shape="rect" id="Node000003" href="$disconnect_8c.html" title=" " alt="" coords="177,93,360,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="402,54,310,96,308,91,400,49"/>
-<area shape="rect" id="Node000004" href="$protocols_2root_2connection_2recv_8c.html" title=" " alt="" coords="385,93,523,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="457,59,457,93,451,93,451,59"/>
-<area shape="rect" id="Node000005" href="$read_8c.html" title=" " alt="" coords="548,93,683,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="503,49,581,91,579,96,500,54"/>
-<area shape="rect" id="Node000006" href="$protocols_2root_2read_2readv_8c.html" title=" " alt="" coords="707,93,841,133"/>
-<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="538,46,707,91,705,96,537,51"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="864,5,1023,45"/>
+<area shape="rect" id="Node000002" href="$reads_8c.html" title=" " alt="" coords="5,108,153,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="850,31,715,36,544,47,354,67,165,96,112,111,110,105,164,91,354,61,543,42,715,31,850,26"/>
+<area shape="rect" id="Node000003" href="$disconnect_8c.html" title=" " alt="" coords="177,101,360,141"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="851,36,632,58,502,75,373,96,339,103,338,98,372,91,502,70,631,53,850,31"/>
+<area shape="rect" id="Node000004" href="$disconnect__report_8c.html" title=" " alt="" coords="385,93,555,148"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="851,44,717,66,568,96,556,99,555,93,567,91,716,61,850,38"/>
+<area shape="rect" id="Node000005" href="$protocols_2root_2connection_2recv_8c.html" title=" " alt="" coords="579,101,718,141"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="871,52,731,96,708,103,706,98,729,91,869,47"/>
+<area shape="rect" id="Node000006" href="$protocols_2root_2connection_2recv__frame_8c.html" title=" " alt="" coords="742,101,929,141"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="913,56,859,103,855,99,909,52"/>
+<area shape="rect" id="Node000007" href="$recv__process_8c.html" title=" " alt="" coords="953,101,1150,141"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="977,52,1031,99,1028,103,974,56"/>
+<area shape="rect" id="Node000008" href="$read_8c.html" title=" " alt="" coords="1175,101,1309,141"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1020,47,1163,91,1186,98,1184,103,1161,96,1019,52"/>
+<area shape="rect" id="Node000009" href="$read__buffered_8c.html" title=" " alt="" coords="1334,101,1494,141"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1037,38,1172,60,1323,91,1352,98,1350,103,1321,96,1171,66,1036,43"/>
+<area shape="rect" id="Node000010" href="$read__sendfile_8c.html" title=" " alt="" coords="1518,101,1675,141"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1037,30,1252,51,1380,69,1507,91,1537,98,1536,103,1505,96,1379,74,1252,57,1036,36"/>
+<area shape="rect" id="Node000011" href="$protocols_2root_2read_2readv_8c.html" title=" " alt="" coords="1700,101,1835,141"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1037,26,1166,31,1329,42,1509,61,1688,91,1716,98,1715,103,1687,96,1508,66,1328,47,1166,36,1037,31"/>
 </map>

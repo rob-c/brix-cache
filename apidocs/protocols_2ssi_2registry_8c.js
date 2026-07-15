@@ -7,5 +7,5 @@ var protocols_2ssi_2registry_8c =
     [ "generation", "protocols_2ssi_2registry_8c.html#ae45b583f8dd7afc184e1fc3bca91bc04", null ],
     [ "in_use", "protocols_2ssi_2registry_8c.html#acd374dc544502235efa3c6533c75820f", null ],
     [ "s", "protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd", null ],
-    [ "ssi_reg", "protocols_2ssi_2registry_8c.html#ab3d390019f890fa4a5d3b2d0846c0205", null ]
+    [ "ssi_reg", "protocols_2ssi_2registry_8c.html#a42d1ccbbf4a80e587036342014ed2ef2", null ]
 ];

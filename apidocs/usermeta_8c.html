@@ -131,6 +131,8 @@ Functions</h2></td></tr>
 <tr class="separator:a3bb93832e1558d1932ec368c03a62771"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac1edbd69b0ad1370a15ad422b8c79a68" id="r_ac1edbd69b0ad1370a15ad422b8c79a68"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="usermeta_8c.html#ac1edbd69b0ad1370a15ad422b8c79a68">s3_user_meta_store</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, const char *fs_path, const char *blob, size_t blob_len)</td></tr>
 <tr class="separator:ac1edbd69b0ad1370a15ad422b8c79a68"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a12a2850d0820bfbca63a13d100465514" id="r_a12a2850d0820bfbca63a13d100465514"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="usermeta_8c.html#a12a2850d0820bfbca63a13d100465514">s3_user_meta_append_kv</a> (char *out, size_t outsz, size_t *pos, const char *klow, size_t knlen, const u_char *val, size_t vallen)</td></tr>
+<tr class="separator:a12a2850d0820bfbca63a13d100465514"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a72ca28f4c2696d2fb73ed98d79a93f7e" id="r_a72ca28f4c2696d2fb73ed98d79a93f7e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="usermeta_8c.html#a72ca28f4c2696d2fb73ed98d79a93f7e">s3_user_meta_blob_from_headers</a> (ngx_http_request_t *r, char *out, size_t outsz, size_t *out_len, int *any)</td></tr>
 <tr class="separator:a72ca28f4c2696d2fb73ed98d79a93f7e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af70aed484e05ccabf25c889058de83ec" id="r_af70aed484e05ccabf25c889058de83ec"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="usermeta_8c.html#af70aed484e05ccabf25c889058de83ec">s3_apply_put_user_metadata</a> (ngx_http_request_t *r, const char *fs_path, const char *root_canon)</td></tr>
@@ -238,11 +240,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00176">176</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00213">213</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="usermeta_8c_source.html#l00094">s3_user_meta_blob_from_headers()</a>, <a class="el" href="usermeta_8c_source.html#l00077">s3_user_meta_store()</a>, and <a class="el" href="usermeta_8c_source.html#l00029">S3_USERMETA_BLOB_MAX</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="usermeta_8c_source.html#l00156">s3_user_meta_blob_from_headers()</a>, <a class="el" href="usermeta_8c_source.html#l00081">s3_user_meta_store()</a>, and <a class="el" href="usermeta_8c_source.html#l00029">S3_USERMETA_BLOB_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00072">s3_handle_copy_object()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, and <a class="el" href="s3_2put_8c_source.html#l00262">s3_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00086">s3_handle_copy_object()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>.</p>
 
 </div>
 </div>
@@ -272,11 +274,83 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00199">199</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00236">236</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00027">BRIX_URLDECODE_PLUS_TO_SPACE</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>, <a class="el" href="usermeta_8c_source.html#l00057">s3_user_meta_load()</a>, <a class="el" href="usermeta_8c_source.html#l00029">S3_USERMETA_BLOB_MAX</a>, <a class="el" href="usermeta_8c_source.html#l00030">S3_USERMETA_KV_MAX</a>, and <a class="el" href="usermeta_8c_source.html#l00028">S3_USERMETA_PREFIX</a>.</p>
+<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00027">BRIX_URLDECODE_PLUS_TO_SPACE</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>, <a class="el" href="usermeta_8c_source.html#l00057">s3_user_meta_load()</a>, <a class="el" href="usermeta_8c_source.html#l00029">S3_USERMETA_BLOB_MAX</a>, <a class="el" href="usermeta_8c_source.html#l00030">S3_USERMETA_KV_MAX</a>, and <a class="el" href="usermeta_8c_source.html#l00028">S3_USERMETA_PREFIX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="object_8c_source.html#l00318">s3_handle_head()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00348">s3_get_echo_headers()</a>, and <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>.</p>
+
+</div>
+</div>
+<a id="a12a2850d0820bfbca63a13d100465514" name="a12a2850d0820bfbca63a13d100465514"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a12a2850d0820bfbca63a13d100465514">&#9670;&#160;</a></span>s3_user_meta_append_kv()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t s3_user_meta_append_kv </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>klow</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>knlen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>val</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>vallen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00110">110</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00156">s3_user_meta_blob_from_headers()</a>.</p>
 
 </div>
 </div>
@@ -332,11 +406,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00094">94</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00156">156</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="usermeta_8c_source.html#l00030">S3_USERMETA_KV_MAX</a>, and <a class="el" href="usermeta_8c_source.html#l00028">S3_USERMETA_PREFIX</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="usermeta_8c_source.html#l00110">s3_user_meta_append_kv()</a>, <a class="el" href="usermeta_8c_source.html#l00030">S3_USERMETA_KV_MAX</a>, and <a class="el" href="usermeta_8c_source.html#l00028">S3_USERMETA_PREFIX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00176">s3_apply_put_user_metadata()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00213">s3_apply_put_user_metadata()</a>.</p>
 
 </div>
 </div>
@@ -372,11 +446,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00255">255</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00292">292</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="usermeta_8c_source.html#l00057">s3_user_meta_load()</a>, <a class="el" href="usermeta_8c_source.html#l00077">s3_user_meta_store()</a>, and <a class="el" href="usermeta_8c_source.html#l00029">S3_USERMETA_BLOB_MAX</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="usermeta_8c_source.html#l00057">s3_user_meta_load()</a>, <a class="el" href="usermeta_8c_source.html#l00081">s3_user_meta_store()</a>, and <a class="el" href="usermeta_8c_source.html#l00029">S3_USERMETA_BLOB_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00072">s3_handle_copy_object()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00086">s3_handle_copy_object()</a>.</p>
 
 </div>
 </div>
@@ -436,7 +510,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="usermeta_8c_source.html#l00038">s3_user_meta_vfs_ctx()</a>, and <a class="el" href="usermeta_8c_source.html#l00027">S3_USERMETA_XATTR</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00199">s3_echo_user_metadata()</a>, and <a class="el" href="usermeta_8c_source.html#l00255">s3_user_meta_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00236">s3_echo_user_metadata()</a>, and <a class="el" href="usermeta_8c_source.html#l00292">s3_user_meta_copy()</a>.</p>
 
 </div>
 </div>
@@ -492,11 +566,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00077">77</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00081">81</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00113">brix_vfs_setxattr()</a>, <a class="el" href="usermeta_8c_source.html#l00038">s3_user_meta_vfs_ctx()</a>, and <a class="el" href="usermeta_8c_source.html#l00027">S3_USERMETA_XATTR</a>.</p>
+<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>, <a class="el" href="usermeta_8c_source.html#l00038">s3_user_meta_vfs_ctx()</a>, and <a class="el" href="usermeta_8c_source.html#l00027">S3_USERMETA_XATTR</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00176">s3_apply_put_user_metadata()</a>, and <a class="el" href="usermeta_8c_source.html#l00255">s3_user_meta_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00213">s3_apply_put_user_metadata()</a>, and <a class="el" href="usermeta_8c_source.html#l00292">s3_user_meta_copy()</a>.</p>
 
 </div>
 </div>
@@ -548,9 +622,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="usermeta_8c_source.html#l00038">38</a> of file <a class="el" href="usermeta_8c_source.html">usermeta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00057">s3_user_meta_load()</a>, and <a class="el" href="usermeta_8c_source.html#l00077">s3_user_meta_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="usermeta_8c_source.html#l00057">s3_user_meta_load()</a>, and <a class="el" href="usermeta_8c_source.html#l00081">s3_user_meta_store()</a>.</p>
 
 </div>
 </div>

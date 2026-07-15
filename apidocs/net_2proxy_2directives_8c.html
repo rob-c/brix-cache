@@ -114,6 +114,8 @@ $(document).ready(function(){initNavTree('net_2proxy_2directives_8c.html',''); i
 Functions</h2></td></tr>
 <tr class="memitem:abb7946dfbd7d591ab0f65ca3d032965c" id="r_abb7946dfbd7d591ab0f65ca3d032965c"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2proxy_2directives_8c.html#abb7946dfbd7d591ab0f65ca3d032965c">proxy_parse_host_port</a> (ngx_conf_t *cf, ngx_str_t *value, char *addr_copy, ngx_str_t *host_out, uint16_t *port_out)</td></tr>
 <tr class="separator:abb7946dfbd7d591ab0f65ca3d032965c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa8e2a275a66bdbd72711c60ebc7003da" id="r_aa8e2a275a66bdbd72711c60ebc7003da"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2proxy_2directives_8c.html#aa8e2a275a66bdbd72711c60ebc7003da">proxy_parse_upstream_auth</a> (ngx_conf_t *cf, ngx_str_t *auth_arg, <a class="el" href="structbrix__proxy__upstream__t.html">brix_proxy_upstream_t</a> *entry)</td></tr>
+<tr class="separator:aa8e2a275a66bdbd72711c60ebc7003da"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0718df51c29fd62d3abdd6c84e6e8f9f" id="r_a0718df51c29fd62d3abdd6c84e6e8f9f"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2proxy_2directives_8c.html#a0718df51c29fd62d3abdd6c84e6e8f9f">brix_conf_set_proxy_upstream</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf_ptr)</td></tr>
 <tr class="separator:a0718df51c29fd62d3abdd6c84e6e8f9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab5d6c099697dd322654c2e79bc113d64" id="r_ab5d6c099697dd322654c2e79bc113d64"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2proxy_2directives_8c.html#ab5d6c099697dd322654c2e79bc113d64">brix_conf_set_proxy_auth</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf_ptr)</td></tr>
@@ -156,9 +158,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00207">207</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00242">242</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00149">brix_proxy_conf_t::auth</a>, <a class="el" href="conf__structs_8h_source.html#l00134">BRIX_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="conf__structs_8h_source.html#l00137">BRIX_PROXY_AUTH_GSI</a>, <a class="el" href="conf__structs_8h_source.html#l00136">BRIX_PROXY_AUTH_SSS</a>, and <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>.</p>
+<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00134">BRIX_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="conf__structs_8h_source.html#l00137">BRIX_PROXY_AUTH_GSI</a>, and <a class="el" href="conf__structs_8h_source.html#l00136">BRIX_PROXY_AUTH_SSS</a>.</p>
 
 </div>
 </div>
@@ -194,9 +196,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00246">246</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00281">281</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00138">BRIX_PROXY_LOGIN_ANONYMOUS</a>, <a class="el" href="conf__structs_8h_source.html#l00140">BRIX_PROXY_LOGIN_FIXED</a>, <a class="el" href="conf__structs_8h_source.html#l00139">BRIX_PROXY_LOGIN_PASSTHROUGH</a>, <a class="el" href="conf__structs_8h_source.html#l00150">brix_proxy_conf_t::login_user</a>, <a class="el" href="conf__structs_8h_source.html#l00151">brix_proxy_conf_t::login_user_name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>.</p>
+<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00138">BRIX_PROXY_LOGIN_ANONYMOUS</a>, <a class="el" href="conf__structs_8h_source.html#l00140">BRIX_PROXY_LOGIN_FIXED</a>, <a class="el" href="conf__structs_8h_source.html#l00139">BRIX_PROXY_LOGIN_PASSTHROUGH</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 </div>
 </div>
@@ -232,9 +234,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00293">293</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
-
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00160">brix_proxy_conf_t::path_add</a>, <a class="el" href="conf__structs_8h_source.html#l00159">brix_proxy_conf_t::path_strip</a>, and <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00328">328</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
 
 </div>
 </div>
@@ -270,9 +270,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00111">111</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00173">173</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00091">brix_proxy_upstream_t::auth</a>, <a class="el" href="conf__structs_8h_source.html#l00134">BRIX_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="conf__structs_8h_source.html#l00136">BRIX_PROXY_AUTH_SSS</a>, <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, <a class="el" href="tunables_8h_source.html#l00250">BRIX_SSS_NAME_MAX</a>, <a class="el" href="conf__structs_8h_source.html#l00143">brix_proxy_conf_t::host</a>, <a class="el" href="types_2config_8h_source.html#l00089">brix_proxy_upstream_t::host</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="conf__structs_8h_source.html#l00144">brix_proxy_conf_t::port</a>, <a class="el" href="types_2config_8h_source.html#l00090">brix_proxy_upstream_t::port</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="net_2proxy_2directives_8c_source.html#l00040">proxy_parse_host_port()</a>, <a class="el" href="types_2config_8h_source.html#l00092">brix_proxy_upstream_t::sss_keyname</a>, and <a class="el" href="conf__structs_8h_source.html#l00158">brix_proxy_conf_t::upstreams</a>.</p>
+<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00091">brix_proxy_upstream_t::auth</a>, <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, <a class="el" href="types_2config_8h_source.html#l00089">brix_proxy_upstream_t::host</a>, <a class="el" href="types_2config_8h_source.html#l00090">brix_proxy_upstream_t::port</a>, <a class="el" href="net_2proxy_2directives_8c_source.html#l00040">proxy_parse_host_port()</a>, <a class="el" href="net_2proxy_2directives_8c_source.html#l00116">proxy_parse_upstream_auth()</a>, and <a class="el" href="types_2config_8h_source.html#l00092">brix_proxy_upstream_t::sss_keyname</a>.</p>
 
 </div>
 </div>
@@ -332,7 +332,55 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2proxy_2directives_8c_source.html#l00111">brix_conf_set_proxy_upstream()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2proxy_2directives_8c_source.html#l00173">brix_conf_set_proxy_upstream()</a>.</p>
+
+</div>
+</div>
+<a id="aa8e2a275a66bdbd72711c60ebc7003da" name="aa8e2a275a66bdbd72711c60ebc7003da"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa8e2a275a66bdbd72711c60ebc7003da">&#9670;&#160;</a></span>proxy_parse_upstream_auth()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static char * proxy_parse_upstream_auth </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>auth_arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__proxy__upstream__t.html">brix_proxy_upstream_t</a> *&#160;</td>
+          <td class="paramname"><em>entry</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2proxy_2directives_8c_source.html#l00116">116</a> of file <a class="el" href="net_2proxy_2directives_8c_source.html">directives.c</a>.</p>
+
+<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00091">brix_proxy_upstream_t::auth</a>, <a class="el" href="conf__structs_8h_source.html#l00134">BRIX_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="conf__structs_8h_source.html#l00136">BRIX_PROXY_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00250">BRIX_SSS_NAME_MAX</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="types_2config_8h_source.html#l00092">brix_proxy_upstream_t::sss_keyname</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2proxy_2directives_8c_source.html#l00173">brix_conf_set_proxy_upstream()</a>.</p>
 
 </div>
 </div>

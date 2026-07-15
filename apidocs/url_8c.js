@@ -10,5 +10,9 @@ var url_8c =
     [ "parse_authority", "url_8c.html#a8c8ad81aa26a1a539b0158b1c5fe1835", null ],
     [ "parse_remote", "url_8c.html#ac1dd233151b92c250f53de0df2833d5a", null ],
     [ "starts_with", "url_8c.html#a55469391e7680b876a48cdc0d3d24632", null ],
+    [ "weburl_copy_path", "url_8c.html#a3bee322338dcb73e26637f8d85eaf885", null ],
+    [ "weburl_match_scheme", "url_8c.html#a7a07b8927c4913126dd637f3bf3fc386", null ],
+    [ "weburl_parse_bracket_host", "url_8c.html#afa3a18cf5bc6cef61a8b859a4b5f2a0e", null ],
+    [ "weburl_parse_plain_host", "url_8c.html#a75fad47deaf9cfbe31244ee6c923bae7", null ],
     [ "WEB_SCHEMES", "url_8c.html#a755a0683c4b97dd07434ac2ae12b0aef", null ]
 ];

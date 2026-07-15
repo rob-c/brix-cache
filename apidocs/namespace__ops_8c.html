@@ -96,16 +96,13 @@ $(document).ready(function(){initNavTree('namespace__ops_8c.html',''); initResiz
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="namespace__ops_8h_source.html">namespace_ops.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="namespace__ops__internal_8h_source.html">namespace_ops_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="beneath_8h_source.html">fs/path/beneath.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="ngx__brix__fattr_8h_source.html">protocols/root/fattr/ngx_brix_fattr.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs__walk_8h_source.html">fs_walk.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="copy__range_8h_source.html">copy_range.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="staged__file_8h_source.html">staged_file.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;sys/stat.h&gt;</code><br />
-<code>#include &lt;sys/xattr.h&gt;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
@@ -120,64 +117,24 @@ $(document).ready(function(){initNavTree('namespace__ops_8c.html',''); initResiz
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a958685506e41e9a7395726b90be06c7b" id="r_a958685506e41e9a7395726b90be06c7b"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a958685506e41e9a7395726b90be06c7b">ns_rel</a> (const char *root_canon, const char *abspath, int *rootfd_out)</td></tr>
-<tr class="separator:a958685506e41e9a7395726b90be06c7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac2026578d1e1d18037bda611aab318e5" id="r_ac2026578d1e1d18037bda611aab318e5"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#ac2026578d1e1d18037bda611aab318e5">ns_rel</a> (const char *root_canon, const char *abspath, int *rootfd_out)</td></tr>
+<tr class="separator:ac2026578d1e1d18037bda611aab318e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a38876ffe589ce1fc38358577fe000ef7" id="r_a38876ffe589ce1fc38358577fe000ef7"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="ns__status_8h.html#a3c7cec413616425d6bc17c99cf2c81bd">brix_ns_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a38876ffe589ce1fc38358577fe000ef7">errno_to_ns_status</a> (int err)</td></tr>
 <tr class="separator:a38876ffe589ce1fc38358577fe000ef7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4a0d2ce92728d9f7e948831660d16d9b" id="r_a4a0d2ce92728d9f7e948831660d16d9b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a4a0d2ce92728d9f7e948831660d16d9b">brix_xattr_copy_by_prefix</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *src, const char *dst, const char *prefix, size_t prefix_len, size_t value_max)</td></tr>
-<tr class="separator:a4a0d2ce92728d9f7e948831660d16d9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5c7a36b4a4935228135e33964da5612c" id="r_a5c7a36b4a4935228135e33964da5612c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a5c7a36b4a4935228135e33964da5612c">brix_ns_copy_fattrs</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *src, const char *dst)</td></tr>
-<tr class="separator:a5c7a36b4a4935228135e33964da5612c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8219ed5158a28132022efd7c35add97b" id="r_a8219ed5158a28132022efd7c35add97b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a8219ed5158a28132022efd7c35add97b">ns_set_err</a> (<a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a> *res, int err)</td></tr>
+<tr class="separator:a8219ed5158a28132022efd7c35add97b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af51cfe260f07defbf2da37ad5904e164" id="r_af51cfe260f07defbf2da37ad5904e164"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#af51cfe260f07defbf2da37ad5904e164">ns_delete_probe</a> (int rootfd, const char *rel, const <a class="el" href="structbrix__ns__delete__opts__t.html">brix_ns_delete_opts_t</a> *opts, <a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a> *res)</td></tr>
+<tr class="separator:af51cfe260f07defbf2da37ad5904e164"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a39f43ebd655989a434c9ed1d034007a2" id="r_a39f43ebd655989a434c9ed1d034007a2"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a39f43ebd655989a434c9ed1d034007a2">ns_delete_remove</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *path, int rootfd, const char *rel, const <a class="el" href="structbrix__ns__delete__opts__t.html">brix_ns_delete_opts_t</a> *opts, <a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a> *res)</td></tr>
+<tr class="separator:a39f43ebd655989a434c9ed1d034007a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8bc1bba7c8110627038b61608d52635c" id="r_a8bc1bba7c8110627038b61608d52635c"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a8bc1bba7c8110627038b61608d52635c">brix_ns_delete</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *path, const <a class="el" href="structbrix__ns__delete__opts__t.html">brix_ns_delete_opts_t</a> *opts)</td></tr>
 <tr class="separator:a8bc1bba7c8110627038b61608d52635c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a45abc4746cfa2c62c8a569a87801747d" id="r_a45abc4746cfa2c62c8a569a87801747d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a45abc4746cfa2c62c8a569a87801747d">brix_ns_mkdir</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, ngx_flag_t recursive)</td></tr>
+<tr class="memitem:a45abc4746cfa2c62c8a569a87801747d" id="r_a45abc4746cfa2c62c8a569a87801747d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a45abc4746cfa2c62c8a569a87801747d">brix_ns_mkdir</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *path, mode_t mode, ngx_flag_t recursive)</td></tr>
 <tr class="separator:a45abc4746cfa2c62c8a569a87801747d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4521644537c289352bbc9c0fe5e34895" id="r_a4521644537c289352bbc9c0fe5e34895"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#a4521644537c289352bbc9c0fe5e34895">brix_ns_rename</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *src, const char *dst, ngx_flag_t overwrite_dirs)</td></tr>
 <tr class="separator:a4521644537c289352bbc9c0fe5e34895"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac950d3a2396418df1a83601d3b865619" id="r_ac950d3a2396418df1a83601d3b865619"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace__ops_8c.html#ac950d3a2396418df1a83601d3b865619">brix_ns_local_copy</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *src, const char *dst, const <a class="el" href="structbrix__ns__copy__opts__t.html">brix_ns_copy_opts_t</a> *opts)</td></tr>
-<tr class="separator:ac950d3a2396418df1a83601d3b865619"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a5c7a36b4a4935228135e33964da5612c" name="a5c7a36b4a4935228135e33964da5612c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5c7a36b4a4935228135e33964da5612c">&#9670;&#160;</a></span>brix_ns_copy_fattrs()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_ns_copy_fattrs </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00149">149</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ngx__brix__fattr_8h_source.html#l00025">BRIX_FATTR_MAX_VBUF</a>, <a class="el" href="ngx__brix__fattr_8h_source.html#l00023">BRIX_FATTR_XKEY_PFX</a>, <a class="el" href="ngx__brix__fattr_8h_source.html#l00024">BRIX_FATTR_XKEY_PFX_LEN</a>, <a class="el" href="namespace__ops_8c_source.html#l00102">brix_xattr_copy_by_prefix()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00341">brix_ns_local_copy()</a>, <a class="el" href="vfs__walk_8c_source.html#l00320">brix_vfs_copyfile()</a>, <a class="el" href="vfs__walk_8c_source.html#l00368">brix_vfs_copytree()</a>, and <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00082">webdav_copy_collection_execute()</a>.</p>
-
-</div>
-</div>
 <a id="a8bc1bba7c8110627038b61608d52635c" name="a8bc1bba7c8110627038b61608d52635c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a8bc1bba7c8110627038b61608d52635c">&#9670;&#160;</a></span>brix_ns_delete()</h2>
 
@@ -216,63 +173,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00157">157</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00202">202</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00085">brix_fs_dir_is_empty()</a>, <a class="el" href="fs__walk_8c_source.html#l00255">brix_fs_remove_tree_confined()</a>, <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="ns__status_8h_source.html#l00023">BRIX_NS_NOT_EMPTY</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="namespace__ops_8c_source.html#l00081">errno_to_ns_status()</a>, <a class="el" href="namespace__ops_8h_source.html#l00021">brix_ns_result_t::existed</a>, <a class="el" href="namespace__ops_8h_source.html#l00031">brix_ns_delete_opts_t::idempotent_missing</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="namespace__ops_8c_source.html#l00058">ns_rel()</a>, <a class="el" href="namespace__ops_8h_source.html#l00030">brix_ns_delete_opts_t::recursive</a>, <a class="el" href="namespace__ops_8h_source.html#l00033">brix_ns_delete_opts_t::require_directory</a>, <a class="el" href="namespace__ops_8h_source.html#l00032">brix_ns_delete_opts_t::require_empty_dir</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, <a class="el" href="namespace__ops_8h_source.html#l00020">brix_ns_result_t::sys_errno</a>, and <a class="el" href="namespace__ops_8h_source.html#l00023">brix_ns_result_t::was_dir</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="namespace__ops_8c_source.html#l00123">ns_delete_probe()</a>, <a class="el" href="namespace__ops_8c_source.html#l00169">ns_delete_remove()</a>, <a class="el" href="namespace__ops_8c_source.html#l00048">ns_rel()</a>, and <a class="el" href="namespace__ops_8c_source.html#l00102">ns_set_err()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__unlink_8c_source.html#l00075">brix_vfs_delete()</a>, and <a class="el" href="sd__posix_8c_source.html#l00378">sd_posix_unlink()</a>.</p>
-
-</div>
-</div>
-<a id="ac950d3a2396418df1a83601d3b865619" name="ac950d3a2396418df1a83601d3b865619"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac950d3a2396418df1a83601d3b865619">&#9670;&#160;</a></span>brix_ns_local_copy()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a> brix_ns_local_copy </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>root_canon</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structbrix__ns__copy__opts__t.html">brix_ns_copy_opts_t</a> *&#160;</td>
-          <td class="paramname"><em>opts</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00341">341</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
-
-<p class="reference">References <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="copy__range_8c_source.html#l00095">brix_copy_range()</a>, <a class="el" href="ns__status_8h_source.html#l00022">BRIX_NS_CONFLICT</a>, <a class="el" href="namespace__ops_8c_source.html#l00149">brix_ns_copy_fattrs()</a>, <a class="el" href="ns__status_8h_source.html#l00021">BRIX_NS_EXISTS</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="staged__file_8c_source.html#l00770">brix_staged_abort()</a>, <a class="el" href="staged__file_8c_source.html#l00739">brix_staged_commit()</a>, <a class="el" href="staged__file_8c_source.html#l00059">brix_staged_open()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="namespace__ops_8h_source.html#l00022">brix_ns_result_t::created</a>, <a class="el" href="namespace__ops_8c_source.html#l00081">errno_to_ns_status()</a>, <a class="el" href="namespace__ops_8h_source.html#l00021">brix_ns_result_t::existed</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="namespace__ops_8c_source.html#l00058">ns_rel()</a>, <a class="el" href="namespace__ops_8h_source.html#l00042">brix_ns_copy_opts_t::overwrite</a>, <a class="el" href="namespace__ops_8h_source.html#l00043">brix_ns_copy_opts_t::overwrite_dirs</a>, <a class="el" href="namespace__ops_8h_source.html#l00044">brix_ns_copy_opts_t::preserve_xattrs</a>, <a class="el" href="namespace__ops_8h_source.html#l00045">brix_ns_copy_opts_t::staged_commit</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, <a class="el" href="namespace__ops_8h_source.html#l00020">brix_ns_result_t::sys_errno</a>, <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>, and <a class="el" href="namespace__ops_8h_source.html#l00023">brix_ns_result_t::was_dir</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00029">brix_vfs_copy()</a>, and <a class="el" href="sd__posix_8c_source.html#l00430">sd_posix_server_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__unlink_8c_source.html#l00179">brix_vfs_delete_via_namespace()</a>, and <a class="el" href="sd__posix__ns_8c_source.html#l00078">sd_posix_unlink()</a>.</p>
 
 </div>
 </div>
@@ -320,11 +225,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00239">239</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00229">229</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
 
-<p class="reference">References <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00162">brix_mkdir_recursive_beneath()</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="namespace__ops_8h_source.html#l00022">brix_ns_result_t::created</a>, <a class="el" href="namespace__ops_8c_source.html#l00081">errno_to_ns_status()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="namespace__ops_8c_source.html#l00058">ns_rel()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, and <a class="el" href="namespace__ops_8h_source.html#l00020">brix_ns_result_t::sys_errno</a>.</p>
+<p class="reference">References <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, <a class="el" href="fs_2path_2mkdir_8c_source.html#l00369">brix_mkdir_recursive_beneath()</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="namespace__ops_8h_source.html#l00022">brix_ns_result_t::created</a>, <a class="el" href="namespace__ops_8c_source.html#l00071">errno_to_ns_status()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="namespace__ops_8c_source.html#l00048">ns_rel()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, and <a class="el" href="namespace__ops_8h_source.html#l00020">brix_ns_result_t::sys_errno</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00023">brix_vfs_mkdir()</a>, and <a class="el" href="sd__posix_8c_source.html#l00400">sd_posix_mkdir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00213">brix_vfs_mkdir()</a>, and <a class="el" href="sd__posix__ns_8c_source.html#l00100">sd_posix_mkdir()</a>.</p>
 
 </div>
 </div>
@@ -372,69 +277,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00282">282</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00272">272</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
 
-<p class="reference">References <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="fs__walk_8c_source.html#l00255">brix_fs_remove_tree_confined()</a>, <a class="el" href="ns__status_8h_source.html#l00021">BRIX_NS_EXISTS</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="namespace__ops_8c_source.html#l00081">errno_to_ns_status()</a>, <a class="el" href="namespace__ops_8h_source.html#l00021">brix_ns_result_t::existed</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="namespace__ops_8c_source.html#l00058">ns_rel()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, <a class="el" href="namespace__ops_8h_source.html#l00020">brix_ns_result_t::sys_errno</a>, and <a class="el" href="namespace__ops_8h_source.html#l00023">brix_ns_result_t::was_dir</a>.</p>
+<p class="reference">References <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="fs__walk__remove_8c_source.html#l00115">brix_fs_remove_tree_confined()</a>, <a class="el" href="ns__status_8h_source.html#l00021">BRIX_NS_EXISTS</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="namespace__ops_8c_source.html#l00071">errno_to_ns_status()</a>, <a class="el" href="namespace__ops_8h_source.html#l00021">brix_ns_result_t::existed</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="namespace__ops_8c_source.html#l00048">ns_rel()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, <a class="el" href="namespace__ops_8h_source.html#l00020">brix_ns_result_t::sys_errno</a>, and <a class="el" href="namespace__ops_8h_source.html#l00023">brix_ns_result_t::was_dir</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__rename_8c_source.html#l00065">brix_vfs_rename()</a>, <a class="el" href="vfs__rename_8c_source.html#l00025">brix_vfs_rename_path()</a>, and <a class="el" href="sd__posix_8c_source.html#l00419">sd_posix_rename()</a>.</p>
-
-</div>
-</div>
-<a id="a4a0d2ce92728d9f7e948831660d16d9b" name="a4a0d2ce92728d9f7e948831660d16d9b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4a0d2ce92728d9f7e948831660d16d9b">&#9670;&#160;</a></span>brix_xattr_copy_by_prefix()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_xattr_copy_by_prefix </td>
-          <td>(</td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>prefix</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>prefix_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>value_max</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00102">102</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
-
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00149">brix_ns_copy_fattrs()</a>, and <a class="el" href="dead__props_8c_source.html#l00498">webdav_dead_props_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__rename_8c_source.html#l00025">brix_vfs_rename_path()</a>, and <a class="el" href="sd__posix__ns_8c_source.html#l00119">sd_posix_rename()</a>.</p>
 
 </div>
 </div>
@@ -462,16 +309,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00081">81</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00071">71</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ns__status_8h_source.html#l00022">BRIX_NS_CONFLICT</a>, <a class="el" href="ns__status_8h_source.html#l00020">BRIX_NS_DENIED</a>, <a class="el" href="ns__status_8h_source.html#l00021">BRIX_NS_EXISTS</a>, <a class="el" href="ns__status_8h_source.html#l00026">BRIX_NS_IO_ERROR</a>, <a class="el" href="ns__status_8h_source.html#l00025">BRIX_NS_NO_SPACE</a>, <a class="el" href="ns__status_8h_source.html#l00023">BRIX_NS_NOT_EMPTY</a>, <a class="el" href="ns__status_8h_source.html#l00019">BRIX_NS_NOT_FOUND</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, and <a class="el" href="ns__status_8h_source.html#l00024">BRIX_NS_TOO_LONG</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00157">brix_ns_delete()</a>, <a class="el" href="namespace__ops_8c_source.html#l00341">brix_ns_local_copy()</a>, <a class="el" href="namespace__ops_8c_source.html#l00239">brix_ns_mkdir()</a>, and <a class="el" href="namespace__ops_8c_source.html#l00282">brix_ns_rename()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00229">brix_ns_mkdir()</a>, <a class="el" href="namespace__ops_8c_source.html#l00272">brix_ns_rename()</a>, and <a class="el" href="namespace__ops_8c_source.html#l00102">ns_set_err()</a>.</p>
 
 </div>
 </div>
-<a id="a958685506e41e9a7395726b90be06c7b" name="a958685506e41e9a7395726b90be06c7b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a958685506e41e9a7395726b90be06c7b">&#9670;&#160;</a></span>ns_rel()</h2>
+<a id="af51cfe260f07defbf2da37ad5904e164" name="af51cfe260f07defbf2da37ad5904e164"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af51cfe260f07defbf2da37ad5904e164">&#9670;&#160;</a></span>ns_delete_probe()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -480,7 +327,130 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static const char * ns_rel </td>
+          <td class="memname">static ngx_flag_t ns_delete_probe </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>rootfd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>rel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__ns__delete__opts__t.html">brix_ns_delete_opts_t</a> *&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a> *&#160;</td>
+          <td class="paramname"><em>res</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00123">123</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
+
+<p class="reference">References <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="namespace__ops_8h_source.html#l00021">brix_ns_result_t::existed</a>, <a class="el" href="namespace__ops_8h_source.html#l00031">brix_ns_delete_opts_t::idempotent_missing</a>, <a class="el" href="namespace__ops_8c_source.html#l00102">ns_set_err()</a>, <a class="el" href="namespace__ops_8h_source.html#l00033">brix_ns_delete_opts_t::require_directory</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, and <a class="el" href="namespace__ops_8h_source.html#l00023">brix_ns_result_t::was_dir</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00202">brix_ns_delete()</a>.</p>
+
+</div>
+</div>
+<a id="a39f43ebd655989a434c9ed1d034007a2" name="a39f43ebd655989a434c9ed1d034007a2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a39f43ebd655989a434c9ed1d034007a2">&#9670;&#160;</a></span>ns_delete_remove()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void ns_delete_remove </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>rootfd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>rel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__ns__delete__opts__t.html">brix_ns_delete_opts_t</a> *&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a> *&#160;</td>
+          <td class="paramname"><em>res</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00169">169</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00083">brix_fs_dir_is_empty()</a>, <a class="el" href="fs__walk__remove_8c_source.html#l00115">brix_fs_remove_tree_confined()</a>, <a class="el" href="ns__status_8h_source.html#l00023">BRIX_NS_NOT_EMPTY</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="namespace__ops_8c_source.html#l00102">ns_set_err()</a>, <a class="el" href="namespace__ops_8h_source.html#l00030">brix_ns_delete_opts_t::recursive</a>, <a class="el" href="namespace__ops_8h_source.html#l00032">brix_ns_delete_opts_t::require_empty_dir</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, and <a class="el" href="namespace__ops_8h_source.html#l00023">brix_ns_result_t::was_dir</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00202">brix_ns_delete()</a>.</p>
+
+</div>
+</div>
+<a id="ac2026578d1e1d18037bda611aab318e5" name="ac2026578d1e1d18037bda611aab318e5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac2026578d1e1d18037bda611aab318e5">&#9670;&#160;</a></span>ns_rel()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const char * ns_rel </td>
           <td>(</td>
           <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>root_canon</em>, </td>
@@ -503,18 +473,47 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00058">58</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00048">48</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
 
 <p class="reference">References <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, and <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00157">brix_ns_delete()</a>, <a class="el" href="namespace__ops_8c_source.html#l00341">brix_ns_local_copy()</a>, <a class="el" href="namespace__ops_8c_source.html#l00239">brix_ns_mkdir()</a>, and <a class="el" href="namespace__ops_8c_source.html#l00282">brix_ns_rename()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00202">brix_ns_delete()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00277">brix_ns_local_copy()</a>, <a class="el" href="namespace__ops_8c_source.html#l00229">brix_ns_mkdir()</a>, and <a class="el" href="namespace__ops_8c_source.html#l00272">brix_ns_rename()</a>.</p>
+
+</div>
+</div>
+<a id="a8219ed5158a28132022efd7c35add97b" name="a8219ed5158a28132022efd7c35add97b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8219ed5158a28132022efd7c35add97b">&#9670;&#160;</a></span>ns_set_err()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void ns_set_err </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ns__result__t.html">brix_ns_result_t</a> *&#160;</td>
+          <td class="paramname"><em>res</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>err</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="namespace__ops_8c_source.html#l00102">102</a> of file <a class="el" href="namespace__ops_8c_source.html">namespace_ops.c</a>.</p>
+
+<p class="reference">References <a class="el" href="namespace__ops_8c_source.html#l00071">errno_to_ns_status()</a>, <a class="el" href="namespace__ops_8h_source.html#l00019">brix_ns_result_t::status</a>, and <a class="el" href="namespace__ops_8h_source.html#l00020">brix_ns_result_t::sys_errno</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00202">brix_ns_delete()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00277">brix_ns_local_copy()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00223">ns_copy_finalize()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00174">ns_copy_open_dst()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00127">ns_copy_validate()</a>, <a class="el" href="namespace__ops_8c_source.html#l00123">ns_delete_probe()</a>, and <a class="el" href="namespace__ops_8c_source.html#l00169">ns_delete_remove()</a>.</p>
 
 </div>
 </div>

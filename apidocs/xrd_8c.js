@@ -1,11 +1,29 @@
 var xrd_8c =
 [
+    [ "xrd_dispatch_t", "structxrd__dispatch__t.html", "structxrd__dispatch__t" ],
+    [ "fs_split_t", "structfs__split__t.html", "structfs__split__t" ],
+    [ "cmd_cp", "xrd_8c.html#a4c1d382060e4646a79cc88544f1bcbdd", null ],
+    [ "cmd_diag", "xrd_8c.html#a2a726d508c17c7e651e01f27ad5dc1a8", null ],
+    [ "cmd_fs_verb", "xrd_8c.html#a43ea863c70a6fc60bd37846a06157cd3", null ],
+    [ "cmd_get", "xrd_8c.html#a4b81df067bd21b1293ea166bf2d3c4fb", null ],
+    [ "cmd_help", "xrd_8c.html#aa25d345266d12db8b72b8e88a21678fb", null ],
+    [ "cmd_mounts", "xrd_8c.html#a0559e6ead592dfaff8a590a5cdbe6771", null ],
+    [ "cmd_put", "xrd_8c.html#a62292c4a606164e63320d33e96f444be", null ],
+    [ "cmd_replicas", "xrd_8c.html#ad9e35fd93fd2c639339aec616db9cc45", null ],
+    [ "cmd_storascan", "xrd_8c.html#a09b5eb92b2a240ccb18fbd9cc1944700", null ],
+    [ "cmd_sync", "xrd_8c.html#a8a18cae3bc09c02282df718d9c12dcfd", null ],
+    [ "cmd_usage_stderr", "xrd_8c.html#a9f460a8fd141545cfecfc7b85ebd6c5e", null ],
+    [ "cmd_version", "xrd_8c.html#ae2ae743e8ac46df52a2f18d9df957122", null ],
     [ "exec_tool", "xrd_8c.html#a6597d4ce9dac80da1386aa9fbe8944a6", null ],
+    [ "fs_find_endpoint", "xrd_8c.html#a5629a25eb02a5a803df9aaaf6462d88e", null ],
+    [ "fs_map_split_args", "xrd_8c.html#af60bbf7c75ee161d90a088dad3564cc8", null ],
     [ "is_fs_verb", "xrd_8c.html#a0473c915c9e27e8bbfb1c6d76d8764bb", null ],
     [ "main", "xrd_8c.html#a3c04138a5bfe5d72780bb7e82a18e627", null ],
     [ "map_fs_arg", "xrd_8c.html#ae0cff64500bac3c2e3c5acb85da5c8e1", null ],
+    [ "report_unknown_command", "xrd_8c.html#a59d6fefca505e9af4904d465e592c537", null ],
     [ "usage", "xrd_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a", null ],
     [ "usage_fp", "xrd_8c.html#a28999b7bf77e817ab21c70002c3ad233", null ],
     [ "FS_VERBS", "xrd_8c.html#a3e58223905bb1cc809aa8eef9566480c", null ],
-    [ "XRD_CAP_KEYS", "xrd_8c.html#a2eefcb25df9d295f753399f077545c12", null ]
+    [ "XRD_CAP_KEYS", "xrd_8c.html#a2eefcb25df9d295f753399f077545c12", null ],
+    [ "XRD_DISPATCH", "xrd_8c.html#a4e8fcbcfc9feb915382ac1fc4d8d6365", null ]
 ];

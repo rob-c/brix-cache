@@ -114,7 +114,7 @@ Functions</h2></td></tr>
 <tr class="separator:a2259b7c99e3736d9ffea639c103c87d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8cfece9d423d57684e665d0caa5bd64a" id="r_a8cfece9d423d57684e665d0caa5bd64a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#a8cfece9d423d57684e665d0caa5bd64a">xfs_readdir</a> (const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)</td></tr>
 <tr class="separator:a8cfece9d423d57684e665d0caa5bd64a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad5b33ef08a54b1a65f9e80b98b37335f" id="r_ad5b33ef08a54b1a65f9e80b98b37335f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#ad5b33ef08a54b1a65f9e80b98b37335f">xfs_mkdir</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="memitem:ad5b33ef08a54b1a65f9e80b98b37335f" id="r_ad5b33ef08a54b1a65f9e80b98b37335f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#ad5b33ef08a54b1a65f9e80b98b37335f">xfs_mkdir</a> (const char *path, mode_t mode)</td></tr>
 <tr class="separator:ad5b33ef08a54b1a65f9e80b98b37335f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2a426d57a7d857deae095725931384bf" id="r_a2a426d57a7d857deae095725931384bf"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#a2a426d57a7d857deae095725931384bf">xfs_unlink</a> (const char *path)</td></tr>
 <tr class="separator:a2a426d57a7d857deae095725931384bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -122,7 +122,7 @@ Functions</h2></td></tr>
 <tr class="separator:a21b5a906962d323015131d83ebf47bb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac2fdb297394e6187e73dbb7ab8c8a413" id="r_ac2fdb297394e6187e73dbb7ab8c8a413"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#ac2fdb297394e6187e73dbb7ab8c8a413">xfs_rename</a> (const char *from, const char *to, unsigned int flags)</td></tr>
 <tr class="separator:ac2fdb297394e6187e73dbb7ab8c8a413"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2f885f96ba21be35611764dd64e2e50c" id="r_a2f885f96ba21be35611764dd64e2e50c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#a2f885f96ba21be35611764dd64e2e50c">xfs_chmod</a> (const char *path, mode_t <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, struct fuse_file_info *fi)</td></tr>
+<tr class="memitem:a2f885f96ba21be35611764dd64e2e50c" id="r_a2f885f96ba21be35611764dd64e2e50c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#a2f885f96ba21be35611764dd64e2e50c">xfs_chmod</a> (const char *path, mode_t mode, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a2f885f96ba21be35611764dd64e2e50c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af7e51145d6d7c1e6d3ec4f4e804070f5" id="r_af7e51145d6d7c1e6d3ec4f4e804070f5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#af7e51145d6d7c1e6d3ec4f4e804070f5">xfs_truncate</a> (const char *path, off_t size, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:af7e51145d6d7c1e6d3ec4f4e804070f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -132,6 +132,8 @@ Functions</h2></td></tr>
 <tr class="separator:aa47f72b6f7b487b9da13c7a0b787d9d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae757a9c2008fd1189c70bc89e350bc20" id="r_ae757a9c2008fd1189c70bc89e350bc20"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#ae757a9c2008fd1189c70bc89e350bc20">xfs_symlink</a> (const char *target, const char *linkpath)</td></tr>
 <tr class="separator:ae757a9c2008fd1189c70bc89e350bc20"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad09aa15c8e3150b1e58cf959e92428ea" id="r_ad09aa15c8e3150b1e58cf959e92428ea"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#ad09aa15c8e3150b1e58cf959e92428ea">xfs_readlink_one_attempt</a> (const char *sp, char *buf, size_t size, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:ad09aa15c8e3150b1e58cf959e92428ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8aaf135e800e70564fa409282fde448d" id="r_a8aaf135e800e70564fa409282fde448d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#a8aaf135e800e70564fa409282fde448d">xfs_readlink</a> (const char *path, char *buf, size_t size)</td></tr>
 <tr class="separator:a8aaf135e800e70564fa409282fde448d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4ab6920d31cfef102d8b19c370c695c4" id="r_a4ab6920d31cfef102d8b19c370c695c4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrootdfs__meta_8c.html#a4ab6920d31cfef102d8b19c370c695c4">xfs_statfs</a> (const char *path, struct statvfs *stbuf)</td></tr>
@@ -208,7 +210,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00319">319</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00350">350</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
 
 <p class="reference">References <a class="el" href="fuse__ops_8c_source.html#l00090">brix_fuse_op_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00044">ctx_qspace::path</a>, <a class="el" href="fuse__ops_8h_source.html#l00068">brix_fuse_ctx_stat::path</a>, <a class="el" href="fuse__ops_8h_source.html#l00068">brix_fuse_ctx_stat::si</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs_8c_source.html#l00145">xfs_meta()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
@@ -248,7 +250,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00167">167</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fuse__ops_8c_source.html#l00137">brix_fuse_op_chmod()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="fuse__ops_8h_source.html#l00072">brix_fuse_ctx_chmod::path</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs_8c_source.html#l00145">xfs_meta()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="fuse__ops_8c_source.html#l00137">brix_fuse_op_chmod()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="fuse__ops_8h_source.html#l00072">brix_fuse_ctx_chmod::mode</a>, <a class="el" href="fuse__ops_8h_source.html#l00072">brix_fuse_ctx_chmod::path</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs_8c_source.html#l00145">xfs_meta()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -362,7 +364,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00114">114</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fuse__ops_8c_source.html#l00111">brix_fuse_op_mkdir()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="fuse__ops_8h_source.html#l00070">brix_fuse_ctx_mkdir::path</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs_8c_source.html#l00157">xfs_meta_idem()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="fuse__ops_8c_source.html#l00111">brix_fuse_op_mkdir()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="fuse__ops_8h_source.html#l00070">brix_fuse_ctx_mkdir::mode</a>, <a class="el" href="fuse__ops_8h_source.html#l00070">brix_fuse_ctx_mkdir::path</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs_8c_source.html#l00157">xfs_meta_idem()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -418,7 +420,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00073">73</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fuse__ops_8c_source.html#l00104">brix_fuse_op_dirlist()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="webfile_8c_source.html#l00308">brix_web_readdir()</a>, <a class="el" href="fuse__ops_8h_source.html#l00069">brix_fuse_ctx_dir::ents</a>, <a class="el" href="xrootdfs_8c_source.html#l00082">g_bearer</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs_8c_source.html#l00084">g_web_ca</a>, <a class="el" href="xrootdfs_8c_source.html#l00083">g_web_verify</a>, <a class="el" href="xrootdfs_8c_source.html#l00018">g_weburl</a>, <a class="el" href="fuse__ops_8h_source.html#l00069">brix_fuse_ctx_dir::n</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="fuse__ops_8h_source.html#l00068">brix_fuse_ctx_stat::path</a>, <a class="el" href="fuse__ops_8h_source.html#l00069">brix_fuse_ctx_dir::path</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>, <a class="el" href="xrootdfs_8c_source.html#l00165">xfs_fill_stat()</a>, <a class="el" href="xrootdfs_8c_source.html#l00145">xfs_meta()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="fuse__ops_8c_source.html#l00104">brix_fuse_op_dirlist()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="webfile_8c_source.html#l00352">brix_web_readdir()</a>, <a class="el" href="fuse__ops_8h_source.html#l00069">brix_fuse_ctx_dir::ents</a>, <a class="el" href="xrootdfs_8c_source.html#l00082">g_bearer</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs_8c_source.html#l00084">g_web_ca</a>, <a class="el" href="xrootdfs_8c_source.html#l00083">g_web_verify</a>, <a class="el" href="xrootdfs_8c_source.html#l00018">g_weburl</a>, <a class="el" href="fuse__ops_8h_source.html#l00069">brix_fuse_ctx_dir::n</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="fuse__ops_8h_source.html#l00068">brix_fuse_ctx_stat::path</a>, <a class="el" href="fuse__ops_8h_source.html#l00069">brix_fuse_ctx_dir::path</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>, <a class="el" href="xrootdfs_8c_source.html#l00165">xfs_fill_stat()</a>, <a class="el" href="xrootdfs_8c_source.html#l00145">xfs_meta()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -454,9 +456,63 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00249">249</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00286">286</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2net_2pool_8c_source.html#l00139">brix_pool_checkin()</a>, <a class="el" href="client_2lib_2net_2pool_8c_source.html#l00101">brix_pool_checkout()</a>, <a class="el" href="ops__ext_8c_source.html#l00158">brix_readlink()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00069">brix_status_retryable()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrootdfs_8c_source.html#l00043">g_ext_readlink</a>, <a class="el" href="xrootdfs_8c_source.html#l00026">g_max_retries</a>, <a class="el" href="xrootdfs_8c_source.html#l00024">g_max_stall</a>, <a class="el" href="xrootdfs_8c_source.html#l00008">g_pool</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs_8c_source.html#l00138">xfs_conn_healthy()</a>, <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00043">g_ext_readlink</a>, <a class="el" href="xrootdfs_8c_source.html#l00026">g_max_retries</a>, <a class="el" href="xrootdfs_8c_source.html#l00024">g_max_stall</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs_8c_source.html#l00131">xfs_err()</a>, <a class="el" href="xrootdfs__meta_8c_source.html#l00270">xfs_readlink_one_attempt()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+</div>
+</div>
+<a id="ad09aa15c8e3150b1e58cf959e92428ea" name="ad09aa15c8e3150b1e58cf959e92428ea"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad09aa15c8e3150b1e58cf959e92428ea">&#9670;&#160;</a></span>xfs_readlink_one_attempt()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xfs_readlink_one_attempt </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00270">270</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="client_2lib_2net_2pool_8c_source.html#l00139">brix_pool_checkin()</a>, <a class="el" href="client_2lib_2net_2pool_8c_source.html#l00101">brix_pool_checkout()</a>, <a class="el" href="ops__ext_8c_source.html#l00160">brix_readlink()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00069">brix_status_retryable()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrootdfs_8c_source.html#l00008">g_pool</a>, and <a class="el" href="xrootdfs_8c_source.html#l00138">xfs_conn_healthy()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrootdfs__meta_8c_source.html#l00286">xfs_readlink()</a>.</p>
 
 </div>
 </div>
@@ -546,7 +602,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00286">286</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrootdfs__meta_8c_source.html#l00317">317</a> of file <a class="el" href="xrootdfs__meta_8c_source.html">xrootdfs_meta.c</a>.</p>
 
 <p class="reference">References <a class="el" href="posix__map_8c_source.html#l00044">brix_parse_qspace()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrootdfs_8c_source.html#l00016">g_web</a>, <a class="el" href="xrootdfs__xattr_8c_source.html#l00008">op_qspace()</a>, <a class="el" href="xrootdfs__internal_8h_source.html#l00044">ctx_qspace::path</a>, <a class="el" href="xrootdfs_8c_source.html#l00092">srv_path()</a>, <a class="el" href="xrootdfs_8c_source.html#l00145">xfs_meta()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 

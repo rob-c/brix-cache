@@ -2,6 +2,7 @@ var structbrix__sreq__t =
 [
     [ "attempts", "structbrix__sreq__t.html#ad00804e0a0d5ea7967cbab21c983857a", null ],
     [ "bytes_done", "structbrix__sreq__t.html#a6f146a1be3e703c06ff690b0364c54a3", null ],
+    [ "cred", "structbrix__sreq__t.html#a77d9ac6a847f6461207e74670de1ba6d", null ],
     [ "dst_driver", "structbrix__sreq__t.html#a0458d9326eb3770f4cb0322f82aa712e", null ],
     [ "dst_key", "structbrix__sreq__t.html#a27df9c7302d360f8ed6f180b0f47c19a", null ],
     [ "enqueued_at", "structbrix__sreq__t.html#a8aef01615546c13057084d527944a74d", null ],

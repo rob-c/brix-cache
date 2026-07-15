@@ -1,7 +1,11 @@
 <map id="src/net/proxy/gsi_upstream.h" name="src/net/proxy/gsi_upstream.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="119,5,329,31"/>
-<area shape="rect" id="Node000002" href="$gsi__upstream_8c.html" title=" " alt="" coords="5,86,216,111"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="198,41,129,88,126,84,195,36"/>
-<area shape="rect" id="Node000003" href="$gsi__upstream__login_8c.html" title=" " alt="" coords="239,79,438,119"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="254,36,313,76,310,81,251,41"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="302,5,513,31"/>
+<area shape="rect" id="Node000002" href="$vfs__deleg_8c.html" title=" " alt="" coords="5,86,164,111"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="348,36,132,89,131,83,347,31"/>
+<area shape="rect" id="Node000003" href="$gsi__upstream_8c.html" title=" " alt="" coords="189,86,399,111"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="381,41,312,88,309,84,378,36"/>
+<area shape="rect" id="Node000004" href="$gsi__upstream__login_8c.html" title=" " alt="" coords="423,79,621,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="437,36,496,76,493,81,434,41"/>
+<area shape="rect" id="Node000005" href="$tpc__user__proxy_8c.html" title=" " alt="" coords="645,79,805,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="467,31,649,76,648,81,466,37"/>
 </map>

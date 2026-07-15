@@ -1,13 +1,10 @@
 var sd__stage_8c =
 [
-    [ "sd_stage_inst_state", "structsd__stage__inst__state.html", "structsd__stage__inst__state" ],
-    [ "sd_stage_staged_state", "structsd__stage__staged__state.html", "structsd__stage__staged__state" ],
-    [ "sd_stage_wb_state", "structsd__stage__wb__state.html", "structsd__stage__wb__state" ],
     [ "SD_STAGE_SRC", "sd__stage_8c.html#a2c9b8ea3c41402b2599f95a88c1b4d5b", null ],
     [ "brix_sd_stage_create", "sd__stage_8c.html#a46e860b7dc3ce030ab9d5445a5fd8a46", null ],
     [ "brix_sd_stage_destroy", "sd__stage_8c.html#af7eb1b157bf4278889c7247a6d914717", null ],
     [ "brix_sd_stage_instance_is", "sd__stage_8c.html#abbd7e2658a77a2b50bf0a575394b7c21", null ],
-    [ "brix_sd_stage_reflush", "sd__stage_8c.html#a00f703ef0a1851ce5e506adf42f477aa", null ],
+    [ "brix_sd_stage_reflush", "sd__stage_8c.html#acef437f551060c8b22431183738ed6a6", null ],
     [ "brix_sd_stage_source_instance", "sd__stage_8c.html#a9f9c6952ed171ccf0a5266db9b53a0c1", null ],
     [ "brix_sd_stage_store_instance", "sd__stage_8c.html#a3c7a7bc216bb7ad2e90d4e2b961a52e4", null ],
     [ "sd_stage_closedir", "sd__stage_8c.html#adf3e4498ba86205377cbd317fadfbbcb", null ],
@@ -15,7 +12,7 @@ var sd__stage_8c =
     [ "sd_stage_listxattr", "sd__stage_8c.html#a00bbf41179563235d42b6c9fbf79f206", null ],
     [ "sd_stage_mkdir", "sd__stage_8c.html#a01505f501296df1b6a6fbd6c3306911a", null ],
     [ "sd_stage_open", "sd__stage_8c.html#a98b404474fbcb6a2e9622aff41deae95", null ],
-    [ "sd_stage_open_writeback", "sd__stage_8c.html#a2dd9733df627881a53951f72b891b57c", null ],
+    [ "sd_stage_open_cred", "sd__stage_8c.html#a406dc9f765486765dbc6751e0a4a0194", null ],
     [ "sd_stage_opendir", "sd__stage_8c.html#ac92a035d0b7d1025bba27f5f6e275fe0", null ],
     [ "sd_stage_readdir", "sd__stage_8c.html#a081fcc1f77b444d6f4e6167385cfe4bc", null ],
     [ "sd_stage_removexattr", "sd__stage_8c.html#aa9412ed27a24341a9be062e1f0742b0e", null ],
@@ -23,18 +20,7 @@ var sd__stage_8c =
     [ "sd_stage_server_copy", "sd__stage_8c.html#ac2ab4a58d6c206168d73ff9f131d11e5", null ],
     [ "sd_stage_setattr", "sd__stage_8c.html#a43bdb1a7537153247f30c159f8a16d6d", null ],
     [ "sd_stage_setxattr", "sd__stage_8c.html#a339cb20100eea92b938235ecb0633f1a", null ],
-    [ "sd_stage_staged_abort", "sd__stage_8c.html#ad416ebd137fc3f532cc612aac5e4195a", null ],
-    [ "sd_stage_staged_commit", "sd__stage_8c.html#a9c7309995ceb129464634c62ced960ef", null ],
-    [ "sd_stage_staged_open", "sd__stage_8c.html#a74f92896f3b29b21097e6a2a6de25f37", null ],
-    [ "sd_stage_staged_write", "sd__stage_8c.html#a3962c59da5a805e40d5afab16f7d8152", null ],
     [ "sd_stage_stat", "sd__stage_8c.html#aaefa40ee1840c2bb55d7e34321877fdf", null ],
     [ "sd_stage_unlink", "sd__stage_8c.html#a86f4aad0b13b0857da30269f52dfb226", null ],
-    [ "sd_stage_wb_close", "sd__stage_8c.html#ac50147e3822b958d15275559f51b44aa", null ],
-    [ "sd_stage_wb_flush", "sd__stage_8c.html#a10b1e031e71af8d9441d235810f2b9fa", null ],
-    [ "sd_stage_wb_fstat", "sd__stage_8c.html#abe041e5f6b1413b4387e2692d5ccb54f", null ],
-    [ "sd_stage_wb_fsync", "sd__stage_8c.html#ad97db4be2444db7ba86be0d38f166825", null ],
-    [ "sd_stage_wb_ftruncate", "sd__stage_8c.html#a05b07bcf78ae64add4b6f03dd67280a2", null ],
-    [ "sd_stage_wb_pread", "sd__stage_8c.html#a1cee4c4e841b928a366afbc932c33233", null ],
-    [ "sd_stage_wb_pwrite", "sd__stage_8c.html#a81acfaad1ca6c9aa74477a8f8048e910", null ],
-    [ "brix_sd_stage_driver", "sd__stage_8c.html#aa767299911fe9892cff015e4dd809750", null ]
+    [ "brix_sd_stage_driver", "sd__stage_8c.html#a13b3ea38cc48fbf0e0f44b78c1085d8d", null ]
 ];

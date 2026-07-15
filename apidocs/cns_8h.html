@@ -142,11 +142,11 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a3ea72af5add36352ac5a53bbdfeb4f93" id="r_a3ea72af5add36352ac5a53bbdfeb4f93"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cns_8h.html#a3ea72af5add36352ac5a53bbdfeb4f93">brix_cns_event_encode</a> (uint8_t op, const char *path, uint64_t size, uint64_t mtime, uint8_t *buf, size_t bufsz)</td></tr>
+<tr class="memitem:a3ea72af5add36352ac5a53bbdfeb4f93" id="r_a3ea72af5add36352ac5a53bbdfeb4f93"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cns_8h.html#a3ea72af5add36352ac5a53bbdfeb4f93">brix_cns_event_encode</a> (uint8_t <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *path, uint64_t size, uint64_t mtime, uint8_t *buf, size_t bufsz)</td></tr>
 <tr class="separator:a3ea72af5add36352ac5a53bbdfeb4f93"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aae2c5f2a08d5300504b01b2201046d13" id="r_aae2c5f2a08d5300504b01b2201046d13"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cns_8h.html#aae2c5f2a08d5300504b01b2201046d13">brix_cns_event_decode</a> (const uint8_t *buf, size_t len, uint8_t *op, uint64_t *size, uint64_t *mtime, char *path, size_t pathsz)</td></tr>
+<tr class="memitem:aae2c5f2a08d5300504b01b2201046d13" id="r_aae2c5f2a08d5300504b01b2201046d13"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cns_8h.html#aae2c5f2a08d5300504b01b2201046d13">brix_cns_event_decode</a> (const uint8_t *buf, size_t len, uint8_t *<a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, uint64_t *size, uint64_t *mtime, char *path, size_t pathsz)</td></tr>
 <tr class="separator:aae2c5f2a08d5300504b01b2201046d13"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a70c9bfc2032627a68413798feeec215a" id="r_a70c9bfc2032627a68413798feeec215a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cns_8h.html#a70c9bfc2032627a68413798feeec215a">brix_cns_apply</a> (uint8_t op, const char *path, uint64_t size, uint64_t mtime, uint32_t server_id)</td></tr>
+<tr class="memitem:a70c9bfc2032627a68413798feeec215a" id="r_a70c9bfc2032627a68413798feeec215a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cns_8h.html#a70c9bfc2032627a68413798feeec215a">brix_cns_apply</a> (uint8_t <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *path, uint64_t size, uint64_t mtime, uint32_t server_id)</td></tr>
 <tr class="separator:a70c9bfc2032627a68413798feeec215a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2e3d9a165e475e1603f7e9c295f6893d" id="r_a2e3d9a165e475e1603f7e9c295f6893d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cns_8h.html#a2e3d9a165e475e1603f7e9c295f6893d">brix_cns_stat</a> (const char *path, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *out)</td></tr>
 <tr class="separator:a2e3d9a165e475e1603f7e9c295f6893d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -365,9 +365,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cns_8c_source.html#l00121">121</a> of file <a class="el" href="cns_8c_source.html">cns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cns_8h_source.html#l00035">BRIX_CNS_ADD</a>, <a class="el" href="cns_8h_source.html#l00036">BRIX_CNS_DEL</a>, <a class="el" href="cns_8h_source.html#l00037">BRIX_CNS_MKDIR</a>, <a class="el" href="cns_8h_source.html#l00045">BRIX_CNS_PATH_MAX</a>, <a class="el" href="cns_8h_source.html#l00038">BRIX_CNS_RMDIR</a>, <a class="el" href="cns_8c_source.html#l00088">CNS_CAP</a>, <a class="el" href="cns_8c_source.html#l00094">cns_find()</a>, <a class="el" href="cns_8c_source.html#l00109">cns_free_slot()</a>, <a class="el" href="cns_8c_source.html#l00084">cns_entry_t::is_dir</a>, <a class="el" href="cns_8c_source.html#l00082">cns_entry_t::mtime</a>, <a class="el" href="cns_8c_source.html#l00080">cns_entry_t::path</a>, <a class="el" href="cns_8c_source.html#l00091">s_count</a>, <a class="el" href="cns_8c_source.html#l00090">s_inv</a>, <a class="el" href="cns_8c_source.html#l00083">cns_entry_t::server_id</a>, <a class="el" href="cns_8c_source.html#l00081">cns_entry_t::size</a>, and <a class="el" href="cns_8c_source.html#l00085">cns_entry_t::used</a>.</p>
+<p class="reference">References <a class="el" href="cns_8h_source.html#l00035">BRIX_CNS_ADD</a>, <a class="el" href="cns_8h_source.html#l00036">BRIX_CNS_DEL</a>, <a class="el" href="cns_8h_source.html#l00037">BRIX_CNS_MKDIR</a>, <a class="el" href="cns_8h_source.html#l00045">BRIX_CNS_PATH_MAX</a>, <a class="el" href="cns_8h_source.html#l00038">BRIX_CNS_RMDIR</a>, <a class="el" href="cns_8c_source.html#l00088">CNS_CAP</a>, <a class="el" href="cns_8c_source.html#l00094">cns_find()</a>, <a class="el" href="cns_8c_source.html#l00109">cns_free_slot()</a>, <a class="el" href="cns_8c_source.html#l00084">cns_entry_t::is_dir</a>, <a class="el" href="cns_8c_source.html#l00082">cns_entry_t::mtime</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="cns_8c_source.html#l00080">cns_entry_t::path</a>, <a class="el" href="cns_8c_source.html#l00091">s_count</a>, <a class="el" href="cns_8c_source.html#l00090">s_inv</a>, <a class="el" href="cns_8c_source.html#l00083">cns_entry_t::server_id</a>, <a class="el" href="cns_8c_source.html#l00081">cns_entry_t::size</a>, and <a class="el" href="cns_8c_source.html#l00085">cns_entry_t::used</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00324">cms_srv_frame_cns()</a>.</p>
 
 </div>
 </div>
@@ -391,7 +391,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cns_8c_source.html#l00199">s_collect</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00324">cms_srv_frame_cns()</a>.</p>
 
 </div>
 </div>
@@ -475,9 +475,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cns_8c_source.html#l00055">55</a> of file <a class="el" href="cns_8c_source.html">cns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cns_8h_source.html#l00051">BRIX_CNS_HDR_LEN</a>, <a class="el" href="cns_8h_source.html#l00045">BRIX_CNS_PATH_MAX</a>, and <a class="el" href="cns_8c_source.html#l00025">get_u64()</a>.</p>
+<p class="reference">References <a class="el" href="cns_8h_source.html#l00051">BRIX_CNS_HDR_LEN</a>, <a class="el" href="cns_8h_source.html#l00045">BRIX_CNS_PATH_MAX</a>, <a class="el" href="cns_8c_source.html#l00025">get_u64()</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00324">cms_srv_frame_cns()</a>.</p>
 
 </div>
 </div>
@@ -533,7 +533,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cns_8c_source.html#l00034">34</a> of file <a class="el" href="cns_8c_source.html">cns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cns_8h_source.html#l00051">BRIX_CNS_HDR_LEN</a>, <a class="el" href="cns_8h_source.html#l00045">BRIX_CNS_PATH_MAX</a>, and <a class="el" href="cns_8c_source.html#l00016">put_u64()</a>.</p>
+<p class="reference">References <a class="el" href="cns_8h_source.html#l00051">BRIX_CNS_HDR_LEN</a>, <a class="el" href="cns_8h_source.html#l00045">BRIX_CNS_PATH_MAX</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="cns_8c_source.html#l00016">put_u64()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00059">brix_cns_emit_close()</a>.</p>
 
@@ -559,7 +559,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cns_8c_source.html#l00199">s_collect</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__conf_8c_source.html#l00522">brix_merge_srv_tpc()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__conf__merge__cluster_8c_source.html#l00036">brix_merge_srv_tpc()</a>.</p>
 
 </div>
 </div>
@@ -593,7 +593,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cns_8c_source.html#l00094">cns_find()</a>, <a class="el" href="cns_8c_source.html#l00084">cns_entry_t::is_dir</a>, <a class="el" href="cns_8c_source.html#l00082">cns_entry_t::mtime</a>, and <a class="el" href="cns_8c_source.html#l00081">cns_entry_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stat_8c_source.html#l00106">brix_handle_stat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stat_8c_source.html#l00163">stat_manager_route()</a>.</p>
 
 </div>
 </div>

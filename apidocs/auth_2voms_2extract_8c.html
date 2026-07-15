@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('auth_2voms_2extract_8c.html',''); init
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">extract.c File Reference</div></div>
 </div><!--header-->
@@ -107,8 +108,23 @@ $(document).ready(function(){initNavTree('auth_2voms_2extract_8c.html',''); init
 </div>
 <p><a href="auth_2voms_2extract_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__voms__out__t.html">brix_voms_out_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a26ea2778539465d7ecfbb3e8aa4427e7" id="r_a26ea2778539465d7ecfbb3e8aa4427e7"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth_2voms_2extract_8c.html#a26ea2778539465d7ecfbb3e8aa4427e7">brix_voms_precheck</a> (X509 *leaf, const ngx_str_t *vomsdir, const ngx_str_t *cert_dir, size_t buf_sz)</td></tr>
+<tr class="separator:a26ea2778539465d7ecfbb3e8aa4427e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab9a7ebcb6af1ee6cf4fa00aad03f6588" id="r_ab9a7ebcb6af1ee6cf4fa00aad03f6588"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth_2voms_2extract_8c.html#ab9a7ebcb6af1ee6cf4fa00aad03f6588">brix_voms_path_to_buf</a> (const ngx_str_t *src, char *dst)</td></tr>
+<tr class="separator:ab9a7ebcb6af1ee6cf4fa00aad03f6588"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a65a79becd779c3c20f4c9b4d790d24c0" id="r_a65a79becd779c3c20f4c9b4d790d24c0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth_2voms_2extract_8c.html#a65a79becd779c3c20f4c9b4d790d24c0">brix_voms_reset_outputs</a> (const <a class="el" href="structbrix__voms__out__t.html">brix_voms_out_t</a> *out)</td></tr>
+<tr class="separator:a65a79becd779c3c20f4c9b4d790d24c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a42856d46ab73f3511a5353d4e30af6d4" id="r_a42856d46ab73f3511a5353d4e30af6d4"><td class="memItemLeft" align="right" valign="top">static&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth_2voms_2extract_8c.html#a42856d46ab73f3511a5353d4e30af6d4">STACK_OF</a> (X509)</td></tr>
+<tr class="separator:a42856d46ab73f3511a5353d4e30af6d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adc2fdc42b016a7ba5110ca01193b5c9a" id="r_adc2fdc42b016a7ba5110ca01193b5c9a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth_2voms_2extract_8c.html#adc2fdc42b016a7ba5110ca01193b5c9a">brix_voms_retrieve_and_collect</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, X509 *leaf, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *voms_chain, struct <a class="el" href="structvoms__data.html">voms_data</a> *vd, const <a class="el" href="structbrix__voms__out__t.html">brix_voms_out_t</a> *out)</td></tr>
+<tr class="separator:adc2fdc42b016a7ba5110ca01193b5c9a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abd12931b7c2a67a387f7daa4d6c88c8a" id="r_abd12931b7c2a67a387f7daa4d6c88c8a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth_2voms_2extract_8c.html#abd12931b7c2a67a387f7daa4d6c88c8a">brix_extract_voms_info</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, X509 *leaf, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain, const ngx_str_t *vomsdir, const ngx_str_t *cert_dir, char *primary_vo, size_t primary_vo_sz, char *vo_list, size_t vo_list_sz)</td></tr>
 <tr class="separator:abd12931b7c2a67a387f7daa4d6c88c8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -181,11 +197,231 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth_2voms_2extract_8c_source.html#l00032">32</a> of file <a class="el" href="auth_2voms_2extract_8c_source.html">extract.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth_2voms_2extract_8c_source.html#l00198">198</a> of file <a class="el" href="auth_2voms_2extract_8c_source.html">extract.c</a>.</p>
 
-<p class="reference">References <a class="el" href="collect_8c_source.html#l00119">brix_collect_voms_vos()</a>, <a class="el" href="loader_8c_source.html#l00012">brix_voms_api</a>, <a class="el" href="loader_8c_source.html#l00013">brix_voms_loaded</a>, <a class="el" href="voms__internal_8h_source.html#l00113">brix_voms_api_t::destroy</a>, <a class="el" href="voms__internal_8h_source.html#l00114">brix_voms_api_t::error_message</a>, <a class="el" href="voms__internal_8h_source.html#l00111">brix_voms_api_t::init</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="voms__internal_8h_source.html#l00112">brix_voms_api_t::retrieve</a>, <a class="el" href="parse__x509_8c_source.html#l00166">STACK_OF()</a>, <a class="el" href="voms__internal_8h_source.html#l00091">VOMS_RECURSE_CHAIN</a>, <a class="el" href="voms__internal_8h_source.html#l00090">VOMS_VERR_NODATA</a>, and <a class="el" href="voms__internal_8h_source.html#l00089">VOMS_VERR_NOEXT</a>.</p>
+<p class="reference">References <a class="el" href="loader_8c_source.html#l00012">brix_voms_api</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00094">brix_voms_path_to_buf()</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00064">brix_voms_precheck()</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00109">brix_voms_reset_outputs()</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00172">brix_voms_retrieve_and_collect()</a>, <a class="el" href="voms__internal_8h_source.html#l00113">brix_voms_api_t::destroy</a>, <a class="el" href="voms__internal_8h_source.html#l00111">brix_voms_api_t::init</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00018">brix_voms_out_t::primary_vo</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00019">brix_voms_out_t::primary_vo_sz</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00132">STACK_OF()</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00020">brix_voms_out_t::vo_list</a>, and <a class="el" href="auth_2voms_2extract_8c_source.html#l00021">brix_voms_out_t::vo_list_sz</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00123">brix_handle_auth_inner()</a>, and <a class="el" href="auth__cert_8c_source.html#l00295">webdav_extract_and_set_voms_identity()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00463">gsi_cert_extract_voms()</a>, and <a class="el" href="auth__cert_8c_source.html#l00295">webdav_extract_and_set_voms_identity()</a>.</p>
+
+</div>
+</div>
+<a id="ab9a7ebcb6af1ee6cf4fa00aad03f6588" name="ab9a7ebcb6af1ee6cf4fa00aad03f6588"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab9a7ebcb6af1ee6cf4fa00aad03f6588">&#9670;&#160;</a></span>brix_voms_path_to_buf()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_voms_path_to_buf </td>
+          <td>(</td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>dst</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth_2voms_2extract_8c_source.html#l00094">94</a> of file <a class="el" href="auth_2voms_2extract_8c_source.html">extract.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth_2voms_2extract_8c_source.html#l00198">brix_extract_voms_info()</a>.</p>
+
+</div>
+</div>
+<a id="a26ea2778539465d7ecfbb3e8aa4427e7" name="a26ea2778539465d7ecfbb3e8aa4427e7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a26ea2778539465d7ecfbb3e8aa4427e7">&#9670;&#160;</a></span>brix_voms_precheck()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_voms_precheck </td>
+          <td>(</td>
+          <td class="paramtype">X509 *&#160;</td>
+          <td class="paramname"><em>leaf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>vomsdir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>cert_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>buf_sz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth_2voms_2extract_8c_source.html#l00064">64</a> of file <a class="el" href="auth_2voms_2extract_8c_source.html">extract.c</a>.</p>
+
+<p class="reference">References <a class="el" href="loader_8c_source.html#l00013">brix_voms_loaded</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth_2voms_2extract_8c_source.html#l00198">brix_extract_voms_info()</a>.</p>
+
+</div>
+</div>
+<a id="a65a79becd779c3c20f4c9b4d790d24c0" name="a65a79becd779c3c20f4c9b4d790d24c0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a65a79becd779c3c20f4c9b4d790d24c0">&#9670;&#160;</a></span>brix_voms_reset_outputs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_voms_reset_outputs </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__voms__out__t.html">brix_voms_out_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth_2voms_2extract_8c_source.html#l00109">109</a> of file <a class="el" href="auth_2voms_2extract_8c_source.html">extract.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth_2voms_2extract_8c_source.html#l00018">brix_voms_out_t::primary_vo</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00019">brix_voms_out_t::primary_vo_sz</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00020">brix_voms_out_t::vo_list</a>, and <a class="el" href="auth_2voms_2extract_8c_source.html#l00021">brix_voms_out_t::vo_list_sz</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth_2voms_2extract_8c_source.html#l00198">brix_extract_voms_info()</a>.</p>
+
+</div>
+</div>
+<a id="adc2fdc42b016a7ba5110ca01193b5c9a" name="adc2fdc42b016a7ba5110ca01193b5c9a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adc2fdc42b016a7ba5110ca01193b5c9a">&#9670;&#160;</a></span>brix_voms_retrieve_and_collect()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_voms_retrieve_and_collect </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">X509 *&#160;</td>
+          <td class="paramname"><em>leaf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
+          <td class="paramname"><em>voms_chain</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct <a class="el" href="structvoms__data.html">voms_data</a> *&#160;</td>
+          <td class="paramname"><em>vd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__voms__out__t.html">brix_voms_out_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth_2voms_2extract_8c_source.html#l00172">172</a> of file <a class="el" href="auth_2voms_2extract_8c_source.html">extract.c</a>.</p>
+
+<p class="reference">References <a class="el" href="collect_8c_source.html#l00119">brix_collect_voms_vos()</a>, <a class="el" href="loader_8c_source.html#l00012">brix_voms_api</a>, <a class="el" href="voms__internal_8h_source.html#l00114">brix_voms_api_t::error_message</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00018">brix_voms_out_t::primary_vo</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00019">brix_voms_out_t::primary_vo_sz</a>, <a class="el" href="voms__internal_8h_source.html#l00112">brix_voms_api_t::retrieve</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00020">brix_voms_out_t::vo_list</a>, <a class="el" href="auth_2voms_2extract_8c_source.html#l00021">brix_voms_out_t::vo_list_sz</a>, <a class="el" href="voms__internal_8h_source.html#l00091">VOMS_RECURSE_CHAIN</a>, <a class="el" href="voms__internal_8h_source.html#l00090">VOMS_VERR_NODATA</a>, and <a class="el" href="voms__internal_8h_source.html#l00089">VOMS_VERR_NOEXT</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth_2voms_2extract_8c_source.html#l00198">brix_extract_voms_info()</a>.</p>
+
+</div>
+</div>
+<a id="a42856d46ab73f3511a5353d4e30af6d4" name="a42856d46ab73f3511a5353d4e30af6d4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a42856d46ab73f3511a5353d4e30af6d4">&#9670;&#160;</a></span>STACK_OF()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static STACK_OF </td>
+          <td>(</td>
+          <td class="paramtype">X509&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth_2voms_2extract_8c_source.html#l00132">132</a> of file <a class="el" href="auth_2voms_2extract_8c_source.html">extract.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth_2voms_2extract_8c_source.html#l00132">STACK_OF()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth_2voms_2extract_8c_source.html#l00198">brix_extract_voms_info()</a>, and <a class="el" href="auth_2voms_2extract_8c_source.html#l00132">STACK_OF()</a>.</p>
 
 </div>
 </div>

@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('builder_8c.html',''); initResizable();
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">builder.c File Reference</div></div>
@@ -113,6 +114,11 @@ $(document).ready(function(){initNavTree('builder_8c.html',''); initResizable();
 </div>
 <p><a href="builder_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsrr__cap__t.html">srr_cap_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:aa09153f08745ba43ab042fc986ba2dfa" id="r_aa09153f08745ba43ab042fc986ba2dfa"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#aa09153f08745ba43ab042fc986ba2dfa">SRR_JSTR</a>(<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)&#160;&#160;&#160;json_stringn((const char *) (<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>).data, (<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>).len)</td></tr>
@@ -128,6 +134,20 @@ Functions</h2></td></tr>
 <tr class="separator:a00f78ae62e5abacef2eadacc0c49b43f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a41feaa8b0b2bad5e4242aee8e379af91" id="r_a41feaa8b0b2bad5e4242aee8e379af91"><td class="memItemLeft" align="right" valign="top">static json_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#a41feaa8b0b2bad5e4242aee8e379af91">srr_endpoint_names</a> (<a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *lcf)</td></tr>
 <tr class="separator:a41feaa8b0b2bad5e4242aee8e379af91"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b0e0205463519fffbadeadfd87409ed" id="r_a6b0e0205463519fffbadeadfd87409ed"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#a6b0e0205463519fffbadeadfd87409ed">srr_emit_identity</a> (json_t *svc, <a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *lcf, time_t now)</td></tr>
+<tr class="separator:a6b0e0205463519fffbadeadfd87409ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a92b2824d41cc35366e5742c17c759ecb" id="r_a92b2824d41cc35366e5742c17c759ecb"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#a92b2824d41cc35366e5742c17c759ecb">srr_share_usage</a> (ngx_http_request_t *r, <a class="el" href="structbrix__srr__share__t.html">brix_srr_share_t</a> *sh, <a class="el" href="structsrr__cap__t.html">srr_cap_t</a> *share_cap, <a class="el" href="structsrr__cap__t.html">srr_cap_t</a> *site_cap)</td></tr>
+<tr class="separator:a92b2824d41cc35366e5742c17c759ecb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af359b46c17cd40539125748d064cf74e" id="r_af359b46c17cd40539125748d064cf74e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#af359b46c17cd40539125748d064cf74e">srr_emit_share</a> (<a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *lcf, json_t *shares, <a class="el" href="structbrix__srr__share__t.html">brix_srr_share_t</a> *sh, const <a class="el" href="structsrr__cap__t.html">srr_cap_t</a> *cap, time_t now)</td></tr>
+<tr class="separator:af359b46c17cd40539125748d064cf74e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b1e512a031d884e3a7d1a672c15a528" id="r_a9b1e512a031d884e3a7d1a672c15a528"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#a9b1e512a031d884e3a7d1a672c15a528">srr_emit_shares</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *lcf, json_t *svc, time_t now, <a class="el" href="structsrr__cap__t.html">srr_cap_t</a> *site_cap)</td></tr>
+<tr class="separator:a9b1e512a031d884e3a7d1a672c15a528"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6fd93a44255e316817169c3ed14e94b8" id="r_a6fd93a44255e316817169c3ed14e94b8"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#a6fd93a44255e316817169c3ed14e94b8">srr_emit_capacity</a> (json_t *svc, uint64_t cap_total, uint64_t cap_used)</td></tr>
+<tr class="separator:a6fd93a44255e316817169c3ed14e94b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af5842bda2eebe521cffa10879399775a" id="r_af5842bda2eebe521cffa10879399775a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#af5842bda2eebe521cffa10879399775a">srr_emit_endpoints</a> (<a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *lcf, json_t *svc)</td></tr>
+<tr class="separator:af5842bda2eebe521cffa10879399775a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1ec1fb000605e20ccfa29a9c29c7b8c4" id="r_a1ec1fb000605e20ccfa29a9c29c7b8c4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#a1ec1fb000605e20ccfa29a9c29c7b8c4">srr_serialise</a> (ngx_http_request_t *r, json_t *root, u_char **out, size_t *len)</td></tr>
+<tr class="separator:a1ec1fb000605e20ccfa29a9c29c7b8c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa8b9ed07f38c13c0aa43c53f95195b6a" id="r_aa8b9ed07f38c13c0aa43c53f95195b6a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="builder_8c.html#aa8b9ed07f38c13c0aa43c53f95195b6a">ngx_http_brix_srr_build_json</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *lcf, u_char **out, size_t *len)</td></tr>
 <tr class="separator:aa8b9ed07f38c13c0aa43c53f95195b6a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -191,9 +211,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00149">149</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00467">467</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs__usage_8c_source.html#l00072">brix_fs_usage_stat()</a>, <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, <a class="el" href="ident_8h_source.html#l00023">BRIX_SERVER_NAME</a>, <a class="el" href="ident_8h_source.html#l00027">BRIX_SERVER_VERSION_BARE</a>, <a class="el" href="srr_8h_source.html#l00063">ngx_http_brix_srr_loc_conf_t::endpoints</a>, <a class="el" href="srr_8h_source.html#l00059">ngx_http_brix_srr_loc_conf_t::id</a>, <a class="el" href="srr_8h_source.html#l00039">brix_srr_share_t::name</a>, <a class="el" href="srr_8h_source.html#l00058">ngx_http_brix_srr_loc_conf_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="srr_8h_source.html#l00040">brix_srr_share_t::path</a>, <a class="el" href="srr_8h_source.html#l00060">ngx_http_brix_srr_loc_conf_t::quality</a>, <a class="el" href="srr_8h_source.html#l00062">ngx_http_brix_srr_loc_conf_t::shares</a>, <a class="el" href="builder_8c_source.html#l00051">srr_clamp_size()</a>, <a class="el" href="builder_8c_source.html#l00128">srr_endpoint_names()</a>, <a class="el" href="builder_8c_source.html#l00043">SRR_JSTR</a>, <a class="el" href="builder_8c_source.html#l00106">srr_share_names()</a>, <a class="el" href="builder_8c_source.html#l00065">srr_vos_array()</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00045">usage()</a>, and <a class="el" href="srr_8h_source.html#l00061">ngx_http_brix_srr_loc_conf_t::version</a>.</p>
+<p class="reference">References <a class="el" href="builder_8c_source.html#l00356">srr_emit_capacity()</a>, <a class="el" href="builder_8c_source.html#l00391">srr_emit_endpoints()</a>, <a class="el" href="builder_8c_source.html#l00172">srr_emit_identity()</a>, <a class="el" href="builder_8c_source.html#l00312">srr_emit_shares()</a>, <a class="el" href="builder_8c_source.html#l00445">srr_serialise()</a>, <a class="el" href="builder_8c_source.html#l00050">srr_cap_t::total</a>, and <a class="el" href="builder_8c_source.html#l00051">srr_cap_t::used</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2srr_2handler_8c_source.html#l00024">ngx_http_brix_srr_handler()</a>.</p>
 
@@ -223,9 +243,267 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00051">51</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00060">60</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00149">ngx_http_brix_srr_build_json()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00356">srr_emit_capacity()</a>, and <a class="el" href="builder_8c_source.html#l00257">srr_emit_share()</a>.</p>
+
+</div>
+</div>
+<a id="a6fd93a44255e316817169c3ed14e94b8" name="a6fd93a44255e316817169c3ed14e94b8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6fd93a44255e316817169c3ed14e94b8">&#9670;&#160;</a></span>srr_emit_capacity()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t srr_emit_capacity </td>
+          <td>(</td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>svc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>cap_total</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>cap_used</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00356">356</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+
+<p class="reference">References <a class="el" href="builder_8c_source.html#l00060">srr_clamp_size()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00467">ngx_http_brix_srr_build_json()</a>.</p>
+
+</div>
+</div>
+<a id="af5842bda2eebe521cffa10879399775a" name="af5842bda2eebe521cffa10879399775a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af5842bda2eebe521cffa10879399775a">&#9670;&#160;</a></span>srr_emit_endpoints()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t srr_emit_endpoints </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>svc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00391">391</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+
+<p class="reference">References <a class="el" href="srr_8h_source.html#l00063">ngx_http_brix_srr_loc_conf_t::endpoints</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="srr_8h_source.html#l00060">ngx_http_brix_srr_loc_conf_t::quality</a>, <a class="el" href="builder_8c_source.html#l00043">SRR_JSTR</a>, and <a class="el" href="builder_8c_source.html#l00115">srr_share_names()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00467">ngx_http_brix_srr_build_json()</a>.</p>
+
+</div>
+</div>
+<a id="a6b0e0205463519fffbadeadfd87409ed" name="a6b0e0205463519fffbadeadfd87409ed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b0e0205463519fffbadeadfd87409ed">&#9670;&#160;</a></span>srr_emit_identity()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void srr_emit_identity </td>
+          <td>(</td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>svc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>now</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00172">172</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ident_8h_source.html#l00023">BRIX_SERVER_NAME</a>, <a class="el" href="ident_8h_source.html#l00027">BRIX_SERVER_VERSION_BARE</a>, <a class="el" href="srr_8h_source.html#l00059">ngx_http_brix_srr_loc_conf_t::id</a>, <a class="el" href="srr_8h_source.html#l00058">ngx_http_brix_srr_loc_conf_t::name</a>, <a class="el" href="srr_8h_source.html#l00060">ngx_http_brix_srr_loc_conf_t::quality</a>, <a class="el" href="builder_8c_source.html#l00043">SRR_JSTR</a>, and <a class="el" href="srr_8h_source.html#l00061">ngx_http_brix_srr_loc_conf_t::version</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00467">ngx_http_brix_srr_build_json()</a>.</p>
+
+</div>
+</div>
+<a id="af359b46c17cd40539125748d064cf74e" name="af359b46c17cd40539125748d064cf74e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af359b46c17cd40539125748d064cf74e">&#9670;&#160;</a></span>srr_emit_share()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t srr_emit_share </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>shares</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__srr__share__t.html">brix_srr_share_t</a> *&#160;</td>
+          <td class="paramname"><em>sh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structsrr__cap__t.html">srr_cap_t</a> *&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>now</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00257">257</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+
+<p class="reference">References <a class="el" href="srr_8h_source.html#l00039">brix_srr_share_t::name</a>, <a class="el" href="srr_8h_source.html#l00040">brix_srr_share_t::path</a>, <a class="el" href="builder_8c_source.html#l00060">srr_clamp_size()</a>, <a class="el" href="builder_8c_source.html#l00137">srr_endpoint_names()</a>, <a class="el" href="builder_8c_source.html#l00043">SRR_JSTR</a>, <a class="el" href="builder_8c_source.html#l00074">srr_vos_array()</a>, <a class="el" href="builder_8c_source.html#l00050">srr_cap_t::total</a>, <a class="el" href="builder_8c_source.html#l00051">srr_cap_t::used</a>, and <a class="el" href="srr_8h_source.html#l00041">brix_srr_share_t::vos</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00312">srr_emit_shares()</a>.</p>
+
+</div>
+</div>
+<a id="a9b1e512a031d884e3a7d1a672c15a528" name="a9b1e512a031d884e3a7d1a672c15a528"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9b1e512a031d884e3a7d1a672c15a528">&#9670;&#160;</a></span>srr_emit_shares()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t srr_emit_shares </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__srr__loc__conf__t.html">ngx_http_brix_srr_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>svc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">time_t&#160;</td>
+          <td class="paramname"><em>now</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsrr__cap__t.html">srr_cap_t</a> *&#160;</td>
+          <td class="paramname"><em>site_cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00312">312</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+
+<p class="reference">References <a class="el" href="srr_8h_source.html#l00062">ngx_http_brix_srr_loc_conf_t::shares</a>, <a class="el" href="builder_8c_source.html#l00257">srr_emit_share()</a>, and <a class="el" href="builder_8c_source.html#l00207">srr_share_usage()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00467">ngx_http_brix_srr_build_json()</a>.</p>
 
 </div>
 </div>
@@ -253,11 +531,65 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00128">128</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00137">137</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
 
 <p class="reference">References <a class="el" href="srr_8h_source.html#l00063">ngx_http_brix_srr_loc_conf_t::endpoints</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="builder_8c_source.html#l00043">SRR_JSTR</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00149">ngx_http_brix_srr_build_json()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00257">srr_emit_share()</a>.</p>
+
+</div>
+</div>
+<a id="a1ec1fb000605e20ccfa29a9c29c7b8c4" name="a1ec1fb000605e20ccfa29a9c29c7b8c4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ec1fb000605e20ccfa29a9c29c7b8c4">&#9670;&#160;</a></span>srr_serialise()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t srr_serialise </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">json_t *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00445">445</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00467">ngx_http_brix_srr_build_json()</a>.</p>
 
 </div>
 </div>
@@ -285,11 +617,65 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00106">106</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00115">115</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="srr_8h_source.html#l00062">ngx_http_brix_srr_loc_conf_t::shares</a>, and <a class="el" href="builder_8c_source.html#l00043">SRR_JSTR</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00149">ngx_http_brix_srr_build_json()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00391">srr_emit_endpoints()</a>.</p>
+
+</div>
+</div>
+<a id="a92b2824d41cc35366e5742c17c759ecb" name="a92b2824d41cc35366e5742c17c759ecb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a92b2824d41cc35366e5742c17c759ecb">&#9670;&#160;</a></span>srr_share_usage()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t srr_share_usage </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__srr__share__t.html">brix_srr_share_t</a> *&#160;</td>
+          <td class="paramname"><em>sh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsrr__cap__t.html">srr_cap_t</a> *&#160;</td>
+          <td class="paramname"><em>share_cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsrr__cap__t.html">srr_cap_t</a> *&#160;</td>
+          <td class="paramname"><em>site_cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00207">207</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs__usage_8c_source.html#l00072">brix_fs_usage_stat()</a>, <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, <a class="el" href="srr_8h_source.html#l00039">brix_srr_share_t::name</a>, <a class="el" href="srr_8h_source.html#l00040">brix_srr_share_t::path</a>, <a class="el" href="builder_8c_source.html#l00050">srr_cap_t::total</a>, <a class="el" href="xrdgsiproxy_8c_source.html#l00046">usage()</a>, and <a class="el" href="builder_8c_source.html#l00051">srr_cap_t::used</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00312">srr_emit_shares()</a>.</p>
 
 </div>
 </div>
@@ -317,9 +703,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00065">65</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="builder_8c_source.html#l00074">74</a> of file <a class="el" href="builder_8c_source.html">builder.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00149">ngx_http_brix_srr_build_json()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00257">srr_emit_share()</a>.</p>
 
 </div>
 </div>

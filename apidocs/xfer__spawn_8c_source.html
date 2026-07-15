@@ -183,11 +183,11 @@ $(document).ready(function(){initNavTree('xfer__spawn_8c_source.html',''); initR
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>{</div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    pid_t child;</div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    <span class="keywordtype">int</span>   status;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <span class="keywordtype">int</span>   code = <a class="code hl_define" href="xfer__spawn_8c.html#a3193a8e6550cfbdc9a1b730fa1641bcd">XFER_SPAWN_EXEC_FAILED</a>;</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <span class="keywordtype">int</span>   <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a> = <a class="code hl_define" href="xfer__spawn_8c.html#a3193a8e6550cfbdc9a1b730fa1641bcd">XFER_SPAWN_EXEC_FAILED</a>;</div>
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span> </div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    child = fork();</div>
 <div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="keywordflow">if</span> (child &lt; 0) {</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>        <a class="code hl_function" href="xfer__spawn_8c.html#a4abf0f7fb40f3a61e3f75de54f12b32b">xfer_write_exact</a>(result_fd, &amp;code, <span class="keyword">sizeof</span>(code));</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>        <a class="code hl_function" href="xfer__spawn_8c.html#a4abf0f7fb40f3a61e3f75de54f12b32b">xfer_write_exact</a>(result_fd, &amp;<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, <span class="keyword">sizeof</span>(<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>));</div>
 <div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>        _exit(0);</div>
 <div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    }</div>
 <div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    <span class="keywordflow">if</span> (child == 0) {</div>
@@ -202,8 +202,8 @@ $(document).ready(function(){initNavTree('xfer__spawn_8c_source.html',''); initR
 <div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    }</div>
 <div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span> </div>
 <div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    <span class="keywordflow">while</span> (waitpid(child, &amp;status, 0) &lt; 0 &amp;&amp; errno == EINTR) { }</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    code = WIFEXITED(status) ? WEXITSTATUS(status) : <a class="code hl_define" href="xfer__spawn_8c.html#ad658df8ce6505b78bb43d17d94252bf3">XFER_SPAWN_KILLED</a>;</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <a class="code hl_function" href="xfer__spawn_8c.html#a4abf0f7fb40f3a61e3f75de54f12b32b">xfer_write_exact</a>(result_fd, &amp;code, <span class="keyword">sizeof</span>(code));</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a> = WIFEXITED(status) ? WEXITSTATUS(status) : <a class="code hl_define" href="xfer__spawn_8c.html#ad658df8ce6505b78bb43d17d94252bf3">XFER_SPAWN_KILLED</a>;</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <a class="code hl_function" href="xfer__spawn_8c.html#a4abf0f7fb40f3a61e3f75de54f12b32b">xfer_write_exact</a>(result_fd, &amp;<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, <span class="keyword">sizeof</span>(<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>));</div>
 <div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    _exit(0);</div>
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>}</div>
 </div>
@@ -215,7 +215,7 @@ $(document).ready(function(){initNavTree('xfer__spawn_8c_source.html',''); initR
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    <span class="keywordtype">int</span>      sv[2];</div>
 <div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    sigset_t block, prev;</div>
 <div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    pid_t    inter;</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keywordtype">int</span>      code = -1;</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keywordtype">int</span>      <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a> = -1;</div>
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span> </div>
 <div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <span class="keywordflow">if</span> (argv == NULL || argv[0] == NULL) {</div>
 <div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>        errno = EINVAL;</div>
@@ -253,15 +253,16 @@ $(document).ready(function(){initNavTree('xfer__spawn_8c_source.html',''); initR
 <div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    <span class="keywordflow">while</span> (waitpid(inter, NULL, 0) &lt; 0 &amp;&amp; errno == EINTR) { }</div>
 <div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    sigprocmask(SIG_SETMASK, &amp;prev, NULL);</div>
 <div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span> </div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="xfer__spawn_8c.html#a27c4b062fcfd0c395fc4113ab0fb4a10">xfer_read_exact</a>(sv[0], &amp;code, <span class="keyword">sizeof</span>(code))) {</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        code = -1;                                 <span class="comment">/* agent died before reporting */</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="xfer__spawn_8c.html#a27c4b062fcfd0c395fc4113ab0fb4a10">xfer_read_exact</a>(sv[0], &amp;<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, <span class="keyword">sizeof</span>(<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>))) {</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a> = -1;                                 <span class="comment">/* agent died before reporting */</span></div>
 <div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    }</div>
 <div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(sv[0]);</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    <span class="keywordflow">return</span> code;</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>;</div>
 <div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>}</div>
 </div>
 <div class="ttc" id="abrixposix__preload_8c_html_aafbcde67669a1b96577e735ddebd8634"><div class="ttname"><a href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a></div><div class="ttdeci">int close(int fd)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00374">brixposix_preload.c:374</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_af32a16ad2dd9e48482f8f790db7dbbd2"><div class="ttname"><a href="brixposix__preload_8c.html#af32a16ad2dd9e48482f8f790db7dbbd2">read</a></div><div class="ttdeci">ssize_t read(int fd, void *buf, size_t count)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00299">brixposix_preload.c:299</a></div></div>
+<div class="ttc" id="anet_2cms_2recv__frame_8c_html_a9184f4b820c1cab8c02a7416c15d4bc6"><div class="ttname"><a href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a></div><div class="ttdeci">u_char code</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2recv__frame_8c_source.html#l00372">recv_frame.c:372</a></div></div>
 <div class="ttc" id="axfer__spawn_8c_html_a244ca007189fc740d957515f0dd61d65"><div class="ttname"><a href="xfer__spawn_8c.html#a244ca007189fc740d957515f0dd61d65">brix_xfer_run_reparented</a></div><div class="ttdeci">int brix_xfer_run_reparented(const char *const argv[], char *const envp[])</div><div class="ttdef"><b>Definition</b> <a href="xfer__spawn_8c_source.html#l00106">xfer_spawn.c:106</a></div></div>
 <div class="ttc" id="axfer__spawn_8c_html_a27c4b062fcfd0c395fc4113ab0fb4a10"><div class="ttname"><a href="xfer__spawn_8c.html#a27c4b062fcfd0c395fc4113ab0fb4a10">xfer_read_exact</a></div><div class="ttdeci">static int xfer_read_exact(int fd, void *buf, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="xfer__spawn_8c_source.html#l00035">xfer_spawn.c:35</a></div></div>
 <div class="ttc" id="axfer__spawn_8c_html_a3193a8e6550cfbdc9a1b730fa1641bcd"><div class="ttname"><a href="xfer__spawn_8c.html#a3193a8e6550cfbdc9a1b730fa1641bcd">XFER_SPAWN_EXEC_FAILED</a></div><div class="ttdeci">#define XFER_SPAWN_EXEC_FAILED</div><div class="ttdef"><b>Definition</b> <a href="xfer__spawn_8c_source.html#l00030">xfer_spawn.c:30</a></div></div>

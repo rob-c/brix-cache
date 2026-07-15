@@ -116,7 +116,7 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a4a878fa6f354154a93256a4774c0cf58" id="r_a4a878fa6f354154a93256a4774c0cf58"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__auth_8c.html#a4a878fa6f354154a93256a4774c0cf58">brix_cms_srv_check_peer</a> (ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, ngx_stream_brix_cms_srv_conf_t *conf)</td></tr>
+<tr class="memitem:a4a878fa6f354154a93256a4774c0cf58" id="r_a4a878fa6f354154a93256a4774c0cf58"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__auth_8c.html#a4a878fa6f354154a93256a4774c0cf58">brix_cms_srv_check_peer</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, ngx_stream_brix_cms_srv_conf_t *conf)</td></tr>
 <tr class="separator:a4a878fa6f354154a93256a4774c0cf58"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ada0cbac515207d89ab8df979b52f5f4e" id="r_ada0cbac515207d89ab8df979b52f5f4e"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__auth_8c.html#ada0cbac515207d89ab8df979b52f5f4e">brix_cms_srv_verify_xauth</a> (<a class="el" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> *ctx, const u_char *payload, size_t payload_len)</td></tr>
 <tr class="separator:ada0cbac515207d89ab8df979b52f5f4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -167,7 +167,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__auth_8c_source.html#l00031">31</a> of file <a class="el" href="server__auth_8c_source.html">server_auth.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__handler_8c_source.html#l00140">brix_cms_srv_handler()</a>.</p>
 
@@ -207,9 +207,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__auth_8c_source.html#l00062">62</a> of file <a class="el" href="server__auth_8c_source.html">server_auth.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00119">brix_sss_verify_blob()</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="server__auth_8c_source.html#l00028">CMS_SSS_LIFETIME</a>, <a class="el" href="server_8h_source.html#l00038">brix_cms_srv_ctx_t::conf</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00354">brix_sss_verify_blob()</a>, <a class="el" href="server_8h_source.html#l00037">brix_cms_srv_ctx_t::c</a>, <a class="el" href="server__auth_8c_source.html#l00028">CMS_SSS_LIFETIME</a>, <a class="el" href="server_8h_source.html#l00038">brix_cms_srv_ctx_t::conf</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00443">cms_srv_process_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00144">cms_srv_frame_xauth()</a>.</p>
 
 </div>
 </div>

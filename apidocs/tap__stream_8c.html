@@ -112,8 +112,30 @@ $(document).ready(function(){initNavTree('tap__stream_8c.html',''); initResizabl
 Functions</h2></td></tr>
 <tr class="memitem:addc07aa5349ad9061bc6654acac331b9" id="r_addc07aa5349ad9061bc6654acac331b9"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#addc07aa5349ad9061bc6654acac331b9">brix_tap_stream_init</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st, <a class="el" href="structbrix__tap__ctx__t.html">brix_tap_ctx_t</a> *tap, <a class="el" href="tap_8h.html#adb56b9321ee276c09990bee4cfdf3924">brix_tap_dir_t</a> dir)</td></tr>
 <tr class="separator:addc07aa5349ad9061bc6654acac331b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a882c92904ae4119071212323d8138c68" id="r_a882c92904ae4119071212323d8138c68"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a882c92904ae4119071212323d8138c68">tap_header_decode</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st)</td></tr>
+<tr class="separator:a882c92904ae4119071212323d8138c68"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3392e666e0a225d0f309bc50edadc999" id="r_a3392e666e0a225d0f309bc50edadc999"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a3392e666e0a225d0f309bc50edadc999">tap_header_classify_framing</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st)</td></tr>
+<tr class="separator:a3392e666e0a225d0f309bc50edadc999"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afdeb9982a586048044c79d2472f730dc" id="r_afdeb9982a586048044c79d2472f730dc"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#afdeb9982a586048044c79d2472f730dc">tap_header_set_capture</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st)</td></tr>
+<tr class="separator:afdeb9982a586048044c79d2472f730dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad4a1d6d0a7ed371dc7700aff2208db9a" id="r_ad4a1d6d0a7ed371dc7700aff2208db9a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#ad4a1d6d0a7ed371dc7700aff2208db9a">tap_stream_on_header</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st)</td></tr>
 <tr class="separator:ad4a1d6d0a7ed371dc7700aff2208db9a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af16b8e155a3ae1301bf82d0065ced450" id="r_af16b8e155a3ae1301bf82d0065ced450"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#af16b8e155a3ae1301bf82d0065ced450">tap_feed_preamble</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st, const uint8_t **buf, size_t *len)</td></tr>
+<tr class="separator:af16b8e155a3ae1301bf82d0065ced450"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7b12a57f882f7c30f07801ca122247f4" id="r_a7b12a57f882f7c30f07801ca122247f4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a7b12a57f882f7c30f07801ca122247f4">tap_feed_header</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st, const uint8_t **buf, size_t *len)</td></tr>
+<tr class="separator:a7b12a57f882f7c30f07801ca122247f4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0b1e4e0d00b889a3ec7011e850ebebdd" id="r_a0b1e4e0d00b889a3ec7011e850ebebdd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a0b1e4e0d00b889a3ec7011e850ebebdd">tap_payload_capture</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st, const uint8_t *buf, size_t take)</td></tr>
+<tr class="separator:a0b1e4e0d00b889a3ec7011e850ebebdd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a12583c884bb8ad0ae118facc83dfab9a" id="r_a12583c884bb8ad0ae118facc83dfab9a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a12583c884bb8ad0ae118facc83dfab9a">tap_payload_emit_if_ready</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st)</td></tr>
+<tr class="separator:a12583c884bb8ad0ae118facc83dfab9a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6688bc6d0be920ad68d351baa991dab6" id="r_a6688bc6d0be920ad68d351baa991dab6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a6688bc6d0be920ad68d351baa991dab6">tap_payload_extend_ckpxeq</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st)</td></tr>
+<tr class="separator:a6688bc6d0be920ad68d351baa991dab6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4f03240caec60e3d51c04e8de34489ae" id="r_a4f03240caec60e3d51c04e8de34489ae"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a4f03240caec60e3d51c04e8de34489ae">tap_payload_extend_writev</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st)</td></tr>
+<tr class="separator:a4f03240caec60e3d51c04e8de34489ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a81c5982c221ad00f920b864d402f8740" id="r_a81c5982c221ad00f920b864d402f8740"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a81c5982c221ad00f920b864d402f8740">tap_payload_on_frame_end</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st)</td></tr>
+<tr class="separator:a81c5982c221ad00f920b864d402f8740"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a562ada36d91a95c43bb7df559349ad01" id="r_a562ada36d91a95c43bb7df559349ad01"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a562ada36d91a95c43bb7df559349ad01">tap_feed_payload</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st, const uint8_t **buf, size_t *len)</td></tr>
+<tr class="separator:a562ada36d91a95c43bb7df559349ad01"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a30a379a67a8cefc64c872e648670bb87" id="r_a30a379a67a8cefc64c872e648670bb87"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tap__stream_8c.html#a30a379a67a8cefc64c872e648670bb87">brix_tap_stream_feed</a> (<a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *st, const uint8_t *buf, size_t len)</td></tr>
 <tr class="separator:a30a379a67a8cefc64c872e648670bb87"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -150,9 +172,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00099">99</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00402">402</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tap__emit_8c_source.html#l00023">brix_tap_emit()</a>, <a class="el" href="tap_8h_source.html#l00021">BRIX_TAP_U2C</a>, <a class="el" href="tap_8h_source.html#l00118">brix_tap_stream_t::ckp_active</a>, <a class="el" href="tap_8h_source.html#l00119">brix_tap_stream_t::ckp_hdr</a>, <a class="el" href="tap_8h_source.html#l00120">brix_tap_stream_t::ckp_hdr_got</a>, <a class="el" href="tap_8h_source.html#l00097">brix_tap_stream_t::cur</a>, <a class="el" href="tap_8h_source.html#l00090">brix_tap_stream_t::dir</a>, <a class="el" href="tap_8h_source.html#l00101">brix_tap_stream_t::emitted</a>, <a class="el" href="tap_8h_source.html#l00029">brix_tap_frame_t::errnum</a>, <a class="el" href="tap_8h_source.html#l00093">brix_tap_stream_t::hdr</a>, <a class="el" href="tap_8h_source.html#l00094">brix_tap_stream_t::hdr_got</a>, <a class="el" href="tap_8h_source.html#l00092">brix_tap_stream_t::hdr_need</a>, <a class="el" href="tap_8h_source.html#l00095">brix_tap_stream_t::in_payload</a>, <a class="el" href="opcodes_8h_source.html#l00071">kXR_pgwrite</a>, <a class="el" href="opcodes_8h_source.html#l00064">kXR_write</a>, <a class="el" href="opcodes_8h_source.html#l00076">kXR_writev</a>, <a class="el" href="tap_8h_source.html#l00032">brix_tap_frame_t::path</a>, <a class="el" href="tap_8h_source.html#l00099">brix_tap_stream_t::path_cap</a>, <a class="el" href="tap_8h_source.html#l00100">brix_tap_stream_t::path_got</a>, <a class="el" href="tap_8h_source.html#l00033">brix_tap_frame_t::path_len</a>, <a class="el" href="tap_8h_source.html#l00098">brix_tap_stream_t::pathbuf</a>, <a class="el" href="tap_8h_source.html#l00096">brix_tap_stream_t::payload_left</a>, <a class="el" href="tap_8h_source.html#l00091">brix_tap_stream_t::preamble_skip</a>, <a class="el" href="tap_8h_source.html#l00089">brix_tap_stream_t::tap</a>, <a class="el" href="tap__stream_8c_source.html#l00031">tap_stream_on_header()</a>, <a class="el" href="tap_8h_source.html#l00107">brix_tap_stream_t::wv_active</a>, <a class="el" href="tap_8h_source.html#l00108">brix_tap_stream_t::wv_desc</a>, <a class="el" href="tap_8h_source.html#l00109">brix_tap_stream_t::wv_desc_got</a>, and <a class="el" href="tap_8h_source.html#l00110">brix_tap_stream_t::wv_extra</a>.</p>
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00095">brix_tap_stream_t::in_payload</a>, <a class="el" href="tap_8h_source.html#l00091">brix_tap_stream_t::preamble_skip</a>, <a class="el" href="tap__stream_8c_source.html#l00175">tap_feed_header()</a>, <a class="el" href="tap__stream_8c_source.html#l00383">tap_feed_payload()</a>, and <a class="el" href="tap__stream_8c_source.html#l00157">tap_feed_preamble()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="relay_8c_source.html#l00165">relay_pump()</a>.</p>
 
@@ -198,6 +220,422 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a7b12a57f882f7c30f07801ca122247f4" name="a7b12a57f882f7c30f07801ca122247f4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7b12a57f882f7c30f07801ca122247f4">&#9670;&#160;</a></span>tap_feed_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tap_feed_header </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t **&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00175">175</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00093">brix_tap_stream_t::hdr</a>, <a class="el" href="tap_8h_source.html#l00094">brix_tap_stream_t::hdr_got</a>, <a class="el" href="tap_8h_source.html#l00092">brix_tap_stream_t::hdr_need</a>, and <a class="el" href="tap__stream_8c_source.html#l00133">tap_stream_on_header()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00402">brix_tap_stream_feed()</a>.</p>
+
+</div>
+</div>
+<a id="a562ada36d91a95c43bb7df559349ad01" name="a562ada36d91a95c43bb7df559349ad01"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a562ada36d91a95c43bb7df559349ad01">&#9670;&#160;</a></span>tap_feed_payload()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tap_feed_payload </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t **&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00383">383</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00096">brix_tap_stream_t::payload_left</a>, <a class="el" href="tap__stream_8c_source.html#l00199">tap_payload_capture()</a>, <a class="el" href="tap__stream_8c_source.html#l00244">tap_payload_emit_if_ready()</a>, and <a class="el" href="tap__stream_8c_source.html#l00347">tap_payload_on_frame_end()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00402">brix_tap_stream_feed()</a>.</p>
+
+</div>
+</div>
+<a id="af16b8e155a3ae1301bf82d0065ced450" name="af16b8e155a3ae1301bf82d0065ced450"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af16b8e155a3ae1301bf82d0065ced450">&#9670;&#160;</a></span>tap_feed_preamble()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tap_feed_preamble </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t **&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00157">157</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00091">brix_tap_stream_t::preamble_skip</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00402">brix_tap_stream_feed()</a>.</p>
+
+</div>
+</div>
+<a id="a3392e666e0a225d0f309bc50edadc999" name="a3392e666e0a225d0f309bc50edadc999"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3392e666e0a225d0f309bc50edadc999">&#9670;&#160;</a></span>tap_header_classify_framing()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tap_header_classify_framing </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00063">63</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00020">BRIX_TAP_C2U</a>, <a class="el" href="tap_8h_source.html#l00118">brix_tap_stream_t::ckp_active</a>, <a class="el" href="tap_8h_source.html#l00120">brix_tap_stream_t::ckp_hdr_got</a>, <a class="el" href="tap_8h_source.html#l00097">brix_tap_stream_t::cur</a>, <a class="el" href="tap_8h_source.html#l00090">brix_tap_stream_t::dir</a>, <a class="el" href="tap_8h_source.html#l00031">brix_tap_frame_t::dlen</a>, <a class="el" href="tap_8h_source.html#l00093">brix_tap_stream_t::hdr</a>, <a class="el" href="opcodes_8h_source.html#l00057">kXR_chkpoint</a>, <a class="el" href="opcodes_8h_source.html#l00076">kXR_writev</a>, <a class="el" href="tap_8h_source.html#l00027">brix_tap_frame_t::opcode</a>, <a class="el" href="tap_8h_source.html#l00107">brix_tap_stream_t::wv_active</a>, <a class="el" href="tap_8h_source.html#l00109">brix_tap_stream_t::wv_desc_got</a>, and <a class="el" href="tap_8h_source.html#l00110">brix_tap_stream_t::wv_extra</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00133">tap_stream_on_header()</a>.</p>
+
+</div>
+</div>
+<a id="a882c92904ae4119071212323d8138c68" name="a882c92904ae4119071212323d8138c68"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a882c92904ae4119071212323d8138c68">&#9670;&#160;</a></span>tap_header_decode()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tap_header_decode </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00039">39</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00020">BRIX_TAP_C2U</a>, <a class="el" href="tap__decode_8c_source.html#l00036">brix_tap_decode_request()</a>, <a class="el" href="tap__decode_8c_source.html#l00064">brix_tap_decode_response()</a>, <a class="el" href="tap_8h_source.html#l00097">brix_tap_stream_t::cur</a>, <a class="el" href="tap_8h_source.html#l00090">brix_tap_stream_t::dir</a>, <a class="el" href="tap_8h_source.html#l00031">brix_tap_frame_t::dlen</a>, <a class="el" href="tap_8h_source.html#l00101">brix_tap_stream_t::emitted</a>, <a class="el" href="tap_8h_source.html#l00093">brix_tap_stream_t::hdr</a>, <a class="el" href="tap_8h_source.html#l00092">brix_tap_stream_t::hdr_need</a>, <a class="el" href="tap_8h_source.html#l00095">brix_tap_stream_t::in_payload</a>, <a class="el" href="tap_8h_source.html#l00099">brix_tap_stream_t::path_cap</a>, <a class="el" href="tap_8h_source.html#l00100">brix_tap_stream_t::path_got</a>, and <a class="el" href="tap_8h_source.html#l00096">brix_tap_stream_t::payload_left</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00133">tap_stream_on_header()</a>.</p>
+
+</div>
+</div>
+<a id="afdeb9982a586048044c79d2472f730dc" name="afdeb9982a586048044c79d2472f730dc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afdeb9982a586048044c79d2472f730dc">&#9670;&#160;</a></span>tap_header_set_capture()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tap_header_set_capture </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00100">100</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00020">BRIX_TAP_C2U</a>, <a class="el" href="tap__decode_8c_source.html#l00016">brix_tap_opcode_has_path()</a>, <a class="el" href="tap_8h_source.html#l00080">BRIX_TAP_PATH_CAP</a>, <a class="el" href="tap_8h_source.html#l00021">BRIX_TAP_U2C</a>, <a class="el" href="tap_8h_source.html#l00097">brix_tap_stream_t::cur</a>, <a class="el" href="tap_8h_source.html#l00090">brix_tap_stream_t::dir</a>, <a class="el" href="tap_8h_source.html#l00031">brix_tap_frame_t::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="tap_8h_source.html#l00027">brix_tap_frame_t::opcode</a>, <a class="el" href="tap_8h_source.html#l00032">brix_tap_frame_t::path</a>, <a class="el" href="tap_8h_source.html#l00099">brix_tap_stream_t::path_cap</a>, <a class="el" href="tap_8h_source.html#l00033">brix_tap_frame_t::path_len</a>, and <a class="el" href="tap_8h_source.html#l00028">brix_tap_frame_t::status</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00133">tap_stream_on_header()</a>.</p>
+
+</div>
+</div>
+<a id="a0b1e4e0d00b889a3ec7011e850ebebdd" name="a0b1e4e0d00b889a3ec7011e850ebebdd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0b1e4e0d00b889a3ec7011e850ebebdd">&#9670;&#160;</a></span>tap_payload_capture()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tap_payload_capture </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>take</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00199">199</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00118">brix_tap_stream_t::ckp_active</a>, <a class="el" href="tap_8h_source.html#l00119">brix_tap_stream_t::ckp_hdr</a>, <a class="el" href="tap_8h_source.html#l00120">brix_tap_stream_t::ckp_hdr_got</a>, <a class="el" href="tap_8h_source.html#l00099">brix_tap_stream_t::path_cap</a>, <a class="el" href="tap_8h_source.html#l00100">brix_tap_stream_t::path_got</a>, <a class="el" href="tap_8h_source.html#l00098">brix_tap_stream_t::pathbuf</a>, <a class="el" href="tap_8h_source.html#l00107">brix_tap_stream_t::wv_active</a>, <a class="el" href="tap_8h_source.html#l00108">brix_tap_stream_t::wv_desc</a>, <a class="el" href="tap_8h_source.html#l00109">brix_tap_stream_t::wv_desc_got</a>, and <a class="el" href="tap_8h_source.html#l00110">brix_tap_stream_t::wv_extra</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00383">tap_feed_payload()</a>.</p>
+
+</div>
+</div>
+<a id="a12583c884bb8ad0ae118facc83dfab9a" name="a12583c884bb8ad0ae118facc83dfab9a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a12583c884bb8ad0ae118facc83dfab9a">&#9670;&#160;</a></span>tap_payload_emit_if_ready()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tap_payload_emit_if_ready </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00244">244</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap__emit_8c_source.html#l00023">brix_tap_emit()</a>, <a class="el" href="tap_8h_source.html#l00021">BRIX_TAP_U2C</a>, <a class="el" href="tap_8h_source.html#l00097">brix_tap_stream_t::cur</a>, <a class="el" href="tap_8h_source.html#l00090">brix_tap_stream_t::dir</a>, <a class="el" href="tap_8h_source.html#l00101">brix_tap_stream_t::emitted</a>, <a class="el" href="tap_8h_source.html#l00029">brix_tap_frame_t::errnum</a>, <a class="el" href="tap_8h_source.html#l00032">brix_tap_frame_t::path</a>, <a class="el" href="tap_8h_source.html#l00099">brix_tap_stream_t::path_cap</a>, <a class="el" href="tap_8h_source.html#l00100">brix_tap_stream_t::path_got</a>, <a class="el" href="tap_8h_source.html#l00033">brix_tap_frame_t::path_len</a>, <a class="el" href="tap_8h_source.html#l00098">brix_tap_stream_t::pathbuf</a>, and <a class="el" href="tap_8h_source.html#l00089">brix_tap_stream_t::tap</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00383">tap_feed_payload()</a>.</p>
+
+</div>
+</div>
+<a id="a6688bc6d0be920ad68d351baa991dab6" name="a6688bc6d0be920ad68d351baa991dab6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6688bc6d0be920ad68d351baa991dab6">&#9670;&#160;</a></span>tap_payload_extend_ckpxeq()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tap_payload_extend_ckpxeq </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00277">277</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00118">brix_tap_stream_t::ckp_active</a>, <a class="el" href="tap_8h_source.html#l00119">brix_tap_stream_t::ckp_hdr</a>, <a class="el" href="tap_8h_source.html#l00120">brix_tap_stream_t::ckp_hdr_got</a>, <a class="el" href="opcodes_8h_source.html#l00071">kXR_pgwrite</a>, <a class="el" href="opcodes_8h_source.html#l00064">kXR_write</a>, <a class="el" href="opcodes_8h_source.html#l00076">kXR_writev</a>, <a class="el" href="tap_8h_source.html#l00096">brix_tap_stream_t::payload_left</a>, <a class="el" href="tap_8h_source.html#l00107">brix_tap_stream_t::wv_active</a>, <a class="el" href="tap_8h_source.html#l00109">brix_tap_stream_t::wv_desc_got</a>, and <a class="el" href="tap_8h_source.html#l00110">brix_tap_stream_t::wv_extra</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00347">tap_payload_on_frame_end()</a>.</p>
+
+</div>
+</div>
+<a id="a4f03240caec60e3d51c04e8de34489ae" name="a4f03240caec60e3d51c04e8de34489ae"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4f03240caec60e3d51c04e8de34489ae">&#9670;&#160;</a></span>tap_payload_extend_writev()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tap_payload_extend_writev </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00324">324</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap_8h_source.html#l00096">brix_tap_stream_t::payload_left</a>, <a class="el" href="tap_8h_source.html#l00107">brix_tap_stream_t::wv_active</a>, and <a class="el" href="tap_8h_source.html#l00110">brix_tap_stream_t::wv_extra</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00347">tap_payload_on_frame_end()</a>.</p>
+
+</div>
+</div>
+<a id="a81c5982c221ad00f920b864d402f8740" name="a81c5982c221ad00f920b864d402f8740"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a81c5982c221ad00f920b864d402f8740">&#9670;&#160;</a></span>tap_payload_on_frame_end()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tap_payload_on_frame_end </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tap__stream__t.html">brix_tap_stream_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00347">347</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tap__emit_8c_source.html#l00023">brix_tap_emit()</a>, <a class="el" href="tap_8h_source.html#l00097">brix_tap_stream_t::cur</a>, <a class="el" href="tap_8h_source.html#l00090">brix_tap_stream_t::dir</a>, <a class="el" href="tap_8h_source.html#l00101">brix_tap_stream_t::emitted</a>, <a class="el" href="tap_8h_source.html#l00094">brix_tap_stream_t::hdr_got</a>, <a class="el" href="tap_8h_source.html#l00095">brix_tap_stream_t::in_payload</a>, <a class="el" href="tap_8h_source.html#l00089">brix_tap_stream_t::tap</a>, <a class="el" href="tap__stream_8c_source.html#l00277">tap_payload_extend_ckpxeq()</a>, and <a class="el" href="tap__stream_8c_source.html#l00324">tap_payload_extend_writev()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00383">tap_feed_payload()</a>.</p>
+
+</div>
+</div>
 <a id="ad4a1d6d0a7ed371dc7700aff2208db9a" name="ad4a1d6d0a7ed371dc7700aff2208db9a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad4a1d6d0a7ed371dc7700aff2208db9a">&#9670;&#160;</a></span>tap_stream_on_header()</h2>
 
@@ -222,11 +660,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00031">31</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tap__stream_8c_source.html#l00133">133</a> of file <a class="el" href="tap__stream_8c_source.html">tap_stream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tap_8h_source.html#l00020">BRIX_TAP_C2U</a>, <a class="el" href="tap__decode_8c_source.html#l00036">brix_tap_decode_request()</a>, <a class="el" href="tap__decode_8c_source.html#l00064">brix_tap_decode_response()</a>, <a class="el" href="tap__emit_8c_source.html#l00023">brix_tap_emit()</a>, <a class="el" href="tap__decode_8c_source.html#l00016">brix_tap_opcode_has_path()</a>, <a class="el" href="tap_8h_source.html#l00080">BRIX_TAP_PATH_CAP</a>, <a class="el" href="tap_8h_source.html#l00021">BRIX_TAP_U2C</a>, <a class="el" href="tap_8h_source.html#l00118">brix_tap_stream_t::ckp_active</a>, <a class="el" href="tap_8h_source.html#l00120">brix_tap_stream_t::ckp_hdr_got</a>, <a class="el" href="tap_8h_source.html#l00097">brix_tap_stream_t::cur</a>, <a class="el" href="tap_8h_source.html#l00090">brix_tap_stream_t::dir</a>, <a class="el" href="tap_8h_source.html#l00031">brix_tap_frame_t::dlen</a>, <a class="el" href="tap_8h_source.html#l00101">brix_tap_stream_t::emitted</a>, <a class="el" href="tap_8h_source.html#l00093">brix_tap_stream_t::hdr</a>, <a class="el" href="tap_8h_source.html#l00094">brix_tap_stream_t::hdr_got</a>, <a class="el" href="tap_8h_source.html#l00092">brix_tap_stream_t::hdr_need</a>, <a class="el" href="tap_8h_source.html#l00095">brix_tap_stream_t::in_payload</a>, <a class="el" href="opcodes_8h_source.html#l00057">kXR_chkpoint</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00076">kXR_writev</a>, <a class="el" href="tap_8h_source.html#l00027">brix_tap_frame_t::opcode</a>, <a class="el" href="tap_8h_source.html#l00032">brix_tap_frame_t::path</a>, <a class="el" href="tap_8h_source.html#l00099">brix_tap_stream_t::path_cap</a>, <a class="el" href="tap_8h_source.html#l00100">brix_tap_stream_t::path_got</a>, <a class="el" href="tap_8h_source.html#l00033">brix_tap_frame_t::path_len</a>, <a class="el" href="tap_8h_source.html#l00096">brix_tap_stream_t::payload_left</a>, <a class="el" href="tap_8h_source.html#l00028">brix_tap_frame_t::status</a>, <a class="el" href="tap_8h_source.html#l00089">brix_tap_stream_t::tap</a>, <a class="el" href="tap_8h_source.html#l00107">brix_tap_stream_t::wv_active</a>, <a class="el" href="tap_8h_source.html#l00109">brix_tap_stream_t::wv_desc_got</a>, and <a class="el" href="tap_8h_source.html#l00110">brix_tap_stream_t::wv_extra</a>.</p>
+<p class="reference">References <a class="el" href="tap__emit_8c_source.html#l00023">brix_tap_emit()</a>, <a class="el" href="tap_8h_source.html#l00097">brix_tap_stream_t::cur</a>, <a class="el" href="tap_8h_source.html#l00090">brix_tap_stream_t::dir</a>, <a class="el" href="tap_8h_source.html#l00101">brix_tap_stream_t::emitted</a>, <a class="el" href="tap_8h_source.html#l00094">brix_tap_stream_t::hdr_got</a>, <a class="el" href="tap_8h_source.html#l00095">brix_tap_stream_t::in_payload</a>, <a class="el" href="tap_8h_source.html#l00099">brix_tap_stream_t::path_cap</a>, <a class="el" href="tap_8h_source.html#l00096">brix_tap_stream_t::payload_left</a>, <a class="el" href="tap_8h_source.html#l00089">brix_tap_stream_t::tap</a>, <a class="el" href="tap__stream_8c_source.html#l00063">tap_header_classify_framing()</a>, <a class="el" href="tap__stream_8c_source.html#l00039">tap_header_decode()</a>, and <a class="el" href="tap__stream_8c_source.html#l00100">tap_header_set_capture()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00099">brix_tap_stream_feed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tap__stream_8c_source.html#l00175">tap_feed_header()</a>.</p>
 
 </div>
 </div>

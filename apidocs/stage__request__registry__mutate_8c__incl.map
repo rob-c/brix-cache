@@ -1,0 +1,18 @@
+<map id="src/fs/xfer/stage_request_registry_mutate.c" name="src/fs/xfer/stage_request_registry_mutate.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="127,5,310,45"/>
+<area shape="rect" id="Node000002" href="$stage__request__registry_8h.html" title=" " alt="" coords="5,181,187,207"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="180,48,149,68,124,95,107,131,100,168,95,167,102,130,119,92,146,64,177,43"/>
+<area shape="rect" id="Node000004" href="$stage__request__registry__internal_8h.html" title=" " alt="" coords="133,93,304,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="221,46,221,79,216,79,216,46"/>
+<area shape="rect" id="Node000006" href="$time_8h.html" title=" " alt="" coords="308,181,372,207"/>
+<area shape="poly" id="edge9_Node000001_Node000006" title=" " alt="" coords="261,43,291,64,318,92,335,130,342,167,336,168,330,131,314,95,288,68,258,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="49,255,143,280"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="99,207,99,241,93,241,93,207"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="190,136,127,176,124,172,188,131"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="211,181,282,207"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="228,133,240,167,235,169,223,134"/>
+<area shape="poly" id="edge6_Node000004_Node000006" title=" " alt="" coords="249,131,312,172,309,176,247,136"/>
+<area shape="poly" id="edge8_Node000006_Node000006" title=" " alt="" coords="367,179,388,180,396,185,399,194,393,205,381,210,379,205,390,201,393,194,391,189,386,185,366,184"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="303,255,377,280"/>
+<area shape="poly" id="edge7_Node000006_Node000007" title=" " alt="" coords="343,207,343,241,337,241,337,207"/>
+</map>

@@ -1,6 +1,9 @@
 var copy__zip_8c =
 [
     [ "copy_unzip", "copy__zip_8c.html#aad6f0c55d28ee7f5a1043bd0755734b7", null ],
+    [ "copy_unzip_extract_member", "copy__zip_8c.html#a2cdecec35bdead8f64832f881cae7ba1", null ],
+    [ "copy_unzip_finalize", "copy__zip_8c.html#a9526cae8dbb3efb96864e8a991a36612", null ],
+    [ "copy_unzip_open_dest", "copy__zip_8c.html#ad335adf4fe8419148c9ac13de0c2d4d5", null ],
     [ "copy_zip_store", "copy__zip_8c.html#a374a189e60f3cebc5c2904bb57db33ef", null ],
     [ "copy_zip_store_local", "copy__zip_8c.html#a40e8c1fca4228eca10851aeb6a48111d", null ],
     [ "copy_zip_store_remote", "copy__zip_8c.html#aea6317bbd2ab5f7e228b8e6aba40af08", null ],

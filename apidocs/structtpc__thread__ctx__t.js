@@ -14,5 +14,7 @@ var structtpc__thread__ctx__t =
     [ "root_canon", "structtpc__thread__ctx__t.html#a5cd6c724e1a1ed1ea1f7e1712ff5af87", null ],
     [ "transfer_headers", "structtpc__thread__ctx__t.html#ac4b2eda541388d6a20eaedee9f4e21ed", null ],
     [ "transfer_id", "structtpc__thread__ctx__t.html#aed7cd47c15541029b02cf8b2003876d5", null ],
-    [ "url", "structtpc__thread__ctx__t.html#acc0ccc085f90cc52cbf9b1d8bda7fbe6", null ]
+    [ "url", "structtpc__thread__ctx__t.html#acc0ccc085f90cc52cbf9b1d8bda7fbe6", null ],
+    [ "user_cert", "structtpc__thread__ctx__t.html#ab43dc9265823afc075a9aa87d7c480ab", null ],
+    [ "user_key", "structtpc__thread__ctx__t.html#a4753e8cf5837268b150d89c816737ade", null ]
 ];

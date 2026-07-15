@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('zip__http_8c.html',''); initResizable(
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">zip_http.c File Reference</div></div>
@@ -114,6 +115,11 @@ $(document).ready(function(){initNavTree('zip__http_8c.html',''); initResizable(
 </div>
 <p><a href="zip__http_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structzip__http__span__t.html">zip_http_span_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a092182820cba19eff165301784afd02f" id="r_a092182820cba19eff165301784afd02f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#a092182820cba19eff165301784afd02f">ZIP_HTTP_MEM_MAX</a>&#160;&#160;&#160;(512u * 1024u * 1024u)</td></tr>
@@ -127,6 +133,18 @@ Functions</h2></td></tr>
 <tr class="separator:ae3adcd9b8c359f257537d9e82d018aac"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a146d2356f642671840fa8ff5bb281b91" id="r_a146d2356f642671840fa8ff5bb281b91"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#a146d2356f642671840fa8ff5bb281b91">zip_http_close_fd</a> (void *data)</td></tr>
 <tr class="separator:a146d2356f642671840fa8ff5bb281b91"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a054ac6c62caed89bfe46b1a064d89cae" id="r_a054ac6c62caed89bfe46b1a064d89cae"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#a054ac6c62caed89bfe46b1a064d89cae">zip_http_open_archive</a> (ngx_http_request_t *r, const char *root_canon, const char *archive_full, brix_vfs_file_t **fhp, off_t *sizep)</td></tr>
+<tr class="separator:a054ac6c62caed89bfe46b1a064d89cae"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0babd457841a6541f61c8ff80f2c2b19" id="r_a0babd457841a6541f61c8ff80f2c2b19"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#a0babd457841a6541f61c8ff80f2c2b19">zip_http_locate_member</a> (brix_vfs_file_t *fh, off_t archive_size, const char *member, size_t cd_max, <a class="el" href="structbrix__zip__member__t.html">brix_zip_member_t</a> *m)</td></tr>
+<tr class="separator:a0babd457841a6541f61c8ff80f2c2b19"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0b1baae441c149a728e352489b74c790" id="r_a0b1baae441c149a728e352489b74c790"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#a0b1baae441c149a728e352489b74c790">zip_http_parse_range</a> (ngx_http_request_t *r, <a class="el" href="structzip__http__span__t.html">zip_http_span_t</a> *sp)</td></tr>
+<tr class="separator:a0b1baae441c149a728e352489b74c790"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad1610069e2b485ddee900c293b1678f1" id="r_ad1610069e2b485ddee900c293b1678f1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#ad1610069e2b485ddee900c293b1678f1">zip_http_stage_stored</a> (ngx_http_request_t *r, brix_vfs_file_t *fh, const <a class="el" href="structbrix__zip__member__t.html">brix_zip_member_t</a> *m, const <a class="el" href="structzip__http__span__t.html">zip_http_span_t</a> *sp, ngx_buf_t *b)</td></tr>
+<tr class="separator:ad1610069e2b485ddee900c293b1678f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a03a5ab0936b6979ff16e905d030d8432" id="r_a03a5ab0936b6979ff16e905d030d8432"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#a03a5ab0936b6979ff16e905d030d8432">zip_http_stage_deflate</a> (ngx_http_request_t *r, brix_vfs_file_t *fh, const <a class="el" href="structbrix__zip__member__t.html">brix_zip_member_t</a> *m, const <a class="el" href="structzip__http__span__t.html">zip_http_span_t</a> *sp, ngx_buf_t *b)</td></tr>
+<tr class="separator:a03a5ab0936b6979ff16e905d030d8432"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a23d896fd05800aff2f03b1d350524bba" id="r_a23d896fd05800aff2f03b1d350524bba"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#a23d896fd05800aff2f03b1d350524bba">zip_http_set_headers</a> (ngx_http_request_t *r, const <a class="el" href="structzip__http__span__t.html">zip_http_span_t</a> *sp)</td></tr>
+<tr class="separator:a23d896fd05800aff2f03b1d350524bba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3dc7145a2f1ec5858ac14d352bff0d41" id="r_a3dc7145a2f1ec5858ac14d352bff0d41"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zip__http_8c.html#a3dc7145a2f1ec5858ac14d352bff0d41">brix_zip_http_serve</a> (ngx_http_request_t *r, const char *root_canon, size_t cd_max, const char *archive_full, const char *member)</td></tr>
 <tr class="separator:a3dc7145a2f1ec5858ac14d352bff0d41"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -184,7 +202,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="zip__http_8c_source.html#l00024">zip_http_name_ok()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00132">get_zip_member_serve()</a>, and <a class="el" href="object_8c_source.html#l00110">s3_get_serve_zip_member()</a>.</p>
 
 </div>
 </div>
@@ -232,11 +250,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00079">79</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00312">312</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="zip__dir_8h_source.html#l00047">BRIX_ZIP_EIO</a>, <a class="el" href="zip__dir_8c_source.html#l00184">brix_zip_extract_full()</a>, <a class="el" href="zip__dir_8c_source.html#l00075">brix_zip_find_member()</a>, <a class="el" href="zip__dir_8h_source.html#l00030">BRIX_ZIP_METHOD_STORE</a>, <a class="el" href="zip__dir_8h_source.html#l00045">BRIX_ZIP_NOMEMBER</a>, <a class="el" href="zip__dir_8h_source.html#l00044">BRIX_ZIP_OK</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="zip__http_8c_source.html#l00070">zip_http_close_fd()</a>, and <a class="el" href="zip__http_8c_source.html#l00021">ZIP_HTTP_MEM_MAX</a>.</p>
+<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="zip__dir_8h_source.html#l00030">BRIX_ZIP_METHOD_STORE</a>, <a class="el" href="zip__http_8c_source.html#l00083">zip_http_span_t::len</a>, <a class="el" href="zip__dir_8h_source.html#l00036">brix_zip_member_t::method</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="zip__http_8c_source.html#l00082">zip_http_span_t::start</a>, <a class="el" href="zip__http_8c_source.html#l00081">zip_http_span_t::total</a>, <a class="el" href="zip__dir_8h_source.html#l00038">brix_zip_member_t::uncomp_size</a>, <a class="el" href="zip__http_8c_source.html#l00143">zip_http_locate_member()</a>, <a class="el" href="zip__http_8c_source.html#l00096">zip_http_open_archive()</a>, <a class="el" href="zip__http_8c_source.html#l00168">zip_http_parse_range()</a>, <a class="el" href="zip__http_8c_source.html#l00283">zip_http_set_headers()</a>, <a class="el" href="zip__http_8c_source.html#l00250">zip_http_stage_deflate()</a>, and <a class="el" href="zip__http_8c_source.html#l00216">zip_http_stage_stored()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00132">get_zip_member_serve()</a>, and <a class="el" href="object_8c_source.html#l00110">s3_get_serve_zip_member()</a>.</p>
 
 </div>
 </div>
@@ -268,7 +286,67 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00079">brix_zip_http_serve()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00216">zip_http_stage_stored()</a>.</p>
+
+</div>
+</div>
+<a id="a0babd457841a6541f61c8ff80f2c2b19" name="a0babd457841a6541f61c8ff80f2c2b19"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0babd457841a6541f61c8ff80f2c2b19">&#9670;&#160;</a></span>zip_http_locate_member()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t zip_http_locate_member </td>
+          <td>(</td>
+          <td class="paramtype">brix_vfs_file_t *&#160;</td>
+          <td class="paramname"><em>fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>archive_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>member</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cd_max</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__zip__member__t.html">brix_zip_member_t</a> *&#160;</td>
+          <td class="paramname"><em>m</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00143">143</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="zip__dir_8h_source.html#l00047">BRIX_ZIP_EIO</a>, <a class="el" href="zip__dir_8c_source.html#l00275">brix_zip_find_member()</a>, <a class="el" href="zip__dir_8h_source.html#l00045">BRIX_ZIP_NOMEMBER</a>, and <a class="el" href="zip__dir_8h_source.html#l00044">BRIX_ZIP_OK</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>.</p>
 
 </div>
 </div>
@@ -309,6 +387,270 @@ Functions</h2></td></tr>
 <p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00024">24</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00042">brix_zip_http_member_arg()</a>.</p>
+
+</div>
+</div>
+<a id="a054ac6c62caed89bfe46b1a064d89cae" name="a054ac6c62caed89bfe46b1a064d89cae"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a054ac6c62caed89bfe46b1a064d89cae">&#9670;&#160;</a></span>zip_http_open_archive()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t zip_http_open_archive </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>archive_full</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_vfs_file_t **&#160;</td>
+          <td class="paramname"><em>fhp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>sizep</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00096">96</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>.</p>
+
+</div>
+</div>
+<a id="a0b1baae441c149a728e352489b74c790" name="a0b1baae441c149a728e352489b74c790"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0b1baae441c149a728e352489b74c790">&#9670;&#160;</a></span>zip_http_parse_range()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t zip_http_parse_range </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structzip__http__span__t.html">zip_http_span_t</a> *&#160;</td>
+          <td class="paramname"><em>sp</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00168">168</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="zip__http_8c_source.html#l00083">zip_http_span_t::len</a>, <a class="el" href="zip__http_8c_source.html#l00082">zip_http_span_t::start</a>, and <a class="el" href="zip__http_8c_source.html#l00081">zip_http_span_t::total</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>.</p>
+
+</div>
+</div>
+<a id="a23d896fd05800aff2f03b1d350524bba" name="a23d896fd05800aff2f03b1d350524bba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a23d896fd05800aff2f03b1d350524bba">&#9670;&#160;</a></span>zip_http_set_headers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void zip_http_set_headers </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structzip__http__span__t.html">zip_http_span_t</a> *&#160;</td>
+          <td class="paramname"><em>sp</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00283">283</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="zip__http_8c_source.html#l00083">zip_http_span_t::len</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="zip__http_8c_source.html#l00082">zip_http_span_t::start</a>, and <a class="el" href="zip__http_8c_source.html#l00081">zip_http_span_t::total</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>.</p>
+
+</div>
+</div>
+<a id="a03a5ab0936b6979ff16e905d030d8432" name="a03a5ab0936b6979ff16e905d030d8432"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a03a5ab0936b6979ff16e905d030d8432">&#9670;&#160;</a></span>zip_http_stage_deflate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t zip_http_stage_deflate </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_vfs_file_t *&#160;</td>
+          <td class="paramname"><em>fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__zip__member__t.html">brix_zip_member_t</a> *&#160;</td>
+          <td class="paramname"><em>m</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structzip__http__span__t.html">zip_http_span_t</a> *&#160;</td>
+          <td class="paramname"><em>sp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_buf_t *&#160;</td>
+          <td class="paramname"><em>b</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00250">250</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="zip__dir_8c_source.html#l00311">brix_zip_extract_full()</a>, <a class="el" href="zip__http_8c_source.html#l00083">zip_http_span_t::len</a>, <a class="el" href="zip__http_8c_source.html#l00082">zip_http_span_t::start</a>, <a class="el" href="zip__dir_8h_source.html#l00038">brix_zip_member_t::uncomp_size</a>, and <a class="el" href="zip__http_8c_source.html#l00021">ZIP_HTTP_MEM_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>.</p>
+
+</div>
+</div>
+<a id="ad1610069e2b485ddee900c293b1678f1" name="ad1610069e2b485ddee900c293b1678f1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad1610069e2b485ddee900c293b1678f1">&#9670;&#160;</a></span>zip_http_stage_stored()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t zip_http_stage_stored </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_vfs_file_t *&#160;</td>
+          <td class="paramname"><em>fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__zip__member__t.html">brix_zip_member_t</a> *&#160;</td>
+          <td class="paramname"><em>m</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structzip__http__span__t.html">zip_http_span_t</a> *&#160;</td>
+          <td class="paramname"><em>sp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_buf_t *&#160;</td>
+          <td class="paramname"><em>b</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="zip__http_8c_source.html#l00216">216</a> of file <a class="el" href="zip__http_8c_source.html">zip_http.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="zip__dir_8h_source.html#l00039">brix_zip_member_t::data_off</a>, <a class="el" href="zip__http_8c_source.html#l00083">zip_http_span_t::len</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="zip__http_8c_source.html#l00082">zip_http_span_t::start</a>, and <a class="el" href="zip__http_8c_source.html#l00070">zip_http_close_fd()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>.</p>
 
 </div>
 </div>

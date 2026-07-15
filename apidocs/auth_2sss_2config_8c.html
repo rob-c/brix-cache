@@ -155,9 +155,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth_2sss_2config_8c_source.html#l00225">225</a> of file <a class="el" href="auth_2sss_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00203">brix_sss_upstream_needed()</a>, <a class="el" href="types_2config_8h_source.html#l00279">ngx_stream_brix_srv_conf_t::sss_keys</a>, and <a class="el" href="types_2config_8h_source.html#l00277">ngx_stream_brix_srv_conf_t::sss_keytab</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>, and <a class="el" href="auth_2sss_2config_8c_source.html#l00203">brix_sss_upstream_needed()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00096">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_prepare_servers()</a>.</p>
 
 </div>
 </div>
@@ -195,7 +195,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth_2sss_2config_8c_source.html#l00092">92</a> of file <a class="el" href="auth_2sss_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00083">BRIX_DIAG_CONF</a>, <a class="el" href="config_2config_8h_source.html#l00019">BRIX_PATH_REGULAR_FILE</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00033">brix_sss_parse_key_line()</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00141">sss_keytab_mode_ok()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00083">BRIX_DIAG_CONF</a>, <a class="el" href="config_2config_8h_source.html#l00019">BRIX_PATH_REGULAR_FILE</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00033">brix_sss_parse_key_line()</a>, <a class="el" href="core_2config_2helpers_8c_source.html#l00013">brix_validate_path()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00190">sss_keytab_mode_ok()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__module_8c_source.html#l00163">brix_cms_srv_set_sss_keytab()</a>, and <a class="el" href="auth_2sss_2config_8c_source.html#l00225">brix_configure_sss_auth()</a>.</p>
 
@@ -249,7 +249,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth_2sss_2config_8c_source.html#l00033">33</a> of file <a class="el" href="auth_2sss_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tunables_8h_source.html#l00254">BRIX_SSS_OPT_ALLUSR</a>, <a class="el" href="tunables_8h_source.html#l00256">BRIX_SSS_OPT_ANYGRP</a>, <a class="el" href="tunables_8h_source.html#l00255">BRIX_SSS_OPT_ANYUSR</a>, <a class="el" href="tunables_8h_source.html#l00258">BRIX_SSS_OPT_NOIPCK</a>, <a class="el" href="tunables_8h_source.html#l00257">BRIX_SSS_OPT_USRGRP</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00044">sss_keytab_entry_t::exp</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00048">sss_keytab_entry_t::group</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00046">sss_keytab_entry_t::key</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00045">sss_keytab_entry_t::key_len</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00049">sss_keytab_entry_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00068">sss_keytab_parse_line()</a>, and <a class="el" href="sss__keytab__kernel_8h_source.html#l00047">sss_keytab_entry_t::user</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00254">BRIX_SSS_OPT_ALLUSR</a>, <a class="el" href="tunables_8h_source.html#l00256">BRIX_SSS_OPT_ANYGRP</a>, <a class="el" href="tunables_8h_source.html#l00255">BRIX_SSS_OPT_ANYUSR</a>, <a class="el" href="tunables_8h_source.html#l00258">BRIX_SSS_OPT_NOIPCK</a>, <a class="el" href="tunables_8h_source.html#l00257">BRIX_SSS_OPT_USRGRP</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00044">sss_keytab_entry_t::exp</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00048">sss_keytab_entry_t::group</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00046">sss_keytab_entry_t::key</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00045">sss_keytab_entry_t::key_len</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00049">sss_keytab_entry_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00163">sss_keytab_parse_line()</a>, and <a class="el" href="sss__keytab__kernel_8h_source.html#l00047">sss_keytab_entry_t::user</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="auth_2sss_2config_8c_source.html#l00092">brix_sss_load_keytab()</a>.</p>
 
@@ -281,7 +281,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth_2sss_2config_8c_source.html#l00203">203</a> of file <a class="el" href="auth_2sss_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00149">brix_proxy_conf_t::auth</a>, <a class="el" href="conf__structs_8h_source.html#l00136">BRIX_PROXY_AUTH_SSS</a>, <a class="el" href="conf__structs_8h_source.html#l00142">brix_proxy_conf_t::enable</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, and <a class="el" href="conf__structs_8h_source.html#l00158">brix_proxy_conf_t::upstreams</a>.</p>
+<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00136">BRIX_PROXY_AUTH_SSS</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="auth_2sss_2config_8c_source.html#l00225">brix_configure_sss_auth()</a>.</p>
 

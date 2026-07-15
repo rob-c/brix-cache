@@ -291,24 +291,24 @@ $(document).ready(function(){initNavTree('gsi__dh_8c_source.html',''); initResiz
 <div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>{</div>
 <div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    EVP_PKEY     *params = dhparams ? dhparams : <a class="code hl_function" href="gsi__dh_8c.html#aac6f707e2b0a0a0bc24a4346f9d71261">gsi_fixed_dh_params</a>();</div>
 <div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    EVP_PKEY_CTX *ctx;</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    EVP_PKEY     *<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> = NULL;</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    EVP_PKEY     *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> = NULL;</div>
 <div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span> </div>
 <div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <span class="keywordflow">if</span> (params == NULL) {</div>
 <div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    }</div>
 <div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    ctx = EVP_PKEY_CTX_new(params, NULL);</div>
 <div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    <span class="keywordflow">if</span> (ctx != NULL &amp;&amp; EVP_PKEY_keygen_init(ctx) == 1) {</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        EVP_PKEY_keygen(ctx, &amp;<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>);</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        EVP_PKEY_keygen(ctx, &amp;<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>);</div>
 <div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    }</div>
 <div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    EVP_PKEY_CTX_free(ctx);</div>
 <div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <span class="keywordflow">if</span> (dhparams == NULL) {</div>
 <div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>        EVP_PKEY_free(params);</div>
 <div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    }</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>;</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>;</div>
 <div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>}</div>
 </div>
-<div class="ttc" id="aauth__sigv4__verify_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify_8c_source.html#l00241">auth_sigv4_verify.c:241</a></div></div>
-<div class="ttc" id="agsi__core_8c_html_abe57d757d6e5d4e445bdda7bbd9a8010"><div class="ttname"><a href="gsi__core_8c.html#abe57d757d6e5d4e445bdda7bbd9a8010">brix_gsi_dh_params_pem</a></div><div class="ttdeci">const char brix_gsi_dh_params_pem[]</div><div class="ttdef"><b>Definition</b> <a href="gsi__core_8c_source.html#l00007">gsi_core.c:7</a></div></div>
+<div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
+<div class="ttc" id="agsi__core_8c_html_abe57d757d6e5d4e445bdda7bbd9a8010"><div class="ttname"><a href="gsi__core_8c.html#abe57d757d6e5d4e445bdda7bbd9a8010">brix_gsi_dh_params_pem</a></div><div class="ttdeci">const char brix_gsi_dh_params_pem[]</div><div class="ttdef"><b>Definition</b> <a href="gsi__core_8c_source.html#l00014">gsi_core.c:14</a></div></div>
 <div class="ttc" id="agsi__core__internal_8h_html"><div class="ttname"><a href="gsi__core__internal_8h.html">gsi_core_internal.h</a></div></div>
 <div class="ttc" id="agsi__dh_8c_html_a071125b58d774a51b42385a1bf1e7955"><div class="ttname"><a href="gsi__dh_8c.html#a071125b58d774a51b42385a1bf1e7955">brix_gsi_dh_build_peer</a></div><div class="ttdeci">EVP_PKEY * brix_gsi_dh_build_peer(EVP_PKEY *mine, BIGNUM *peer_pub)</div><div class="ttdef"><b>Definition</b> <a href="gsi__dh_8c_source.html#l00091">gsi_dh.c:91</a></div></div>
 <div class="ttc" id="agsi__dh_8c_html_a2c452cfd0060d61e405e64997ec63a51"><div class="ttname"><a href="gsi__dh_8c.html#a2c452cfd0060d61e405e64997ec63a51">gsi_dh_keygen_with</a></div><div class="ttdeci">EVP_PKEY * gsi_dh_keygen_with(EVP_PKEY *dhparams)</div><div class="ttdef"><b>Definition</b> <a href="gsi__dh_8c_source.html#l00177">gsi_dh.c:177</a></div></div>

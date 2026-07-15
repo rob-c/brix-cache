@@ -6,6 +6,8 @@ var dir_4628302aa5ad104105ff895a7cf18a9b =
     [ "scan_emit.h", "scan__emit_8h.html", "scan__emit_8h" ],
     [ "scan_engine.c", "scan__engine_8c.html", "scan__engine_8c" ],
     [ "scan_engine.h", "scan__engine_8h.html", "scan__engine_8h" ],
+    [ "scan_engine_catalog.c", "scan__engine__catalog_8c.html", "scan__engine__catalog_8c" ],
+    [ "scan_engine_internal.h", "scan__engine__internal_8h.html", "scan__engine__internal_8h" ],
     [ "scan_http.c", "scan__http_8c.html", "scan__http_8c" ],
     [ "scan_record.c", "scan__record_8c.html", "scan__record_8c" ],
     [ "scan_record.h", "scan__record_8h.html", "scan__record_8h" ],

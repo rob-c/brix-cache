@@ -129,11 +129,15 @@ Data Structures</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__rl__snapshot__entry__t.html">brix_rl_snapshot_entry_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrl__key__req__t.html">rl_key_req_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:a53ae4df7a9691f8272411408ee41ce10" id="r_a53ae4df7a9691f8272411408ee41ce10"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a53ae4df7a9691f8272411408ee41ce10">BRIX_RL_KEY_LEN</a>&#160;&#160;&#160;128  /* max bytes of the human-readable <a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> string */</td></tr>
+<tr class="memitem:a53ae4df7a9691f8272411408ee41ce10" id="r_a53ae4df7a9691f8272411408ee41ce10"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a53ae4df7a9691f8272411408ee41ce10">BRIX_RL_KEY_LEN</a>&#160;&#160;&#160;128  /* max bytes of the human-readable <a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> string */</td></tr>
 <tr class="separator:a53ae4df7a9691f8272411408ee41ce10"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a08c9814b4a949f3612ef5faefec55fbf" id="r_a08c9814b4a949f3612ef5faefec55fbf"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a08c9814b4a949f3612ef5faefec55fbf">BRIX_RL_REQ_SCALE</a>&#160;&#160;&#160;1000</td></tr>
+<tr class="separator:a08c9814b4a949f3612ef5faefec55fbf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
@@ -158,7 +162,7 @@ Functions</h2></td></tr>
 <tr class="separator:a38d3fb698a5eb6092a8420cc9a344978"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad2d9be407b8b34ecb7b5eb66d38030c5" id="r_ad2d9be407b8b34ecb7b5eb66d38030c5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#ad2d9be407b8b34ecb7b5eb66d38030c5">brix_rl_zone_reset_gauges</a> (<a class="el" href="structbrix__rl__shctx__t.html">brix_rl_shctx_t</a> *sh)</td></tr>
 <tr class="separator:ad2d9be407b8b34ecb7b5eb66d38030c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac6919a822f1a0b8542524a6574bbdf91" id="r_ac6919a822f1a0b8542524a6574bbdf91"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#ac6919a822f1a0b8542524a6574bbdf91">brix_rl_hash</a> (const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t len)</td></tr>
+<tr class="memitem:ac6919a822f1a0b8542524a6574bbdf91" id="r_ac6919a822f1a0b8542524a6574bbdf91"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#ac6919a822f1a0b8542524a6574bbdf91">brix_rl_hash</a> (const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t len)</td></tr>
 <tr class="separator:ac6919a822f1a0b8542524a6574bbdf91"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8d33098925211b54ef2068ec2a9c89fc" id="r_a8d33098925211b54ef2068ec2a9c89fc"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__rl__node__t.html">brix_rl_node_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a8d33098925211b54ef2068ec2a9c89fc">brix_rl_lookup_locked</a> (<a class="el" href="structbrix__rl__zone__t.html">brix_rl_zone_t</a> *zone, uint32_t hash, const char *key_str, size_t len)</td></tr>
 <tr class="separator:a8d33098925211b54ef2068ec2a9c89fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -178,8 +182,8 @@ Functions</h2></td></tr>
 <tr class="separator:afb5dbc0e6e0db6c3f8fe61c3f77816de"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2c945ea6c6f69028e17b5cbcf8a09619" id="r_a2c945ea6c6f69028e17b5cbcf8a09619"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a2c945ea6c6f69028e17b5cbcf8a09619">brix_rl_key_stream</a> (<a class="el" href="structbrix__rl__rule__t.html">brix_rl_rule_t</a> *rule, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const char *path, char *out, size_t out_sz)</td></tr>
 <tr class="separator:a2c945ea6c6f69028e17b5cbcf8a09619"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab79e8689e25d3b4547657cf799f45dd0" id="r_ab79e8689e25d3b4547657cf799f45dd0"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#ab79e8689e25d3b4547657cf799f45dd0">brix_rl_key_http</a> (<a class="el" href="structbrix__rl__rule__t.html">brix_rl_rule_t</a> *rule, ngx_http_request_t *r, void *wctx, const char *path, char *out, size_t out_sz)</td></tr>
-<tr class="separator:ab79e8689e25d3b4547657cf799f45dd0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a715a92409e8c3c0a0b1ce32a7eea72dd" id="r_a715a92409e8c3c0a0b1ce32a7eea72dd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a715a92409e8c3c0a0b1ce32a7eea72dd">brix_rl_key_http</a> (<a class="el" href="structbrix__rl__rule__t.html">brix_rl_rule_t</a> *rule, const <a class="el" href="structrl__key__req__t.html">rl_key_req_t</a> *req, char *out, size_t out_sz)</td></tr>
+<tr class="separator:a715a92409e8c3c0a0b1ce32a7eea72dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af69341006bcd195cd9c590f13eec9b01" id="r_af69341006bcd195cd9c590f13eec9b01"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#af69341006bcd195cd9c590f13eec9b01">brix_rl_zone_directive</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:af69341006bcd195cd9c590f13eec9b01"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a11435365fb383d4d6b501a8ed5208d57" id="r_a11435365fb383d4d6b501a8ed5208d57"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a11435365fb383d4d6b501a8ed5208d57">brix_rl_rule_directive</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
@@ -192,7 +196,7 @@ Functions</h2></td></tr>
 <tr class="separator:adf239305c024bf7cb38ab60c4068e50e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a181ef89f4b65284ab4c729fdc52fce62" id="r_a181ef89f4b65284ab4c729fdc52fce62"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a181ef89f4b65284ab4c729fdc52fce62">brix_rl_http_log_handler</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a181ef89f4b65284ab4c729fdc52fce62"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab5a802cd4c5f2d6406cce73b79b4d219" id="r_ab5a802cd4c5f2d6406cce73b79b4d219"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#ab5a802cd4c5f2d6406cce73b79b4d219">brix_rl_stream_gate</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="memitem:ab5a802cd4c5f2d6406cce73b79b4d219" id="r_ab5a802cd4c5f2d6406cce73b79b4d219"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#ab5a802cd4c5f2d6406cce73b79b4d219">brix_rl_stream_gate</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:ab5a802cd4c5f2d6406cce73b79b4d219"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a41b5f623273f2291d0b13591f8f605a8" id="r_a41b5f623273f2291d0b13591f8f605a8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ratelimit_8h.html#a41b5f623273f2291d0b13591f8f605a8">brix_rl_charge_ctx</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, size_t nbytes)</td></tr>
 <tr class="separator:a41b5f623273f2291d0b13591f8f605a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -207,12 +211,28 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define BRIX_RL_KEY_LEN&#160;&#160;&#160;128  /* max bytes of the human-readable <a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> string */</td>
+          <td class="memname">#define BRIX_RL_KEY_LEN&#160;&#160;&#160;128  /* max bytes of the human-readable <a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> string */</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="ratelimit_8h_source.html#l00043">43</a> of file <a class="el" href="ratelimit_8h_source.html">ratelimit.h</a>.</p>
+
+</div>
+</div>
+<a id="a08c9814b4a949f3612ef5faefec55fbf" name="a08c9814b4a949f3612ef5faefec55fbf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a08c9814b4a949f3612ef5faefec55fbf">&#9670;&#160;</a></span>BRIX_RL_REQ_SCALE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define BRIX_RL_REQ_SCALE&#160;&#160;&#160;1000</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ratelimit_8h_source.html#l00048">48</a> of file <a class="el" href="ratelimit_8h_source.html">ratelimit.h</a>.</p>
 
 </div>
 </div>
@@ -275,9 +295,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00159">159</a> of file <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html">ratelimit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00088">brix_rl_rule_t::bw_burst</a>, <a class="el" href="ratelimit_8h_source.html#l00051">brix_rl_node_t::bw_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00087">brix_rl_rule_t::bw_rate</a>, <a class="el" href="ratelimit_8h_source.html#l00049">brix_rl_node_t::last</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00074">brix_rl_zone_t::shpool</a>, <a class="el" href="ratelimit_8h_source.html#l00054">brix_rl_node_t::throttle_count</a>, and <a class="el" href="ratelimit_8h_source.html#l00091">brix_rl_rule_t::zone</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00093">brix_rl_rule_t::bw_burst</a>, <a class="el" href="ratelimit_8h_source.html#l00056">brix_rl_node_t::bw_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00092">brix_rl_rule_t::bw_rate</a>, <a class="el" href="ratelimit_8h_source.html#l00054">brix_rl_node_t::last</a>, <a class="el" href="ratelimit_8h_source.html#l00078">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00079">brix_rl_zone_t::shpool</a>, <a class="el" href="ratelimit_8h_source.html#l00059">brix_rl_node_t::throttle_count</a>, and <a class="el" href="ratelimit_8h_source.html#l00096">brix_rl_rule_t::zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00043">brix_rl_http_access_handler()</a>, and <a class="el" href="ratelimit__stream_8c_source.html#l00073">brix_rl_stream_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00104">rl_check_bw()</a>, and <a class="el" href="ratelimit__stream_8c_source.html#l00170">rl_enforce_bw_rate()</a>.</p>
 
 </div>
 </div>
@@ -313,9 +333,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__keys_8c_source.html#l00441">441</a> of file <a class="el" href="ratelimit__keys_8c_source.html">ratelimit_keys.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__keys__rules_8c_source.html#l00272">272</a> of file <a class="el" href="ratelimit__keys__rules_8c_source.html">ratelimit_keys_rules.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__keys_8c_source.html#l00320">rl_add_rule()</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__keys__rules_8c_source.html#l00232">rl_add_rule()</a>.</p>
 
 </div>
 </div>
@@ -353,9 +373,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00205">205</a> of file <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html">ratelimit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00317">brix_rl_create_locked()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00051">brix_rl_node_t::bw_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00087">brix_rl_rule_t::bw_rate</a>, <a class="el" href="ratelimit_8h_source.html#l00053">brix_rl_node_t::bytes_total</a>, <a class="el" href="ratelimit_8h_source.html#l00049">brix_rl_node_t::last</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00074">brix_rl_zone_t::shpool</a>, and <a class="el" href="ratelimit_8h_source.html#l00091">brix_rl_rule_t::zone</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00317">brix_rl_create_locked()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00056">brix_rl_node_t::bw_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00092">brix_rl_rule_t::bw_rate</a>, <a class="el" href="ratelimit_8h_source.html#l00058">brix_rl_node_t::bytes_total</a>, <a class="el" href="ratelimit_8h_source.html#l00054">brix_rl_node_t::last</a>, <a class="el" href="ratelimit_8h_source.html#l00078">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00079">brix_rl_zone_t::shpool</a>, and <a class="el" href="ratelimit_8h_source.html#l00096">brix_rl_rule_t::zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ratelimit__stream_8c_source.html#l00187">brix_rl_charge_ctx()</a>, and <a class="el" href="ratelimit__http_8c_source.html#l00157">brix_rl_http_log_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ratelimit__stream_8c_source.html#l00305">brix_rl_charge_ctx()</a>, and <a class="el" href="ratelimit__http_8c_source.html#l00265">brix_rl_http_log_handler()</a>.</p>
 
 </div>
 </div>
@@ -385,7 +405,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__stream_8c_source.html#l00187">187</a> of file <a class="el" href="ratelimit__stream_8c_source.html">ratelimit_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__stream_8c_source.html#l00305">305</a> of file <a class="el" href="ratelimit__stream_8c_source.html">ratelimit_stream.c</a>.</p>
 
 </div>
 </div>
@@ -423,9 +443,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00019">19</a> of file <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html">ratelimit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00317">brix_rl_create_locked()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00049">brix_rl_node_t::last</a>, <a class="el" href="ratelimit_8h_source.html#l00086">brix_rl_rule_t::req_burst</a>, <a class="el" href="ratelimit_8h_source.html#l00050">brix_rl_node_t::req_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00085">brix_rl_rule_t::req_rate</a>, <a class="el" href="ratelimit_8h_source.html#l00052">brix_rl_node_t::req_total</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00074">brix_rl_zone_t::shpool</a>, <a class="el" href="ratelimit_8h_source.html#l00054">brix_rl_node_t::throttle_count</a>, and <a class="el" href="ratelimit_8h_source.html#l00091">brix_rl_rule_t::zone</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00317">brix_rl_create_locked()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00048">BRIX_RL_REQ_SCALE</a>, <a class="el" href="ratelimit_8h_source.html#l00054">brix_rl_node_t::last</a>, <a class="el" href="ratelimit_8h_source.html#l00091">brix_rl_rule_t::req_burst</a>, <a class="el" href="ratelimit_8h_source.html#l00055">brix_rl_node_t::req_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00090">brix_rl_rule_t::req_rate</a>, <a class="el" href="ratelimit_8h_source.html#l00057">brix_rl_node_t::req_total</a>, <a class="el" href="ratelimit_8h_source.html#l00078">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00079">brix_rl_zone_t::shpool</a>, <a class="el" href="ratelimit_8h_source.html#l00059">brix_rl_node_t::throttle_count</a>, and <a class="el" href="ratelimit_8h_source.html#l00096">brix_rl_rule_t::zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00043">brix_rl_http_access_handler()</a>, and <a class="el" href="ratelimit__stream_8c_source.html#l00073">brix_rl_stream_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00173">rl_apply_rule()</a>, and <a class="el" href="ratelimit__stream_8c_source.html#l00135">rl_enforce_req_rate()</a>.</p>
 
 </div>
 </div>
@@ -457,9 +477,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00089">89</a> of file <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html">ratelimit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00317">brix_rl_create_locked()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00055">brix_rl_node_t::in_flight</a>, <a class="el" href="ratelimit_8h_source.html#l00049">brix_rl_node_t::last</a>, <a class="el" href="ratelimit_8h_source.html#l00089">brix_rl_rule_t::req_conc</a>, <a class="el" href="ratelimit_8h_source.html#l00052">brix_rl_node_t::req_total</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00074">brix_rl_zone_t::shpool</a>, <a class="el" href="ratelimit_8h_source.html#l00054">brix_rl_node_t::throttle_count</a>, and <a class="el" href="ratelimit_8h_source.html#l00091">brix_rl_rule_t::zone</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00317">brix_rl_create_locked()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00060">brix_rl_node_t::in_flight</a>, <a class="el" href="ratelimit_8h_source.html#l00054">brix_rl_node_t::last</a>, <a class="el" href="ratelimit_8h_source.html#l00094">brix_rl_rule_t::req_conc</a>, <a class="el" href="ratelimit_8h_source.html#l00057">brix_rl_node_t::req_total</a>, <a class="el" href="ratelimit_8h_source.html#l00078">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00079">brix_rl_zone_t::shpool</a>, <a class="el" href="ratelimit_8h_source.html#l00059">brix_rl_node_t::throttle_count</a>, and <a class="el" href="ratelimit_8h_source.html#l00096">brix_rl_rule_t::zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00043">brix_rl_http_access_handler()</a>, and <a class="el" href="ratelimit__stream_8c_source.html#l00073">brix_rl_stream_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00137">rl_check_conc()</a>, and <a class="el" href="ratelimit__stream_8c_source.html#l00215">rl_enforce_conc()</a>.</p>
 
 </div>
 </div>
@@ -495,9 +515,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__keys_8c_source.html#l00455">455</a> of file <a class="el" href="ratelimit__keys_8c_source.html">ratelimit_keys.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__keys__rules_8c_source.html#l00328">328</a> of file <a class="el" href="ratelimit__keys__rules_8c_source.html">ratelimit_keys_rules.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00232">brix_rl_zone_get()</a>, <a class="el" href="ratelimit_8h_source.html#l00089">brix_rl_rule_t::req_conc</a>, <a class="el" href="ratelimit__keys_8c_source.html#l00176">rl_parse_key()</a>, and <a class="el" href="ratelimit_8h_source.html#l00091">brix_rl_rule_t::zone</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__keys__rules_8c_source.html#l00032">rl_rule_parse_t::have_extra</a>, <a class="el" href="ratelimit__keys__rules_8c_source.html#l00031">rl_rule_parse_t::have_key</a>, <a class="el" href="ratelimit__keys__rules_8c_source.html#l00299">rl_conc_parse_token()</a>, <a class="el" href="ratelimit__keys__rules_8c_source.html#l00081">rl_rule_bind_zone()</a>, <a class="el" href="ratelimit__keys__rules_8c_source.html#l00050">rl_rule_push()</a>, <a class="el" href="ratelimit__keys__rules_8c_source.html#l00029">rl_rule_parse_t::rule</a>, and <a class="el" href="ratelimit__keys__rules_8c_source.html#l00030">rl_rule_parse_t::zone_name</a>.</p>
 
 </div>
 </div>
@@ -529,9 +549,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">129</a> of file <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html">ratelimit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00055">brix_rl_node_t::in_flight</a>, <a class="el" href="ratelimit_8h_source.html#l00089">brix_rl_rule_t::req_conc</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00074">brix_rl_zone_t::shpool</a>, and <a class="el" href="ratelimit_8h_source.html#l00091">brix_rl_rule_t::zone</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00036">brix_rl_hash()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00262">brix_rl_lookup_locked()</a>, <a class="el" href="ratelimit_8h_source.html#l00060">brix_rl_node_t::in_flight</a>, <a class="el" href="ratelimit_8h_source.html#l00094">brix_rl_rule_t::req_conc</a>, <a class="el" href="ratelimit_8h_source.html#l00078">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00079">brix_rl_zone_t::shpool</a>, and <a class="el" href="ratelimit_8h_source.html#l00096">brix_rl_rule_t::zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00043">brix_rl_http_access_handler()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00157">brix_rl_http_log_handler()</a>, and <a class="el" href="ratelimit__stream_8c_source.html#l00196">brix_rl_release_ctx()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00265">brix_rl_http_log_handler()</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00314">brix_rl_release_ctx()</a>, and <a class="el" href="ratelimit__http_8c_source.html#l00137">rl_check_conc()</a>.</p>
 
 </div>
 </div>
@@ -575,7 +595,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ratelimit__zone_8c_source.html#l00317">317</a> of file <a class="el" href="ratelimit__zone_8c_source.html">ratelimit_zone.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00294">brix_rl_evict_oldest_locked()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00027">BRIX_RL_METRIC_INC</a>, <a class="el" href="ratelimit_8h_source.html#l00061">brix_rl_node_t::key_str</a>, <a class="el" href="ratelimit_8h_source.html#l00060">brix_rl_node_t::len</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ratelimit_8h_source.html#l00047">brix_rl_node_t::node</a>, <a class="el" href="ratelimit_8h_source.html#l00048">brix_rl_node_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00068">brix_rl_shctx_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00066">brix_rl_shctx_t::rbtree</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_zone_t::sh</a>, and <a class="el" href="ratelimit_8h_source.html#l00074">brix_rl_zone_t::shpool</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00294">brix_rl_evict_oldest_locked()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00027">BRIX_RL_METRIC_INC</a>, <a class="el" href="ratelimit_8h_source.html#l00066">brix_rl_node_t::key_str</a>, <a class="el" href="ratelimit_8h_source.html#l00065">brix_rl_node_t::len</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ratelimit_8h_source.html#l00052">brix_rl_node_t::node</a>, <a class="el" href="ratelimit_8h_source.html#l00053">brix_rl_node_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_shctx_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00071">brix_rl_shctx_t::rbtree</a>, <a class="el" href="ratelimit_8h_source.html#l00078">brix_rl_zone_t::sh</a>, and <a class="el" href="ratelimit_8h_source.html#l00079">brix_rl_zone_t::shpool</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00205">brix_rl_charge_bytes()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00019">brix_rl_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00089">brix_rl_conc_acquire()</a>, and <a class="el" href="throttle__compat_8c_source.html#l00085">throttle_node_locked()</a>.</p>
 
@@ -609,9 +629,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ratelimit__zone_8c_source.html#l00036">36</a> of file <a class="el" href="ratelimit__zone_8c_source.html">ratelimit_zone.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00159">brix_rl_bw_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00205">brix_rl_charge_bytes()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00019">brix_rl_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00089">brix_rl_conc_acquire()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">brix_rl_conc_release()</a>, <a class="el" href="throttle__compat_8c_source.html#l00120">brix_throttle_ioload_over()</a>, <a class="el" href="throttle__compat_8c_source.html#l00168">brix_throttle_open_dec()</a>, <a class="el" href="ratelimit__keys_8c_source.html#l00028">rl_key_dn_hash()</a>, and <a class="el" href="throttle__compat_8c_source.html#l00085">throttle_node_locked()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00159">brix_rl_bw_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00205">brix_rl_charge_bytes()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00019">brix_rl_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00089">brix_rl_conc_acquire()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">brix_rl_conc_release()</a>, <a class="el" href="throttle__compat_8c_source.html#l00120">brix_throttle_ioload_over()</a>, <a class="el" href="throttle__compat_8c_source.html#l00168">brix_throttle_open_dec()</a>, <a class="el" href="ratelimit__keys_8c_source.html#l00029">rl_key_dn_hash()</a>, and <a class="el" href="throttle__compat_8c_source.html#l00085">throttle_node_locked()</a>.</p>
 
 </div>
 </div>
@@ -631,11 +651,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__http_8c_source.html#l00043">43</a> of file <a class="el" href="ratelimit__http_8c_source.html">ratelimit_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__http_8c_source.html#l00195">195</a> of file <a class="el" href="ratelimit__http_8c_source.html">ratelimit_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00159">brix_rl_bw_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00019">brix_rl_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00089">brix_rl_conc_acquire()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">brix_rl_conc_release()</a>, <a class="el" href="ratelimit__keys_8c_source.html#l00110">brix_rl_key_http()</a>, <a class="el" href="ratelimit_8h_source.html#l00043">BRIX_RL_KEY_LEN</a>, <a class="el" href="ratelimit_8h_source.html#l00040">BRIX_RL_KEY_VOLUME</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00058">ngx_http_brix_webdav_resolve_path()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="webdav_8h_source.html#l00362">ngx_http_brix_webdav_req_ctx_t::rl_bw_rule</a>, <a class="el" href="webdav_8h_source.html#l00369">ngx_http_brix_webdav_req_ctx_t::rl_conc_key</a>, <a class="el" href="webdav_8h_source.html#l00368">ngx_http_brix_webdav_req_ctx_t::rl_conc_rule</a>, <a class="el" href="webdav_8h_source.html#l00363">ngx_http_brix_webdav_req_ctx_t::rl_key_str</a>, <a class="el" href="ratelimit__http_8c_source.html#l00024">rl_reject()</a>, <a class="el" href="webdav_8h_source.html#l00301">ngx_http_brix_webdav_loc_conf_t::rl_rules</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, and <a class="el" href="webdav_8h_source.html#l00254">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__keys_8c_source.html#l00206">brix_rl_key_http()</a>, <a class="el" href="ratelimit_8h_source.html#l00043">BRIX_RL_KEY_LEN</a>, <a class="el" href="ratelimit__http_8c_source.html#l00018">BRIX_RL_PATH_LEN</a>, <a class="el" href="ratelimit_8h_source.html#l00224">rl_key_req_t::id</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="ratelimit_8h_source.html#l00226">rl_key_req_t::ip</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="ratelimit_8h_source.html#l00227">rl_key_req_t::path</a>, <a class="el" href="ratelimit__http_8c_source.html#l00173">rl_apply_rule()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00079">rl_resolve_volume_path()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00199">ngx_http_brix_webdav_loc_conf_t::rl_rules</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00152">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>, and <a class="el" href="ratelimit_8h_source.html#l00225">rl_key_req_t::wctx</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00019">ngx_http_brix_webdav_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00069">webdav_postconf_install_handlers()</a>.</p>
 
 </div>
 </div>
@@ -655,16 +675,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__http_8c_source.html#l00157">157</a> of file <a class="el" href="ratelimit__http_8c_source.html">ratelimit_http.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__http_8c_source.html#l00265">265</a> of file <a class="el" href="ratelimit__http_8c_source.html">ratelimit_http.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00205">brix_rl_charge_bytes()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">brix_rl_conc_release()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav_8h_source.html#l00362">ngx_http_brix_webdav_req_ctx_t::rl_bw_rule</a>, <a class="el" href="webdav_8h_source.html#l00369">ngx_http_brix_webdav_req_ctx_t::rl_conc_key</a>, <a class="el" href="webdav_8h_source.html#l00368">ngx_http_brix_webdav_req_ctx_t::rl_conc_rule</a>, <a class="el" href="webdav_8h_source.html#l00363">ngx_http_brix_webdav_req_ctx_t::rl_key_str</a>, and <a class="el" href="webdav_8h_source.html#l00254">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>.</p>
+<p class="reference">References <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00205">brix_rl_charge_bytes()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">brix_rl_conc_release()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav_8h_source.html#l00189">ngx_http_brix_webdav_req_ctx_t::rl_bw_rule</a>, <a class="el" href="webdav_8h_source.html#l00196">ngx_http_brix_webdav_req_ctx_t::rl_conc_key</a>, <a class="el" href="webdav_8h_source.html#l00195">ngx_http_brix_webdav_req_ctx_t::rl_conc_rule</a>, <a class="el" href="webdav_8h_source.html#l00190">ngx_http_brix_webdav_req_ctx_t::rl_key_str</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00152">ngx_http_brix_webdav_loc_conf_t::upstream_proxy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00019">ngx_http_brix_webdav_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00069">webdav_postconf_install_handlers()</a>.</p>
 
 </div>
 </div>
-<a id="ab79e8689e25d3b4547657cf799f45dd0" name="ab79e8689e25d3b4547657cf799f45dd0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab79e8689e25d3b4547657cf799f45dd0">&#9670;&#160;</a></span>brix_rl_key_http()</h2>
+<a id="a715a92409e8c3c0a0b1ce32a7eea72dd" name="a715a92409e8c3c0a0b1ce32a7eea72dd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a715a92409e8c3c0a0b1ce32a7eea72dd">&#9670;&#160;</a></span>brix_rl_key_http()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -678,20 +698,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>wctx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
+          <td class="paramtype">const <a class="el" href="structrl__key__req__t.html">rl_key_req_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -713,11 +721,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__keys_8c_source.html#l00110">110</a> of file <a class="el" href="ratelimit__keys_8c_source.html">ratelimit_keys.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__keys_8c_source.html#l00206">206</a> of file <a class="el" href="ratelimit__keys_8c_source.html">ratelimit_keys.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit_8h_source.html#l00039">BRIX_RL_KEY_DN</a>, <a class="el" href="ratelimit_8h_source.html#l00038">BRIX_RL_KEY_IP</a>, <a class="el" href="ratelimit_8h_source.html#l00037">BRIX_RL_KEY_ISSUER</a>, <a class="el" href="ratelimit_8h_source.html#l00036">BRIX_RL_KEY_VO</a>, <a class="el" href="ratelimit_8h_source.html#l00040">BRIX_RL_KEY_VOLUME</a>, <a class="el" href="identity_8h_source.html#l00028">brix_identity_t::dn</a>, <a class="el" href="webdav_8h_source.html#l00335">ngx_http_brix_webdav_req_ctx_t::dn</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="identity_8h_source.html#l00030">brix_identity_t::issuer</a>, <a class="el" href="ratelimit_8h_source.html#l00084">brix_rl_rule_t::key_match</a>, <a class="el" href="ratelimit_8h_source.html#l00083">brix_rl_rule_t::key_type</a>, <a class="el" href="ratelimit__keys_8c_source.html#l00028">rl_key_dn_hash()</a>, and <a class="el" href="identity_8h_source.html#l00039">brix_identity_t::vo_csv</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__keys_8c_source.html#l00152">rl_key_http_derive()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00043">brix_rl_http_access_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ratelimit__http_8c_source.html#l00195">brix_rl_http_access_handler()</a>.</p>
 
 </div>
 </div>
@@ -765,11 +773,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__keys_8c_source.html#l00044">44</a> of file <a class="el" href="ratelimit__keys_8c_source.html">ratelimit_keys.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__keys_8c_source.html#l00045">45</a> of file <a class="el" href="ratelimit__keys_8c_source.html">ratelimit_keys.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit_8h_source.html#l00039">BRIX_RL_KEY_DN</a>, <a class="el" href="ratelimit_8h_source.html#l00038">BRIX_RL_KEY_IP</a>, <a class="el" href="ratelimit_8h_source.html#l00037">BRIX_RL_KEY_ISSUER</a>, <a class="el" href="ratelimit_8h_source.html#l00036">BRIX_RL_KEY_VO</a>, <a class="el" href="ratelimit_8h_source.html#l00040">BRIX_RL_KEY_VOLUME</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="identity_8h_source.html#l00030">brix_identity_t::issuer</a>, <a class="el" href="ratelimit_8h_source.html#l00084">brix_rl_rule_t::key_match</a>, <a class="el" href="ratelimit_8h_source.html#l00083">brix_rl_rule_t::key_type</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ctx__structs_8h_source.html#l00162">brix_ctx_login_t::peer_ip</a>, <a class="el" href="ctx__structs_8h_source.html#l00160">brix_ctx_login_t::primary_vo</a>, and <a class="el" href="ratelimit__keys_8c_source.html#l00028">rl_key_dn_hash()</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit_8h_source.html#l00039">BRIX_RL_KEY_DN</a>, <a class="el" href="ratelimit_8h_source.html#l00038">BRIX_RL_KEY_IP</a>, <a class="el" href="ratelimit_8h_source.html#l00037">BRIX_RL_KEY_ISSUER</a>, <a class="el" href="ratelimit_8h_source.html#l00036">BRIX_RL_KEY_VO</a>, <a class="el" href="ratelimit_8h_source.html#l00040">BRIX_RL_KEY_VOLUME</a>, <a class="el" href="ctx__structs_8h_source.html#l00165">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="identity_8h_source.html#l00030">brix_identity_t::issuer</a>, <a class="el" href="ratelimit_8h_source.html#l00089">brix_rl_rule_t::key_match</a>, <a class="el" href="ratelimit_8h_source.html#l00088">brix_rl_rule_t::key_type</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ctx__structs_8h_source.html#l00168">brix_ctx_login_t::peer_ip</a>, <a class="el" href="ctx__structs_8h_source.html#l00166">brix_ctx_login_t::primary_vo</a>, and <a class="el" href="ratelimit__keys_8c_source.html#l00029">rl_key_dn_hash()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ratelimit__stream_8c_source.html#l00073">brix_rl_stream_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ratelimit__stream_8c_source.html#l00094">rl_resolve_key()</a>.</p>
 
 </div>
 </div>
@@ -813,7 +821,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ratelimit__zone_8c_source.html#l00262">262</a> of file <a class="el" href="ratelimit__zone_8c_source.html">ratelimit_zone.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="ratelimit_8h_source.html#l00061">brix_rl_node_t::key_str</a>, <a class="el" href="ratelimit_8h_source.html#l00060">brix_rl_node_t::len</a>, <a class="el" href="ratelimit_8h_source.html#l00048">brix_rl_node_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00068">brix_rl_shctx_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00066">brix_rl_shctx_t::rbtree</a>, and <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_zone_t::sh</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="ratelimit_8h_source.html#l00066">brix_rl_node_t::key_str</a>, <a class="el" href="ratelimit_8h_source.html#l00065">brix_rl_node_t::len</a>, <a class="el" href="ratelimit_8h_source.html#l00053">brix_rl_node_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_shctx_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00071">brix_rl_shctx_t::rbtree</a>, and <a class="el" href="ratelimit_8h_source.html#l00078">brix_rl_zone_t::sh</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00159">brix_rl_bw_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00205">brix_rl_charge_bytes()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00019">brix_rl_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00089">brix_rl_conc_acquire()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">brix_rl_conc_release()</a>, <a class="el" href="throttle__compat_8c_source.html#l00120">brix_throttle_ioload_over()</a>, <a class="el" href="throttle__compat_8c_source.html#l00168">brix_throttle_open_dec()</a>, and <a class="el" href="throttle__compat_8c_source.html#l00085">throttle_node_locked()</a>.</p>
 
@@ -835,11 +843,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__stream_8c_source.html#l00196">196</a> of file <a class="el" href="ratelimit__stream_8c_source.html">ratelimit_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__stream_8c_source.html#l00314">314</a> of file <a class="el" href="ratelimit__stream_8c_source.html">ratelimit_stream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">brix_rl_conc_release()</a>, <a class="el" href="ctx__structs_8h_source.html#l00142">brix_ctx_rl_t::conc_key</a>, <a class="el" href="ctx__structs_8h_source.html#l00141">brix_ctx_rl_t::conc_rule</a>, and <a class="el" href="context_8h_source.html#l00295">brix_ctx_t::rl</a>.</p>
+<p class="reference">References <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00129">brix_rl_conc_release()</a>, <a class="el" href="ctx__structs_8h_source.html#l00148">brix_ctx_rl_t::conc_key</a>, <a class="el" href="ctx__structs_8h_source.html#l00147">brix_ctx_rl_t::conc_rule</a>, and <a class="el" href="context_8h_source.html#l00307">brix_ctx_t::rl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="disconnect_8c_source.html#l00295">brix_on_disconnect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="disconnect_8c_source.html#l00201">brix_on_disconnect()</a>.</p>
 
 </div>
 </div>
@@ -875,9 +883,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__keys_8c_source.html#l00435">435</a> of file <a class="el" href="ratelimit__keys_8c_source.html">ratelimit_keys.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__keys__rules_8c_source.html#l00266">266</a> of file <a class="el" href="ratelimit__keys__rules_8c_source.html">ratelimit_keys_rules.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__keys_8c_source.html#l00320">rl_add_rule()</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__keys__rules_8c_source.html#l00232">rl_add_rule()</a>.</p>
 
 </div>
 </div>
@@ -921,7 +929,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00249">249</a> of file <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html">ratelimit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit_8h_source.html#l00043">BRIX_RL_KEY_LEN</a>, <a class="el" href="ratelimit_8h_source.html#l00051">brix_rl_node_t::bw_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00101">brix_rl_snapshot_entry_t::bw_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00053">brix_rl_node_t::bytes_total</a>, <a class="el" href="ratelimit_8h_source.html#l00098">brix_rl_snapshot_entry_t::bytes_total</a>, <a class="el" href="ratelimit_8h_source.html#l00096">brix_rl_snapshot_entry_t::key_str</a>, <a class="el" href="ratelimit_8h_source.html#l00061">brix_rl_node_t::key_str</a>, <a class="el" href="ratelimit_8h_source.html#l00060">brix_rl_node_t::len</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ratelimit_8h_source.html#l00068">brix_rl_shctx_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00050">brix_rl_node_t::req_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00100">brix_rl_snapshot_entry_t::req_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00052">brix_rl_node_t::req_total</a>, <a class="el" href="ratelimit_8h_source.html#l00097">brix_rl_snapshot_entry_t::req_total</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00074">brix_rl_zone_t::shpool</a>, <a class="el" href="ratelimit_8h_source.html#l00054">brix_rl_node_t::throttle_count</a>, and <a class="el" href="ratelimit_8h_source.html#l00099">brix_rl_snapshot_entry_t::throttle_count</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit_8h_source.html#l00043">BRIX_RL_KEY_LEN</a>, <a class="el" href="ratelimit_8h_source.html#l00056">brix_rl_node_t::bw_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00106">brix_rl_snapshot_entry_t::bw_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00058">brix_rl_node_t::bytes_total</a>, <a class="el" href="ratelimit_8h_source.html#l00103">brix_rl_snapshot_entry_t::bytes_total</a>, <a class="el" href="ratelimit_8h_source.html#l00101">brix_rl_snapshot_entry_t::key_str</a>, <a class="el" href="ratelimit_8h_source.html#l00066">brix_rl_node_t::key_str</a>, <a class="el" href="ratelimit_8h_source.html#l00065">brix_rl_node_t::len</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_shctx_t::queue</a>, <a class="el" href="ratelimit_8h_source.html#l00055">brix_rl_node_t::req_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00105">brix_rl_snapshot_entry_t::req_excess</a>, <a class="el" href="ratelimit_8h_source.html#l00057">brix_rl_node_t::req_total</a>, <a class="el" href="ratelimit_8h_source.html#l00102">brix_rl_snapshot_entry_t::req_total</a>, <a class="el" href="ratelimit_8h_source.html#l00078">brix_rl_zone_t::sh</a>, <a class="el" href="ratelimit_8h_source.html#l00079">brix_rl_zone_t::shpool</a>, <a class="el" href="ratelimit_8h_source.html#l00059">brix_rl_node_t::throttle_count</a>, and <a class="el" href="ratelimit_8h_source.html#l00104">brix_rl_snapshot_entry_t::throttle_count</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="api__ratelimit_8c_source.html#l00010">dashboard_build_v1_ratelimit()</a>.</p>
 
@@ -959,9 +967,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__stream_8c_source.html#l00073">73</a> of file <a class="el" href="ratelimit__stream_8c_source.html">ratelimit_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__stream_8c_source.html#l00267">267</a> of file <a class="el" href="ratelimit__stream_8c_source.html">ratelimit_stream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00159">brix_rl_bw_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00019">brix_rl_check()</a>, <a class="el" href="net_2ratelimit_2ratelimit_8c_source.html#l00089">brix_rl_conc_acquire()</a>, <a class="el" href="ratelimit_8h_source.html#l00043">BRIX_RL_KEY_LEN</a>, <a class="el" href="ratelimit__keys_8c_source.html#l00044">brix_rl_key_stream()</a>, <a class="el" href="ratelimit_8h_source.html#l00040">BRIX_RL_KEY_VOLUME</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00016">BRIX_RL_METRIC_INC</a>, <a class="el" href="tunables_8h_source.html#l00136">BRIX_RL_RULE_CACHE_MAX</a>, <a class="el" href="control_8c_source.html#l00096">brix_send_wait()</a>, <a class="el" href="ctx__structs_8h_source.html#l00140">brix_ctx_rl_t::bw_key</a>, <a class="el" href="ctx__structs_8h_source.html#l00139">brix_ctx_rl_t::bw_rule</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00142">brix_ctx_rl_t::conc_key</a>, <a class="el" href="ctx__structs_8h_source.html#l00141">brix_ctx_rl_t::conc_rule</a>, <a class="el" href="ctx__structs_8h_source.html#l00176">brix_ctx_recv_t::cur_reqid</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="ctx__structs_8h_source.html#l00143">brix_ctx_rl_t::key_cache</a>, <a class="el" href="ctx__structs_8h_source.html#l00144">brix_ctx_rl_t::key_cache_valid</a>, <a class="el" href="ratelimit_8h_source.html#l00083">brix_rl_rule_t::key_type</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00295">brix_ctx_t::rl</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00025">rl_op_rate_limited()</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00053">rl_request_path()</a>, and <a class="el" href="types_2config_8h_source.html#l00702">ngx_stream_brix_srv_conf_t::rl_rules</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit_8h_source.html#l00043">BRIX_RL_KEY_LEN</a>, <a class="el" href="ctx__structs_8h_source.html#l00145">brix_ctx_rl_t::bw_rule</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00182">brix_ctx_recv_t::cur_reqid</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00307">brix_ctx_t::rl</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00170">rl_enforce_bw_rate()</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00215">rl_enforce_conc()</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00135">rl_enforce_req_rate()</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00252">rl_maybe_load_path()</a>, <a class="el" href="ratelimit__stream_8c_source.html#l00025">rl_op_rate_limited()</a>, and <a class="el" href="ratelimit__stream_8c_source.html#l00094">rl_resolve_key()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="root_2handshake_2dispatch_8c_source.html#l00031">brix_dispatch()</a>.</p>
 
@@ -1007,9 +1015,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ratelimit__zone_8c_source.html#l00181">181</a> of file <a class="el" href="ratelimit__zone_8c_source.html">ratelimit_zone.c</a>.</p>
 
-<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00125">brix_rl_init_zone()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00019">BRIX_RL_MAX_ZONES</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00020">BRIX_RL_MIN_SIZE</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00025">brix_rl_nzones</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00232">brix_rl_zone_get()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00023">brix_rl_zone_tag</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00024">brix_rl_zones</a>, <a class="el" href="ratelimit_8h_source.html#l00076">brix_rl_zone_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ratelimit_8h_source.html#l00075">brix_rl_zone_t::shm_zone</a>, and <a class="el" href="ratelimit_8h_source.html#l00077">brix_rl_zone_t::size</a>.</p>
+<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00125">brix_rl_init_zone()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00019">BRIX_RL_MAX_ZONES</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00020">BRIX_RL_MIN_SIZE</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00025">brix_rl_nzones</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00232">brix_rl_zone_get()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00023">brix_rl_zone_tag</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00024">brix_rl_zones</a>, <a class="el" href="ratelimit_8h_source.html#l00081">brix_rl_zone_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ratelimit_8h_source.html#l00080">brix_rl_zone_t::shm_zone</a>, and <a class="el" href="ratelimit_8h_source.html#l00082">brix_rl_zone_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ratelimit__keys_8c_source.html#l00258">brix_rl_zone_directive()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ratelimit__keys__parse_8c_source.html#l00101">brix_rl_zone_directive()</a>.</p>
 
 </div>
 </div>
@@ -1045,9 +1053,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ratelimit__keys_8c_source.html#l00258">258</a> of file <a class="el" href="ratelimit__keys_8c_source.html">ratelimit_keys.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ratelimit__keys__parse_8c_source.html#l00101">101</a> of file <a class="el" href="ratelimit__keys__parse_8c_source.html">ratelimit_keys_parse.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00181">brix_rl_zone_add()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ratelimit__keys_8c_source.html#l00250">rl_parse_size()</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00181">brix_rl_zone_add()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ratelimit__keys__parse_8c_source.html#l00093">rl_parse_size()</a>.</p>
 
 </div>
 </div>
@@ -1071,7 +1079,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ratelimit__zone_8c_source.html#l00025">brix_rl_nzones</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00024">brix_rl_zones</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__conf_8c_source.html#l00235">brix_merge_srv_security()</a>, <a class="el" href="ratelimit__keys_8c_source.html#l00455">brix_rl_conc_directive()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00181">brix_rl_zone_add()</a>, and <a class="el" href="ratelimit__keys_8c_source.html#l00320">rl_add_rule()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__conf__merge__security_8c_source.html#l00131">brix_merge_srv_tokens()</a>, <a class="el" href="ratelimit__zone_8c_source.html#l00181">brix_rl_zone_add()</a>, and <a class="el" href="ratelimit__keys__rules_8c_source.html#l00081">rl_rule_bind_zone()</a>.</p>
 
 </div>
 </div>
@@ -1093,7 +1101,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ratelimit__zone_8c_source.html#l00105">105</a> of file <a class="el" href="ratelimit__zone_8c_source.html">ratelimit_zone.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ratelimit_8h_source.html#l00055">brix_rl_node_t::in_flight</a>, <a class="el" href="ratelimit_8h_source.html#l00059">brix_rl_node_t::open_files</a>, and <a class="el" href="ratelimit_8h_source.html#l00068">brix_rl_shctx_t::queue</a>.</p>
+<p class="reference">References <a class="el" href="ratelimit_8h_source.html#l00060">brix_rl_node_t::in_flight</a>, <a class="el" href="ratelimit_8h_source.html#l00064">brix_rl_node_t::open_files</a>, and <a class="el" href="ratelimit_8h_source.html#l00073">brix_rl_shctx_t::queue</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="ratelimit__zone_8c_source.html#l00125">brix_rl_init_zone()</a>.</p>
 

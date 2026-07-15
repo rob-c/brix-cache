@@ -99,6 +99,7 @@ $(document).ready(function(){initNavTree('parse__x509_8c.html',''); initResizabl
 <code>#include &quot;<a class="el" href="gsi__core_8h_source.html">gsi_core.h</a>&quot;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
+<code>#include &quot;<a class="el" href="parse__x509__internal_8h_source.html">parse_x509_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for parse_x509.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -111,20 +112,22 @@ $(document).ready(function(){initNavTree('parse__x509_8c.html',''); initResizabl
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:aab77df2a3fa6db1b430ce6ca8896ba03" id="r_aab77df2a3fa6db1b430ce6ca8896ba03"><td class="memItemLeft" align="right" valign="top">BIGNUM *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#aab77df2a3fa6db1b430ce6ca8896ba03">brix_gsi_parse_client_dh_public_key</a> (ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const u_char *public_key_blob, size_t public_key_blob_len)</td></tr>
+<tr class="memitem:aab77df2a3fa6db1b430ce6ca8896ba03" id="r_aab77df2a3fa6db1b430ce6ca8896ba03"><td class="memItemLeft" align="right" valign="top">BIGNUM *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#aab77df2a3fa6db1b430ce6ca8896ba03">brix_gsi_parse_client_dh_public_key</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const u_char *public_key_blob, size_t public_key_blob_len)</td></tr>
 <tr class="separator:aab77df2a3fa6db1b430ce6ca8896ba03"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9e66e2bdbfe24de412ec15659bd07e2c" id="r_a9e66e2bdbfe24de412ec15659bd07e2c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#a9e66e2bdbfe24de412ec15659bd07e2c">brix_gsi_select_cipher_name</a> (const u_char *payload, size_t payload_len, char *cipher_name, size_t cipher_name_size)</td></tr>
 <tr class="separator:a9e66e2bdbfe24de412ec15659bd07e2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab26e08153d53a3b55d9a43917eaefe3a" id="r_ab26e08153d53a3b55d9a43917eaefe3a"><td class="memItemLeft" align="right" valign="top">EVP_PKEY *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#ab26e08153d53a3b55d9a43917eaefe3a">brix_gsi_build_peer_dh_key</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, EVP_PKEY *server_dh_key, BIGNUM *client_public_bn)</td></tr>
 <tr class="separator:ab26e08153d53a3b55d9a43917eaefe3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a69aa056e0f08d92442699c8dfd699ac3" id="r_a69aa056e0f08d92442699c8dfd699ac3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#a69aa056e0f08d92442699c8dfd699ac3">gsi_persist_session_cipher</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const u_char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, int keylen, int use_iv)</td></tr>
-<tr class="separator:a69aa056e0f08d92442699c8dfd699ac3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acc4da7dc2dbde118c1bb3ab31eb8203f" id="r_acc4da7dc2dbde118c1bb3ab31eb8203f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#acc4da7dc2dbde118c1bb3ab31eb8203f">gsi_capture_client_rtag</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const u_char *plain, size_t plain_len)</td></tr>
-<tr class="separator:acc4da7dc2dbde118c1bb3ab31eb8203f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a42856d46ab73f3511a5353d4e30af6d4" id="r_a42856d46ab73f3511a5353d4e30af6d4"><td class="memItemLeft" align="right" valign="top">static&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#a42856d46ab73f3511a5353d4e30af6d4">STACK_OF</a> (X509)</td></tr>
-<tr class="separator:a42856d46ab73f3511a5353d4e30af6d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab1994f38de27a85b9d7498b13e94691d" id="r_ab1994f38de27a85b9d7498b13e94691d"><td class="memItemLeft" align="right" valign="top">static EVP_PKEY *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#ab1994f38de27a85b9d7498b13e94691d">gsi_recover_peer_signed</a> (const u_char *payload, size_t plen, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:ab1994f38de27a85b9d7498b13e94691d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b64dfaad25da9ae24df764093814c05" id="r_a2b64dfaad25da9ae24df764093814c05"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#a2b64dfaad25da9ae24df764093814c05">gsi_persist_session_cipher</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const u_char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, int keylen, int use_iv)</td></tr>
+<tr class="separator:a2b64dfaad25da9ae24df764093814c05"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a20064c97efd83ea29ed8bedfc2c0c3ed" id="r_a20064c97efd83ea29ed8bedfc2c0c3ed"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#a20064c97efd83ea29ed8bedfc2c0c3ed">gsi_capture_client_rtag</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const u_char *plain, size_t <a class="el" href="parse__x509__internal_8h.html#a9ff0c0d26c3318836f40ef5734dfae8b">plain_len</a>)</td></tr>
+<tr class="separator:a20064c97efd83ea29ed8bedfc2c0c3ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7f0879eeaec685ffe48a7628baefae13" id="r_a7f0879eeaec685ffe48a7628baefae13"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#a7f0879eeaec685ffe48a7628baefae13">gsi_capture_fullproxy</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const u_char *plain, size_t <a class="el" href="parse__x509__internal_8h.html#a9ff0c0d26c3318836f40ef5734dfae8b">plain_len</a>)</td></tr>
+<tr class="separator:a7f0879eeaec685ffe48a7628baefae13"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a00cf9f18b18b26449b4cde33c2f1d5ff" id="r_a00cf9f18b18b26449b4cde33c2f1d5ff"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#a00cf9f18b18b26449b4cde33c2f1d5ff">STACK_OF</a> (X509)</td></tr>
+<tr class="separator:a00cf9f18b18b26449b4cde33c2f1d5ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1ad2573032eb7224df158d7f972223a9" id="r_a1ad2573032eb7224df158d7f972223a9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="parse__x509_8c.html#a1ad2573032eb7224df158d7f972223a9">gsi_store_signing_key</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const unsigned char *secret, size_t secret_len)</td></tr>
+<tr class="separator:a1ad2573032eb7224df158d7f972223a9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ab26e08153d53a3b55d9a43917eaefe3a" name="ab26e08153d53a3b55d9a43917eaefe3a"></a>
@@ -168,8 +171,6 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="parse__crypto__helpers_8c_source.html#l00071">71</a> of file <a class="el" href="parse__crypto__helpers_8c_source.html">parse_crypto_helpers.c</a>.</p>
-
-<p class="reference">References <a class="el" href="gsi__dh_8c_source.html#l00091">brix_gsi_dh_build_peer()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
 </div>
 </div>
@@ -221,8 +222,6 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="parse__crypto__helpers_8c_source.html#l00016">16</a> of file <a class="el" href="parse__crypto__helpers_8c_source.html">parse_crypto_helpers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gsi__dh_8c_source.html#l00034">brix_gsi_dh_pub_decode()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
-
 </div>
 </div>
 <a id="a9e66e2bdbfe24de412ec15659bd07e2c" name="a9e66e2bdbfe24de412ec15659bd07e2c"></a>
@@ -273,23 +272,16 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="parse__crypto__helpers_8c_source.html#l00035">35</a> of file <a class="el" href="parse__crypto__helpers_8c_source.html">parse_crypto_helpers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, and <a class="el" href="gsi_8h_source.html#l00052">kXRS_cipher_alg</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="parse__x509_8c_source.html#l00166">STACK_OF()</a>.</p>
-
 </div>
 </div>
-<a id="acc4da7dc2dbde118c1bb3ab31eb8203f" name="acc4da7dc2dbde118c1bb3ab31eb8203f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acc4da7dc2dbde118c1bb3ab31eb8203f">&#9670;&#160;</a></span>gsi_capture_client_rtag()</h2>
+<a id="a20064c97efd83ea29ed8bedfc2c0c3ed" name="a20064c97efd83ea29ed8bedfc2c0c3ed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a20064c97efd83ea29ed8bedfc2c0c3ed">&#9670;&#160;</a></span>gsi_capture_client_rtag()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void gsi_capture_client_rtag </td>
+          <td class="memname">void gsi_capture_client_rtag </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
           <td class="paramname"><em>ctx</em>, </td>
@@ -312,32 +304,64 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00045">45</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00046">46</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gsi__buf_8c_source.html#l00008">brix_gsi_find_bucket()</a>, <a class="el" href="ctx__structs_8h_source.html#l00129">brix_ctx_gsi_t::deleg_client_rtag</a>, <a class="el" href="ctx__structs_8h_source.html#l00130">brix_ctx_gsi_t::deleg_client_rtag_len</a>, <a class="el" href="context_8h_source.html#l00156">brix_ctx_t::gsi</a>, <a class="el" href="gsi_8h_source.html#l00042">kXRS_rtag</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="gsi__buf_8c_source.html#l00008">brix_gsi_find_bucket()</a>, <a class="el" href="ctx__structs_8h_source.html#l00129">brix_ctx_gsi_t::deleg_client_rtag</a>, <a class="el" href="ctx__structs_8h_source.html#l00130">brix_ctx_gsi_t::deleg_client_rtag_len</a>, <a class="el" href="context_8h_source.html#l00156">brix_ctx_t::gsi</a>, <a class="el" href="gsi_8h_source.html#l00042">kXRS_rtag</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00028">plain_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse__x509_8c_source.html#l00166">STACK_OF()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse__x509__signed_8c_source.html#l00154">STACK_OF()</a>.</p>
 
 </div>
 </div>
-<a id="a69aa056e0f08d92442699c8dfd699ac3" name="a69aa056e0f08d92442699c8dfd699ac3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a69aa056e0f08d92442699c8dfd699ac3">&#9670;&#160;</a></span>gsi_persist_session_cipher()</h2>
+<a id="a7f0879eeaec685ffe48a7628baefae13" name="a7f0879eeaec685ffe48a7628baefae13"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7f0879eeaec685ffe48a7628baefae13">&#9670;&#160;</a></span>gsi_capture_fullproxy()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void gsi_persist_session_cipher </td>
+          <td class="memname">void gsi_capture_fullproxy </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>plain</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>plain_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00075">75</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ctx__structs_8h_source.html#l00136">brix_ctx_gsi_t::client_fullproxy_len</a>, <a class="el" href="ctx__structs_8h_source.html#l00135">brix_ctx_gsi_t::client_fullproxy_pem</a>, <a class="el" href="context_8h_source.html#l00156">brix_ctx_t::gsi</a>, <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="gsi_8h_source.html#l00063">kXRS_x509_fullproxy</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00028">plain_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="parse__x509__signed_8c_source.html#l00154">STACK_OF()</a>.</p>
+
+</div>
+</div>
+<a id="a2b64dfaad25da9ae24df764093814c05" name="a2b64dfaad25da9ae24df764093814c05"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b64dfaad25da9ae24df764093814c05">&#9670;&#160;</a></span>gsi_persist_session_cipher()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void gsi_persist_session_cipher </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
           <td class="paramname"><em>ctx</em>, </td>
@@ -372,47 +396,39 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00023">23</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00024">24</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
 
-<p class="reference">References <a class="el" href="context_8h_source.html#l00156">brix_ctx_t::gsi</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00118">brix_ctx_gsi_t::sess_cipher</a>, <a class="el" href="ctx__structs_8h_source.html#l00119">brix_ctx_gsi_t::sess_key</a>, <a class="el" href="ctx__structs_8h_source.html#l00120">brix_ctx_gsi_t::sess_keylen</a>, and <a class="el" href="ctx__structs_8h_source.html#l00121">brix_ctx_gsi_t::sess_use_iv</a>.</p>
+<p class="reference">References <a class="el" href="context_8h_source.html#l00156">brix_ctx_t::gsi</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00118">brix_ctx_gsi_t::sess_cipher</a>, <a class="el" href="ctx__structs_8h_source.html#l00119">brix_ctx_gsi_t::sess_key</a>, <a class="el" href="ctx__structs_8h_source.html#l00120">brix_ctx_gsi_t::sess_keylen</a>, and <a class="el" href="ctx__structs_8h_source.html#l00121">brix_ctx_gsi_t::sess_use_iv</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse__x509_8c_source.html#l00166">STACK_OF()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse__x509__unsigned_8c_source.html#l00125">gsi_unsigned_decrypt_init()</a>, and <a class="el" href="parse__x509__signed_8c_source.html#l00154">STACK_OF()</a>.</p>
 
 </div>
 </div>
-<a id="ab1994f38de27a85b9d7498b13e94691d" name="ab1994f38de27a85b9d7498b13e94691d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab1994f38de27a85b9d7498b13e94691d">&#9670;&#160;</a></span>gsi_recover_peer_signed()</h2>
+<a id="a1ad2573032eb7224df158d7f972223a9" name="a1ad2573032eb7224df158d7f972223a9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ad2573032eb7224df158d7f972223a9">&#9670;&#160;</a></span>gsi_store_signing_key()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static EVP_PKEY * gsi_recover_peer_signed </td>
+          <td class="memname">int gsi_store_signing_key </td>
           <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>payload</em>, </td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const unsigned char *&#160;</td>
+          <td class="paramname"><em>secret</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>plen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
+          <td class="paramname"><em>secret_len</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -420,50 +436,37 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00114">114</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00149">149</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gsi__cipher_8c_source.html#l00066">brix_gsi_cipher_parse_peer()</a>, <a class="el" href="gsi__rsa_8c_source.html#l00078">brix_gsi_rsa_decrypt_public()</a>, <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="gsi_8h_source.html#l00041">kXRS_cipher</a>, <a class="el" href="gsi_8h_source.html#l00040">kXRS_puk</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00099">brix_ctx_sigver_t::signing_active</a>, <a class="el" href="ctx__structs_8h_source.html#l00098">brix_ctx_sigver_t::signing_key</a>, and <a class="el" href="context_8h_source.html#l00267">brix_ctx_t::sigver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse__x509_8c_source.html#l00166">STACK_OF()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse__x509__signed_8c_source.html#l00154">STACK_OF()</a>.</p>
 
 </div>
 </div>
-<a id="a42856d46ab73f3511a5353d4e30af6d4" name="a42856d46ab73f3511a5353d4e30af6d4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a42856d46ab73f3511a5353d4e30af6d4">&#9670;&#160;</a></span>STACK_OF()</h2>
+<a id="a00cf9f18b18b26449b4cde33c2f1d5ff" name="a00cf9f18b18b26449b4cde33c2f1d5ff"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a00cf9f18b18b26449b4cde33c2f1d5ff">&#9670;&#160;</a></span>STACK_OF()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static STACK_OF </td>
+          <td class="memname">STACK_OF </td>
           <td>(</td>
           <td class="paramtype">X509&#160;</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00064">64</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="parse__x509_8c_source.html#l00097">97</a> of file <a class="el" href="parse__x509_8c_source.html">parse_x509.c</a>.</p>
 
-<p class="reference">References <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="gsi_8h_source.html#l00049">kXRS_x509</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="parse__x509_8c_source.html#l00064">STACK_OF()</a>.</p>
+<p class="reference">References <a class="el" href="buffer_8c_source.html#l00029">gsi_find_bucket()</a>, <a class="el" href="gsi_8h_source.html#l00049">kXRS_x509</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00028">plain_len</a>, and <a class="el" href="parse__x509_8c_source.html#l00097">STACK_OF()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="parse__x509_8c_source.html#l00064">STACK_OF()</a>, and <a class="el" href="parse__x509_8c_source.html#l00166">STACK_OF()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="parse__x509_8c_source.html#l00097">STACK_OF()</a>.</p>
 
 </div>
 </div>

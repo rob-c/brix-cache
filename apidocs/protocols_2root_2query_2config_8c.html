@@ -91,7 +91,10 @@ $(document).ready(function(){initNavTree('protocols_2root_2query_2config_8c.html
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a>  </div>
+<a href="#nested-classes">Data Structures</a> &#124;
+<a href="#typedef-members">Typedefs</a> &#124;
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">config.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -110,6 +113,16 @@ $(document).ready(function(){initNavTree('protocols_2root_2query_2config_8c.html
 </div>
 <p><a href="protocols_2root_2query_2config_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__qconfig__entry__t.html">brix_qconfig_entry_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
+Typedefs</h2></td></tr>
+<tr class="memitem:a70d92281f5c232081f565ba739921a8d" id="r_a70d92281f5c232081f565ba739921a8d"><td class="memItemLeft" align="right" valign="top">typedef ngx_flag_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a70d92281f5c232081f565ba739921a8d">brix_qconfig_emit_fn</a>) (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a70d92281f5c232081f565ba739921a8d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ad6ca0f4391393023fca5a5003918230e" id="r_ad6ca0f4391393023fca5a5003918230e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#ad6ca0f4391393023fca5a5003918230e">brix_qconfig_skip_ws</a> (const char **pp)</td></tr>
@@ -118,9 +131,63 @@ Functions</h2></td></tr>
 <tr class="separator:a342fdedd29a76ecb91ec506f2e551e9a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3a3552f78123728f482f9bbaa9e8ca0a" id="r_a3a3552f78123728f482f9bbaa9e8ca0a"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a3a3552f78123728f482f9bbaa9e8ca0a">brix_qconfig_append</a> (char *resp, size_t resp_sz, size_t *pos, const char *fmt,...)</td></tr>
 <tr class="separator:a3a3552f78123728f482f9bbaa9e8ca0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a49a9849556a40b4c718fbb55270d10d9" id="r_a49a9849556a40b4c718fbb55270d10d9"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a49a9849556a40b4c718fbb55270d10d9">brix_query_config</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="memitem:af8b09f787a44cec9d7a6bb4627a864b7" id="r_af8b09f787a44cec9d7a6bb4627a864b7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#af8b09f787a44cec9d7a6bb4627a864b7">brix_qconfig_codec_list</a> (char *list, size_t list_sz)</td></tr>
+<tr class="separator:af8b09f787a44cec9d7a6bb4627a864b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa5e09dbaa96415393f5cdef4c6dc30e2" id="r_aa5e09dbaa96415393f5cdef4c6dc30e2"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#aa5e09dbaa96415393f5cdef4c6dc30e2">brix_qconfig_emit_chksum</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:aa5e09dbaa96415393f5cdef4c6dc30e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad6d74ebd7204059f9e5336cb26a0d921" id="r_ad6d74ebd7204059f9e5336cb26a0d921"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#ad6d74ebd7204059f9e5336cb26a0d921">brix_qconfig_emit_readv</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:ad6d74ebd7204059f9e5336cb26a0d921"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a828d34c6f469a33d58d044b4af962827" id="r_a828d34c6f469a33d58d044b4af962827"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a828d34c6f469a33d58d044b4af962827">brix_qconfig_emit_readv_ior_max</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a828d34c6f469a33d58d044b4af962827"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b9de61be7de7520e6530d1b7e928c0e" id="r_a8b9de61be7de7520e6530d1b7e928c0e"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a8b9de61be7de7520e6530d1b7e928c0e">brix_qconfig_emit_readv_iov_max</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a8b9de61be7de7520e6530d1b7e928c0e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afcf2a6ab34167d41519d6bb698312847" id="r_afcf2a6ab34167d41519d6bb698312847"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#afcf2a6ab34167d41519d6bb698312847">brix_qconfig_emit_tpc</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:afcf2a6ab34167d41519d6bb698312847"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5f10beb36d150a35b8b2830c02750bd3" id="r_a5f10beb36d150a35b8b2830c02750bd3"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a5f10beb36d150a35b8b2830c02750bd3">brix_qconfig_emit_tpcdlg</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a5f10beb36d150a35b8b2830c02750bd3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3d18f5832c966f5f4021d7d2ec817e8a" id="r_a3d18f5832c966f5f4021d7d2ec817e8a"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a3d18f5832c966f5f4021d7d2ec817e8a">brix_qconfig_emit_cmpread</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a3d18f5832c966f5f4021d7d2ec817e8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae67ad7c472120e4b92d9746251794951" id="r_ae67ad7c472120e4b92d9746251794951"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#ae67ad7c472120e4b92d9746251794951">brix_qconfig_emit_cmpwrite</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:ae67ad7c472120e4b92d9746251794951"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8568435173537ac7821980d204d0dcd6" id="r_a8568435173537ac7821980d204d0dcd6"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a8568435173537ac7821980d204d0dcd6">brix_qconfig_emit_xrdfs_ext</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a8568435173537ac7821980d204d0dcd6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3b00589680ec88ba6207ec6601831423" id="r_a3b00589680ec88ba6207ec6601831423"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a3b00589680ec88ba6207ec6601831423">brix_qconfig_emit_version</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a3b00589680ec88ba6207ec6601831423"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a263c37ec5a8ccbe03ddb9ad5d918d9c7" id="r_a263c37ec5a8ccbe03ddb9ad5d918d9c7"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a263c37ec5a8ccbe03ddb9ad5d918d9c7">brix_qconfig_emit_bind_max</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a263c37ec5a8ccbe03ddb9ad5d918d9c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae7cf52b9511975f374f66b292557d4df" id="r_ae7cf52b9511975f374f66b292557d4df"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#ae7cf52b9511975f374f66b292557d4df">brix_qconfig_emit_pio_max</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:ae7cf52b9511975f374f66b292557d4df"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1578a57b2e6844dc2313d30e5a8c2d86" id="r_a1578a57b2e6844dc2313d30e5a8c2d86"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a1578a57b2e6844dc2313d30e5a8c2d86">brix_qconfig_emit_role</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a1578a57b2e6844dc2313d30e5a8c2d86"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8fa33d0092e04bf116881302a7f68f5a" id="r_a8fa33d0092e04bf116881302a7f68f5a"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a8fa33d0092e04bf116881302a7f68f5a">brix_qconfig_emit_fattr</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a8fa33d0092e04bf116881302a7f68f5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a24daf87d188c34d4329f06f38db04d04" id="r_a24daf87d188c34d4329f06f38db04d04"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a24daf87d188c34d4329f06f38db04d04">brix_qconfig_emit_key</a> (const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td></tr>
+<tr class="separator:a24daf87d188c34d4329f06f38db04d04"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a49a9849556a40b4c718fbb55270d10d9" id="r_a49a9849556a40b4c718fbb55270d10d9"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a49a9849556a40b4c718fbb55270d10d9">brix_query_config</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:a49a9849556a40b4c718fbb55270d10d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a7aefe1ac57e73c048d75463948e3b1e0" id="r_a7aefe1ac57e73c048d75463948e3b1e0"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structbrix__qconfig__entry__t.html">brix_qconfig_entry_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2query_2config_8c.html#a7aefe1ac57e73c048d75463948e3b1e0">brix_qconfig_table</a> []</td></tr>
+<tr class="separator:a7aefe1ac57e73c048d75463948e3b1e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Typedef Documentation</h2>
+<a id="a70d92281f5c232081f565ba739921a8d" name="a70d92281f5c232081f565ba739921a8d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a70d92281f5c232081f565ba739921a8d">&#9670;&#160;</a></span>brix_qconfig_emit_fn</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef ngx_flag_t(* brix_qconfig_emit_fn) (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *resp, size_t resp_sz, size_t *pos)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00105">105</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a3a3552f78123728f482f9bbaa9e8ca0a" name="a3a3552f78123728f482f9bbaa9e8ca0a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a3a3552f78123728f482f9bbaa9e8ca0a">&#9670;&#160;</a></span>brix_qconfig_append()</h2>
@@ -174,9 +241,839 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00070">70</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">73</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00099">brix_query_config()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00291">brix_qconfig_emit_bind_max()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00145">brix_qconfig_emit_chksum()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00227">brix_qconfig_emit_cmpread()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00246">brix_qconfig_emit_cmpwrite()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00329">brix_qconfig_emit_fattr()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00373">brix_qconfig_emit_key()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00303">brix_qconfig_emit_pio_max()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00157">brix_qconfig_emit_readv()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00170">brix_qconfig_emit_readv_ior_max()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00181">brix_qconfig_emit_readv_iov_max()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00315">brix_qconfig_emit_role()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00199">brix_qconfig_emit_tpc()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00212">brix_qconfig_emit_tpcdlg()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00279">brix_qconfig_emit_version()</a>, and <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00265">brix_qconfig_emit_xrdfs_ext()</a>.</p>
+
+</div>
+</div>
+<a id="af8b09f787a44cec9d7a6bb4627a864b7" name="af8b09f787a44cec9d7a6bb4627a864b7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af8b09f787a44cec9d7a6bb4627a864b7">&#9670;&#160;</a></span>brix_qconfig_codec_list()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_qconfig_codec_list </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>list</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>list_sz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00115">115</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="codec__core_8c_source.html#l00092">brix_codec_by_id()</a>, <a class="el" href="codec__core_8h_source.html#l00042">BRIX_CODEC_MAX</a>, and <a class="el" href="codec__core_8h_source.html#l00123">brix_codec_desc_t::name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00227">brix_qconfig_emit_cmpread()</a>, and <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00246">brix_qconfig_emit_cmpwrite()</a>.</p>
+
+</div>
+</div>
+<a id="a263c37ec5a8ccbe03ddb9ad5d918d9c7" name="a263c37ec5a8ccbe03ddb9ad5d918d9c7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a263c37ec5a8ccbe03ddb9ad5d918d9c7">&#9670;&#160;</a></span>brix_qconfig_emit_bind_max()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_bind_max </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00291">291</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="aa5e09dbaa96415393f5cdef4c6dc30e2" name="aa5e09dbaa96415393f5cdef4c6dc30e2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa5e09dbaa96415393f5cdef4c6dc30e2">&#9670;&#160;</a></span>brix_qconfig_emit_chksum()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_chksum </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00145">145</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="a3d18f5832c966f5f4021d7d2ec817e8a" name="a3d18f5832c966f5f4021d7d2ec817e8a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3d18f5832c966f5f4021d7d2ec817e8a">&#9670;&#160;</a></span>brix_qconfig_emit_cmpread()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_cmpread </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00227">227</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>, and <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00115">brix_qconfig_codec_list()</a>.</p>
+
+</div>
+</div>
+<a id="ae67ad7c472120e4b92d9746251794951" name="ae67ad7c472120e4b92d9746251794951"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae67ad7c472120e4b92d9746251794951">&#9670;&#160;</a></span>brix_qconfig_emit_cmpwrite()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_cmpwrite </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00246">246</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>, and <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00115">brix_qconfig_codec_list()</a>.</p>
+
+</div>
+</div>
+<a id="a8fa33d0092e04bf116881302a7f68f5a" name="a8fa33d0092e04bf116881302a7f68f5a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8fa33d0092e04bf116881302a7f68f5a">&#9670;&#160;</a></span>brix_qconfig_emit_fattr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_fattr </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00329">329</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="a24daf87d188c34d4329f06f38db04d04" name="a24daf87d188c34d4329f06f38db04d04"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a24daf87d188c34d4329f06f38db04d04">&#9670;&#160;</a></span>brix_qconfig_emit_key()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_key </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00373">373</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00347">brix_qconfig_table</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00344">brix_qconfig_entry_t::emit</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00343">brix_qconfig_entry_t::key</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00390">brix_query_config()</a>.</p>
+
+</div>
+</div>
+<a id="ae7cf52b9511975f374f66b292557d4df" name="ae7cf52b9511975f374f66b292557d4df"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae7cf52b9511975f374f66b292557d4df">&#9670;&#160;</a></span>brix_qconfig_emit_pio_max()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_pio_max </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00303">303</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="ad6d74ebd7204059f9e5336cb26a0d921" name="ad6d74ebd7204059f9e5336cb26a0d921"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad6d74ebd7204059f9e5336cb26a0d921">&#9670;&#160;</a></span>brix_qconfig_emit_readv()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_readv </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00157">157</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="a828d34c6f469a33d58d044b4af962827" name="a828d34c6f469a33d58d044b4af962827"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a828d34c6f469a33d58d044b4af962827">&#9670;&#160;</a></span>brix_qconfig_emit_readv_ior_max()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_readv_ior_max </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00170">170</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="a8b9de61be7de7520e6530d1b7e928c0e" name="a8b9de61be7de7520e6530d1b7e928c0e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b9de61be7de7520e6530d1b7e928c0e">&#9670;&#160;</a></span>brix_qconfig_emit_readv_iov_max()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_readv_iov_max </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00181">181</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>, and <a class="el" href="flags_8h_source.html#l00168">BRIX_READV_MAXSEGS</a>.</p>
+
+</div>
+</div>
+<a id="a1578a57b2e6844dc2313d30e5a8c2d86" name="a1578a57b2e6844dc2313d30e5a8c2d86"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1578a57b2e6844dc2313d30e5a8c2d86">&#9670;&#160;</a></span>brix_qconfig_emit_role()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_role </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00315">315</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="afcf2a6ab34167d41519d6bb698312847" name="afcf2a6ab34167d41519d6bb698312847"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afcf2a6ab34167d41519d6bb698312847">&#9670;&#160;</a></span>brix_qconfig_emit_tpc()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_tpc </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00199">199</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="a5f10beb36d150a35b8b2830c02750bd3" name="a5f10beb36d150a35b8b2830c02750bd3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5f10beb36d150a35b8b2830c02750bd3">&#9670;&#160;</a></span>brix_qconfig_emit_tpcdlg()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_tpcdlg </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00212">212</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
+
+</div>
+</div>
+<a id="a3b00589680ec88ba6207ec6601831423" name="a3b00589680ec88ba6207ec6601831423"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3b00589680ec88ba6207ec6601831423">&#9670;&#160;</a></span>brix_qconfig_emit_version()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_version </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00279">279</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>, and <a class="el" href="ident_8h_source.html#l00028">BRIX_SERVER_VERSION</a>.</p>
+
+</div>
+</div>
+<a id="a8568435173537ac7821980d204d0dcd6" name="a8568435173537ac7821980d204d0dcd6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8568435173537ac7821980d204d0dcd6">&#9670;&#160;</a></span>brix_qconfig_emit_xrdfs_ext()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_qconfig_emit_xrdfs_ext </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>resp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>resp_sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00265">265</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00073">brix_qconfig_append()</a>.</p>
 
 </div>
 </div>
@@ -220,11 +1117,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00037">37</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00040">40</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00025">brix_qconfig_skip_ws()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00028">brix_qconfig_skip_ws()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00099">brix_query_config()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00390">brix_query_config()</a>.</p>
 
 </div>
 </div>
@@ -252,9 +1149,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00025">25</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00028">28</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00037">brix_qconfig_next_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00040">brix_qconfig_next_token()</a>.</p>
 
 </div>
 </div>
@@ -290,11 +1187,69 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00099">99</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00390">390</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="codec__core_8c_source.html#l00092">brix_codec_by_id()</a>, <a class="el" href="codec__core_8h_source.html#l00042">BRIX_CODEC_MAX</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00070">brix_qconfig_append()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00037">brix_qconfig_next_token()</a>, <a class="el" href="flags_8h_source.html#l00168">BRIX_READV_MAXSEGS</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="ident_8h_source.html#l00028">BRIX_SERVER_VERSION</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00178">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="types_2config_8h_source.html#l00615">ngx_stream_brix_srv_conf_t::manager_mode</a>, <a class="el" href="codec__core_8h_source.html#l00123">brix_codec_desc_t::name</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::payload</a>, <a class="el" href="types_2config_8h_source.html#l00586">ngx_stream_brix_srv_conf_t::read_compress</a>, <a class="el" href="types_2config_8h_source.html#l00465">ngx_stream_brix_srv_conf_t::readv_segment_size</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, and <a class="el" href="types_2config_8h_source.html#l00595">ngx_stream_brix_srv_conf_t::write_compress</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00373">brix_qconfig_emit_key()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00040">brix_qconfig_next_token()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="root_2query_2dispatch_8c_source.html#l00017">brix_handle_query()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="root_2query_2dispatch_8c_source.html#l00036">brix_query_route_common()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a7aefe1ac57e73c048d75463948e3b1e0" name="a7aefe1ac57e73c048d75463948e3b1e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7aefe1ac57e73c048d75463948e3b1e0">&#9670;&#160;</a></span>brix_qconfig_table</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structbrix__qconfig__entry__t.html">brix_qconfig_entry_t</a> brix_qconfig_table[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { <span class="stringliteral">&quot;chksum&quot;</span>,        <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#aa5e09dbaa96415393f5cdef4c6dc30e2">brix_qconfig_emit_chksum</a>        },</div>
+<div class="line">    { <span class="stringliteral">&quot;readv&quot;</span>,         <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#ad6d74ebd7204059f9e5336cb26a0d921">brix_qconfig_emit_readv</a>         },</div>
+<div class="line">    { <span class="stringliteral">&quot;readv_ior_max&quot;</span>, <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a828d34c6f469a33d58d044b4af962827">brix_qconfig_emit_readv_ior_max</a> },</div>
+<div class="line">    { <span class="stringliteral">&quot;readv_iov_max&quot;</span>, <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a8b9de61be7de7520e6530d1b7e928c0e">brix_qconfig_emit_readv_iov_max</a> },</div>
+<div class="line">    { <span class="stringliteral">&quot;tpc&quot;</span>,           <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#afcf2a6ab34167d41519d6bb698312847">brix_qconfig_emit_tpc</a>           },</div>
+<div class="line">    { <span class="stringliteral">&quot;tpcdlg&quot;</span>,        <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a5f10beb36d150a35b8b2830c02750bd3">brix_qconfig_emit_tpcdlg</a>        },</div>
+<div class="line">    { <span class="stringliteral">&quot;cmpread&quot;</span>,       <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a3d18f5832c966f5f4021d7d2ec817e8a">brix_qconfig_emit_cmpread</a>       },</div>
+<div class="line">    { <span class="stringliteral">&quot;cmpwrite&quot;</span>,      <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#ae67ad7c472120e4b92d9746251794951">brix_qconfig_emit_cmpwrite</a>      },</div>
+<div class="line">    { <span class="stringliteral">&quot;xrdfs.ext&quot;</span>,     <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a8568435173537ac7821980d204d0dcd6">brix_qconfig_emit_xrdfs_ext</a>     },</div>
+<div class="line">    { <span class="stringliteral">&quot;version&quot;</span>,       <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a3b00589680ec88ba6207ec6601831423">brix_qconfig_emit_version</a>       },</div>
+<div class="line">    { <span class="stringliteral">&quot;bind_max&quot;</span>,      <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a263c37ec5a8ccbe03ddb9ad5d918d9c7">brix_qconfig_emit_bind_max</a>      },</div>
+<div class="line">    { <span class="stringliteral">&quot;pio_max&quot;</span>,       <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#ae7cf52b9511975f374f66b292557d4df">brix_qconfig_emit_pio_max</a>       },</div>
+<div class="line">    { <span class="stringliteral">&quot;role&quot;</span>,          <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a1578a57b2e6844dc2313d30e5a8c2d86">brix_qconfig_emit_role</a>          },</div>
+<div class="line">    { <span class="stringliteral">&quot;fattr&quot;</span>,         <a class="code hl_function" href="protocols_2root_2query_2config_8c.html#a8fa33d0092e04bf116881302a7f68f5a">brix_qconfig_emit_fattr</a>         },</div>
+<div class="line">    { NULL,            NULL                            },</div>
+<div class="line">}</div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a1578a57b2e6844dc2313d30e5a8c2d86"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a1578a57b2e6844dc2313d30e5a8c2d86">brix_qconfig_emit_role</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_role(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00315">config.c:315</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a263c37ec5a8ccbe03ddb9ad5d918d9c7"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a263c37ec5a8ccbe03ddb9ad5d918d9c7">brix_qconfig_emit_bind_max</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_bind_max(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00291">config.c:291</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a3b00589680ec88ba6207ec6601831423"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a3b00589680ec88ba6207ec6601831423">brix_qconfig_emit_version</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_version(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00279">config.c:279</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a3d18f5832c966f5f4021d7d2ec817e8a"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a3d18f5832c966f5f4021d7d2ec817e8a">brix_qconfig_emit_cmpread</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_cmpread(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00227">config.c:227</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a5f10beb36d150a35b8b2830c02750bd3"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a5f10beb36d150a35b8b2830c02750bd3">brix_qconfig_emit_tpcdlg</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_tpcdlg(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00212">config.c:212</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a828d34c6f469a33d58d044b4af962827"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a828d34c6f469a33d58d044b4af962827">brix_qconfig_emit_readv_ior_max</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_readv_ior_max(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00170">config.c:170</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a8568435173537ac7821980d204d0dcd6"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a8568435173537ac7821980d204d0dcd6">brix_qconfig_emit_xrdfs_ext</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_xrdfs_ext(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00265">config.c:265</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a8b9de61be7de7520e6530d1b7e928c0e"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a8b9de61be7de7520e6530d1b7e928c0e">brix_qconfig_emit_readv_iov_max</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_readv_iov_max(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00181">config.c:181</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_a8fa33d0092e04bf116881302a7f68f5a"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#a8fa33d0092e04bf116881302a7f68f5a">brix_qconfig_emit_fattr</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_fattr(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00329">config.c:329</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_aa5e09dbaa96415393f5cdef4c6dc30e2"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#aa5e09dbaa96415393f5cdef4c6dc30e2">brix_qconfig_emit_chksum</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_chksum(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00145">config.c:145</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_ad6d74ebd7204059f9e5336cb26a0d921"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#ad6d74ebd7204059f9e5336cb26a0d921">brix_qconfig_emit_readv</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_readv(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00157">config.c:157</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_ae67ad7c472120e4b92d9746251794951"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#ae67ad7c472120e4b92d9746251794951">brix_qconfig_emit_cmpwrite</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_cmpwrite(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00246">config.c:246</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_ae7cf52b9511975f374f66b292557d4df"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#ae7cf52b9511975f374f66b292557d4df">brix_qconfig_emit_pio_max</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_pio_max(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00303">config.c:303</a></div></div>
+<div class="ttc" id="aprotocols_2root_2query_2config_8c_html_afcf2a6ab34167d41519d6bb698312847"><div class="ttname"><a href="protocols_2root_2query_2config_8c.html#afcf2a6ab34167d41519d6bb698312847">brix_qconfig_emit_tpc</a></div><div class="ttdeci">static ngx_flag_t brix_qconfig_emit_tpc(ngx_stream_brix_srv_conf_t *conf, char *resp, size_t resp_sz, size_t *pos)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2query_2config_8c_source.html#l00199">config.c:199</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00347">347</a> of file <a class="el" href="protocols_2root_2query_2config_8c_source.html">config.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00373">brix_qconfig_emit_key()</a>.</p>
 
 </div>
 </div>

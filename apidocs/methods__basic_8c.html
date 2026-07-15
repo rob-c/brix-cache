@@ -91,7 +91,6 @@ $(document).ready(function(){initNavTree('methods__basic_8c.html',''); initResiz
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">methods_basic.c File Reference</div></div>
 </div><!--header-->
@@ -121,45 +120,17 @@ $(document).ready(function(){initNavTree('methods__basic_8c.html',''); initResiz
 </div>
 <p><a href="methods__basic_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:a4c4564bd1d2fb09dea36aa286d2c0644" id="r_a4c4564bd1d2fb09dea36aa286d2c0644"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#a4c4564bd1d2fb09dea36aa286d2c0644">WEBDAV_PROPPATCH_BODY_MAX</a>&#160;&#160;&#160;65536u</td></tr>
-<tr class="separator:a4c4564bd1d2fb09dea36aa286d2c0644"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a506a4c5a22eeb36efbf6cc9fbc28c1e3" id="r_a506a4c5a22eeb36efbf6cc9fbc28c1e3"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#a506a4c5a22eeb36efbf6cc9fbc28c1e3">webdav_handle_options</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a506a4c5a22eeb36efbf6cc9fbc28c1e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa358f127df616c79dda28669441365c8" id="r_aa358f127df616c79dda28669441365c8"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#aa358f127df616c79dda28669441365c8">webdav_head_emit_metadata</a> (ngx_http_request_t *r, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *sb)</td></tr>
+<tr class="separator:aa358f127df616c79dda28669441365c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa022923f22dfb5cb6e6540f9baa81d20" id="r_aa022923f22dfb5cb6e6540f9baa81d20"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#aa022923f22dfb5cb6e6540f9baa81d20">webdav_head_emit_digest</a> (ngx_http_request_t *r, const char *path, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *sb)</td></tr>
+<tr class="separator:aa022923f22dfb5cb6e6540f9baa81d20"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac06449b2282cc5ccb20913bb891e8b8a" id="r_ac06449b2282cc5ccb20913bb891e8b8a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#ac06449b2282cc5ccb20913bb891e8b8a">webdav_handle_head</a> (ngx_http_request_t *r, int send_body)</td></tr>
 <tr class="separator:ac06449b2282cc5ccb20913bb891e8b8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a38d0c1ee334b7b28dd327ccca1e9853e" id="r_a38d0c1ee334b7b28dd327ccca1e9853e"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#a38d0c1ee334b7b28dd327ccca1e9853e">webdav_proppatch_serialize_dead_prop</a> (ngx_http_request_t *r, xmlNodePtr prop, size_t *out_len)</td></tr>
-<tr class="separator:a38d0c1ee334b7b28dd327ccca1e9853e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a15d64b2474fff88b5b1a63b9a68e3db2" id="r_a15d64b2474fff88b5b1a63b9a68e3db2"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#a15d64b2474fff88b5b1a63b9a68e3db2">webdav_proppatch_append_propstat</a> (ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail, const char *ns, const char *local, const char *status)</td></tr>
-<tr class="separator:a15d64b2474fff88b5b1a63b9a68e3db2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1f76c9fa28d9615d1b49e767f1553133" id="r_a1f76c9fa28d9615d1b49e767f1553133"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#a1f76c9fa28d9615d1b49e767f1553133">webdav_proppatch_do</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a1f76c9fa28d9615d1b49e767f1553133"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a25a8ba151965e1b7f841074b4113a246" id="r_a25a8ba151965e1b7f841074b4113a246"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#a25a8ba151965e1b7f841074b4113a246">webdav_proppatch_body_handler</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a25a8ba151965e1b7f841074b4113a246"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aea54649d15649f0c65041d21e3dafdad" id="r_aea54649d15649f0c65041d21e3dafdad"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="methods__basic_8c.html#aea54649d15649f0c65041d21e3dafdad">webdav_handle_proppatch</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:aea54649d15649f0c65041d21e3dafdad"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a4c4564bd1d2fb09dea36aa286d2c0644" name="a4c4564bd1d2fb09dea36aa286d2c0644"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4c4564bd1d2fb09dea36aa286d2c0644">&#9670;&#160;</a></span>WEBDAV_PROPPATCH_BODY_MAX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define WEBDAV_PROPPATCH_BODY_MAX&#160;&#160;&#160;65536u</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00029">29</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ac06449b2282cc5ccb20913bb891e8b8a" name="ac06449b2282cc5ccb20913bb891e8b8a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ac06449b2282cc5ccb20913bb891e8b8a">&#9670;&#160;</a></span>webdav_handle_head()</h2>
@@ -187,11 +158,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00099">99</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00193">193</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="etag_8h_source.html#l00015">BRIX_ETAG_WEAK</a>, <a class="el" href="http__file__response_8c_source.html#l00100">brix_http_add_etag_header()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open_8c_source.html#l00554">brix_vfs_close()</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__open_8c_source.html#l00579">brix_vfs_file_fd()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00375">brix_vfs_open()</a>, <a class="el" href="webdav_8h_source.html#l00140">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="xrdhttp_8h_source.html#l00060">xrdhttp_req_ctx_t::want_cksum</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>, <a class="el" href="xrdhttp_8c_source.html#l00573">xrdhttp_add_checksum_header()</a>, and <a class="el" href="xrdhttp_8c_source.html#l00051">xrdhttp_get_ctx()</a>.</p>
+<p class="reference">References <a class="el" href="etag_8h_source.html#l00015">BRIX_ETAG_WEAK</a>, <a class="el" href="http__file__response_8c_source.html#l00100">brix_http_add_etag_header()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="methods__basic_8c_source.html#l00151">webdav_head_emit_digest()</a>, <a class="el" href="methods__basic_8c_source.html#l00110">webdav_head_emit_metadata()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, and <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00271">webdav_dispatch_core_method()</a>.</p>
 
 </div>
 </div>
@@ -211,40 +182,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00039">39</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00037">37</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocol__caps_8c_source.html#l00035">brix_http_operation_allow_header()</a>, <a class="el" href="webdav_8h_source.html#l00498">BRIX_WEBDAV_ALLOW_FLAGS</a>, <a class="el" href="webdav_2operation__table_8c_source.html#l00018">brix_webdav_operations</a>, <a class="el" href="webdav_2operation__table_8c_source.html#l00050">brix_webdav_operations_count</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>.</p>
+<p class="reference">References <a class="el" href="protocol__caps_8c_source.html#l00035">brix_http_operation_allow_header()</a>, <a class="el" href="webdav_8h_source.html#l00325">BRIX_WEBDAV_ALLOW_FLAGS</a>, <a class="el" href="webdav_2operation__table_8c_source.html#l00018">brix_webdav_operations</a>, <a class="el" href="webdav_2operation__table_8c_source.html#l00050">brix_webdav_operations_count</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
-
-</div>
-</div>
-<a id="aea54649d15649f0c65041d21e3dafdad" name="aea54649d15649f0c65041d21e3dafdad"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aea54649d15649f0c65041d21e3dafdad">&#9670;&#160;</a></span>webdav_handle_proppatch()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t webdav_handle_proppatch </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00505">505</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00419">brix_http_read_body()</a>, and <a class="el" href="methods__basic_8c_source.html#l00485">webdav_proppatch_body_handler()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00415">webdav_dispatch_inner()</a>.</p>
 
 </div>
 </div>
-<a id="a15d64b2474fff88b5b1a63b9a68e3db2" name="a15d64b2474fff88b5b1a63b9a68e3db2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a15d64b2474fff88b5b1a63b9a68e3db2">&#9670;&#160;</a></span>webdav_proppatch_append_propstat()</h2>
+<a id="aa022923f22dfb5cb6e6540f9baa81d20" name="aa022923f22dfb5cb6e6540f9baa81d20"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa022923f22dfb5cb6e6540f9baa81d20">&#9670;&#160;</a></span>webdav_head_emit_digest()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -253,7 +200,7 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t webdav_proppatch_append_propstat </td>
+          <td class="memname">static void webdav_head_emit_digest </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -261,32 +208,14 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">ngx_chain_t **&#160;</td>
-          <td class="paramname"><em>head</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_chain_t **&#160;</td>
-          <td class="paramname"><em>tail</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
           <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>ns</em>, </td>
+          <td class="paramname"><em>path</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>local</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>status</em>&#160;</td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>sb</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -301,16 +230,16 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00244">244</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00151">151</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, and <a class="el" href="dead__props_8c_source.html#l00275">webdav_dead_prop_append_empty()</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00020">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="xrdhttp_8h_source.html#l00060">xrdhttp_req_ctx_t::want_cksum</a>, <a class="el" href="xrdhttp__tpc_8c_source.html#l00142">xrdhttp_add_checksum_header()</a>, and <a class="el" href="xrdhttp_8c_source.html#l00051">xrdhttp_get_ctx()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00276">webdav_proppatch_do()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00193">webdav_handle_head()</a>.</p>
 
 </div>
 </div>
-<a id="a25a8ba151965e1b7f841074b4113a246" name="a25a8ba151965e1b7f841074b4113a246"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a25a8ba151965e1b7f841074b4113a246">&#9670;&#160;</a></span>webdav_proppatch_body_handler()</h2>
+<a id="aa358f127df616c79dda28669441365c8" name="aa358f127df616c79dda28669441365c8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa358f127df616c79dda28669441365c8">&#9670;&#160;</a></span>webdav_head_emit_metadata()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -319,71 +248,7 @@ Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void webdav_proppatch_body_handler </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00485">485</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
-
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00547">brix_imp_request_begin()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00560">brix_imp_request_end()</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="methods__basic_8c_source.html#l00276">webdav_proppatch_do()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00505">webdav_handle_proppatch()</a>.</p>
-
-</div>
-</div>
-<a id="a1f76c9fa28d9615d1b49e767f1553133" name="a1f76c9fa28d9615d1b49e767f1553133"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1f76c9fa28d9615d1b49e767f1553133">&#9670;&#160;</a></span>webdav_proppatch_do()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t webdav_proppatch_do </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00276">276</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="http__xml_8c_source.html#l00117">brix_http_chain_appendf()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00269">webdav_check_locks()</a>, <a class="el" href="dead__props_8c_source.html#l00261">webdav_dead_prop_is_protected_dav()</a>, <a class="el" href="dead__props_8c_source.html#l00344">webdav_dead_prop_remove()</a>, <a class="el" href="dead__props_8c_source.html#l00314">webdav_dead_prop_set()</a>, <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="methods__basic_8c_source.html#l00244">webdav_proppatch_append_propstat()</a>, <a class="el" href="methods__basic_8c_source.html#l00029">WEBDAV_PROPPATCH_BODY_MAX</a>, <a class="el" href="methods__basic_8c_source.html#l00188">webdav_proppatch_serialize_dead_prop()</a>, and <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00485">webdav_proppatch_body_handler()</a>.</p>
-
-</div>
-</div>
-<a id="a38d0c1ee334b7b28dd327ccca1e9853e" name="a38d0c1ee334b7b28dd327ccca1e9853e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a38d0c1ee334b7b28dd327ccca1e9853e">&#9670;&#160;</a></span>webdav_proppatch_serialize_dead_prop()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static char * webdav_proppatch_serialize_dead_prop </td>
+          <td class="memname">static ngx_int_t webdav_head_emit_metadata </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -391,14 +256,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">xmlNodePtr&#160;</td>
-          <td class="paramname"><em>prop</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>out_len</em>&#160;</td>
+          <td class="paramtype">const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
+          <td class="paramname"><em>sb</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -413,11 +272,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00188">188</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="methods__basic_8c_source.html#l00110">110</a> of file <a class="el" href="methods__basic_8c_source.html">methods_basic.c</a>.</p>
 
-<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, and <a class="el" href="protocols_2webdav_2util_2xml_8c_source.html#l00056">webdav_escape_xml_text()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00276">webdav_proppatch_do()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="methods__basic_8c_source.html#l00193">webdav_handle_head()</a>.</p>
 
 </div>
 </div>

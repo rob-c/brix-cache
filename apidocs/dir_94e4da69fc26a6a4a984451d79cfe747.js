@@ -17,6 +17,8 @@ var dir_94e4da69fc26a6a4a984451d79cfe747 =
     [ "session_unittest.c", "session__unittest_8c.html", "session__unittest_8c" ],
     [ "ssi.c", "ssi_8c.html", "ssi_8c" ],
     [ "ssi.h", "ssi_8h.html", "ssi_8h" ],
+    [ "ssi_dispatch.c", "ssi__dispatch_8c.html", "ssi__dispatch_8c" ],
+    [ "ssi_internal.h", "ssi__internal_8h.html", "ssi__internal_8h" ],
     [ "ssi_reply.c", "ssi__reply_8c.html", "ssi__reply_8c" ],
     [ "ssi_reply.h", "ssi__reply_8h.html", "ssi__reply_8h" ],
     [ "ssi_reply_unittest.c", "ssi__reply__unittest_8c.html", "ssi__reply__unittest_8c" ],

@@ -91,31 +91,77 @@ $(document).ready(function(){initNavTree('kxr__names_8c.html',''); initResizable
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a>  </div>
+<a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">kxr_names.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><code>#include &quot;<a class="el" href="kxr__names_8h_source.html">kxr_names.h</a>&quot;</code><br />
+<div class="textblock"><code>#include &lt;stddef.h&gt;</code><br />
+<code>#include &quot;<a class="el" href="kxr__names_8h_source.html">kxr_names.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="opcodes_8h_source.html">protocols/root/protocol/opcodes.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for kxr_names.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="kxr__names_8c__incl.svg" width="312" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><iframe scrolling="no" frameborder="0" src="kxr__names_8c__incl.svg" width="411" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div>
 <p><a href="kxr__names_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:a0348957f68efee21214931576e0a84eb" id="r_a0348957f68efee21214931576e0a84eb"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kxr__names_8c.html#a0348957f68efee21214931576e0a84eb">KXR_TABLE_N</a>(t)&#160;&#160;&#160;(sizeof(t) / sizeof((t)[0]))</td></tr>
+<tr class="separator:a0348957f68efee21214931576e0a84eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:aad950f28edeee65a2957e158c38e1cbe" id="r_aad950f28edeee65a2957e158c38e1cbe"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kxr__names_8c.html#aad950f28edeee65a2957e158c38e1cbe">kxr_lookup</a> (const <a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a> *table, size_t n, int <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, const char *fallback)</td></tr>
+<tr class="separator:aad950f28edeee65a2957e158c38e1cbe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad0364f983c404c5cc8bf8247fcdc97c1" id="r_ad0364f983c404c5cc8bf8247fcdc97c1"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kxr__names_8c.html#ad0364f983c404c5cc8bf8247fcdc97c1">brix_kxr_request_name</a> (int reqid)</td></tr>
 <tr class="separator:ad0364f983c404c5cc8bf8247fcdc97c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad9102de061eb293a4a89edf049ce7bb3" id="r_ad9102de061eb293a4a89edf049ce7bb3"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kxr__names_8c.html#ad9102de061eb293a4a89edf049ce7bb3">brix_kxr_response_status_name</a> (int status)</td></tr>
 <tr class="separator:ad9102de061eb293a4a89edf049ce7bb3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0d142e78905a2748a5638bc198700b50" id="r_a0d142e78905a2748a5638bc198700b50"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kxr__names_8c.html#a0d142e78905a2748a5638bc198700b50">brix_kxr_error_name</a> (int kxr)</td></tr>
 <tr class="separator:a0d142e78905a2748a5638bc198700b50"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a58549614954e0cf86a086de233c1989d" id="r_a58549614954e0cf86a086de233c1989d"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kxr__names_8c.html#a58549614954e0cf86a086de233c1989d">kxr_request_names</a> []</td></tr>
+<tr class="separator:a58549614954e0cf86a086de233c1989d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac3637001f237831f74bf04e9794a368e" id="r_ac3637001f237831f74bf04e9794a368e"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kxr__names_8c.html#ac3637001f237831f74bf04e9794a368e">kxr_response_status_names</a> []</td></tr>
+<tr class="separator:ac3637001f237831f74bf04e9794a368e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a194b55b35e45a65a597a8a1172053fdf" id="r_a194b55b35e45a65a597a8a1172053fdf"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="kxr__names_8c.html#a194b55b35e45a65a597a8a1172053fdf">kxr_error_names</a> []</td></tr>
+<tr class="separator:a194b55b35e45a65a597a8a1172053fdf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a0348957f68efee21214931576e0a84eb" name="a0348957f68efee21214931576e0a84eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0348957f68efee21214931576e0a84eb">&#9670;&#160;</a></span>KXR_TABLE_N</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define KXR_TABLE_N</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">t</td><td>)</td>
+          <td>&#160;&#160;&#160;(sizeof(t) / sizeof((t)[0]))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00128">128</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a0d142e78905a2748a5638bc198700b50" name="a0d142e78905a2748a5638bc198700b50"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a0d142e78905a2748a5638bc198700b50">&#9670;&#160;</a></span>brix_kxr_error_name()</h2>
@@ -133,9 +179,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00070">70</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00146">146</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
 
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00170">kXR_AttrNotFound</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00163">kXR_Cancelled</a>, <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>, <a class="el" href="opcodes_8h_source.html#l00174">kXR_Conflict</a>, <a class="el" href="opcodes_8h_source.html#l00149">kXR_FileLocked</a>, <a class="el" href="opcodes_8h_source.html#l00150">kXR_FileNotOpen</a>, <a class="el" href="opcodes_8h_source.html#l00151">kXR_FSError</a>, <a class="el" href="opcodes_8h_source.html#l00169">kXR_fsReadOnly</a>, <a class="el" href="opcodes_8h_source.html#l00173">kXR_Impossible</a>, <a class="el" href="opcodes_8h_source.html#l00166">kXR_inProgress</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00162">kXR_isDirectory</a>, <a class="el" href="opcodes_8h_source.html#l00164">kXR_ItExists</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00160">kXR_noserver</a>, <a class="el" href="opcodes_8h_source.html#l00155">kXR_NoSpace</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00161">kXR_NotFile</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="opcodes_8h_source.html#l00168">kXR_Overloaded</a>, <a class="el" href="opcodes_8h_source.html#l00167">kXR_overQuota</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="opcodes_8h_source.html#l00171">kXR_TLSRequired</a>, <a class="el" href="opcodes_8h_source.html#l00175">kXR_TooManyErrs</a>, and <a class="el" href="opcodes_8h_source.html#l00159">kXR_Unsupported</a>.</p>
+<p class="reference">References <a class="el" href="kxr__names_8c_source.html#l00073">kxr_error_names</a>, <a class="el" href="kxr__names_8c_source.html#l00114">kxr_lookup()</a>, and <a class="el" href="kxr__names_8c_source.html#l00128">KXR_TABLE_N</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00050">brix_kxr_name()</a>.</p>
 
@@ -157,9 +203,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00012">12</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00131">131</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
 
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00045">kXR_auth</a>, <a class="el" href="opcodes_8h_source.html#l00069">kXR_bind</a>, <a class="el" href="opcodes_8h_source.html#l00057">kXR_chkpoint</a>, <a class="el" href="opcodes_8h_source.html#l00047">kXR_chmod</a>, <a class="el" href="opcodes_8h_source.html#l00077">kXR_clone</a>, <a class="el" href="opcodes_8h_source.html#l00048">kXR_close</a>, <a class="el" href="opcodes_8h_source.html#l00049">kXR_dirlist</a>, <a class="el" href="opcodes_8h_source.html#l00068">kXR_endsess</a>, <a class="el" href="opcodes_8h_source.html#l00065">kXR_fattr</a>, <a class="el" href="opcodes_8h_source.html#l00050">kXR_gpfile</a>, <a class="el" href="opcodes_8h_source.html#l00072">kXR_locate</a>, <a class="el" href="opcodes_8h_source.html#l00052">kXR_login</a>, <a class="el" href="opcodes_8h_source.html#l00053">kXR_mkdir</a>, <a class="el" href="opcodes_8h_source.html#l00054">kXR_mv</a>, <a class="el" href="opcodes_8h_source.html#l00055">kXR_open</a>, <a class="el" href="opcodes_8h_source.html#l00075">kXR_pgread</a>, <a class="el" href="opcodes_8h_source.html#l00071">kXR_pgwrite</a>, <a class="el" href="opcodes_8h_source.html#l00056">kXR_ping</a>, <a class="el" href="opcodes_8h_source.html#l00066">kXR_prepare</a>, <a class="el" href="opcodes_8h_source.html#l00051">kXR_protocol</a>, <a class="el" href="opcodes_8h_source.html#l00046">kXR_query</a>, <a class="el" href="opcodes_8h_source.html#l00058">kXR_read</a>, <a class="el" href="opcodes_8h_source.html#l00070">kXR_readv</a>, <a class="el" href="opcodes_8h_source.html#l00059">kXR_rm</a>, <a class="el" href="opcodes_8h_source.html#l00060">kXR_rmdir</a>, <a class="el" href="opcodes_8h_source.html#l00063">kXR_set</a>, <a class="el" href="opcodes_8h_source.html#l00074">kXR_sigver</a>, <a class="el" href="opcodes_8h_source.html#l00062">kXR_stat</a>, <a class="el" href="opcodes_8h_source.html#l00067">kXR_statx</a>, <a class="el" href="opcodes_8h_source.html#l00061">kXR_sync</a>, <a class="el" href="opcodes_8h_source.html#l00073">kXR_truncate</a>, <a class="el" href="opcodes_8h_source.html#l00064">kXR_write</a>, and <a class="el" href="opcodes_8h_source.html#l00076">kXR_writev</a>.</p>
+<p class="reference">References <a class="el" href="kxr__names_8c_source.html#l00114">kxr_lookup()</a>, <a class="el" href="kxr__names_8c_source.html#l00025">kxr_request_names</a>, and <a class="el" href="kxr__names_8c_source.html#l00128">KXR_TABLE_N</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="trace_8c_source.html#l00029">brix_reqid_name()</a>.</p>
 
@@ -181,11 +227,155 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00053">53</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00138">138</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
 
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00109">kXR_attn</a>, <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00108">kXR_oksofar</a>, <a class="el" href="opcodes_8h_source.html#l00112">kXR_redirect</a>, <a class="el" href="opcodes_8h_source.html#l00136">kXR_status</a>, <a class="el" href="opcodes_8h_source.html#l00113">kXR_wait</a>, and <a class="el" href="opcodes_8h_source.html#l00114">kXR_waitresp</a>.</p>
+<p class="reference">References <a class="el" href="kxr__names_8c_source.html#l00114">kxr_lookup()</a>, <a class="el" href="kxr__names_8c_source.html#l00061">kxr_response_status_names</a>, and <a class="el" href="kxr__names_8c_source.html#l00128">KXR_TABLE_N</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="trace_8c_source.html#l00035">brix_status_name()</a>.</p>
+
+</div>
+</div>
+<a id="aad950f28edeee65a2957e158c38e1cbe" name="aad950f28edeee65a2957e158c38e1cbe"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad950f28edeee65a2957e158c38e1cbe">&#9670;&#160;</a></span>kxr_lookup()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const char * kxr_lookup </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>table</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>code</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>fallback</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00114">114</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
+
+<p class="reference">References <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, and <a class="el" href="kxr__names_8c_source.html#l00022">kxr_name_entry_t::name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="kxr__names_8c_source.html#l00146">brix_kxr_error_name()</a>, <a class="el" href="kxr__names_8c_source.html#l00131">brix_kxr_request_name()</a>, and <a class="el" href="kxr__names_8c_source.html#l00138">brix_kxr_response_status_name()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a194b55b35e45a65a597a8a1172053fdf" name="a194b55b35e45a65a597a8a1172053fdf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a194b55b35e45a65a597a8a1172053fdf">&#9670;&#160;</a></span>kxr_error_names</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a> kxr_error_names[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00073">73</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="kxr__names_8c_source.html#l00146">brix_kxr_error_name()</a>.</p>
+
+</div>
+</div>
+<a id="a58549614954e0cf86a086de233c1989d" name="a58549614954e0cf86a086de233c1989d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a58549614954e0cf86a086de233c1989d">&#9670;&#160;</a></span>kxr_request_names</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a> kxr_request_names[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00025">25</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="kxr__names_8c_source.html#l00131">brix_kxr_request_name()</a>.</p>
+
+</div>
+</div>
+<a id="ac3637001f237831f74bf04e9794a368e" name="ac3637001f237831f74bf04e9794a368e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac3637001f237831f74bf04e9794a368e">&#9670;&#160;</a></span>kxr_response_status_names</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structkxr__name__entry__t.html">kxr_name_entry_t</a> kxr_response_status_names[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    {  0  ,       <span class="stringliteral">&quot;ok&quot;</span>       },</div>
+<div class="line">    {  4000  ,  <span class="stringliteral">&quot;oksofar&quot;</span>  },</div>
+<div class="line">    {  4001  ,     <span class="stringliteral">&quot;attn&quot;</span>     },</div>
+<div class="line">    {  4002  , <span class="stringliteral">&quot;authmore&quot;</span> },</div>
+<div class="line">    {  4003  ,    <span class="stringliteral">&quot;error&quot;</span>    },</div>
+<div class="line">    {  4004  , <span class="stringliteral">&quot;redirect&quot;</span> },</div>
+<div class="line">    {  4005  ,     <span class="stringliteral">&quot;wait&quot;</span>     },</div>
+<div class="line">    {  4006  , <span class="stringliteral">&quot;waitresp&quot;</span> },</div>
+<div class="line">    {  4007  ,   <span class="stringliteral">&quot;status&quot;</span>   },</div>
+<div class="line">}</div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="kxr__names_8c_source.html#l00061">61</a> of file <a class="el" href="kxr__names_8c_source.html">kxr_names.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="kxr__names_8c_source.html#l00138">brix_kxr_response_status_name()</a>.</p>
 
 </div>
 </div>

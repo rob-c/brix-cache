@@ -1,0 +1,9 @@
+<map id="pblock_state_t" name="pblock_state_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="23,269,141,295"/>
+<area shape="rect" id="Node000002" href="$structpblock__catalog.html" title=" " alt="" coords="22,181,142,207"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="85,221,85,269,79,269,79,221"/>
+<area shape="rect" id="Node000003" href="$structpblock__nscache__ent.html" title=" " alt="" coords="5,93,159,119"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="85,133,85,181,79,181,79,133"/>
+<area shape="rect" id="Node000004" href="$structpblock__meta.html" title=" " alt="" coords="29,5,135,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="85,45,85,93,79,93,79,45"/>
+</map>

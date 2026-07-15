@@ -127,7 +127,7 @@ $(document).ready(function(){initNavTree('tagging_8c.html',''); initResizable();
 Macros</h2></td></tr>
 <tr class="memitem:a02e78305884f0333ec8780cd2933080e" id="r_a02e78305884f0333ec8780cd2933080e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#a02e78305884f0333ec8780cd2933080e">S3_TAG_XATTR</a>&#160;&#160;&#160;&quot;user.s3.tagging&quot;</td></tr>
 <tr class="separator:a02e78305884f0333ec8780cd2933080e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8eade7225e59ef20cbd0a0c95ce82c2c" id="r_a8eade7225e59ef20cbd0a0c95ce82c2c"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#a8eade7225e59ef20cbd0a0c95ce82c2c">S3_TAG_MAX</a>&#160;&#160;&#160;4096   /* AWS: &lt;=10 tags, <a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>&lt;=128, value&lt;=256 */</td></tr>
+<tr class="memitem:a8eade7225e59ef20cbd0a0c95ce82c2c" id="r_a8eade7225e59ef20cbd0a0c95ce82c2c"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#a8eade7225e59ef20cbd0a0c95ce82c2c">S3_TAG_MAX</a>&#160;&#160;&#160;4096   /* AWS: &lt;=10 tags, <a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>&lt;=128, value&lt;=256 */</td></tr>
 <tr class="separator:a8eade7225e59ef20cbd0a0c95ce82c2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aef8c22622a9715635cd9a58d4729c6ea" id="r_aef8c22622a9715635cd9a58d4729c6ea"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#aef8c22622a9715635cd9a58d4729c6ea">S3_TAG_XML_MAX</a>&#160;&#160;&#160;8192</td></tr>
 <tr class="separator:aef8c22622a9715635cd9a58d4729c6ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -148,6 +148,14 @@ Functions</h2></td></tr>
 <tr class="separator:a2b9d438670f3e64c06800a979ba99b8f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0501910b2f70bb8e0195e3bc5bb1ae0f" id="r_a0501910b2f70bb8e0195e3bc5bb1ae0f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#a0501910b2f70bb8e0195e3bc5bb1ae0f">s3_apply_put_tagging_header</a> (ngx_http_request_t *r, const char *fs_path, const char *root_canon)</td></tr>
 <tr class="separator:a0501910b2f70bb8e0195e3bc5bb1ae0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a63fd5e8fddc1c58684c9e65cebf7393f" id="r_a63fd5e8fddc1c58684c9e65cebf7393f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#a63fd5e8fddc1c58684c9e65cebf7393f">s3_xml_node_is</a> (const xmlNode *node, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="separator:a63fd5e8fddc1c58684c9e65cebf7393f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa8279623bd5c0b631b2aecc0e723d510" id="r_aa8279623bd5c0b631b2aecc0e723d510"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#aa8279623bd5c0b631b2aecc0e723d510">s3_tag_append_pair</a> (char *out, size_t outsz, size_t *pos, const xmlChar *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const xmlChar *val)</td></tr>
+<tr class="separator:aa8279623bd5c0b631b2aecc0e723d510"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7e7522972d8201b2616904bf92f71bb4" id="r_a7e7522972d8201b2616904bf92f71bb4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#a7e7522972d8201b2616904bf92f71bb4">s3_tag_emit_one</a> (const xmlNode *tag, char *out, size_t outsz, size_t *pos)</td></tr>
+<tr class="separator:a7e7522972d8201b2616904bf92f71bb4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adfa474d76e6d640ee5e9db782424e4f7" id="r_adfa474d76e6d640ee5e9db782424e4f7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#adfa474d76e6d640ee5e9db782424e4f7">s3_tag_walk_tagsets</a> (const xmlNode *root, char *out, size_t outsz, size_t *pos)</td></tr>
+<tr class="separator:adfa474d76e6d640ee5e9db782424e4f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a01f722cfc7f5599e075463eea3484f1e" id="r_a01f722cfc7f5599e075463eea3484f1e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#a01f722cfc7f5599e075463eea3484f1e">s3_tag_blob_from_xml</a> (ngx_http_request_t *r, const u_char *body, size_t len, char *out, size_t outsz, size_t *out_len)</td></tr>
 <tr class="separator:a01f722cfc7f5599e075463eea3484f1e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a55743444479a64ef11d6fd3ab2927ed3" id="r_a55743444479a64ef11d6fd3ab2927ed3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8c.html#a55743444479a64ef11d6fd3ab2927ed3">s3_put_object_tagging_body_handler</a> (ngx_http_request_t *r)</td></tr>
@@ -169,7 +177,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define S3_TAG_MAX&#160;&#160;&#160;4096   /* AWS: &lt;=10 tags, <a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>&lt;=128, value&lt;=256 */</td>
+          <td class="memname">#define S3_TAG_MAX&#160;&#160;&#160;4096   /* AWS: &lt;=10 tags, <a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>&lt;=128, value&lt;=256 */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -243,11 +251,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00245">245</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00249">249</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="tagging_8c_source.html#l00137">s3_tag_blob_valid()</a>, and <a class="el" href="tagging_8c_source.html#l00101">s3_tag_store()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="tagging_8c_source.html#l00141">s3_tag_blob_valid()</a>, and <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, and <a class="el" href="s3_2put_8c_source.html#l00262">s3_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>.</p>
 
 </div>
 </div>
@@ -283,11 +291,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00229">229</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00233">233</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="s3_2util_8c_source.html#l00142">s3_fail()</a>, and <a class="el" href="tagging_8c_source.html#l00101">s3_tag_store()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="s3_2util_8c_source.html#l00186">s3_fail()</a>, and <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00182">s3_dispatch_object_delete()</a>.</p>
 
 </div>
 </div>
@@ -317,11 +325,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00424">424</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00501">501</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="s3_8h_source.html#l00186">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00196">XML_APPEND_ELEM</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00205">XML_APPEND_ELEM</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00231">s3_dispatch_bucket_get()</a>, and <a class="el" href="handler__object__route_8c_source.html#l00058">s3_dispatch_object_get()</a>.</p>
 
 </div>
 </div>
@@ -341,11 +349,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00414">414</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00491">491</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tagging_8c_source.html#l00399">s3_send_xml_literal()</a>.</p>
+<p class="reference">References <a class="el" href="tagging_8c_source.html#l00476">s3_send_xml_literal()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00231">s3_dispatch_bucket_get()</a>.</p>
 
 </div>
 </div>
@@ -365,11 +373,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00470">470</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00547">547</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_2util_8c_source.html#l00122">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00231">s3_dispatch_bucket_get()</a>.</p>
 
 </div>
 </div>
@@ -405,11 +413,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00154">154</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00158">158</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00027">BRIX_URLDECODE_PLUS_TO_SPACE</a>, <a class="el" href="s3_2util_8c_source.html#l00142">s3_fail()</a>, <a class="el" href="tagging_8c_source.html#l00073">s3_tag_load()</a>, <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>, <a class="el" href="tagging_8c_source.html#l00042">S3_TAG_XML_MAX</a>, <a class="el" href="s3_8h_source.html#l00186">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00196">XML_APPEND_ELEM</a>.</p>
+<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00027">BRIX_URLDECODE_PLUS_TO_SPACE</a>, <a class="el" href="s3_2util_8c_source.html#l00186">s3_fail()</a>, <a class="el" href="tagging_8c_source.html#l00073">s3_tag_load()</a>, <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>, <a class="el" href="tagging_8c_source.html#l00042">S3_TAG_XML_MAX</a>, <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00205">XML_APPEND_ELEM</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00058">s3_dispatch_object_get()</a>.</p>
 
 </div>
 </div>
@@ -429,11 +437,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00347">347</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00424">424</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="s3_8h_source.html#l00120">ngx_http_s3_req_ctx_t::fs_path</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="s3_2util_8c_source.html#l00122">s3_send_xml_error()</a>, <a class="el" href="tagging_8c_source.html#l00272">s3_tag_blob_from_xml()</a>, <a class="el" href="tagging_8c_source.html#l00137">s3_tag_blob_valid()</a>, <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>, <a class="el" href="tagging_8c_source.html#l00101">s3_tag_store()</a>, and <a class="el" href="tagging_8c_source.html#l00042">S3_TAG_XML_MAX</a>.</p>
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00365">brix_http_body_read_all()</a>, <a class="el" href="s3_8h_source.html#l00120">ngx_http_s3_req_ctx_t::fs_path</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>, <a class="el" href="tagging_8c_source.html#l00390">s3_tag_blob_from_xml()</a>, <a class="el" href="tagging_8c_source.html#l00141">s3_tag_blob_valid()</a>, <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>, <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>, and <a class="el" href="tagging_8c_source.html#l00042">S3_TAG_XML_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00146">s3_dispatch_object_put()</a>.</p>
 
 </div>
 </div>
@@ -471,11 +479,71 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00399">399</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00476">476</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
 <p class="reference">References <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00414">s3_handle_get_bucket_versioning()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00491">s3_handle_get_bucket_versioning()</a>.</p>
+
+</div>
+</div>
+<a id="aa8279623bd5c0b631b2aecc0e723d510" name="aa8279623bd5c0b631b2aecc0e723d510"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa8279623bd5c0b631b2aecc0e723d510">&#9670;&#160;</a></span>s3_tag_append_pair()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void s3_tag_append_pair </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const xmlChar *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const xmlChar *&#160;</td>
+          <td class="paramname"><em>val</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00300">300</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+
+<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00329">s3_tag_emit_one()</a>.</p>
 
 </div>
 </div>
@@ -537,11 +605,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00272">272</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00390">390</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="tagging_8c_source.html#l00361">s3_tag_walk_tagsets()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00347">s3_put_object_tagging_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00424">s3_put_object_tagging_body_handler()</a>.</p>
 
 </div>
 </div>
@@ -579,11 +647,65 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00137">137</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00141">141</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00245">s3_apply_put_tagging_header()</a>, and <a class="el" href="tagging_8c_source.html#l00347">s3_put_object_tagging_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, and <a class="el" href="tagging_8c_source.html#l00424">s3_put_object_tagging_body_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a7e7522972d8201b2616904bf92f71bb4" name="a7e7522972d8201b2616904bf92f71bb4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7e7522972d8201b2616904bf92f71bb4">&#9670;&#160;</a></span>s3_tag_emit_one()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void s3_tag_emit_one </td>
+          <td>(</td>
+          <td class="paramtype">const xmlNode *&#160;</td>
+          <td class="paramname"><em>tag</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00329">329</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="tagging_8c_source.html#l00300">s3_tag_append_pair()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00361">s3_tag_walk_tagsets()</a>.</p>
 
 </div>
 </div>
@@ -643,7 +765,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="tagging_8c_source.html#l00053">s3_tag_vfs_ctx()</a>, and <a class="el" href="tagging_8c_source.html#l00040">S3_TAG_XATTR</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00154">s3_handle_get_object_tagging()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00158">s3_handle_get_object_tagging()</a>.</p>
 
 </div>
 </div>
@@ -705,11 +827,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00101">101</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00105">105</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00159">brix_vfs_removexattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00113">brix_vfs_setxattr()</a>, <a class="el" href="tagging_8c_source.html#l00053">s3_tag_vfs_ctx()</a>, and <a class="el" href="tagging_8c_source.html#l00040">S3_TAG_XATTR</a>.</p>
+<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>, <a class="el" href="tagging_8c_source.html#l00053">s3_tag_vfs_ctx()</a>, and <a class="el" href="tagging_8c_source.html#l00040">S3_TAG_XATTR</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00245">s3_apply_put_tagging_header()</a>, <a class="el" href="tagging_8c_source.html#l00229">s3_handle_delete_object_tagging()</a>, and <a class="el" href="tagging_8c_source.html#l00347">s3_put_object_tagging_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, <a class="el" href="tagging_8c_source.html#l00233">s3_handle_delete_object_tagging()</a>, and <a class="el" href="tagging_8c_source.html#l00424">s3_put_object_tagging_body_handler()</a>.</p>
 
 </div>
 </div>
@@ -761,9 +883,105 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00053">53</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::cache_root_canon</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00073">s3_tag_load()</a>, and <a class="el" href="tagging_8c_source.html#l00101">s3_tag_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00073">s3_tag_load()</a>, and <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>.</p>
+
+</div>
+</div>
+<a id="adfa474d76e6d640ee5e9db782424e4f7" name="adfa474d76e6d640ee5e9db782424e4f7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adfa474d76e6d640ee5e9db782424e4f7">&#9670;&#160;</a></span>s3_tag_walk_tagsets()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void s3_tag_walk_tagsets </td>
+          <td>(</td>
+          <td class="paramtype">const xmlNode *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00361">361</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tagging_8c_source.html#l00329">s3_tag_emit_one()</a>, and <a class="el" href="tagging_8c_source.html#l00281">s3_xml_node_is()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00390">s3_tag_blob_from_xml()</a>.</p>
+
+</div>
+</div>
+<a id="a63fd5e8fddc1c58684c9e65cebf7393f" name="a63fd5e8fddc1c58684c9e65cebf7393f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a63fd5e8fddc1c58684c9e65cebf7393f">&#9670;&#160;</a></span>s3_xml_node_is()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int s3_xml_node_is </td>
+          <td>(</td>
+          <td class="paramtype">const xmlNode *&#160;</td>
+          <td class="paramname"><em>node</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00281">281</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tagging_8c_source.html#l00361">s3_tag_walk_tagsets()</a>.</p>
 
 </div>
 </div>

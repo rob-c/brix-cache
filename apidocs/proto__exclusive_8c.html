@@ -100,6 +100,7 @@ $(document).ready(function(){initNavTree('proto__exclusive_8c.html',''); initRes
 <code>#include &lt;ngx_core.h&gt;</code><br />
 <code>#include &lt;ngx_http.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="proto__exclusive_8h_source.html">protocols/shared/proto_exclusive.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="shared_2protocol_8h_source.html">protocols/shared/protocol.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="webdav_8h_source.html">protocols/webdav/webdav.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="s3_8h_source.html">protocols/s3/s3.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cvmfs_8h_source.html">protocols/cvmfs/cvmfs.h</a>&quot;</code><br />
@@ -117,12 +118,6 @@ $(document).ready(function(){initNavTree('proto__exclusive_8c.html',''); initRes
 Macros</h2></td></tr>
 <tr class="memitem:a4de35a125e0ee7b2cd79b05253459750" id="r_a4de35a125e0ee7b2cd79b05253459750"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="proto__exclusive_8c.html#a4de35a125e0ee7b2cd79b05253459750">BRIX_PROTO_NONE</a>&#160;&#160;&#160;0u</td></tr>
 <tr class="separator:a4de35a125e0ee7b2cd79b05253459750"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab609d36a2917ecfd636ec708eddbfa40" id="r_ab609d36a2917ecfd636ec708eddbfa40"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="proto__exclusive_8c.html#ab609d36a2917ecfd636ec708eddbfa40">BRIX_PROTO_WEBDAV</a>&#160;&#160;&#160;(1u &lt;&lt; 0)</td></tr>
-<tr class="separator:ab609d36a2917ecfd636ec708eddbfa40"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a138cbce8830bf2e35d151dbd66043d5a" id="r_a138cbce8830bf2e35d151dbd66043d5a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="proto__exclusive_8c.html#a138cbce8830bf2e35d151dbd66043d5a">BRIX_PROTO_S3</a>&#160;&#160;&#160;(1u &lt;&lt; 1)</td></tr>
-<tr class="separator:a138cbce8830bf2e35d151dbd66043d5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac7975f9b7c3a958c835c520270561e96" id="r_ac7975f9b7c3a958c835c520270561e96"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="proto__exclusive_8c.html#ac7975f9b7c3a958c835c520270561e96">BRIX_PROTO_CVMFS</a>&#160;&#160;&#160;(1u &lt;&lt; 2)</td></tr>
-<tr class="separator:ac7975f9b7c3a958c835c520270561e96"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -144,22 +139,6 @@ Functions</h2></td></tr>
 <tr class="separator:a477bd3902224b11dde60b703ed05752f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ac7975f9b7c3a958c835c520270561e96" name="ac7975f9b7c3a958c835c520270561e96"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac7975f9b7c3a958c835c520270561e96">&#9670;&#160;</a></span>BRIX_PROTO_CVMFS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_PROTO_CVMFS&#160;&#160;&#160;(1u &lt;&lt; 2)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00040">40</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
-
-</div>
-</div>
 <a id="a4de35a125e0ee7b2cd79b05253459750" name="a4de35a125e0ee7b2cd79b05253459750"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a4de35a125e0ee7b2cd79b05253459750">&#9670;&#160;</a></span>BRIX_PROTO_NONE</h2>
 
@@ -168,38 +147,6 @@ Functions</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">#define BRIX_PROTO_NONE&#160;&#160;&#160;0u</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00037">37</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
-
-</div>
-</div>
-<a id="a138cbce8830bf2e35d151dbd66043d5a" name="a138cbce8830bf2e35d151dbd66043d5a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a138cbce8830bf2e35d151dbd66043d5a">&#9670;&#160;</a></span>BRIX_PROTO_S3</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_PROTO_S3&#160;&#160;&#160;(1u &lt;&lt; 1)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00039">39</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
-
-</div>
-</div>
-<a id="ab609d36a2917ecfd636ec708eddbfa40" name="ab609d36a2917ecfd636ec708eddbfa40"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab609d36a2917ecfd636ec708eddbfa40">&#9670;&#160;</a></span>BRIX_PROTO_WEBDAV</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_PROTO_WEBDAV&#160;&#160;&#160;(1u &lt;&lt; 0)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -225,11 +172,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00271">271</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00267">267</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00050">brix_proto_name()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00037">BRIX_PROTO_NONE</a>, <a class="el" href="proto__exclusive_8c_source.html#l00232">brix_proto_server_mask()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00051">brix_proto_name()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_NONE</a>, <a class="el" href="proto__exclusive_8c_source.html#l00228">brix_proto_server_mask()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00019">ngx_http_brix_webdav_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfig_8c_source.html#l00280">ngx_http_brix_webdav_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -279,11 +226,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00103">103</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00099">99</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00070">brix_proto_mask()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00073">brix_proto_mask()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00232">brix_proto_server_mask()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00195">brix_proto_walk_location()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00228">brix_proto_server_mask()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00191">brix_proto_walk_location()</a>.</p>
 
 </div>
 </div>
@@ -311,11 +258,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00070">70</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00073">73</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00040">BRIX_PROTO_CVMFS</a>, <a class="el" href="proto__exclusive_8c_source.html#l00037">BRIX_PROTO_NONE</a>, <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00869">ngx_http_brix_cvmfs_module</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="shared_2protocol_8h_source.html#l00023">BRIX_PROTO_FAMILY_HTTP</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_NONE</a>, <a class="el" href="shared_2protocol_8c_source.html#l00093">brix_protocol_at()</a>, <a class="el" href="shared_2protocol_8c_source.html#l00087">brix_protocol_count_get()</a>, <a class="el" href="shared_2protocol_8h_source.html#l00028">brix_protocol_t::family</a>, and <a class="el" href="shared_2protocol_8h_source.html#l00033">brix_protocol_t::loc_enabled</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00103">brix_proto_add_level()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00099">brix_proto_add_level()</a>.</p>
 
 </div>
 </div>
@@ -343,11 +290,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00050">50</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00051">51</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00039">BRIX_PROTO_S3</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>.</p>
+<p class="reference">References <a class="el" href="shared_2protocol_8c_source.html#l00093">brix_protocol_at()</a>, <a class="el" href="shared_2protocol_8c_source.html#l00087">brix_protocol_count_get()</a>, <a class="el" href="shared_2protocol_8h_source.html#l00029">brix_protocol_t::directive</a>, and <a class="el" href="shared_2protocol_8h_source.html#l00027">brix_protocol_t::name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00271">brix_http_proto_exclusive_check()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00267">brix_http_proto_exclusive_check()</a>.</p>
 
 </div>
 </div>
@@ -391,11 +338,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00232">232</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00228">228</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00103">brix_proto_add_level()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00132">brix_proto_walk_loc_array()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00158">brix_proto_walk_tree()</a>.</p>
+<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00099">brix_proto_add_level()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00128">brix_proto_walk_loc_array()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00154">brix_proto_walk_tree()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00271">brix_http_proto_exclusive_check()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00267">brix_http_proto_exclusive_check()</a>.</p>
 
 </div>
 </div>
@@ -439,11 +386,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00132">132</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00128">128</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00195">brix_proto_walk_location()</a>.</p>
+<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00191">brix_proto_walk_location()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00232">brix_proto_server_mask()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00195">brix_proto_walk_location()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00228">brix_proto_server_mask()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00191">brix_proto_walk_location()</a>.</p>
 
 </div>
 </div>
@@ -487,11 +434,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00195">195</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00191">191</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00103">brix_proto_add_level()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00132">brix_proto_walk_loc_array()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00158">brix_proto_walk_tree()</a>.</p>
+<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00099">brix_proto_add_level()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00128">brix_proto_walk_loc_array()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00154">brix_proto_walk_tree()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00132">brix_proto_walk_loc_array()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00158">brix_proto_walk_tree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00128">brix_proto_walk_loc_array()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00154">brix_proto_walk_tree()</a>.</p>
 
 </div>
 </div>
@@ -535,11 +482,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00158">158</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proto__exclusive_8c_source.html#l00154">154</a> of file <a class="el" href="proto__exclusive_8c_source.html">proto_exclusive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00195">brix_proto_walk_location()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00158">brix_proto_walk_tree()</a>.</p>
+<p class="reference">References <a class="el" href="proto__exclusive_8c_source.html#l00191">brix_proto_walk_location()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00154">brix_proto_walk_tree()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00232">brix_proto_server_mask()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00195">brix_proto_walk_location()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00158">brix_proto_walk_tree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proto__exclusive_8c_source.html#l00228">brix_proto_server_mask()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00191">brix_proto_walk_location()</a>, and <a class="el" href="proto__exclusive_8c_source.html#l00154">brix_proto_walk_tree()</a>.</p>
 
 </div>
 </div>

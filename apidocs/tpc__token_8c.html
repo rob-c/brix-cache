@@ -97,6 +97,7 @@ $(document).ready(function(){initNavTree('tpc__token_8c.html',''); initResizable
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="tpc__internal_8h_source.html">tpc/engine/tpc_internal.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="tpc__token__internal_8h_source.html">tpc/outbound/tpc_token_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="auth_2token_2file_8h_source.html">auth/token/file.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="oauth2_8h_source.html">auth/token/oauth2.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="subprocess_8h_source.html">core/compat/subprocess.h</a>&quot;</code><br />
@@ -128,16 +129,22 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a5ad9e0f1aefc8751b4ab5a22bab4f25d" id="r_a5ad9e0f1aefc8751b4ab5a22bab4f25d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a5ad9e0f1aefc8751b4ab5a22bab4f25d">tpc_trim_trailing</a> (char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:a5ad9e0f1aefc8751b4ab5a22bab4f25d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9904a0a5e2ae516aca7a367c61d2b128" id="r_a9904a0a5e2ae516aca7a367c61d2b128"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a9904a0a5e2ae516aca7a367c61d2b128">tpc_token_parse_access_token</a> (const char *json, char *out, size_t out_sz)</td></tr>
-<tr class="separator:a9904a0a5e2ae516aca7a367c61d2b128"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6cdc72a5706196d31115ace751c456c8" id="r_a6cdc72a5706196d31115ace751c456c8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a6cdc72a5706196d31115ace751c456c8">tpc_token_parse_access_token</a> (const char *json, char *out, size_t out_sz)</td></tr>
+<tr class="separator:a6cdc72a5706196d31115ace751c456c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a10abb506923f2e9ac69807999aa7cd32" id="r_a10abb506923f2e9ac69807999aa7cd32"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a10abb506923f2e9ac69807999aa7cd32">tpc_token_validate_delegated</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t)</td></tr>
 <tr class="separator:a10abb506923f2e9ac69807999aa7cd32"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3b1a59b966343d22f4d47c15ef60a8f1" id="r_a3b1a59b966343d22f4d47c15ef60a8f1"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a3b1a59b966343d22f4d47c15ef60a8f1">resolve_oidc_token_binary</a> (void)</td></tr>
 <tr class="separator:a3b1a59b966343d22f4d47c15ef60a8f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa16f6fb8638c1c340c5a01e6d1dd4c9c" id="r_aa16f6fb8638c1c340c5a01e6d1dd4c9c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#aa16f6fb8638c1c340c5a01e6d1dd4c9c">tpc_oidc_exec_fallback</a> (const char *sock_env)</td></tr>
+<tr class="separator:aa16f6fb8638c1c340c5a01e6d1dd4c9c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adfeb0d919743a85408cfb3f20f81c7af" id="r_adfeb0d919743a85408cfb3f20f81c7af"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#adfeb0d919743a85408cfb3f20f81c7af">tpc_oidc_child_run</a> (int *pipefd)</td></tr>
+<tr class="separator:adfeb0d919743a85408cfb3f20f81c7af"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1e089ced43d773d6c6d755dbaa3c5772" id="r_a1e089ced43d773d6c6d755dbaa3c5772"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a1e089ced43d773d6c6d755dbaa3c5772">tpc_oidc_read_all</a> (int fd, char *buf, size_t bufsz)</td></tr>
+<tr class="separator:a1e089ced43d773d6c6d755dbaa3c5772"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0bf229964c287b7554ca76e217cf6425" id="r_a0bf229964c287b7554ca76e217cf6425"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a0bf229964c287b7554ca76e217cf6425">tpc_oidc_extract_token</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, const char *buf, char *token_out, size_t token_out_sz)</td></tr>
+<tr class="separator:a0bf229964c287b7554ca76e217cf6425"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a75bf84e1ba7b41eaa395e307e4f44e46" id="r_a75bf84e1ba7b41eaa395e307e4f44e46"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a75bf84e1ba7b41eaa395e307e4f44e46">tpc_token_oidc_agent</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, char *token_out, size_t token_out_sz)</td></tr>
 <tr class="separator:a75bf84e1ba7b41eaa395e307e4f44e46"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4e867fe9853ee8651ec9bf730d99ee20" id="r_a4e867fe9853ee8651ec9bf730d99ee20"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#a4e867fe9853ee8651ec9bf730d99ee20">tpc_token_rfc8693</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, char *token_out, size_t token_out_sz)</td></tr>
-<tr class="separator:a4e867fe9853ee8651ec9bf730d99ee20"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae2561119da9fb90eea5825cbe214d146" id="r_ae2561119da9fb90eea5825cbe214d146"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc__token_8c.html#ae2561119da9fb90eea5825cbe214d146">tpc_fetch_delegated_token</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t)</td></tr>
 <tr class="separator:ae2561119da9fb90eea5825cbe214d146"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -154,7 +161,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00033">33</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00034">34</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
 
 </div>
 </div>
@@ -170,7 +177,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00032">32</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00033">33</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
 
 </div>
 </div>
@@ -199,11 +206,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00123">123</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00124">124</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00146">tpc_token_oidc_agent()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00155">tpc_oidc_exec_fallback()</a>.</p>
 
 </div>
 </div>
@@ -223,11 +230,177 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00439">439</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00346">346</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00109">brix_tpc_pull_t::delegated_token</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="tpc__internal_8h_source.html#l00108">brix_tpc_pull_t::token_mode</a>, <a class="el" href="types_2config_8h_source.html#l00398">ngx_stream_brix_srv_conf_t::tpc_outbound_token_endpoint</a>, <a class="el" href="tpc__token_8c_source.html#l00146">tpc_token_oidc_agent()</a>, <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>, <a class="el" href="tpc__token_8c_source.html#l00087">tpc_token_validate_delegated()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00117">brix_tpc_pull_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00111">brix_tpc_pull_t::delegated_token</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="tpc__internal_8h_source.html#l00108">brix_tpc_pull_t::token_mode</a>, <a class="el" href="tpc__token_8c_source.html#l00291">tpc_token_oidc_agent()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00220">tpc_token_rfc8693()</a>, <a class="el" href="tpc__token_8c_source.html#l00088">tpc_token_validate_delegated()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00167">tpc_bootstrap_login()</a>.</p>
+
+</div>
+</div>
+<a id="adfeb0d919743a85408cfb3f20f81c7af" name="adfeb0d919743a85408cfb3f20f81c7af"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adfeb0d919743a85408cfb3f20f81c7af">&#9670;&#160;</a></span>tpc_oidc_child_run()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tpc_oidc_child_run </td>
+          <td>(</td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>pipefd</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00196">196</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__token_8c_source.html#l00155">tpc_oidc_exec_fallback()</a>, and <a class="el" href="tpc__token_8c_source.html#l00034">TPC_TOKEN_HELPER_PATH</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00291">tpc_token_oidc_agent()</a>.</p>
+
+</div>
+</div>
+<a id="aa16f6fb8638c1c340c5a01e6d1dd4c9c" name="aa16f6fb8638c1c340c5a01e6d1dd4c9c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa16f6fb8638c1c340c5a01e6d1dd4c9c">&#9670;&#160;</a></span>tpc_oidc_exec_fallback()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void tpc_oidc_exec_fallback </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sock_env</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00155">155</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tpc__token_8c_source.html#l00124">resolve_oidc_token_binary()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00196">tpc_oidc_child_run()</a>.</p>
+
+</div>
+</div>
+<a id="a0bf229964c287b7554ca76e217cf6425" name="a0bf229964c287b7554ca76e217cf6425"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0bf229964c287b7554ca76e217cf6425">&#9670;&#160;</a></span>tpc_oidc_extract_token()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tpc_oidc_extract_token </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>token_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>token_out_sz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00254">254</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="tpc__token_8c_source.html#l00063">tpc_token_parse_access_token()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00291">tpc_token_oidc_agent()</a>.</p>
+
+</div>
+</div>
+<a id="a1e089ced43d773d6c6d755dbaa3c5772" name="a1e089ced43d773d6c6d755dbaa3c5772"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1e089ced43d773d6c6d755dbaa3c5772">&#9670;&#160;</a></span>tpc_oidc_read_all()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ssize_t tpc_oidc_read_all </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>bufsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00230">230</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00291">tpc_token_oidc_agent()</a>.</p>
 
 </div>
 </div>
@@ -271,25 +444,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00146">146</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00291">291</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, <a class="el" href="tpc__token_8c_source.html#l00123">resolve_oidc_token_binary()</a>, <a class="el" href="tpc__token_8c_source.html#l00033">TPC_TOKEN_HELPER_PATH</a>, <a class="el" href="tpc__token_8c_source.html#l00032">TPC_TOKEN_MAX_LEN</a>, <a class="el" href="tpc__token_8c_source.html#l00062">tpc_token_parse_access_token()</a>, <a class="el" href="tpc__token_8c_source.html#l00040">tpc_trim_trailing()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00117">brix_tpc_pull_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="tpc__token_8c_source.html#l00196">tpc_oidc_child_run()</a>, <a class="el" href="tpc__token_8c_source.html#l00254">tpc_oidc_extract_token()</a>, <a class="el" href="tpc__token_8c_source.html#l00230">tpc_oidc_read_all()</a>, <a class="el" href="tpc__token_8c_source.html#l00033">TPC_TOKEN_MAX_LEN</a>, <a class="el" href="tpc__token_8c_source.html#l00041">tpc_trim_trailing()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00346">tpc_fetch_delegated_token()</a>.</p>
 
 </div>
 </div>
-<a id="a9904a0a5e2ae516aca7a367c61d2b128" name="a9904a0a5e2ae516aca7a367c61d2b128"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9904a0a5e2ae516aca7a367c61d2b128">&#9670;&#160;</a></span>tpc_token_parse_access_token()</h2>
+<a id="a6cdc72a5706196d31115ace751c456c8" name="a6cdc72a5706196d31115ace751c456c8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6cdc72a5706196d31115ace751c456c8">&#9670;&#160;</a></span>tpc_token_parse_access_token()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int tpc_token_parse_access_token </td>
+          <td class="memname">int tpc_token_parse_access_token </td>
           <td>(</td>
           <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>json</em>, </td>
@@ -312,66 +482,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00062">62</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00063">63</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
 
 <p class="reference">References <a class="el" href="oauth2_8c_source.html#l00032">brix_oauth2_parse_access_token()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00146">tpc_token_oidc_agent()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
-
-</div>
-</div>
-<a id="a4e867fe9853ee8651ec9bf730d99ee20" name="a4e867fe9853ee8651ec9bf730d99ee20"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4e867fe9853ee8651ec9bf730d99ee20">&#9670;&#160;</a></span>tpc_token_rfc8693()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int tpc_token_rfc8693 </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>token_out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>token_out_sz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00285">285</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
-
-<p class="reference">References <a class="el" href="subprocess_8c_source.html#l00017">brix_subprocess_capture()</a>, <a class="el" href="file_8c_source.html#l00034">brix_token_read_file()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="tpc__internal_8h_source.html#l00103">brix_tpc_pull_t::src_host</a>, <a class="el" href="tpc__internal_8h_source.html#l00110">brix_tpc_pull_t::token_scope</a>, <a class="el" href="types_2config_8h_source.html#l00393">ngx_stream_brix_srv_conf_t::tpc_outbound_bearer_file</a>, <a class="el" href="types_2config_8h_source.html#l00402">ngx_stream_brix_srv_conf_t::tpc_outbound_client_id</a>, <a class="el" href="types_2config_8h_source.html#l00405">ngx_stream_brix_srv_conf_t::tpc_outbound_client_secret</a>, <a class="el" href="types_2config_8h_source.html#l00398">ngx_stream_brix_srv_conf_t::tpc_outbound_token_endpoint</a>, <a class="el" href="tpc__token_8c_source.html#l00032">TPC_TOKEN_MAX_LEN</a>, <a class="el" href="tpc__token_8c_source.html#l00062">tpc_token_parse_access_token()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00117">brix_tpc_pull_t::xrd_error</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00254">tpc_oidc_extract_token()</a>, and <a class="el" href="tpc__token__exchange_8c_source.html#l00220">tpc_token_rfc8693()</a>.</p>
 
 </div>
 </div>
@@ -399,11 +516,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00087">87</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00088">88</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
 
-<p class="reference">References <a class="el" href="credential_8c_source.html#l00117">brix_tpc_credential_parse()</a>, <a class="el" href="credential_8h_source.html#l00034">BRIX_TPC_CREDENTIAL_TOKEN</a>, <a class="el" href="credential_8c_source.html#l00195">brix_tpc_credential_validate()</a>, <a class="el" href="tpc__internal_8h_source.html#l00097">brix_tpc_pull_t::c</a>, <a class="el" href="tpc__internal_8h_source.html#l00109">brix_tpc_pull_t::delegated_token</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, and <a class="el" href="tpc__internal_8h_source.html#l00117">brix_tpc_pull_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="credential_8c_source.html#l00209">brix_tpc_credential_parse()</a>, <a class="el" href="credential_8h_source.html#l00034">BRIX_TPC_CREDENTIAL_TOKEN</a>, <a class="el" href="credential_8c_source.html#l00261">brix_tpc_credential_validate()</a>, <a class="el" href="tpc__internal_8h_source.html#l00097">brix_tpc_pull_t::c</a>, <a class="el" href="tpc__internal_8h_source.html#l00111">brix_tpc_pull_t::delegated_token</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00346">tpc_fetch_delegated_token()</a>.</p>
 
 </div>
 </div>
@@ -431,11 +548,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00040">40</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token_8c_source.html#l00041">41</a> of file <a class="el" href="tpc__token_8c_source.html">tpc_token.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00146">tpc_token_oidc_agent()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00291">tpc_token_oidc_agent()</a>.</p>
 
 </div>
 </div>

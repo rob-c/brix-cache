@@ -113,7 +113,17 @@ $(document).ready(function(){initNavTree('login_8c.html',''); initResizable(); }
 Functions</h2></td></tr>
 <tr class="memitem:a173deaa71ec199132c8a6a3f70034847" id="r_a173deaa71ec199132c8a6a3f70034847"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="login_8c.html#a173deaa71ec199132c8a6a3f70034847">brix_count_login_ok</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx)</td></tr>
 <tr class="separator:a173deaa71ec199132c8a6a3f70034847"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab1bbb1b223689c8092c3f4873b40be8d" id="r_ab1bbb1b223689c8092c3f4873b40be8d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="login_8c.html#ab1bbb1b223689c8092c3f4873b40be8d">brix_handle_login</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="memitem:ac6026a678561e1b842f4139e77c5f433" id="r_ac6026a678561e1b842f4139e77c5f433"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="login_8c.html#ac6026a678561e1b842f4139e77c5f433">brix_login_check_username</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char user[9])</td></tr>
+<tr class="separator:ac6026a678561e1b842f4139e77c5f433"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa00d39785ab026a9c344d398c85919cb" id="r_aa00d39785ab026a9c344d398c85919cb"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="login_8c.html#aa00d39785ab026a9c344d398c85919cb">brix_login_precheck_and_parse</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char user[9], char user_log[64])</td></tr>
+<tr class="separator:aa00d39785ab026a9c344d398c85919cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5f433a7e95a534a556e45bcfb82bdcb2" id="r_a5f433a7e95a534a556e45bcfb82bdcb2"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="login_8c.html#a5f433a7e95a534a556e45bcfb82bdcb2">brix_login_respond_anon</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *user)</td></tr>
+<tr class="separator:a5f433a7e95a534a556e45bcfb82bdcb2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af94d21a922375706bd31f85bb9bf33f5" id="r_af94d21a922375706bd31f85bb9bf33f5"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="login_8c.html#af94d21a922375706bd31f85bb9bf33f5">brix_login_build_parms</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, char *parms, size_t cap)</td></tr>
+<tr class="separator:af94d21a922375706bd31f85bb9bf33f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a96b0c631ea3a7e76df8d9efe3aced279" id="r_a96b0c631ea3a7e76df8d9efe3aced279"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="login_8c.html#a96b0c631ea3a7e76df8d9efe3aced279">brix_login_respond_authenticated</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *user)</td></tr>
+<tr class="separator:a96b0c631ea3a7e76df8d9efe3aced279"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab1bbb1b223689c8092c3f4873b40be8d" id="r_ab1bbb1b223689c8092c3f4873b40be8d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="login_8c.html#ab1bbb1b223689c8092c3f4873b40be8d">brix_handle_login</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:ab1bbb1b223689c8092c3f4873b40be8d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -145,7 +155,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00031">BRIX_OP_LOGIN</a>, <a class="el" href="context_8h_source.html#l00196">brix_ctx_t::metrics</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00181">ngx_brix_srv_metrics_t::op_ok</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="login_8c_source.html#l00022">brix_handle_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="login_8c_source.html#l00124">brix_login_respond_anon()</a>, and <a class="el" href="login_8c_source.html#l00223">brix_login_respond_authenticated()</a>.</p>
 
 </div>
 </div>
@@ -181,11 +191,263 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="login_8c_source.html#l00022">22</a> of file <a class="el" href="login_8c_source.html">login.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="login_8c_source.html#l00271">271</a> of file <a class="el" href="login_8c_source.html">login.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="ctx__structs_8h_source.html#l00154">brix_ctx_login_t::auth_done</a>, <a class="el" href="identity_8h_source.html#l00058">brix_identity_t::auth_method</a>, <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00236">BRIX_AUTH_HOST</a>, <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>, <a class="el" href="tunables_8h_source.html#l00229">BRIX_AUTH_NONE</a>, <a class="el" href="tunables_8h_source.html#l00237">BRIX_AUTH_PWD</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, <a class="el" href="tunables_8h_source.html#l00234">BRIX_AUTH_UNIX</a>, <a class="el" href="identity_8h_source.html#l00017">BRIX_AUTHN_NONE</a>, <a class="el" href="basic_8c_source.html#l00033">brix_build_resp_hdr()</a>, <a class="el" href="login_8c_source.html#l00012">brix_count_login_ok()</a>, <a class="el" href="tunables_8h_source.html#l00240">BRIX_GSI_SDH_OFF</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00348">brix_log_access()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="write__helpers_8c_source.html#l00186">brix_queue_response()</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="sesslog_8h_source.html#l00041">BRIX_SESS_AM_ANON</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00305">brix_sess_auth_once()</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00118">brix_session_register()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="types_2config_8h_source.html#l00637">ngx_stream_brix_srv_conf_t::cms</a>, <a class="el" href="ctx__structs_8h_source.html#l00175">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::dn</a>, <a class="el" href="types_2config_8h_source.html#l00164">ngx_stream_brix_srv_conf_t::gsi_ca_hash</a>, <a class="el" href="types_2config_8h_source.html#l00178">ngx_stream_brix_srv_conf_t::gsi_signed_dh</a>, <a class="el" href="ctx__structs_8h_source.html#l00173">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="types_2config_8h_source.html#l00282">ngx_stream_brix_srv_conf_t::krb5</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00168">kXR_Overloaded</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="ctx__structs_8h_source.html#l00153">brix_ctx_login_t::logged_in</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="ctx__structs_8h_source.html#l00156">brix_ctx_login_t::pid</a>, <a class="el" href="wire__codec_8h_source.html#l00319">xrdw_login_req_t::pid</a>, <a class="el" href="conf__structs_8h_source.html#l00044">brix_krb5_conf_t::principal</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00101">brix_ctx_t::sess</a>, <a class="el" href="ctx__structs_8h_source.html#l00152">brix_ctx_login_t::sessid</a>, <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>, <a class="el" href="types_2config_8h_source.html#l00278">ngx_stream_brix_srv_conf_t::sss_lifetime</a>, <a class="el" href="ctx__structs_8h_source.html#l00070">brix_ctx_totals_t::start</a>, <a class="el" href="conf__structs_8h_source.html#l00085">brix_cms_conf_t::suspended</a>, <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>, <a class="el" href="ctx__structs_8h_source.html#l00155">brix_ctx_login_t::user</a>, <a class="el" href="wire__codec_8h_source.html#l00320">xrdw_login_req_t::username</a>, <a class="el" href="ctx__structs_8h_source.html#l00161">brix_ctx_login_t::vo_list</a>, <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>, and <a class="el" href="wire__codec__session_8c_source.html#l00030">xrdw_login_req_unpack()</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00229">BRIX_AUTH_NONE</a>, <a class="el" href="login_8c_source.html#l00059">brix_login_precheck_and_parse()</a>, <a class="el" href="login_8c_source.html#l00124">brix_login_respond_anon()</a>, <a class="el" href="login_8c_source.html#l00223">brix_login_respond_authenticated()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="dispatch__session_8c_source.html#l00016">brix_dispatch_session_opcode()</a>.</p>
+
+</div>
+</div>
+<a id="af94d21a922375706bd31f85bb9bf33f5" name="af94d21a922375706bd31f85bb9bf33f5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af94d21a922375706bd31f85bb9bf33f5">&#9670;&#160;</a></span>brix_login_build_parms()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static size_t brix_login_build_parms </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>parms</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="login_8c_source.html#l00164">164</a> of file <a class="el" href="login_8c_source.html">login.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00236">BRIX_AUTH_HOST</a>, <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>, <a class="el" href="tunables_8h_source.html#l00237">BRIX_AUTH_PWD</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, <a class="el" href="tunables_8h_source.html#l00234">BRIX_AUTH_UNIX</a>, and <a class="el" href="tunables_8h_source.html#l00240">BRIX_GSI_SDH_OFF</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="login_8c_source.html#l00223">brix_login_respond_authenticated()</a>.</p>
+
+</div>
+</div>
+<a id="ac6026a678561e1b842f4139e77c5f433" name="ac6026a678561e1b842f4139e77c5f433"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac6026a678561e1b842f4139e77c5f433">&#9670;&#160;</a></span>brix_login_check_username()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_login_check_username </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char&#160;</td>
+          <td class="paramname"><em>user</em>[9]&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="login_8c_source.html#l00031">31</a> of file <a class="el" href="login_8c_source.html">login.c</a>.</p>
+
+<p class="reference">References <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="login_8c_source.html#l00059">brix_login_precheck_and_parse()</a>.</p>
+
+</div>
+</div>
+<a id="aa00d39785ab026a9c344d398c85919cb" name="aa00d39785ab026a9c344d398c85919cb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa00d39785ab026a9c344d398c85919cb">&#9670;&#160;</a></span>brix_login_precheck_and_parse()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_login_precheck_and_parse </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>user</em>[9], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>user_log</em>[64]&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="login_8c_source.html#l00059">59</a> of file <a class="el" href="login_8c_source.html">login.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00232">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, <a class="el" href="tunables_8h_source.html#l00234">BRIX_AUTH_UNIX</a>, <a class="el" href="login_8c_source.html#l00031">brix_login_check_username()</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="opcodes_8h_source.html#l00152">kXR_InvalidRequest</a>, <a class="el" href="opcodes_8h_source.html#l00168">kXR_Overloaded</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::logged_in</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00162">brix_ctx_login_t::pid</a>, <a class="el" href="wire__codec_8h_source.html#l00319">xrdw_login_req_t::pid</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="ctx__structs_8h_source.html#l00161">brix_ctx_login_t::user</a>, <a class="el" href="wire__codec_8h_source.html#l00320">xrdw_login_req_t::username</a>, and <a class="el" href="wire__codec__session_8c_source.html#l00030">xrdw_login_req_unpack()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="login_8c_source.html#l00271">brix_handle_login()</a>.</p>
+
+</div>
+</div>
+<a id="a5f433a7e95a534a556e45bcfb82bdcb2" name="a5f433a7e95a534a556e45bcfb82bdcb2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5f433a7e95a534a556e45bcfb82bdcb2">&#9670;&#160;</a></span>brix_login_respond_anon()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_login_respond_anon </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="login_8c_source.html#l00124">124</a> of file <a class="el" href="login_8c_source.html">login.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ctx__structs_8h_source.html#l00160">brix_ctx_login_t::auth_done</a>, <a class="el" href="identity_8h_source.html#l00058">brix_identity_t::auth_method</a>, <a class="el" href="identity_8h_source.html#l00017">BRIX_AUTHN_NONE</a>, <a class="el" href="basic_8c_source.html#l00033">brix_build_resp_hdr()</a>, <a class="el" href="login_8c_source.html#l00012">brix_count_login_ok()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="write__helpers_8c_source.html#l00189">brix_queue_response()</a>, <a class="el" href="sesslog_8h_source.html#l00041">BRIX_SESS_AM_ANON</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00311">brix_sess_auth_once()</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">brix_session_register()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="ctx__structs_8h_source.html#l00165">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00101">brix_ctx_t::sess</a>, <a class="el" href="ctx__structs_8h_source.html#l00158">brix_ctx_login_t::sessid</a>, <a class="el" href="ctx__structs_8h_source.html#l00070">brix_ctx_totals_t::start</a>, <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>, <a class="el" href="ctx__structs_8h_source.html#l00167">brix_ctx_login_t::vo_list</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="login_8c_source.html#l00271">brix_handle_login()</a>.</p>
+
+</div>
+</div>
+<a id="a96b0c631ea3a7e76df8d9efe3aced279" name="a96b0c631ea3a7e76df8d9efe3aced279"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96b0c631ea3a7e76df8d9efe3aced279">&#9670;&#160;</a></span>brix_login_respond_authenticated()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_login_respond_authenticated </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="login_8c_source.html#l00223">223</a> of file <a class="el" href="login_8c_source.html">login.c</a>.</p>
+
+<p class="reference">References <a class="el" href="basic_8c_source.html#l00033">brix_build_resp_hdr()</a>, <a class="el" href="login_8c_source.html#l00012">brix_count_login_ok()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="login_8c_source.html#l00164">brix_login_build_parms()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="write__helpers_8c_source.html#l00189">brix_queue_response()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="ctx__structs_8h_source.html#l00158">brix_ctx_login_t::sessid</a>, <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>, <a class="el" href="ctx__structs_8h_source.html#l00070">brix_ctx_totals_t::start</a>, <a class="el" href="context_8h_source.html#l00192">brix_ctx_t::totals</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="login_8c_source.html#l00271">brix_handle_login()</a>.</p>
 
 </div>
 </div>

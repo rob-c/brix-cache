@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('observability_2dashboard_2module_8c.ht
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">module.c File Reference</div></div>
@@ -100,6 +101,7 @@ $(document).ready(function(){initNavTree('observability_2dashboard_2module_8c.ht
 <code>#include &quot;<a class="el" href="api__admin_8h_source.html">api_admin.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__headers_8h_source.html">core/http/http_headers.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cstr_8h_source.html">core/compat/cstr.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="observability_2dashboard_2module__internal_8h_source.html">module_internal.h</a>&quot;</code><br />
 <code>#include &lt;limits.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
@@ -114,6 +116,11 @@ $(document).ready(function(){initNavTree('observability_2dashboard_2module_8c.ht
 </div>
 <p><a href="observability_2dashboard_2module_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdashboard__canon__root__t.html">dashboard_canon_root_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:acc477198b401e8bdc94a40c2c354402e" id="r_acc477198b401e8bdc94a40c2c354402e"><td class="memItemLeft" align="right" valign="top">static void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2dashboard_2module_8c.html#acc477198b401e8bdc94a40c2c354402e">ngx_http_brix_dashboard_create_loc_conf</a> (ngx_conf_t *cf)</td></tr>
@@ -128,16 +135,10 @@ Functions</h2></td></tr>
 <tr class="separator:a3db92b4f8e492ac2f5927f5fc33fa94f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aea8cda5d6ab4cf271dcc1b78b7c0a91e" id="r_aea8cda5d6ab4cf271dcc1b78b7c0a91e"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2dashboard_2module_8c.html#aea8cda5d6ab4cf271dcc1b78b7c0a91e">ngx_http_brix_dashboard_set_cookie_path</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:aea8cda5d6ab4cf271dcc1b78b7c0a91e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab6262c7446dbd780c01ad6bcb243e51b" id="r_ab6262c7446dbd780c01ad6bcb243e51b"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2dashboard_2module_8c.html#ab6262c7446dbd780c01ad6bcb243e51b">ngx_http_brix_dashboard_set_users</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
-<tr class="separator:ab6262c7446dbd780c01ad6bcb243e51b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aedba66870a4f5942475b4401b1c4c1fd" id="r_aedba66870a4f5942475b4401b1c4c1fd"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2dashboard_2module_8c.html#aedba66870a4f5942475b4401b1c4c1fd">dashboard_uri_eq</a> (ngx_str_t uri, const char *literal)</td></tr>
-<tr class="separator:aedba66870a4f5942475b4401b1c4c1fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2dc2c027052a8fad0b43f219cfff40be" id="r_a2dc2c027052a8fad0b43f219cfff40be"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2dashboard_2module_8c.html#a2dc2c027052a8fad0b43f219cfff40be">dashboard_uri_prefix</a> (ngx_str_t uri, const char *literal)</td></tr>
-<tr class="separator:a2dc2c027052a8fad0b43f219cfff40be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a11a64e8a6dd0dfa1a1bf66666d03a040" id="r_a11a64e8a6dd0dfa1a1bf66666d03a040"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2dashboard_2module_8c.html#a11a64e8a6dd0dfa1a1bf66666d03a040">dashboard_merge_canon_root</a> (ngx_conf_t *cf, const <a class="el" href="structdashboard__canon__root__t.html">dashboard_canon_root_t</a> *req, char **err)</td></tr>
+<tr class="separator:a11a64e8a6dd0dfa1a1bf66666d03a040"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acc063acbbcfef298b3402e353e65c1c3" id="r_acc063acbbcfef298b3402e353e65c1c3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2dashboard_2module_8c.html#acc063acbbcfef298b3402e353e65c1c3">dashboard_cookie_path_valid</a> (ngx_str_t *path)</td></tr>
 <tr class="separator:acc063acbbcfef298b3402e353e65c1c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a92e492393d97921a499f06fbe3594d2a" id="r_a92e492393d97921a499f06fbe3594d2a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="observability_2dashboard_2module_8c.html#a92e492393d97921a499f06fbe3594d2a">ngx_http_brix_dashboard_main_handler</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a92e492393d97921a499f06fbe3594d2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -173,14 +174,14 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00235">235</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00256">256</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00253">ngx_http_brix_dashboard_set_cookie_path()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00274">ngx_http_brix_dashboard_set_cookie_path()</a>.</p>
 
 </div>
 </div>
-<a id="aedba66870a4f5942475b4401b1c4c1fd" name="aedba66870a4f5942475b4401b1c4c1fd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aedba66870a4f5942475b4401b1c4c1fd">&#9670;&#160;</a></span>dashboard_uri_eq()</h2>
+<a id="a11a64e8a6dd0dfa1a1bf66666d03a040" name="a11a64e8a6dd0dfa1a1bf66666d03a040"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a11a64e8a6dd0dfa1a1bf66666d03a040">&#9670;&#160;</a></span>dashboard_merge_canon_root()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -189,16 +190,22 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t dashboard_uri_eq </td>
+          <td class="memname">static ngx_int_t dashboard_merge_canon_root </td>
           <td>(</td>
-          <td class="paramtype">ngx_str_t&#160;</td>
-          <td class="paramname"><em>uri</em>, </td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>literal</em>&#160;</td>
+          <td class="paramtype">const <a class="el" href="structdashboard__canon__root__t.html">dashboard_canon_root_t</a> *&#160;</td>
+          <td class="paramname"><em>req</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>err</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -213,49 +220,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00052">52</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00098">98</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00520">ngx_http_brix_dashboard_main_handler()</a>.</p>
+<p class="reference">References <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00078">dashboard_canon_root_t::canon</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00080">dashboard_canon_root_t::directive</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00079">dashboard_canon_root_t::prev_canon</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00077">dashboard_canon_root_t::root</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00081">dashboard_canon_root_t::too_long_msg</a>.</p>
 
-</div>
-</div>
-<a id="a2dc2c027052a8fad0b43f219cfff40be" name="a2dc2c027052a8fad0b43f219cfff40be"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2dc2c027052a8fad0b43f219cfff40be">&#9670;&#160;</a></span>dashboard_uri_prefix()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t dashboard_uri_prefix </td>
-          <td>(</td>
-          <td class="paramtype">ngx_str_t&#160;</td>
-          <td class="paramname"><em>uri</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>literal</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00064">64</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00520">ngx_http_brix_dashboard_main_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00123">ngx_http_brix_dashboard_merge_loc_conf()</a>.</p>
 
 </div>
 </div>
@@ -283,33 +252,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00072">72</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00051">51</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
 <p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00049">ngx_http_brix_dashboard_loc_conf_t::admin_require_both</a>, <a class="el" href="dashboard__http_8h_source.html#l00034">ngx_http_brix_dashboard_loc_conf_t::anonymous</a>, <a class="el" href="dashboard__http_8h_source.html#l00041">ngx_http_brix_dashboard_loc_conf_t::cluster_stale_after_ms</a>, <a class="el" href="dashboard__http_8h_source.html#l00033">ngx_http_brix_dashboard_loc_conf_t::enable</a>, <a class="el" href="dashboard__http_8h_source.html#l00039">ngx_http_brix_dashboard_loc_conf_t::idle_threshold_ms</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="dashboard__http_8h_source.html#l00069">ngx_http_brix_dashboard_loc_conf_t::scan_max_files</a>, <a class="el" href="dashboard__http_8h_source.html#l00038">ngx_http_brix_dashboard_loc_conf_t::session_ttl</a>, <a class="el" href="dashboard__http_8h_source.html#l00040">ngx_http_brix_dashboard_loc_conf_t::stalled_threshold_ms</a>, and <a class="el" href="dashboard__http_8h_source.html#l00065">ngx_http_brix_dashboard_loc_conf_t::vfs_browse</a>.</p>
-
-</div>
-</div>
-<a id="a92e492393d97921a499f06fbe3594d2a" name="a92e492393d97921a499f06fbe3594d2a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a92e492393d97921a499f06fbe3594d2a">&#9670;&#160;</a></span>ngx_http_brix_dashboard_main_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t ngx_http_brix_dashboard_main_handler </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00520">520</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
-
-<p class="reference">References <a class="el" href="api__admin_8c_source.html#l00328">brix_admin_dispatch()</a>, <a class="el" href="dashboard__http_8h_source.html#l00088">BRIX_DASHBOARD_API_COMPAT_TRANSFERS</a>, <a class="el" href="dashboard__http_8h_source.html#l00095">BRIX_DASHBOARD_API_V1_CACHE</a>, <a class="el" href="dashboard__http_8h_source.html#l00094">BRIX_DASHBOARD_API_V1_CLUSTER</a>, <a class="el" href="dashboard__http_8h_source.html#l00097">BRIX_DASHBOARD_API_V1_CVMFS</a>, <a class="el" href="dashboard__http_8h_source.html#l00092">BRIX_DASHBOARD_API_V1_EVENTS</a>, <a class="el" href="dashboard__http_8h_source.html#l00093">BRIX_DASHBOARD_API_V1_HISTORY</a>, <a class="el" href="dashboard__http_8h_source.html#l00098">BRIX_DASHBOARD_API_V1_NOT_FOUND</a>, <a class="el" href="dashboard__http_8h_source.html#l00096">BRIX_DASHBOARD_API_V1_RATELIMIT</a>, <a class="el" href="dashboard__http_8h_source.html#l00091">BRIX_DASHBOARD_API_V1_SNAPSHOT</a>, <a class="el" href="dashboard__http_8h_source.html#l00090">BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL</a>, <a class="el" href="dashboard__http_8h_source.html#l00089">BRIX_DASHBOARD_API_V1_TRANSFERS</a>, <a class="el" href="http__headers_8c_source.html#l00378">brix_http_source_offer()</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00052">dashboard_uri_eq()</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00064">dashboard_uri_prefix()</a>, <a class="el" href="dashboard__http_8h_source.html#l00033">ngx_http_brix_dashboard_loc_conf_t::enable</a>, <a class="el" href="api_8c_source.html#l00181">ngx_http_brix_dashboard_api_handler()</a>, <a class="el" href="config__download_8c_source.html#l00577">ngx_http_brix_dashboard_config_download_handler()</a>, <a class="el" href="files_8c_source.html#l00280">ngx_http_brix_dashboard_download_handler()</a>, <a class="el" href="files_8c_source.html#l00167">ngx_http_brix_dashboard_files_handler()</a>, <a class="el" href="src_2observability_2dashboard_2auth_8c_source.html#l00827">ngx_http_brix_dashboard_login_handler()</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00501">ngx_http_brix_dashboard_module</a>, <a class="el" href="page_8c_source.html#l00164">ngx_http_brix_dashboard_page_handler()</a>, <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>, <a class="el" href="vfs__browse_8c_source.html#l00369">ngx_http_brix_dashboard_vfs_download_handler()</a>, <a class="el" href="vfs__browse_8c_source.html#l00179">ngx_http_brix_dashboard_vfs_exports_handler()</a>, and <a class="el" href="vfs__browse_8c_source.html#l00287">ngx_http_brix_dashboard_vfs_files_handler()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00173">ngx_http_brix_dashboard_set()</a>.</p>
 
 </div>
 </div>
@@ -353,9 +298,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00092">92</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00123">123</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00046">ngx_http_brix_dashboard_loc_conf_t::admin_allow</a>, <a class="el" href="dashboard__http_8h_source.html#l00049">ngx_http_brix_dashboard_loc_conf_t::admin_require_both</a>, <a class="el" href="dashboard__http_8h_source.html#l00047">ngx_http_brix_dashboard_loc_conf_t::admin_secret</a>, <a class="el" href="dashboard__http_8h_source.html#l00034">ngx_http_brix_dashboard_loc_conf_t::anonymous</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="dashboard__http_8h_source.html#l00055">ngx_http_brix_dashboard_loc_conf_t::browse_root</a>, <a class="el" href="dashboard__http_8h_source.html#l00058">ngx_http_brix_dashboard_loc_conf_t::browse_root_canon</a>, <a class="el" href="dashboard__http_8h_source.html#l00041">ngx_http_brix_dashboard_loc_conf_t::cluster_stale_after_ms</a>, <a class="el" href="dashboard__http_8h_source.html#l00042">ngx_http_brix_dashboard_loc_conf_t::cookie_path</a>, <a class="el" href="dashboard__http_8h_source.html#l00033">ngx_http_brix_dashboard_loc_conf_t::enable</a>, <a class="el" href="dashboard__http_8h_source.html#l00039">ngx_http_brix_dashboard_loc_conf_t::idle_threshold_ms</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="dashboard__http_8h_source.html#l00037">ngx_http_brix_dashboard_loc_conf_t::password</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="dashboard__http_8h_source.html#l00069">ngx_http_brix_dashboard_loc_conf_t::scan_max_files</a>, <a class="el" href="dashboard__http_8h_source.html#l00062">ngx_http_brix_dashboard_loc_conf_t::scan_root</a>, <a class="el" href="dashboard__http_8h_source.html#l00064">ngx_http_brix_dashboard_loc_conf_t::scan_root_canon</a>, <a class="el" href="dashboard__http_8h_source.html#l00038">ngx_http_brix_dashboard_loc_conf_t::session_ttl</a>, <a class="el" href="dashboard__http_8h_source.html#l00040">ngx_http_brix_dashboard_loc_conf_t::stalled_threshold_ms</a>, <a class="el" href="dashboard__http_8h_source.html#l00043">ngx_http_brix_dashboard_loc_conf_t::users</a>, and <a class="el" href="dashboard__http_8h_source.html#l00065">ngx_http_brix_dashboard_loc_conf_t::vfs_browse</a>.</p>
+<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00046">ngx_http_brix_dashboard_loc_conf_t::admin_allow</a>, <a class="el" href="dashboard__http_8h_source.html#l00049">ngx_http_brix_dashboard_loc_conf_t::admin_require_both</a>, <a class="el" href="dashboard__http_8h_source.html#l00047">ngx_http_brix_dashboard_loc_conf_t::admin_secret</a>, <a class="el" href="dashboard__http_8h_source.html#l00034">ngx_http_brix_dashboard_loc_conf_t::anonymous</a>, <a class="el" href="dashboard__http_8h_source.html#l00055">ngx_http_brix_dashboard_loc_conf_t::browse_root</a>, <a class="el" href="dashboard__http_8h_source.html#l00058">ngx_http_brix_dashboard_loc_conf_t::browse_root_canon</a>, <a class="el" href="dashboard__http_8h_source.html#l00041">ngx_http_brix_dashboard_loc_conf_t::cluster_stale_after_ms</a>, <a class="el" href="dashboard__http_8h_source.html#l00042">ngx_http_brix_dashboard_loc_conf_t::cookie_path</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00098">dashboard_merge_canon_root()</a>, <a class="el" href="dashboard__http_8h_source.html#l00033">ngx_http_brix_dashboard_loc_conf_t::enable</a>, <a class="el" href="dashboard__http_8h_source.html#l00039">ngx_http_brix_dashboard_loc_conf_t::idle_threshold_ms</a>, <a class="el" href="dashboard__http_8h_source.html#l00037">ngx_http_brix_dashboard_loc_conf_t::password</a>, <a class="el" href="dashboard__http_8h_source.html#l00069">ngx_http_brix_dashboard_loc_conf_t::scan_max_files</a>, <a class="el" href="dashboard__http_8h_source.html#l00062">ngx_http_brix_dashboard_loc_conf_t::scan_root</a>, <a class="el" href="dashboard__http_8h_source.html#l00064">ngx_http_brix_dashboard_loc_conf_t::scan_root_canon</a>, <a class="el" href="dashboard__http_8h_source.html#l00038">ngx_http_brix_dashboard_loc_conf_t::session_ttl</a>, <a class="el" href="dashboard__http_8h_source.html#l00040">ngx_http_brix_dashboard_loc_conf_t::stalled_threshold_ms</a>, <a class="el" href="dashboard__http_8h_source.html#l00043">ngx_http_brix_dashboard_loc_conf_t::users</a>, and <a class="el" href="dashboard__http_8h_source.html#l00065">ngx_http_brix_dashboard_loc_conf_t::vfs_browse</a>.</p>
 
 </div>
 </div>
@@ -399,9 +344,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00173">173</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00193">193</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2dashboard_2module_8c_source.html#l00520">ngx_http_brix_dashboard_main_handler()</a>.</p>
+<p class="reference">References <a class="el" href="module__dispatch_8c_source.html#l00182">ngx_http_brix_dashboard_main_handler()</a>.</p>
 
 </div>
 </div>
@@ -445,9 +390,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00253">253</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00274">274</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00042">ngx_http_brix_dashboard_loc_conf_t::cookie_path</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00235">dashboard_cookie_path_valid()</a>.</p>
+<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00042">ngx_http_brix_dashboard_loc_conf_t::cookie_path</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00256">dashboard_cookie_path_valid()</a>.</p>
 
 </div>
 </div>
@@ -491,7 +436,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00191">191</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00211">211</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
 <p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00037">ngx_http_brix_dashboard_loc_conf_t::password</a>, and <a class="el" href="dashboard__http_8h_source.html#l00043">ngx_http_brix_dashboard_loc_conf_t::users</a>.</p>
 
@@ -537,55 +482,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00212">212</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00232">232</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
 <p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00038">ngx_http_brix_dashboard_loc_conf_t::session_ttl</a>.</p>
-
-</div>
-</div>
-<a id="ab6262c7446dbd780c01ad6bcb243e51b" name="ab6262c7446dbd780c01ad6bcb243e51b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab6262c7446dbd780c01ad6bcb243e51b">&#9670;&#160;</a></span>ngx_http_brix_dashboard_set_users()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static char * ngx_http_brix_dashboard_set_users </td>
-          <td>(</td>
-          <td class="paramtype">ngx_conf_t *&#160;</td>
-          <td class="paramname"><em>cf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_command_t *&#160;</td>
-          <td class="paramname"><em>cmd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>conf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00278">278</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="dashboard__http_8h_source.html#l00037">ngx_http_brix_dashboard_loc_conf_t::password</a>, <a class="el" href="dashboard__http_8h_source.html#l00029">ngx_http_brix_dashboard_user_t::password_hash</a>, <a class="el" href="dashboard__http_8h_source.html#l00028">ngx_http_brix_dashboard_user_t::username</a>, and <a class="el" href="dashboard__http_8h_source.html#l00043">ngx_http_brix_dashboard_loc_conf_t::users</a>.</p>
 
 </div>
 </div>
@@ -610,7 +509,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00359">359</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00289">289</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>
@@ -633,12 +532,12 @@ Variables</h2></td></tr>
 <div class="line">    NULL, NULL, NULL, NULL, NULL, NULL, NULL,</div>
 <div class="line">    NGX_MODULE_V1_PADDING</div>
 <div class="line">}</div>
-<div class="ttc" id="aobservability_2dashboard_2module_8c_html_a041d841dd15c82c0d0db6c901e5223c3"><div class="ttname"><a href="observability_2dashboard_2module_8c.html#a041d841dd15c82c0d0db6c901e5223c3">ngx_http_brix_dashboard_commands</a></div><div class="ttdeci">static ngx_command_t ngx_http_brix_dashboard_commands[]</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00359">module.c:359</a></div></div>
-<div class="ttc" id="aobservability_2dashboard_2module_8c_html_a5272b0330533f3ac1015968513ebe214"><div class="ttname"><a href="observability_2dashboard_2module_8c.html#a5272b0330533f3ac1015968513ebe214">ngx_http_brix_dashboard_module_ctx</a></div><div class="ttdeci">static ngx_http_module_t ngx_http_brix_dashboard_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00490">module.c:490</a></div></div>
+<div class="ttc" id="aobservability_2dashboard_2module_8c_html_a041d841dd15c82c0d0db6c901e5223c3"><div class="ttname"><a href="observability_2dashboard_2module_8c.html#a041d841dd15c82c0d0db6c901e5223c3">ngx_http_brix_dashboard_commands</a></div><div class="ttdeci">static ngx_command_t ngx_http_brix_dashboard_commands[]</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00289">module.c:289</a></div></div>
+<div class="ttc" id="aobservability_2dashboard_2module_8c_html_a5272b0330533f3ac1015968513ebe214"><div class="ttname"><a href="observability_2dashboard_2module_8c.html#a5272b0330533f3ac1015968513ebe214">ngx_http_brix_dashboard_module_ctx</a></div><div class="ttdeci">static ngx_http_module_t ngx_http_brix_dashboard_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00420">module.c:420</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00501">501</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00431">431</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api__admin__proxy_8c_source.html#l00131">admin_proxy_add()</a>, <a class="el" href="api__admin_8c_source.html#l00176">brix_admin_body_callback()</a>, <a class="el" href="api__admin_8c_source.html#l00328">brix_admin_dispatch()</a>, <a class="el" href="api__admin_8c_source.html#l00245">brix_admin_read_body()</a>, <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__tracking_8c_source.html#l00052">dashboard_http_track()</a>, <a class="el" href="src_2observability_2dashboard_2auth_8c_source.html#l00643">login_post_body_handler()</a>, <a class="el" href="api_8c_source.html#l00181">ngx_http_brix_dashboard_api_handler()</a>, <a class="el" href="config__download_8c_source.html#l00577">ngx_http_brix_dashboard_config_download_handler()</a>, <a class="el" href="files_8c_source.html#l00280">ngx_http_brix_dashboard_download_handler()</a>, <a class="el" href="files_8c_source.html#l00167">ngx_http_brix_dashboard_files_handler()</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00520">ngx_http_brix_dashboard_main_handler()</a>, <a class="el" href="page_8c_source.html#l00164">ngx_http_brix_dashboard_page_handler()</a>, <a class="el" href="scan__http_8c_source.html#l00170">ngx_http_brix_dashboard_scan_handler()</a>, <a class="el" href="vfs__browse_8c_source.html#l00369">ngx_http_brix_dashboard_vfs_download_handler()</a>, <a class="el" href="vfs__browse_8c_source.html#l00179">ngx_http_brix_dashboard_vfs_exports_handler()</a>, and <a class="el" href="vfs__browse_8c_source.html#l00287">ngx_http_brix_dashboard_vfs_files_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api__admin__proxy_8c_source.html#l00131">admin_proxy_add()</a>, <a class="el" href="api__admin_8c_source.html#l00245">brix_admin_body_callback()</a>, <a class="el" href="api__admin_8c_source.html#l00590">brix_admin_dispatch()</a>, <a class="el" href="api__admin_8c_source.html#l00314">brix_admin_read_body()</a>, <a class="el" href="http__tracking_8c_source.html#l00134">dashboard_http_bind_slot()</a>, <a class="el" href="http__tracking_8c_source.html#l00068">dashboard_http_track()</a>, <a class="el" href="dashboard__auth__login_8c_source.html#l00382">login_post_body_handler()</a>, <a class="el" href="api_8c_source.html#l00232">ngx_http_brix_dashboard_api_handler()</a>, <a class="el" href="config__download_8c_source.html#l00315">ngx_http_brix_dashboard_config_download_handler()</a>, <a class="el" href="files_8c_source.html#l00473">ngx_http_brix_dashboard_download_handler()</a>, <a class="el" href="files_8c_source.html#l00318">ngx_http_brix_dashboard_files_handler()</a>, <a class="el" href="module__dispatch_8c_source.html#l00182">ngx_http_brix_dashboard_main_handler()</a>, <a class="el" href="page_8c_source.html#l00164">ngx_http_brix_dashboard_page_handler()</a>, <a class="el" href="scan__http_8c_source.html#l00392">ngx_http_brix_dashboard_scan_handler()</a>, <a class="el" href="vfs__browse_8c_source.html#l00399">ngx_http_brix_dashboard_vfs_download_handler()</a>, <a class="el" href="vfs__browse_8c_source.html#l00179">ngx_http_brix_dashboard_vfs_exports_handler()</a>, and <a class="el" href="vfs__browse_8c_source.html#l00338">ngx_http_brix_dashboard_vfs_files_handler()</a>.</p>
 
 </div>
 </div>
@@ -671,10 +570,10 @@ Variables</h2></td></tr>
 <div class="line">    <a class="code hl_function" href="observability_2dashboard_2module_8c.html#acc477198b401e8bdc94a40c2c354402e">ngx_http_brix_dashboard_create_loc_conf</a>,   </div>
 <div class="line">    <a class="code hl_function" href="observability_2dashboard_2module_8c.html#a6f588f76737b15721919a09af4ae3f09">ngx_http_brix_dashboard_merge_loc_conf</a>     </div>
 <div class="line">}</div>
-<div class="ttc" id="aobservability_2dashboard_2module_8c_html_a6f588f76737b15721919a09af4ae3f09"><div class="ttname"><a href="observability_2dashboard_2module_8c.html#a6f588f76737b15721919a09af4ae3f09">ngx_http_brix_dashboard_merge_loc_conf</a></div><div class="ttdeci">static char * ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00092">module.c:92</a></div></div>
-<div class="ttc" id="aobservability_2dashboard_2module_8c_html_acc477198b401e8bdc94a40c2c354402e"><div class="ttname"><a href="observability_2dashboard_2module_8c.html#acc477198b401e8bdc94a40c2c354402e">ngx_http_brix_dashboard_create_loc_conf</a></div><div class="ttdeci">static void * ngx_http_brix_dashboard_create_loc_conf(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00072">module.c:72</a></div></div>
+<div class="ttc" id="aobservability_2dashboard_2module_8c_html_a6f588f76737b15721919a09af4ae3f09"><div class="ttname"><a href="observability_2dashboard_2module_8c.html#a6f588f76737b15721919a09af4ae3f09">ngx_http_brix_dashboard_merge_loc_conf</a></div><div class="ttdeci">static char * ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00123">module.c:123</a></div></div>
+<div class="ttc" id="aobservability_2dashboard_2module_8c_html_acc477198b401e8bdc94a40c2c354402e"><div class="ttname"><a href="observability_2dashboard_2module_8c.html#acc477198b401e8bdc94a40c2c354402e">ngx_http_brix_dashboard_create_loc_conf</a></div><div class="ttdeci">static void * ngx_http_brix_dashboard_create_loc_conf(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00051">module.c:51</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00490">490</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="observability_2dashboard_2module_8c_source.html#l00420">420</a> of file <a class="el" href="observability_2dashboard_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>

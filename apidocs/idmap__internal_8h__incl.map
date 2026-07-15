@@ -1,0 +1,15 @@
+<map id="src/auth/impersonate/idmap_internal.h" name="src/auth/impersonate/idmap_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="219,5,379,45"/>
+<area shape="rect" id="Node000002" href="$impersonate_8h.html" title=" " alt="" coords="241,93,357,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="301,46,301,79,296,79,296,46"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,167,109,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="261,121,111,165,109,160,259,116"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="133,167,227,192"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="281,121,213,162,210,157,278,116"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="251,167,347,192"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="301,119,301,153,296,153,296,119"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="371,167,456,192"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="318,116,384,157,382,162,316,121"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="481,167,554,192"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="335,116,470,160,468,165,333,121"/>
+</map>

@@ -107,23 +107,27 @@ $(document).ready(function(){initNavTree('crc32__ieee_8c_source.html',''); initR
 <div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#include &quot;<a class="code" href="crc32__ieee_8h.html">crc32_ieee.h</a>&quot;</span></div>
 <div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span> </div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span>uint32_t</div>
-<div class="foldopen" id="foldopen00011" data-start="{" data-end="}">
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno"><a class="line" href="crc32__ieee_8c.html#a91acf123c9d67cbb7e86721716fb5638">   11</a></span><a class="code hl_function" href="crc32__ieee_8c.html#a91acf123c9d67cbb7e86721716fb5638">brix_crc32_ieee</a>(<span class="keyword">const</span> uint8_t *buf, <span class="keywordtype">size_t</span> len)</div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span>{</div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span>    uint32_t crc = 0xffffffffu;</div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span> </div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span>    <span class="keywordflow">while</span> (len--) {</div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>        <span class="keywordtype">int</span> i;</div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>        crc ^= *buf++;</div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>        <span class="keywordflow">for</span> (i = 0; i &lt; 8; i++) {</div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>            crc = (crc &gt;&gt; 1) ^ (0xedb88320u &amp; (uint32_t) -(int32_t) (crc &amp; 1));</div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>        }</div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    }</div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    <span class="keywordflow">return</span> crc ^ 0xffffffffu;</div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>}</div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="comment">/* CRC-32/IEEE generator polynomial, reflected (LSB-first) form. */</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno"><a class="line" href="crc32__ieee_8c.html#ab12005c1dd18a4e54be45e0c3985dd23">   11</a></span><span class="preprocessor">#define BRIX_CRC32_IEEE_POLY  0xedb88320u</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span> </div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span>uint32_t</div>
+<div class="foldopen" id="foldopen00014" data-start="{" data-end="}">
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno"><a class="line" href="crc32__ieee_8c.html#a91acf123c9d67cbb7e86721716fb5638">   14</a></span><a class="code hl_function" href="crc32__ieee_8c.html#a91acf123c9d67cbb7e86721716fb5638">brix_crc32_ieee</a>(<span class="keyword">const</span> uint8_t *buf, <span class="keywordtype">size_t</span> len)</div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span>{</div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>    uint32_t crc = 0xffffffffu;</div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span> </div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    <span class="keywordflow">while</span> (len--) {</div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>        <span class="keywordtype">int</span> i;</div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>        crc ^= *buf++;</div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>        <span class="keywordflow">for</span> (i = 0; i &lt; 8; i++) {</div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>            crc = (crc &gt;&gt; 1) ^ (<a class="code hl_define" href="crc32__ieee_8c.html#ab12005c1dd18a4e54be45e0c3985dd23">BRIX_CRC32_IEEE_POLY</a> &amp; (uint32_t) -(int32_t) (crc &amp; 1));</div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>        }</div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>    }</div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    <span class="keywordflow">return</span> crc ^ 0xffffffffu;</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>}</div>
 </div>
-<div class="ttc" id="acrc32__ieee_8c_html_a91acf123c9d67cbb7e86721716fb5638"><div class="ttname"><a href="crc32__ieee_8c.html#a91acf123c9d67cbb7e86721716fb5638">brix_crc32_ieee</a></div><div class="ttdeci">uint32_t brix_crc32_ieee(const uint8_t *buf, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="crc32__ieee_8c_source.html#l00011">crc32_ieee.c:11</a></div></div>
+<div class="ttc" id="acrc32__ieee_8c_html_a91acf123c9d67cbb7e86721716fb5638"><div class="ttname"><a href="crc32__ieee_8c.html#a91acf123c9d67cbb7e86721716fb5638">brix_crc32_ieee</a></div><div class="ttdeci">uint32_t brix_crc32_ieee(const uint8_t *buf, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="crc32__ieee_8c_source.html#l00014">crc32_ieee.c:14</a></div></div>
+<div class="ttc" id="acrc32__ieee_8c_html_ab12005c1dd18a4e54be45e0c3985dd23"><div class="ttname"><a href="crc32__ieee_8c.html#ab12005c1dd18a4e54be45e0c3985dd23">BRIX_CRC32_IEEE_POLY</a></div><div class="ttdeci">#define BRIX_CRC32_IEEE_POLY</div><div class="ttdef"><b>Definition</b> <a href="crc32__ieee_8c_source.html#l00011">crc32_ieee.c:11</a></div></div>
 <div class="ttc" id="acrc32__ieee_8h_html"><div class="ttname"><a href="crc32__ieee_8h.html">crc32_ieee.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

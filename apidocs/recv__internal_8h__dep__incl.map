@@ -1,0 +1,9 @@
+<map id="src/net/cms/recv_internal.h" name="src/net/cms/recv_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="167,5,366,31"/>
+<area shape="rect" id="Node000002" href="$net_2cms_2recv_8c.html" title=" " alt="" coords="5,79,144,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="224,38,107,81,105,76,222,33"/>
+<area shape="rect" id="Node000003" href="$recv__forward_8c.html" title=" " alt="" coords="168,79,365,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="269,44,269,79,264,79,264,44"/>
+<area shape="rect" id="Node000004" href="$net_2cms_2recv__frame_8c.html" title=" " alt="" coords="389,79,576,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="315,32,449,76,447,81,314,37"/>
+</map>

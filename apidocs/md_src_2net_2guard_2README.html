@@ -93,7 +93,7 @@ $(document).ready(function(){initNavTree('md_src_2net_2guard_2README.html',''); 
   <div class="headertitle"><div class="title">net/guard — protocol-agnostic bad-actor classifier</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md218"></a> Pure-C core of the generic bad-actor MITM guard (phase-65): every fronted protocol (ARC HTTP, XrdHttp/WebDAV, <code>root://</code>) normalizes each request into one <code><a class="el" href="structguard__request__t.html">guard_request_t</a></code>, and this directory classifies it — junk-scanner signatures, namespace-grammar violations, backend not-found / auth-failure outcomes — and formats the single <code>key=value</code> audit line fail2ban bans on.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md219"></a> Pure-C core of the generic bad-actor MITM guard (phase-65): every fronted protocol (ARC HTTP, XrdHttp/WebDAV, <code>root://</code>) normalizes each request into one <code><a class="el" href="structguard__request__t.html">guard_request_t</a></code>, and this directory classifies it — junk-scanner signatures, namespace-grammar violations, backend not-found / auth-failure outcomes — and formats the single <code>key=value</code> audit line fail2ban bans on.</p>
 <p>**The pure-C rule (same discipline as <a href="../tap/"><code>src/net/tap/</code></a>):** no nginx headers, no allocation, no OpenSSL. That is what lets the same objects embed in an nginx HTTP module (<code>src/net/httpguard/</code>), in the stream relay (<code><a class="el" href="relay__guard_8c.html">src/protocols/root/relay/relay_guard.c</a></code>), and in a standalone plain-<code>gcc</code> unit test.</p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -109,7 +109,7 @@ $(document).ready(function(){initNavTree('md_src_2net_2guard_2README.html',''); 
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="guard__test_8c.html">guard_test.c</a></code>   </td><td class="markdownTableBodyNone">Standalone unit test — <b>never</b> compiled into nginx.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md219"></a>
+<h1><a class="anchor" id="autotoc_md220"></a>
 The &lt;tt&gt;guard_request_t&lt;/tt&gt; contract</h1>
 <p>Adapters own everything the core cannot do allocation-free:</p>
 <ul>
@@ -118,11 +118,11 @@ The &lt;tt&gt;guard_request_t&lt;/tt&gt; contract</h1>
 <li><b>Adapters own the clock</b>: <code>guard_audit_format</code> takes a caller-built timestamp string.</li>
 <li>Ruleset pattern/prefix strings must outlive the ruleset (string literals or conf-pool memory).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md220"></a>
+<h1><a class="anchor" id="autotoc_md221"></a>
 Audit line (the fail2ban contract)</h1>
 <div class="fragment"><div class="line">&lt;ts&gt; ip=&lt;ip&gt; proto=&lt;proto&gt; signal=&lt;reason&gt; op=&lt;op&gt; path=&quot;&lt;path&gt;&quot; status=&lt;code&gt;</div>
 </div><!-- fragment --><p>Single line, fixed field order; <code>signal=</code> tokens are <code>signature</code> | <code>grammar</code> | <code>notfound</code> | <code>authfail</code>. The filters in <code>deploy/fail2ban/filter.d/</code> match these literally — never change one side alone.</p>
-<h1><a class="anchor" id="autotoc_md221"></a>
+<h1><a class="anchor" id="autotoc_md222"></a>
 Testing</h1>
 <div class="fragment"><div class="line">tests/guard/run_guard_core.sh    # builds guard_*.c with plain gcc, runs all checks</div>
 </div><!-- fragment --> </div></div><!-- contents -->

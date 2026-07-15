@@ -120,7 +120,7 @@ Functions</h2></td></tr>
 <tr class="separator:ae681d9ef7c13f85d17ba6ba19f1e0e10"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aab11210b03e31a2becfb15c3ba7210b3" id="r_aab11210b03e31a2becfb15c3ba7210b3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__hint_8h.html#aab11210b03e31a2becfb15c3ba7210b3">brix_cli_hint</a> (const char *fmt,...)</td></tr>
 <tr class="separator:aab11210b03e31a2becfb15c3ba7210b3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab229d8583af77de87a43b94d804d6d05" id="r_ab229d8583af77de87a43b94d804d6d05"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__hint_8h.html#ab229d8583af77de87a43b94d804d6d05">brix_cli_hint_once</a> (const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *fmt,...)</td></tr>
+<tr class="memitem:ab229d8583af77de87a43b94d804d6d05" id="r_ab229d8583af77de87a43b94d804d6d05"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__hint_8h.html#ab229d8583af77de87a43b94d804d6d05">brix_cli_hint_once</a> (const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *fmt,...)</td></tr>
 <tr class="separator:ab229d8583af77de87a43b94d804d6d05"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a25a81de44adada9ed0ffeac32951692b" id="r_a25a81de44adada9ed0ffeac32951692b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cli__hint_8h.html#a25a81de44adada9ed0ffeac32951692b">brix_hint_sanitize_url</a> (const char *url_str, char *out, size_t outsz)</td></tr>
 <tr class="separator:a25a81de44adada9ed0ffeac32951692b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -160,7 +160,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cli__hint_8c_source.html#l00056">brix_cli_hints_enabled()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00073">brixmount_dispatch()</a>, <a class="el" href="xrdfs_8c_source.html#l00089">dispatch()</a>, and <a class="el" href="xrdcksum_8c_source.html#l00085">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00073">brixmount_dispatch()</a>, <a class="el" href="xrdfs_8c_source.html#l00095">dispatch_unknown()</a>, <a class="el" href="xrddiag_8c_source.html#l00871">dx_unknown_sub()</a>, <a class="el" href="xrdcksum_8c_source.html#l00085">main()</a>, and <a class="el" href="xrd_8c_source.html#l00518">report_unknown_command()</a>.</p>
 
 </div>
 </div>
@@ -198,7 +198,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cli__hint_8c_source.html#l00092">92</a> of file <a class="el" href="cli__hint_8c_source.html">cli_hint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cli__hint_8c_source.html#l00056">brix_cli_hints_enabled()</a>, <a class="el" href="cli__hint_8c_source.html#l00033">HINT_ONCE_MAX</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="cli__hint_8c_source.html#l00056">brix_cli_hints_enabled()</a>, <a class="el" href="cli__hint_8c_source.html#l00033">HINT_ONCE_MAX</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="envalias_8c_source.html#l00023">brix_env_resolve()</a>, <a class="el" href="cli__hint_8c_source.html#l00211">brix_hint_doctor_referral()</a>, and <a class="el" href="cli__hint_8c_source.html#l00178">brix_hint_url_double_slash()</a>.</p>
 
@@ -258,7 +258,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cli__hint_8c_source.html#l00092">brix_cli_hint_once()</a>, <a class="el" href="cli__hint_8c_source.html#l00130">brix_hint_sanitize_url()</a>, <a class="el" href="cli__hint_8c_source.html#l00030">HINT_URL_MAX</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00350">brix_cred_hint_for_status_url()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00473">brix_cred_hint_for_status_url()</a>.</p>
 
 </div>
 </div>
@@ -296,7 +296,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cli__hint_8c_source.html#l00130">130</a> of file <a class="el" href="cli__hint_8c_source.html">cli_hint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, and <a class="el" href="cli__hint_8c_source.html#l00030">HINT_URL_MAX</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="cli__hint_8c_source.html#l00030">HINT_URL_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cli__hint_8c_source.html#l00211">brix_hint_doctor_referral()</a>.</p>
 
@@ -332,7 +332,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="cli__hint_8c_source.html#l00092">brix_cli_hint_once()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="brix_8h_source.html#l00079">brix_url::single_slash_path</a>, and <a class="el" href="brix_8h_source.html#l00050">brix_status::sys_errno</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cli__conn_8c_source.html#l00067">brix_report_err()</a>, <a class="el" href="xrdcp_8c_source.html#l00349">main()</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cli__conn_8c_source.html#l00067">brix_report_err()</a>, <a class="el" href="xrdcp_8c_source.html#l01069">xrdcp_hint_failed_source()</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>

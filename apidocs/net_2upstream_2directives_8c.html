@@ -113,6 +113,10 @@ $(document).ready(function(){initNavTree('net_2upstream_2directives_8c.html','')
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:afa493a53d29b33823dc20b5f360da88c" id="r_afa493a53d29b33823dc20b5f360da88c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2upstream_2directives_8c.html#afa493a53d29b33823dc20b5f360da88c">brix_upstream_parse_host_port</a> (ngx_conf_t *cf, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf, char *addr_copy, ngx_str_t *raw, long *port_out)</td></tr>
+<tr class="separator:afa493a53d29b33823dc20b5f360da88c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2ebbf9a613ec339decd5f34e51c19f49" id="r_a2ebbf9a613ec339decd5f34e51c19f49"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2upstream_2directives_8c.html#a2ebbf9a613ec339decd5f34e51c19f49">brix_upstream_preresolve</a> (ngx_conf_t *cf, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</td></tr>
+<tr class="separator:a2ebbf9a613ec339decd5f34e51c19f49"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4e7fc846e7cd1cffdc18927e5bc2548a" id="r_a4e7fc846e7cd1cffdc18927e5bc2548a"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net_2upstream_2directives_8c.html#a4e7fc846e7cd1cffdc18927e5bc2548a">brix_conf_set_upstream</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:a4e7fc846e7cd1cffdc18927e5bc2548a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -149,9 +153,111 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2upstream_2directives_8c_source.html#l00016">16</a> of file <a class="el" href="net_2upstream_2directives_8c_source.html">directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2directives_8c_source.html#l00173">173</a> of file <a class="el" href="net_2upstream_2directives_8c_source.html">directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, <a class="el" href="str__dup_8h_source.html#l00040">brix_pstrdupz()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="types_2config_8h_source.html#l00319">ngx_stream_brix_srv_conf_t::upstream_addr</a>, <a class="el" href="types_2config_8h_source.html#l00317">ngx_stream_brix_srv_conf_t::upstream_host</a>, and <a class="el" href="types_2config_8h_source.html#l00318">ngx_stream_brix_srv_conf_t::upstream_port</a>.</p>
+<p class="reference">References <a class="el" href="cstr_8h_source.html#l00051">brix_pstrdup_z()</a>, <a class="el" href="net_2upstream_2directives_8c_source.html#l00044">brix_upstream_parse_host_port()</a>, and <a class="el" href="net_2upstream_2directives_8c_source.html#l00112">brix_upstream_preresolve()</a>.</p>
+
+</div>
+</div>
+<a id="afa493a53d29b33823dc20b5f360da88c" name="afa493a53d29b33823dc20b5f360da88c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afa493a53d29b33823dc20b5f360da88c">&#9670;&#160;</a></span>brix_upstream_parse_host_port()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_upstream_parse_host_port </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>xcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>addr_copy</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>raw</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long *&#160;</td>
+          <td class="paramname"><em>port_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2directives_8c_source.html#l00044">44</a> of file <a class="el" href="net_2upstream_2directives_8c_source.html">directives.c</a>.</p>
+
+<p class="reference">References <a class="el" href="str__dup_8h_source.html#l00040">brix_pstrdupz()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2directives_8c_source.html#l00173">brix_conf_set_upstream()</a>.</p>
+
+</div>
+</div>
+<a id="a2ebbf9a613ec339decd5f34e51c19f49" name="a2ebbf9a613ec339decd5f34e51c19f49"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2ebbf9a613ec339decd5f34e51c19f49">&#9670;&#160;</a></span>brix_upstream_preresolve()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_upstream_preresolve </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>xcf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2directives_8c_source.html#l00112">112</a> of file <a class="el" href="net_2upstream_2directives_8c_source.html">directives.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2directives_8c_source.html#l00173">brix_conf_set_upstream()</a>.</p>
 
 </div>
 </div>

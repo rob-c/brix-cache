@@ -1,7 +1,15 @@
 <map id="src/protocols/root/write/chkpoint_xeq.h" name="src/protocols/root/write/chkpoint_xeq.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="77,5,239,45"/>
-<area shape="rect" id="Node000002" href="$chkpoint_8c.html" title=" " alt="" coords="5,93,140,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="131,57,93,95,90,91,128,53"/>
-<area shape="rect" id="Node000003" href="$chkpoint__xeq_8c.html" title=" " alt="" coords="165,93,325,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="189,53,227,91,224,95,185,57"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="307,5,468,45"/>
+<area shape="rect" id="Node000002" href="$chkpoint_8c.html" title=" " alt="" coords="5,101,140,141"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="306,52,152,96,129,103,128,98,151,91,304,46"/>
+<area shape="rect" id="Node000003" href="$chkpoint__recover_8c.html" title=" " alt="" coords="164,101,349,141"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="351,56,285,103,282,98,348,51"/>
+<area shape="rect" id="Node000004" href="$chkpoint__xeq_8c.html" title=" " alt="" coords="330,203,490,243"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="394,59,410,203,405,203,388,59"/>
+<area shape="rect" id="Node000005" href="$chkpoint__xeq__internal_8h.html" title=" " alt="" coords="425,93,574,148"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="422,52,469,91,466,95,419,56"/>
+<area shape="rect" id="Node000006" href="$chkpoint__xeq__write_8c.html" title=" " alt="" coords="525,196,674,251"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="482,34,511,42,540,54,566,70,588,92,602,117,608,144,607,196,602,196,603,145,597,118,584,95,563,74,537,59,510,47,481,39"/>
+<area shape="poly" id="edge5_Node000005_Node000004" title=" " alt="" coords="469,160,429,205,425,201,465,157"/>
+<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="537,156,575,194,571,198,533,160"/>
 </map>

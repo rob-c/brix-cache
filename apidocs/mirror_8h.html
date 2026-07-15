@@ -127,6 +127,8 @@ Data Structures</h2></td></tr>
 Macros</h2></td></tr>
 <tr class="memitem:ad36fd636f19ce0ddf53ef8c1a7760919" id="r_ad36fd636f19ce0ddf53ef8c1a7760919"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mirror_8h.html#ad36fd636f19ce0ddf53ef8c1a7760919">BRIX_MIRROR_MAX_TARGETS</a>&#160;&#160;&#160;4   /* up to 4 shadow backends per context */</td></tr>
 <tr class="separator:ad36fd636f19ce0ddf53ef8c1a7760919"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad9d59560db617164b959fb929ced7f1c" id="r_ad9d59560db617164b959fb929ced7f1c"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mirror_8h.html#ad9d59560db617164b959fb929ced7f1c">BRIX_MIRROR_DEFAULT_TIMEOUT_MS</a>&#160;&#160;&#160;5000</td></tr>
+<tr class="separator:ad9d59560db617164b959fb929ced7f1c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae4556a1199ffc5be2e90d9d9b53b41cd" id="r_ae4556a1199ffc5be2e90d9d9b53b41cd"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mirror_8h.html#ae4556a1199ffc5be2e90d9d9b53b41cd">BRIX_MIRROR_M_GET</a>&#160;&#160;&#160;(1u &lt;&lt; 0)</td></tr>
 <tr class="separator:ae4556a1199ffc5be2e90d9d9b53b41cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a607782b52e632e12ef29895e237af6b7" id="r_a607782b52e632e12ef29895e237af6b7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mirror_8h.html#a607782b52e632e12ef29895e237af6b7">BRIX_MIRROR_M_HEAD</a>&#160;&#160;&#160;(1u &lt;&lt; 1)</td></tr>
@@ -194,6 +196,22 @@ Functions</h2></td></tr>
 <tr class="separator:a552788fb995072d2df49256122a5a232"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="ad9d59560db617164b959fb929ced7f1c" name="ad9d59560db617164b959fb929ced7f1c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad9d59560db617164b959fb929ced7f1c">&#9670;&#160;</a></span>BRIX_MIRROR_DEFAULT_TIMEOUT_MS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define BRIX_MIRROR_DEFAULT_TIMEOUT_MS&#160;&#160;&#160;5000</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00035">35</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+
+</div>
+</div>
 <a id="a9896f47c6e1e163615eefe6f274c8221" name="a9896f47c6e1e163615eefe6f274c8221"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9896f47c6e1e163615eefe6f274c8221">&#9670;&#160;</a></span>BRIX_MIRROR_M_COPY</h2>
 
@@ -206,7 +224,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00044">44</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00049">49</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -224,11 +242,11 @@ Functions</h2></td></tr>
 <b>Value:</b><div class="fragment"><div class="line">                                  (<a class="code hl_define" href="mirror_8h.html#ae4556a1199ffc5be2e90d9d9b53b41cd">BRIX_MIRROR_M_GET</a>     \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#a607782b52e632e12ef29895e237af6b7">BRIX_MIRROR_M_HEAD</a>    \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#a5e25c2d1cfd76858b7cd5a5a3f526734">BRIX_MIRROR_M_PROPFIND</a>)</div>
-<div class="ttc" id="amirror_8h_html_a5e25c2d1cfd76858b7cd5a5a3f526734"><div class="ttname"><a href="mirror_8h.html#a5e25c2d1cfd76858b7cd5a5a3f526734">BRIX_MIRROR_M_PROPFIND</a></div><div class="ttdeci">#define BRIX_MIRROR_M_PROPFIND</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00035">mirror.h:35</a></div></div>
-<div class="ttc" id="amirror_8h_html_a607782b52e632e12ef29895e237af6b7"><div class="ttname"><a href="mirror_8h.html#a607782b52e632e12ef29895e237af6b7">BRIX_MIRROR_M_HEAD</a></div><div class="ttdeci">#define BRIX_MIRROR_M_HEAD</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00034">mirror.h:34</a></div></div>
-<div class="ttc" id="amirror_8h_html_ae4556a1199ffc5be2e90d9d9b53b41cd"><div class="ttname"><a href="mirror_8h.html#ae4556a1199ffc5be2e90d9d9b53b41cd">BRIX_MIRROR_M_GET</a></div><div class="ttdeci">#define BRIX_MIRROR_M_GET</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00033">mirror.h:33</a></div></div>
+<div class="ttc" id="amirror_8h_html_a5e25c2d1cfd76858b7cd5a5a3f526734"><div class="ttname"><a href="mirror_8h.html#a5e25c2d1cfd76858b7cd5a5a3f526734">BRIX_MIRROR_M_PROPFIND</a></div><div class="ttdeci">#define BRIX_MIRROR_M_PROPFIND</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00040">mirror.h:40</a></div></div>
+<div class="ttc" id="amirror_8h_html_a607782b52e632e12ef29895e237af6b7"><div class="ttname"><a href="mirror_8h.html#a607782b52e632e12ef29895e237af6b7">BRIX_MIRROR_M_HEAD</a></div><div class="ttdeci">#define BRIX_MIRROR_M_HEAD</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00039">mirror.h:39</a></div></div>
+<div class="ttc" id="amirror_8h_html_ae4556a1199ffc5be2e90d9d9b53b41cd"><div class="ttname"><a href="mirror_8h.html#ae4556a1199ffc5be2e90d9d9b53b41cd">BRIX_MIRROR_M_GET</a></div><div class="ttdeci">#define BRIX_MIRROR_M_GET</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00038">mirror.h:38</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00050">50</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00055">55</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -244,7 +262,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00041">41</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00046">46</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -260,7 +278,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00033">33</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00038">38</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -276,7 +294,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00034">34</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00039">39</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -292,7 +310,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00042">42</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00047">47</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -308,7 +326,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00043">43</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00048">48</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -324,7 +342,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00036">36</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00041">41</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -340,7 +358,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00035">35</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00040">40</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -356,7 +374,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00040">40</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00045">45</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -376,13 +394,13 @@ Functions</h2></td></tr>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#aa972e6eafb1b54342903fc976b96db46">BRIX_MIRROR_M_MKCOL</a>   \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#a6deb7ad22d92e4800396d2e0f1452577">BRIX_MIRROR_M_MOVE</a>    \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#a9896f47c6e1e163615eefe6f274c8221">BRIX_MIRROR_M_COPY</a>)</div>
-<div class="ttc" id="amirror_8h_html_a1b29bf50534b68d78647731e02701864"><div class="ttname"><a href="mirror_8h.html#a1b29bf50534b68d78647731e02701864">BRIX_MIRROR_M_DELETE</a></div><div class="ttdeci">#define BRIX_MIRROR_M_DELETE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00041">mirror.h:41</a></div></div>
-<div class="ttc" id="amirror_8h_html_a6deb7ad22d92e4800396d2e0f1452577"><div class="ttname"><a href="mirror_8h.html#a6deb7ad22d92e4800396d2e0f1452577">BRIX_MIRROR_M_MOVE</a></div><div class="ttdeci">#define BRIX_MIRROR_M_MOVE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00043">mirror.h:43</a></div></div>
-<div class="ttc" id="amirror_8h_html_a9896f47c6e1e163615eefe6f274c8221"><div class="ttname"><a href="mirror_8h.html#a9896f47c6e1e163615eefe6f274c8221">BRIX_MIRROR_M_COPY</a></div><div class="ttdeci">#define BRIX_MIRROR_M_COPY</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00044">mirror.h:44</a></div></div>
-<div class="ttc" id="amirror_8h_html_aa972e6eafb1b54342903fc976b96db46"><div class="ttname"><a href="mirror_8h.html#aa972e6eafb1b54342903fc976b96db46">BRIX_MIRROR_M_MKCOL</a></div><div class="ttdeci">#define BRIX_MIRROR_M_MKCOL</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00042">mirror.h:42</a></div></div>
-<div class="ttc" id="amirror_8h_html_ae7091eb10c9760a26c3abd4fb2ada34c"><div class="ttname"><a href="mirror_8h.html#ae7091eb10c9760a26c3abd4fb2ada34c">BRIX_MIRROR_M_PUT</a></div><div class="ttdeci">#define BRIX_MIRROR_M_PUT</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00040">mirror.h:40</a></div></div>
+<div class="ttc" id="amirror_8h_html_a1b29bf50534b68d78647731e02701864"><div class="ttname"><a href="mirror_8h.html#a1b29bf50534b68d78647731e02701864">BRIX_MIRROR_M_DELETE</a></div><div class="ttdeci">#define BRIX_MIRROR_M_DELETE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00046">mirror.h:46</a></div></div>
+<div class="ttc" id="amirror_8h_html_a6deb7ad22d92e4800396d2e0f1452577"><div class="ttname"><a href="mirror_8h.html#a6deb7ad22d92e4800396d2e0f1452577">BRIX_MIRROR_M_MOVE</a></div><div class="ttdeci">#define BRIX_MIRROR_M_MOVE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00048">mirror.h:48</a></div></div>
+<div class="ttc" id="amirror_8h_html_a9896f47c6e1e163615eefe6f274c8221"><div class="ttname"><a href="mirror_8h.html#a9896f47c6e1e163615eefe6f274c8221">BRIX_MIRROR_M_COPY</a></div><div class="ttdeci">#define BRIX_MIRROR_M_COPY</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00049">mirror.h:49</a></div></div>
+<div class="ttc" id="amirror_8h_html_aa972e6eafb1b54342903fc976b96db46"><div class="ttname"><a href="mirror_8h.html#aa972e6eafb1b54342903fc976b96db46">BRIX_MIRROR_M_MKCOL</a></div><div class="ttdeci">#define BRIX_MIRROR_M_MKCOL</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00047">mirror.h:47</a></div></div>
+<div class="ttc" id="amirror_8h_html_ae7091eb10c9760a26c3abd4fb2ada34c"><div class="ttname"><a href="mirror_8h.html#ae7091eb10c9760a26c3abd4fb2ada34c">BRIX_MIRROR_M_PUT</a></div><div class="ttdeci">#define BRIX_MIRROR_M_PUT</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00045">mirror.h:45</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00045">45</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00050">50</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -421,16 +439,16 @@ Functions</h2></td></tr>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#af119087152f5e55868017e84b425cf58">BRIX_MIRROR_OP_DIRLIST</a> \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#a454ee5471d4a0cd96fa90aac4ec50759">BRIX_MIRROR_OP_STATX</a>   \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#add48e7ebe2f2399be641d461197a5080">BRIX_MIRROR_OP_QUERY</a>)</div>
-<div class="ttc" id="amirror_8h_html_a13fe6b0f5b14bb7faa24ca89937cac6a"><div class="ttname"><a href="mirror_8h.html#a13fe6b0f5b14bb7faa24ca89937cac6a">BRIX_MIRROR_OP_LOCATE</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_LOCATE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00060">mirror.h:60</a></div></div>
-<div class="ttc" id="amirror_8h_html_a31d44d44c880f0a56c64d65870e9ef78"><div class="ttname"><a href="mirror_8h.html#a31d44d44c880f0a56c64d65870e9ef78">BRIX_MIRROR_OP_STAT</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_STAT</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00059">mirror.h:59</a></div></div>
-<div class="ttc" id="amirror_8h_html_a454ee5471d4a0cd96fa90aac4ec50759"><div class="ttname"><a href="mirror_8h.html#a454ee5471d4a0cd96fa90aac4ec50759">BRIX_MIRROR_OP_STATX</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_STATX</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00065">mirror.h:65</a></div></div>
-<div class="ttc" id="amirror_8h_html_a61bafde74ccb5bac330d4a65bf2337dc"><div class="ttname"><a href="mirror_8h.html#a61bafde74ccb5bac330d4a65bf2337dc">BRIX_MIRROR_OP_READ</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_READ</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00062">mirror.h:62</a></div></div>
-<div class="ttc" id="amirror_8h_html_a8016be5060b2947113c62ac4d1b11046"><div class="ttname"><a href="mirror_8h.html#a8016be5060b2947113c62ac4d1b11046">BRIX_MIRROR_OP_READV</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_READV</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00063">mirror.h:63</a></div></div>
-<div class="ttc" id="amirror_8h_html_add48e7ebe2f2399be641d461197a5080"><div class="ttname"><a href="mirror_8h.html#add48e7ebe2f2399be641d461197a5080">BRIX_MIRROR_OP_QUERY</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_QUERY</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00066">mirror.h:66</a></div></div>
-<div class="ttc" id="amirror_8h_html_af119087152f5e55868017e84b425cf58"><div class="ttname"><a href="mirror_8h.html#af119087152f5e55868017e84b425cf58">BRIX_MIRROR_OP_DIRLIST</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_DIRLIST</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00064">mirror.h:64</a></div></div>
-<div class="ttc" id="amirror_8h_html_afe929cbcd53d0223fc836c5f9fa831bf"><div class="ttname"><a href="mirror_8h.html#afe929cbcd53d0223fc836c5f9fa831bf">BRIX_MIRROR_OP_OPEN</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_OPEN</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00061">mirror.h:61</a></div></div>
+<div class="ttc" id="amirror_8h_html_a13fe6b0f5b14bb7faa24ca89937cac6a"><div class="ttname"><a href="mirror_8h.html#a13fe6b0f5b14bb7faa24ca89937cac6a">BRIX_MIRROR_OP_LOCATE</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_LOCATE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00065">mirror.h:65</a></div></div>
+<div class="ttc" id="amirror_8h_html_a31d44d44c880f0a56c64d65870e9ef78"><div class="ttname"><a href="mirror_8h.html#a31d44d44c880f0a56c64d65870e9ef78">BRIX_MIRROR_OP_STAT</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_STAT</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00064">mirror.h:64</a></div></div>
+<div class="ttc" id="amirror_8h_html_a454ee5471d4a0cd96fa90aac4ec50759"><div class="ttname"><a href="mirror_8h.html#a454ee5471d4a0cd96fa90aac4ec50759">BRIX_MIRROR_OP_STATX</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_STATX</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00070">mirror.h:70</a></div></div>
+<div class="ttc" id="amirror_8h_html_a61bafde74ccb5bac330d4a65bf2337dc"><div class="ttname"><a href="mirror_8h.html#a61bafde74ccb5bac330d4a65bf2337dc">BRIX_MIRROR_OP_READ</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_READ</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00067">mirror.h:67</a></div></div>
+<div class="ttc" id="amirror_8h_html_a8016be5060b2947113c62ac4d1b11046"><div class="ttname"><a href="mirror_8h.html#a8016be5060b2947113c62ac4d1b11046">BRIX_MIRROR_OP_READV</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_READV</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00068">mirror.h:68</a></div></div>
+<div class="ttc" id="amirror_8h_html_add48e7ebe2f2399be641d461197a5080"><div class="ttname"><a href="mirror_8h.html#add48e7ebe2f2399be641d461197a5080">BRIX_MIRROR_OP_QUERY</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_QUERY</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00071">mirror.h:71</a></div></div>
+<div class="ttc" id="amirror_8h_html_af119087152f5e55868017e84b425cf58"><div class="ttname"><a href="mirror_8h.html#af119087152f5e55868017e84b425cf58">BRIX_MIRROR_OP_DIRLIST</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_DIRLIST</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00069">mirror.h:69</a></div></div>
+<div class="ttc" id="amirror_8h_html_afe929cbcd53d0223fc836c5f9fa831bf"><div class="ttname"><a href="mirror_8h.html#afe929cbcd53d0223fc836c5f9fa831bf">BRIX_MIRROR_OP_OPEN</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_OPEN</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00066">mirror.h:66</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00100">100</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00105">105</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -446,7 +464,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00079">79</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00084">84</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -467,7 +485,7 @@ Functions</h2></td></tr>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#af119087152f5e55868017e84b425cf58">BRIX_MIRROR_OP_DIRLIST</a> \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#a454ee5471d4a0cd96fa90aac4ec50759">BRIX_MIRROR_OP_STATX</a>)</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00088">88</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00093">93</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -483,7 +501,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00064">64</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00069">69</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -499,7 +517,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00060">60</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00065">65</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -515,7 +533,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00074">74</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00079">79</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -531,7 +549,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00077">77</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00082">82</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -547,7 +565,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00061">61</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00066">66</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -563,7 +581,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00066">66</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00071">71</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -579,7 +597,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00062">62</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00067">67</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -595,7 +613,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00063">63</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00068">68</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -611,7 +629,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00075">75</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00080">80</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -627,7 +645,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00076">76</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00081">81</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -643,7 +661,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00059">59</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00064">64</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -659,7 +677,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00065">65</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00070">70</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -675,7 +693,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00078">78</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00083">83</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -691,7 +709,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00080">80</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00085">85</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -713,15 +731,15 @@ Functions</h2></td></tr>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#a43532e6c346eebdcbd09efb284fb19ac">BRIX_MIRROR_OP_TRUNCATE</a>  \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#afa5749e358253404dbe127f4cba9df56">BRIX_MIRROR_OP_CHMOD</a>     \</div>
 <div class="line">                                  | <a class="code hl_define" href="mirror_8h.html#ae786ec2e369bc0f45f649ffdfd59be32">BRIX_MIRROR_OP_WRITE</a>)</div>
-<div class="ttc" id="amirror_8h_html_a43532e6c346eebdcbd09efb284fb19ac"><div class="ttname"><a href="mirror_8h.html#a43532e6c346eebdcbd09efb284fb19ac">BRIX_MIRROR_OP_TRUNCATE</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_TRUNCATE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00078">mirror.h:78</a></div></div>
-<div class="ttc" id="amirror_8h_html_a4b18524722e7803ad4a8660d47669416"><div class="ttname"><a href="mirror_8h.html#a4b18524722e7803ad4a8660d47669416">BRIX_MIRROR_OP_RMDIR</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_RMDIR</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00076">mirror.h:76</a></div></div>
-<div class="ttc" id="amirror_8h_html_a542db98d76d7d13896930df08d674571"><div class="ttname"><a href="mirror_8h.html#a542db98d76d7d13896930df08d674571">BRIX_MIRROR_OP_RM</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_RM</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00075">mirror.h:75</a></div></div>
-<div class="ttc" id="amirror_8h_html_a607ef0923c9a3274ce3b4ccace2ac1dd"><div class="ttname"><a href="mirror_8h.html#a607ef0923c9a3274ce3b4ccace2ac1dd">BRIX_MIRROR_OP_MKDIR</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_MKDIR</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00074">mirror.h:74</a></div></div>
-<div class="ttc" id="amirror_8h_html_ae786ec2e369bc0f45f649ffdfd59be32"><div class="ttname"><a href="mirror_8h.html#ae786ec2e369bc0f45f649ffdfd59be32">BRIX_MIRROR_OP_WRITE</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_WRITE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00080">mirror.h:80</a></div></div>
-<div class="ttc" id="amirror_8h_html_af666bb4323d76bed4dfd8a481cc37be5"><div class="ttname"><a href="mirror_8h.html#af666bb4323d76bed4dfd8a481cc37be5">BRIX_MIRROR_OP_MV</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_MV</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00077">mirror.h:77</a></div></div>
-<div class="ttc" id="amirror_8h_html_afa5749e358253404dbe127f4cba9df56"><div class="ttname"><a href="mirror_8h.html#afa5749e358253404dbe127f4cba9df56">BRIX_MIRROR_OP_CHMOD</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_CHMOD</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00079">mirror.h:79</a></div></div>
+<div class="ttc" id="amirror_8h_html_a43532e6c346eebdcbd09efb284fb19ac"><div class="ttname"><a href="mirror_8h.html#a43532e6c346eebdcbd09efb284fb19ac">BRIX_MIRROR_OP_TRUNCATE</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_TRUNCATE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00083">mirror.h:83</a></div></div>
+<div class="ttc" id="amirror_8h_html_a4b18524722e7803ad4a8660d47669416"><div class="ttname"><a href="mirror_8h.html#a4b18524722e7803ad4a8660d47669416">BRIX_MIRROR_OP_RMDIR</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_RMDIR</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00081">mirror.h:81</a></div></div>
+<div class="ttc" id="amirror_8h_html_a542db98d76d7d13896930df08d674571"><div class="ttname"><a href="mirror_8h.html#a542db98d76d7d13896930df08d674571">BRIX_MIRROR_OP_RM</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_RM</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00080">mirror.h:80</a></div></div>
+<div class="ttc" id="amirror_8h_html_a607ef0923c9a3274ce3b4ccace2ac1dd"><div class="ttname"><a href="mirror_8h.html#a607ef0923c9a3274ce3b4ccace2ac1dd">BRIX_MIRROR_OP_MKDIR</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_MKDIR</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00079">mirror.h:79</a></div></div>
+<div class="ttc" id="amirror_8h_html_ae786ec2e369bc0f45f649ffdfd59be32"><div class="ttname"><a href="mirror_8h.html#ae786ec2e369bc0f45f649ffdfd59be32">BRIX_MIRROR_OP_WRITE</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_WRITE</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00085">mirror.h:85</a></div></div>
+<div class="ttc" id="amirror_8h_html_af666bb4323d76bed4dfd8a481cc37be5"><div class="ttname"><a href="mirror_8h.html#af666bb4323d76bed4dfd8a481cc37be5">BRIX_MIRROR_OP_MV</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_MV</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00082">mirror.h:82</a></div></div>
+<div class="ttc" id="amirror_8h_html_afa5749e358253404dbe127f4cba9df56"><div class="ttname"><a href="mirror_8h.html#afa5749e358253404dbe127f4cba9df56">BRIX_MIRROR_OP_CHMOD</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_CHMOD</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00084">mirror.h:84</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00081">81</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00086">86</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
 </div>
 </div>
@@ -750,9 +768,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00147">147</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00152">152</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00522">brix_http_mirror_precontent_handler()</a>, and <a class="el" href="stream__mirror_8c_source.html#l00483">brix_stream_mirror_maybe()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stream__mirror__launch_8c_source.html#l00155">brix_stream_mirror_eligible()</a>, and <a class="el" href="http__mirror_8c_source.html#l00221">mirror_precontent_eligible()</a>.</p>
 
 </div>
 </div>
@@ -780,9 +798,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00156">156</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="mirror_8h_source.html#l00161">161</a> of file <a class="el" href="mirror_8h_source.html">mirror.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__mirror_8c_source.html#l00368">mirror_finalize_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__mirror__request_8c_source.html#l00431">mirror_finalize_request()</a>.</p>
 
 </div>
 </div>

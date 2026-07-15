@@ -1,15 +1,27 @@
 <map id="src/protocols/s3/aws_chunked.h" name="src/protocols/s3/aws_chunked.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="187,5,341,45"/>
-<area shape="rect" id="Node000002" href="$aws__chunked_8c.html" title=" " alt="" coords="100,93,255,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="237,57,198,95,195,91,233,53"/>
-<area shape="rect" id="Node000003" href="$s3__put__internal_8h.html" title=" " alt="" coords="279,93,422,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="295,53,333,91,330,95,291,57"/>
-<area shape="rect" id="Node000004" href="$s3_2put_8c.html" title=" " alt="" coords="5,189,165,214"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="281,140,121,191,120,186,279,135"/>
-<area shape="rect" id="Node000005" href="$put__aio_8c.html" title=" " alt="" coords="189,181,339,221"/>
-<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="324,145,285,183,281,179,320,141"/>
-<area shape="rect" id="Node000006" href="$put__chunk_8c.html" title=" " alt="" coords="363,181,512,221"/>
-<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="381,141,420,179,416,183,378,145"/>
-<area shape="rect" id="Node000007" href="$put__finalize_8c.html" title=" " alt="" coords="536,181,685,221"/>
-<area shape="poly" id="edge6_Node000003_Node000007" title=" " alt="" coords="422,135,555,179,553,184,420,140"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="244,5,399,45"/>
+<area shape="rect" id="Node000002" href="$aws__chunked_8c.html" title=" " alt="" coords="5,181,160,221"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="231,39,122,61,77,76,61,85,50,95,43,115,46,138,56,160,69,180,65,183,52,163,41,139,37,115,46,92,58,81,75,71,120,55,230,34"/>
+<area shape="rect" id="Node000003" href="$aws__chunked__encoding_8c.html" title=" " alt="" coords="60,93,220,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="270,54,181,96,179,91,268,49"/>
+<area shape="rect" id="Node000004" href="$aws__chunked__internal_8h.html" title=" " alt="" coords="244,93,399,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="324,59,324,93,319,93,319,59"/>
+<area shape="rect" id="Node000005" href="$aws__chunked__parse_8c.html" title=" " alt="" coords="244,181,399,221"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="375,51,396,69,413,92,419,113,413,135,391,163,363,183,360,179,387,159,408,132,414,113,408,95,392,73,371,55"/>
+<area shape="rect" id="Node000006" href="$s3__put__internal_8h.html" title=" " alt="" coords="783,93,926,133"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="413,39,783,98,783,103,412,44"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="257,141,136,184,134,179,255,136"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="324,147,324,181,319,181,319,147"/>
+<area shape="rect" id="Node000007" href="$s3_2put_8c.html" title=" " alt="" coords="423,189,583,214"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="771,138,550,191,549,186,769,133"/>
+<area shape="rect" id="Node000008" href="$put__aio_8c.html" title=" " alt="" coords="607,181,756,221"/>
+<area shape="poly" id="edge9_Node000006_Node000008" title=" " alt="" coords="806,142,720,184,718,179,803,137"/>
+<area shape="rect" id="Node000009" href="$put__chunk_8c.html" title=" " alt="" coords="780,181,929,221"/>
+<area shape="poly" id="edge10_Node000006_Node000009" title=" " alt="" coords="857,147,857,181,852,181,852,147"/>
+<area shape="rect" id="Node000010" href="$put__finalize_8c.html" title=" " alt="" coords="953,181,1103,221"/>
+<area shape="poly" id="edge11_Node000006_Node000010" title=" " alt="" coords="906,137,991,179,989,184,904,142"/>
+<area shape="rect" id="Node000011" href="$put__inner_8c.html" title=" " alt="" coords="1127,181,1276,221"/>
+<area shape="poly" id="edge12_Node000006_Node000011" title=" " alt="" coords="940,133,1127,179,1126,184,938,138"/>
+<area shape="rect" id="Node000012" href="$put__stream_8c.html" title=" " alt="" coords="1300,181,1449,221"/>
+<area shape="poly" id="edge13_Node000006_Node000012" title=" " alt="" coords="940,124,1102,147,1288,179,1300,181,1299,186,1288,184,1101,153,939,129"/>
 </map>

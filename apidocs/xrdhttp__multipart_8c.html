@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('xrdhttp__multipart_8c.html',''); initR
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">xrdhttp_multipart.c File Reference</div></div>
@@ -109,11 +110,16 @@ $(document).ready(function(){initNavTree('xrdhttp__multipart_8c.html',''); initR
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="xrdhttp__multipart_8c__incl.svg" width="100%" height="591"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="xrdhttp__multipart_8c__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="xrdhttp__multipart_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmp__ctx__t.html">mp_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a5f76ca92b59e1328be568e8fabb7e5fe" id="r_a5f76ca92b59e1328be568e8fabb7e5fe"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#a5f76ca92b59e1328be568e8fabb7e5fe">XRDHTTP_BOUNDARY</a>&#160;&#160;&#160;&quot;xrdhttp_boundary_42&quot;</td></tr>
@@ -123,6 +129,20 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a841285eaca63cccb599aaaa4be8da0f1" id="r_a841285eaca63cccb599aaaa4be8da0f1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#a841285eaca63cccb599aaaa4be8da0f1">chain_append_text</a> (ngx_http_request_t *r, ngx_chain_t **tail, const char *text, ngx_chain_t **new_link_out)</td></tr>
 <tr class="separator:a841285eaca63cccb599aaaa4be8da0f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a587c7e2a52d6a7d375bb007196c0e28f" id="r_a587c7e2a52d6a7d375bb007196c0e28f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#a587c7e2a52d6a7d375bb007196c0e28f">mp_format_part_header</a> (char *buf, size_t buf_size, const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *range, off_t file_size)</td></tr>
+<tr class="separator:a587c7e2a52d6a7d375bb007196c0e28f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acd3866eeb80af41314b9c05551b3a6bd" id="r_acd3866eeb80af41314b9c05551b3a6bd"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#acd3866eeb80af41314b9c05551b3a6bd">mp_compute_content_length</a> (const <a class="el" href="structmp__ctx__t.html">mp_ctx_t</a> *ctx, const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *ranges, ngx_uint_t nranges, off_t *total_out)</td></tr>
+<tr class="separator:acd3866eeb80af41314b9c05551b3a6bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3abbeec52db5a79b131b5149ba153eef" id="r_a3abbeec52db5a79b131b5149ba153eef"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#a3abbeec52db5a79b131b5149ba153eef">mp_append_part</a> (const <a class="el" href="structmp__ctx__t.html">mp_ctx_t</a> *ctx, ngx_chain_t **head, ngx_chain_t **tail, const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *range)</td></tr>
+<tr class="separator:a3abbeec52db5a79b131b5149ba153eef"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a452e5db9086df212a7044bcbc2f9fc57" id="r_a452e5db9086df212a7044bcbc2f9fc57"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#a452e5db9086df212a7044bcbc2f9fc57">mp_build_chain</a> (const <a class="el" href="structmp__ctx__t.html">mp_ctx_t</a> *ctx, const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *ranges, ngx_uint_t nranges, ngx_chain_t **head_out)</td></tr>
+<tr class="separator:a452e5db9086df212a7044bcbc2f9fc57"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae10d39b694b86ad766e9be9c73c19a8a" id="r_ae10d39b694b86ad766e9be9c73c19a8a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#ae10d39b694b86ad766e9be9c73c19a8a">mp_set_response_headers</a> (ngx_http_request_t *r, off_t total_len)</td></tr>
+<tr class="separator:ae10d39b694b86ad766e9be9c73c19a8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ada4a7c6f893137f117c9533afc55bee9" id="r_ada4a7c6f893137f117c9533afc55bee9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#ada4a7c6f893137f117c9533afc55bee9">mp_account_metrics</a> (ngx_http_request_t *r, const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *ranges, ngx_uint_t nranges)</td></tr>
+<tr class="separator:ada4a7c6f893137f117c9533afc55bee9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae206ccd1d91ab446f34f2da234892a67" id="r_ae206ccd1d91ab446f34f2da234892a67"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#ae206ccd1d91ab446f34f2da234892a67">mp_resolve_path</a> (ngx_http_request_t *r, char *path, size_t path_size)</td></tr>
+<tr class="separator:ae206ccd1d91ab446f34f2da234892a67"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab3c16005e7e04a40ffe99d414f11a5b1" id="r_ab3c16005e7e04a40ffe99d414f11a5b1"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdhttp__multipart_8c.html#ab3c16005e7e04a40ffe99d414f11a5b1">xrdhttp_handle_multipart_get</a> (ngx_http_request_t *r, ngx_fd_t fd, const struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *sb, int fd_from_table)</td></tr>
 <tr class="separator:ab3c16005e7e04a40ffe99d414f11a5b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -190,11 +210,363 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00051">51</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00071">71</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
 
 <p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00027">BRIX_PCALLOC_OR_RETURN</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00088">xrdhttp_handle_multipart_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00177">mp_append_part()</a>, and <a class="el" href="xrdhttp__multipart_8c_source.html#l00225">mp_build_chain()</a>.</p>
+
+</div>
+</div>
+<a id="ada4a7c6f893137f117c9533afc55bee9" name="ada4a7c6f893137f117c9533afc55bee9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ada4a7c6f893137f117c9533afc55bee9">&#9670;&#160;</a></span>mp_account_metrics()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void mp_account_metrics </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *&#160;</td>
+          <td class="paramname"><em>ranges</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>nranges</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00304">304</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00080">BRIX_WEBDAV_METRIC_ADD</a>, <a class="el" href="range__vector_8h_source.html#l00031">brix_byte_range_t::end</a>, and <a class="el" href="range__vector_8h_source.html#l00030">brix_byte_range_t::start</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00343">xrdhttp_handle_multipart_get()</a>.</p>
+
+</div>
+</div>
+<a id="a3abbeec52db5a79b131b5149ba153eef" name="a3abbeec52db5a79b131b5149ba153eef"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3abbeec52db5a79b131b5149ba153eef">&#9670;&#160;</a></span>mp_append_part()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t mp_append_part </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structmp__ctx__t.html">mp_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_chain_t **&#160;</td>
+          <td class="paramname"><em>head</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_chain_t **&#160;</td>
+          <td class="paramname"><em>tail</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *&#160;</td>
+          <td class="paramname"><em>range</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00177">177</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__file__response_8c_source.html#l00027">brix_http_chain_append_file_range()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00071">chain_append_text()</a>, <a class="el" href="range__vector_8h_source.html#l00031">brix_byte_range_t::end</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00058">mp_ctx_t::fd</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00060">mp_ctx_t::fd_from_table</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00061">mp_ctx_t::file_size</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00117">mp_format_part_header()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00059">mp_ctx_t::path</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00057">mp_ctx_t::r</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00062">mp_ctx_t::scratch</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00063">mp_ctx_t::scratch_size</a>, and <a class="el" href="range__vector_8h_source.html#l00030">brix_byte_range_t::start</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00225">mp_build_chain()</a>.</p>
+
+</div>
+</div>
+<a id="a452e5db9086df212a7044bcbc2f9fc57" name="a452e5db9086df212a7044bcbc2f9fc57"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a452e5db9086df212a7044bcbc2f9fc57">&#9670;&#160;</a></span>mp_build_chain()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t mp_build_chain </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structmp__ctx__t.html">mp_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *&#160;</td>
+          <td class="paramname"><em>ranges</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>nranges</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_chain_t **&#160;</td>
+          <td class="paramname"><em>head_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00225">225</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdhttp__multipart_8c_source.html#l00071">chain_append_text()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00177">mp_append_part()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00057">mp_ctx_t::r</a>, and <a class="el" href="xrdhttp__multipart_8c_source.html#l00044">XRDHTTP_BOUNDARY</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00343">xrdhttp_handle_multipart_get()</a>.</p>
+
+</div>
+</div>
+<a id="acd3866eeb80af41314b9c05551b3a6bd" name="acd3866eeb80af41314b9c05551b3a6bd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acd3866eeb80af41314b9c05551b3a6bd">&#9670;&#160;</a></span>mp_compute_content_length()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t mp_compute_content_length </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structmp__ctx__t.html">mp_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *&#160;</td>
+          <td class="paramname"><em>ranges</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>nranges</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>total_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00142">142</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+
+<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00031">brix_byte_range_t::end</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00061">mp_ctx_t::file_size</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00117">mp_format_part_header()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00062">mp_ctx_t::scratch</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00063">mp_ctx_t::scratch_size</a>, <a class="el" href="range__vector_8h_source.html#l00030">brix_byte_range_t::start</a>, and <a class="el" href="xrdhttp__multipart_8c_source.html#l00044">XRDHTTP_BOUNDARY</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00343">xrdhttp_handle_multipart_get()</a>.</p>
+
+</div>
+</div>
+<a id="a587c7e2a52d6a7d375bb007196c0e28f" name="a587c7e2a52d6a7d375bb007196c0e28f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a587c7e2a52d6a7d375bb007196c0e28f">&#9670;&#160;</a></span>mp_format_part_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int mp_format_part_header </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>buf_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__byte__range__t.html">brix_byte_range_t</a> *&#160;</td>
+          <td class="paramname"><em>range</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>file_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00117">117</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+
+<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00031">brix_byte_range_t::end</a>, <a class="el" href="range__vector_8h_source.html#l00030">brix_byte_range_t::start</a>, and <a class="el" href="xrdhttp__multipart_8c_source.html#l00044">XRDHTTP_BOUNDARY</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00177">mp_append_part()</a>, and <a class="el" href="xrdhttp__multipart_8c_source.html#l00142">mp_compute_content_length()</a>.</p>
+
+</div>
+</div>
+<a id="ae206ccd1d91ab446f34f2da234892a67" name="ae206ccd1d91ab446f34f2da234892a67"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae206ccd1d91ab446f34f2da234892a67">&#9670;&#160;</a></span>mp_resolve_path()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void mp_resolve_path </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>path_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00332">332</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00343">xrdhttp_handle_multipart_get()</a>.</p>
+
+</div>
+</div>
+<a id="ae10d39b694b86ad766e9be9c73c19a8a" name="ae10d39b694b86ad766e9be9c73c19a8a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae10d39b694b86ad766e9be9c73c19a8a">&#9670;&#160;</a></span>mp_set_response_headers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t mp_set_response_headers </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>total_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00269">269</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdhttp__multipart_8c_source.html#l00044">XRDHTTP_BOUNDARY</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdhttp__multipart_8c_source.html#l00343">xrdhttp_handle_multipart_get()</a>.</p>
 
 </div>
 </div>
@@ -236,11 +608,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00088">88</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00343">343</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
 
-<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00049">brix_range_vector_opts_t::allow_open_ended</a>, <a class="el" href="range__vector_8h_source.html#l00048">brix_range_vector_opts_t::allow_suffix</a>, <a class="el" href="http__file__response_8c_source.html#l00027">brix_http_chain_append_file_range()</a>, <a class="el" href="range__vector_8c_source.html#l00105">brix_http_parse_range_vector()</a>, <a class="el" href="metrics__macros_8h_source.html#l00080">BRIX_WEBDAV_METRIC_ADD</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00051">chain_append_text()</a>, <a class="el" href="range__vector_8h_source.html#l00050">brix_range_vector_opts_t::drop_unsatisfiable</a>, <a class="el" href="range__vector_8h_source.html#l00031">brix_byte_range_t::end</a>, <a class="el" href="range__vector_8h_source.html#l00046">brix_range_vector_opts_t::max_ranges</a>, <a class="el" href="range__vector_8h_source.html#l00030">brix_byte_range_t::start</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="xrdhttp_8c_source.html#l00300">xrdhttp_add_response_headers()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00044">XRDHTTP_BOUNDARY</a>, and <a class="el" href="xrdhttp_8h_source.html#l00045">XRDHTTP_MAX_RANGES</a>.</p>
+<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00049">brix_range_vector_opts_t::allow_open_ended</a>, <a class="el" href="range__vector_8h_source.html#l00048">brix_range_vector_opts_t::allow_suffix</a>, <a class="el" href="range__vector_8c_source.html#l00203">brix_http_parse_range_vector()</a>, <a class="el" href="range__vector_8h_source.html#l00050">brix_range_vector_opts_t::drop_unsatisfiable</a>, <a class="el" href="range__vector_8h_source.html#l00046">brix_range_vector_opts_t::max_ranges</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00304">mp_account_metrics()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00225">mp_build_chain()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00142">mp_compute_content_length()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00332">mp_resolve_path()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00269">mp_set_response_headers()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00057">mp_ctx_t::r</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="xrdhttp__response_8c_source.html#l00116">xrdhttp_add_response_headers()</a>, and <a class="el" href="xrdhttp_8h_source.html#l00045">XRDHTTP_MAX_RANGES</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00128">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00370">get_serve_range()</a>.</p>
 
 </div>
 </div>

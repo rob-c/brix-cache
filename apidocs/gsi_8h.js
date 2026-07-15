@@ -24,5 +24,6 @@ var gsi_8h =
     [ "kXRS_user", "gsi_8h.html#aa1872954ddd112009e0987b22ceec1a3", null ],
     [ "kXRS_version", "gsi_8h.html#a00f5298a3625ed01527fba14938eefc8", null ],
     [ "kXRS_x509", "gsi_8h.html#a93290034001280800fe12a354a0cead7", null ],
+    [ "kXRS_x509_fullproxy", "gsi_8h.html#af5287a55cebec045fc58f51ef6b033fe", null ],
     [ "kXRS_x509_req", "gsi_8h.html#a45886d94a717dd8760b3802725ffe695", null ]
 ];

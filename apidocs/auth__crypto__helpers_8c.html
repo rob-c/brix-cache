@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('auth__crypto__helpers_8c.html',''); in
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">auth_crypto_helpers.c File Reference</div></div>
 </div><!--header-->
@@ -115,6 +116,11 @@ $(document).ready(function(){initNavTree('auth__crypto__helpers_8c.html',''); in
 </div>
 <p><a href="auth__crypto__helpers_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:aea4d385fc3951a078f82007ba0252c3c" id="r_aea4d385fc3951a078f82007ba0252c3c"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#aea4d385fc3951a078f82007ba0252c3c">brix_sss_read_be32</a> (const u_char *p)</td></tr>
@@ -125,12 +131,22 @@ Functions</h2></td></tr>
 <tr class="separator:af07cb2cb3d04cdd86a47ec008a3cd207"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac11fdcb199c0b01ebc9d17659a7ae288" id="r_ac11fdcb199c0b01ebc9d17659a7ae288"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#ac11fdcb199c0b01ebc9d17659a7ae288">brix_sss_crc32</a> (const u_char *p, size_t len)</td></tr>
 <tr class="separator:ac11fdcb199c0b01ebc9d17659a7ae288"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a99043a0e742bc08ed8059c42c23a1629" id="r_a99043a0e742bc08ed8059c42c23a1629"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#a99043a0e742bc08ed8059c42c23a1629">brix_sss_bf32_crypt</a> (int encrypt, const u_char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const u_char *src, size_t src_len, u_char *dst, size_t dst_len, size_t *out_len)</td></tr>
+<tr class="memitem:a99043a0e742bc08ed8059c42c23a1629" id="r_a99043a0e742bc08ed8059c42c23a1629"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#a99043a0e742bc08ed8059c42c23a1629">brix_sss_bf32_crypt</a> (int encrypt, const u_char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const u_char *src, size_t src_len, u_char *dst, size_t dst_len, size_t *out_len)</td></tr>
 <tr class="separator:a99043a0e742bc08ed8059c42c23a1629"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d59c9886644fee3c71f1336de4d8b2c" id="r_a2d59c9886644fee3c71f1336de4d8b2c"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#a2d59c9886644fee3c71f1336de4d8b2c">brix_sss_find_key_arr</a> (ngx_array_t *keys_arr, int64_t id)</td></tr>
 <tr class="separator:a2d59c9886644fee3c71f1336de4d8b2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2416ae35691bad440eb355d4f3e64c96" id="r_a2416ae35691bad440eb355d4f3e64c96"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#a2416ae35691bad440eb355d4f3e64c96">brix_sss_find_key</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, int64_t id)</td></tr>
 <tr class="separator:a2416ae35691bad440eb355d4f3e64c96"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a96171e771f5831a494649c6a7e566ad7" id="r_a96171e771f5831a494649c6a7e566ad7"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#a96171e771f5831a494649c6a7e566ad7">brix_sss_blob_validate_framing</a> (const <a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *ctx, size_t *hdr_len_out, char *err, size_t errsz)</td></tr>
+<tr class="separator:a96171e771f5831a494649c6a7e566ad7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a41b5a2011002d0602aa4543783c59571" id="r_a41b5a2011002d0602aa4543783c59571"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#a41b5a2011002d0602aa4543783c59571">brix_sss_blob_parse_header</a> (<a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *ctx, char *err, size_t errsz)</td></tr>
+<tr class="separator:a41b5a2011002d0602aa4543783c59571"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aad396093ca2eafb4ca5c90cc2b1e1524" id="r_aad396093ca2eafb4ca5c90cc2b1e1524"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#aad396093ca2eafb4ca5c90cc2b1e1524">brix_sss_blob_decrypt_verify_crc</a> (<a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *ctx, char *err, size_t errsz)</td></tr>
+<tr class="separator:aad396093ca2eafb4ca5c90cc2b1e1524"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afdc1fc3df8e33fc141ea2d086215c24c" id="r_afdc1fc3df8e33fc141ea2d086215c24c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#afdc1fc3df8e33fc141ea2d086215c24c">brix_sss_blob_check_replay</a> (<a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *ctx, char *err, size_t errsz)</td></tr>
+<tr class="separator:afdc1fc3df8e33fc141ea2d086215c24c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac2586249606eddb61e49c7205f59ecfb" id="r_ac2586249606eddb61e49c7205f59ecfb"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#ac2586249606eddb61e49c7205f59ecfb">brix_sss_blob_finish_identity</a> (<a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *ctx, <a class="el" href="structbrix__sss__identity__t.html">brix_sss_identity_t</a> *id_out, char *err, size_t errsz)</td></tr>
+<tr class="separator:ac2586249606eddb61e49c7205f59ecfb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6556b1b0d5f99f98b563aa4f5ea72ff1" id="r_a6556b1b0d5f99f98b563aa4f5ea72ff1"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__crypto__helpers_8c.html#a6556b1b0d5f99f98b563aa4f5ea72ff1">brix_sss_verify_blob</a> (ngx_array_t *keys, time_t lifetime, const u_char *blob, size_t blob_len, <a class="el" href="structbrix__sss__identity__t.html">brix_sss_identity_t</a> *id_out, const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> **key_out, char *err, size_t errsz)</td></tr>
 <tr class="separator:a6556b1b0d5f99f98b563aa4f5ea72ff1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -199,9 +215,261 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00078">78</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sss__bf_8c_source.html#l00042">brix_sss_bf_crypt()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="sss__bf_8c_source.html#l00155">brix_sss_bf_crypt()</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00014">brix_handle_sss_auth()</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00134">brix_sss_send_authmore()</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00119">brix_sss_verify_blob()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00262">brix_sss_blob_decrypt_verify_crc()</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00134">brix_sss_send_authmore()</a>, and <a class="el" href="auth__request_8c_source.html#l00149">sss_verify_keytab()</a>.</p>
+
+</div>
+</div>
+<a id="afdc1fc3df8e33fc141ea2d086215c24c" name="afdc1fc3df8e33fc141ea2d086215c24c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afdc1fc3df8e33fc141ea2d086215c24c">&#9670;&#160;</a></span>brix_sss_blob_check_replay()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sss_blob_check_replay </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>err</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>errsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00303">303</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sss_8h_source.html#l00021">BRIX_SSS_BASE_TIME</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00034">brix_sss_read_be32()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00145">brix_sss_blob_ctx_t::clear</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00139">brix_sss_blob_ctx_t::lifetime</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00354">brix_sss_verify_blob()</a>.</p>
+
+</div>
+</div>
+<a id="aad396093ca2eafb4ca5c90cc2b1e1524" name="aad396093ca2eafb4ca5c90cc2b1e1524"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad396093ca2eafb4ca5c90cc2b1e1524">&#9670;&#160;</a></span>brix_sss_blob_decrypt_verify_crc()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sss_blob_decrypt_verify_crc </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>err</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>errsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00262">262</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__crypto__helpers_8c_source.html#l00078">brix_sss_bf32_crypt()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00067">brix_sss_crc32()</a>, <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00034">brix_sss_read_be32()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00143">brix_sss_blob_ctx_t::cipher</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00144">brix_sss_blob_ctx_t::cipher_len</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00145">brix_sss_blob_ctx_t::clear</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00146">brix_sss_blob_ctx_t::clear_len</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00142">brix_sss_blob_ctx_t::key</a>, <a class="el" href="types_2config_8h_source.html#l00038">brix_sss_key_t::key</a>, and <a class="el" href="types_2config_8h_source.html#l00037">brix_sss_key_t::key_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00354">brix_sss_verify_blob()</a>.</p>
+
+</div>
+</div>
+<a id="ac2586249606eddb61e49c7205f59ecfb" name="ac2586249606eddb61e49c7205f59ecfb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac2586249606eddb61e49c7205f59ecfb">&#9670;&#160;</a></span>brix_sss_blob_finish_identity()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sss_blob_finish_identity </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sss__identity__t.html">brix_sss_identity_t</a> *&#160;</td>
+          <td class="paramname"><em>id_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>err</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>errsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00331">331</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00025">BRIX_SSS_OPT_SNDLID</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00056">brix_sss_parse_identity()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00145">brix_sss_blob_ctx_t::clear</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00146">brix_sss_blob_ctx_t::clear_len</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00354">brix_sss_verify_blob()</a>.</p>
+
+</div>
+</div>
+<a id="a41b5a2011002d0602aa4543783c59571" name="a41b5a2011002d0602aa4543783c59571"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a41b5a2011002d0602aa4543783c59571">&#9670;&#160;</a></span>brix_sss_blob_parse_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sss_blob_parse_header </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>err</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>errsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00217">217</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__crypto__helpers_8c_source.html#l00140">brix_sss_blob_ctx_t::blob</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00141">brix_sss_blob_ctx_t::blob_len</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00165">brix_sss_blob_validate_framing()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00090">brix_sss_find_key_arr()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00043">brix_sss_read_be64()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00143">brix_sss_blob_ctx_t::cipher</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00144">brix_sss_blob_ctx_t::cipher_len</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00145">brix_sss_blob_ctx_t::clear</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00142">brix_sss_blob_ctx_t::key</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00138">brix_sss_blob_ctx_t::keys</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00354">brix_sss_verify_blob()</a>.</p>
+
+</div>
+</div>
+<a id="a96171e771f5831a494649c6a7e566ad7" name="a96171e771f5831a494649c6a7e566ad7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96171e771f5831a494649c6a7e566ad7">&#9670;&#160;</a></span>brix_sss_blob_validate_framing()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_sss_blob_validate_framing </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__sss__blob__ctx__t.html">brix_sss_blob_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>hdr_len_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>err</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>errsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00165">165</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__crypto__helpers_8c_source.html#l00140">brix_sss_blob_ctx_t::blob</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00141">brix_sss_blob_ctx_t::blob_len</a>, <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00023">BRIX_SSS_ENC_BF32</a>, <a class="el" href="sss_8h_source.html#l00017">BRIX_SSS_HDR_LEN</a>, and <a class="el" href="tunables_8h_source.html#l00250">BRIX_SSS_NAME_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00217">brix_sss_blob_parse_header()</a>.</p>
 
 </div>
 </div>
@@ -233,9 +501,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00067">67</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="crc32__ieee_8c_source.html#l00011">brix_crc32_ieee()</a>.</p>
+<p class="reference">References <a class="el" href="crc32__ieee_8c_source.html#l00014">brix_crc32_ieee()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00014">brix_handle_sss_auth()</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00134">brix_sss_send_authmore()</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00119">brix_sss_verify_blob()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00262">brix_sss_blob_decrypt_verify_crc()</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00134">brix_sss_send_authmore()</a>, and <a class="el" href="auth__request_8c_source.html#l00149">sss_verify_keytab()</a>.</p>
 
 </div>
 </div>
@@ -267,9 +535,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00110">110</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__crypto__helpers_8c_source.html#l00090">brix_sss_find_key_arr()</a>, and <a class="el" href="types_2config_8h_source.html#l00279">ngx_stream_brix_srv_conf_t::sss_keys</a>.</p>
+<p class="reference">References <a class="el" href="auth__crypto__helpers_8c_source.html#l00090">brix_sss_find_key_arr()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00014">brix_handle_sss_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00107">sss_parse_header()</a>.</p>
 
 </div>
 </div>
@@ -301,7 +569,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00090">90</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00110">brix_sss_find_key()</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00119">brix_sss_verify_blob()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00217">brix_sss_blob_parse_header()</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00110">brix_sss_find_key()</a>.</p>
 
 </div>
 </div>
@@ -323,7 +591,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00034">34</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00014">brix_handle_sss_auth()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00043">brix_sss_read_be64()</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00119">brix_sss_verify_blob()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00303">brix_sss_blob_check_replay()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00262">brix_sss_blob_decrypt_verify_crc()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00043">brix_sss_read_be64()</a>, and <a class="el" href="auth__request_8c_source.html#l00149">sss_verify_keytab()</a>.</p>
 
 </div>
 </div>
@@ -347,7 +615,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="auth__crypto__helpers_8c_source.html#l00034">brix_sss_read_be32()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00014">brix_handle_sss_auth()</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00119">brix_sss_verify_blob()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00217">brix_sss_blob_parse_header()</a>, and <a class="el" href="auth__request_8c_source.html#l00107">sss_parse_header()</a>.</p>
 
 </div>
 </div>
@@ -413,9 +681,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00119">119</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth__crypto__helpers_8c_source.html#l00354">354</a> of file <a class="el" href="auth__crypto__helpers_8c_source.html">auth_crypto_helpers.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sss_8h_source.html#l00021">BRIX_SSS_BASE_TIME</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00078">brix_sss_bf32_crypt()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00067">brix_sss_crc32()</a>, <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00023">BRIX_SSS_ENC_BF32</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00090">brix_sss_find_key_arr()</a>, <a class="el" href="sss_8h_source.html#l00017">BRIX_SSS_HDR_LEN</a>, <a class="el" href="tunables_8h_source.html#l00250">BRIX_SSS_NAME_MAX</a>, <a class="el" href="sss_8h_source.html#l00025">BRIX_SSS_OPT_SNDLID</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00056">brix_sss_parse_identity()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00034">brix_sss_read_be32()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00043">brix_sss_read_be64()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="auth__crypto__helpers_8c_source.html#l00140">brix_sss_blob_ctx_t::blob</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00141">brix_sss_blob_ctx_t::blob_len</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00303">brix_sss_blob_check_replay()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00262">brix_sss_blob_decrypt_verify_crc()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00331">brix_sss_blob_finish_identity()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00217">brix_sss_blob_parse_header()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00145">brix_sss_blob_ctx_t::clear</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00142">brix_sss_blob_ctx_t::key</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00138">brix_sss_blob_ctx_t::keys</a>, and <a class="el" href="auth__crypto__helpers_8c_source.html#l00139">brix_sss_blob_ctx_t::lifetime</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__auth_8c_source.html#l00062">brix_cms_srv_verify_xauth()</a>.</p>
 

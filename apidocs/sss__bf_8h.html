@@ -116,9 +116,9 @@ $(document).ready(function(){initNavTree('sss__bf_8h.html',''); initResizable();
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a5564d34fbc5c923b8632389189141df4" id="r_a5564d34fbc5c923b8632389189141df4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__bf_8h.html#a5564d34fbc5c923b8632389189141df4">brix_sss_bf_crypt</a> (int encrypt, const uint8_t *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const uint8_t *src, size_t src_len, uint8_t *dst, size_t dst_max, size_t *out_len)</td></tr>
+<tr class="memitem:a5564d34fbc5c923b8632389189141df4" id="r_a5564d34fbc5c923b8632389189141df4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__bf_8h.html#a5564d34fbc5c923b8632389189141df4">brix_sss_bf_crypt</a> (int encrypt, const uint8_t *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, const uint8_t *src, size_t src_len, uint8_t *dst, size_t dst_max, size_t *out_len)</td></tr>
 <tr class="separator:a5564d34fbc5c923b8632389189141df4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adb0475d132be821b1531316cd9ebcf0b" id="r_adb0475d132be821b1531316cd9ebcf0b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__bf_8h.html#adb0475d132be821b1531316cd9ebcf0b">brix_sss_build_credential</a> (const uint8_t *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, uint64_t key_id, const char *username, const uint8_t nonce32[32], uint32_t gen_time, uint8_t *out, size_t out_max, size_t *out_len)</td></tr>
+<tr class="memitem:adb0475d132be821b1531316cd9ebcf0b" id="r_adb0475d132be821b1531316cd9ebcf0b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sss__bf_8h.html#adb0475d132be821b1531316cd9ebcf0b">brix_sss_build_credential</a> (const uint8_t *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len, uint64_t key_id, const char *username, const uint8_t nonce32[32], uint32_t gen_time, uint8_t *out, size_t out_max, size_t *out_len)</td></tr>
 <tr class="separator:adb0475d132be821b1531316cd9ebcf0b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -184,11 +184,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sss__bf_8c_source.html#l00042">42</a> of file <a class="el" href="sss__bf_8c_source.html">sss_bf.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sss__bf_8c_source.html#l00155">155</a> of file <a class="el" href="sss__bf_8c_source.html">sss_bf.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, and <a class="el" href="sss__bf_8c_source.html#l00025">sss_load_legacy_provider()</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sss__bf_8c_source.html#l00059">sss_bf_args_valid()</a>, <a class="el" href="sss__bf_8c_source.html#l00124">sss_bf_decrypt_run()</a>, <a class="el" href="sss__bf_8c_source.html#l00093">sss_bf_encrypt_run()</a>, and <a class="el" href="sss__bf_8c_source.html#l00025">sss_load_legacy_provider()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00078">brix_sss_bf32_crypt()</a>, <a class="el" href="sss__keytab_8c_source.html#l00044">brix_sss_bf32_encrypt()</a>, and <a class="el" href="sss__bf_8c_source.html#l00089">brix_sss_build_credential()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__crypto__helpers_8c_source.html#l00078">brix_sss_bf32_crypt()</a>, <a class="el" href="sss__keytab_8c_source.html#l00044">brix_sss_bf32_encrypt()</a>, and <a class="el" href="sss__bf_8c_source.html#l00188">brix_sss_build_credential()</a>.</p>
 
 </div>
 </div>
@@ -260,9 +260,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sss__bf_8c_source.html#l00089">89</a> of file <a class="el" href="sss__bf_8c_source.html">sss_bf.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sss__bf_8c_source.html#l00188">188</a> of file <a class="el" href="sss__bf_8c_source.html">sss_bf.c</a>.</p>
 
-<p class="reference">References <a class="el" href="crc32__ieee_8c_source.html#l00011">brix_crc32_ieee()</a>, <a class="el" href="sss__bf_8c_source.html#l00042">brix_sss_bf_crypt()</a>, <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00023">BRIX_SSS_ENC_BF32</a>, <a class="el" href="sss_8h_source.html#l00017">BRIX_SSS_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00024">BRIX_SSS_OPT_USEDATA</a>, <a class="el" href="sss_8h_source.html#l00028">BRIX_SSS_TYPE_NAME</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="crc32__ieee_8c_source.html#l00014">brix_crc32_ieee()</a>, <a class="el" href="sss__bf_8c_source.html#l00155">brix_sss_bf_crypt()</a>, <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00023">BRIX_SSS_ENC_BF32</a>, <a class="el" href="sss_8h_source.html#l00017">BRIX_SSS_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00024">BRIX_SSS_OPT_USEDATA</a>, <a class="el" href="sss_8h_source.html#l00028">BRIX_SSS_TYPE_NAME</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="auth__proxy__credential_8c_source.html#l00029">brix_sss_build_proxy_credential()</a>, and <a class="el" href="sec__sss_8c_source.html#l00077">sss_first()</a>.</p>
 

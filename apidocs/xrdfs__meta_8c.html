@@ -108,53 +108,71 @@ $(document).ready(function(){initNavTree('xrdfs__meta_8c.html',''); initResizabl
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a911228d0da683fd9b76cb2459d0be15f" id="r_a911228d0da683fd9b76cb2459d0be15f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a911228d0da683fd9b76cb2459d0be15f">do_stat</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a911228d0da683fd9b76cb2459d0be15f" id="r_a911228d0da683fd9b76cb2459d0be15f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a911228d0da683fd9b76cb2459d0be15f">do_stat</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a911228d0da683fd9b76cb2459d0be15f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ace9bbacf42c4bcac3230cf0d8086c667" id="r_ace9bbacf42c4bcac3230cf0d8086c667"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ace9bbacf42c4bcac3230cf0d8086c667">ls_print_dir</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, int want_long, int recursive, int human, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a19d5f38a2f950634e1be1fdcd2491273" id="r_a19d5f38a2f950634e1be1fdcd2491273"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a19d5f38a2f950634e1be1fdcd2491273">ls_print_entry</a> (const <a class="el" href="structbrix__dirent.html">brix_dirent</a> *ent, const char *prefix, int want_long, int human)</td></tr>
+<tr class="separator:a19d5f38a2f950634e1be1fdcd2491273"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a073c192028d0687dcadcf7827d78ac60" id="r_a073c192028d0687dcadcf7827d78ac60"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a073c192028d0687dcadcf7827d78ac60">ls_recurse_subdirs</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, const <a class="el" href="structbrix__dirent.html">brix_dirent</a> *ents, size_t n, int want_long, int human, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="separator:a073c192028d0687dcadcf7827d78ac60"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ace9bbacf42c4bcac3230cf0d8086c667" id="r_ace9bbacf42c4bcac3230cf0d8086c667"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ace9bbacf42c4bcac3230cf0d8086c667">ls_print_dir</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, int want_long, int recursive, int human, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:ace9bbacf42c4bcac3230cf0d8086c667"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a123ab4132e5a7fa95eebb71e97bd42af" id="r_a123ab4132e5a7fa95eebb71e97bd42af"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a123ab4132e5a7fa95eebb71e97bd42af">ls_json_dir</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a123ab4132e5a7fa95eebb71e97bd42af" id="r_a123ab4132e5a7fa95eebb71e97bd42af"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a123ab4132e5a7fa95eebb71e97bd42af">ls_json_dir</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a123ab4132e5a7fa95eebb71e97bd42af"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a04ccfaa962732a407eb40c34221a55fd" id="r_a04ccfaa962732a407eb40c34221a55fd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a04ccfaa962732a407eb40c34221a55fd">do_ls</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a04ccfaa962732a407eb40c34221a55fd" id="r_a04ccfaa962732a407eb40c34221a55fd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a04ccfaa962732a407eb40c34221a55fd">do_ls</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a04ccfaa962732a407eb40c34221a55fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5eee65f2bee3b4954e078f38c9343789" id="r_a5eee65f2bee3b4954e078f38c9343789"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a5eee65f2bee3b4954e078f38c9343789">do_mkdir</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a5eee65f2bee3b4954e078f38c9343789" id="r_a5eee65f2bee3b4954e078f38c9343789"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a5eee65f2bee3b4954e078f38c9343789">do_mkdir</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a5eee65f2bee3b4954e078f38c9343789"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a972705d75f6cdbbe699fa2d1c30a3af5" id="r_a972705d75f6cdbbe699fa2d1c30a3af5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a972705d75f6cdbbe699fa2d1c30a3af5">rm_report</a> (const char *path, int is_dir, void *u)</td></tr>
 <tr class="separator:a972705d75f6cdbbe699fa2d1c30a3af5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad1d0cadb38b420f2a976c2624e1b5c4b" id="r_ad1d0cadb38b420f2a976c2624e1b5c4b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ad1d0cadb38b420f2a976c2624e1b5c4b">do_rm</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:ad1d0cadb38b420f2a976c2624e1b5c4b" id="r_ad1d0cadb38b420f2a976c2624e1b5c4b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ad1d0cadb38b420f2a976c2624e1b5c4b">do_rm</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:ad1d0cadb38b420f2a976c2624e1b5c4b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a03fffac956ad2f9df9baab5e4c568e49" id="r_a03fffac956ad2f9df9baab5e4c568e49"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a03fffac956ad2f9df9baab5e4c568e49">do_rmdir</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a03fffac956ad2f9df9baab5e4c568e49" id="r_a03fffac956ad2f9df9baab5e4c568e49"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a03fffac956ad2f9df9baab5e4c568e49">do_rmdir</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a03fffac956ad2f9df9baab5e4c568e49"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6a54560430a44696c8133bc826c96de2" id="r_a6a54560430a44696c8133bc826c96de2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a6a54560430a44696c8133bc826c96de2">do_mv</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a6a54560430a44696c8133bc826c96de2" id="r_a6a54560430a44696c8133bc826c96de2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a6a54560430a44696c8133bc826c96de2">do_mv</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a6a54560430a44696c8133bc826c96de2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ada58724ab625f7e08f5073ea0bce4277" id="r_ada58724ab625f7e08f5073ea0bce4277"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ada58724ab625f7e08f5073ea0bce4277">do_chmod</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:ada58724ab625f7e08f5073ea0bce4277" id="r_ada58724ab625f7e08f5073ea0bce4277"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ada58724ab625f7e08f5073ea0bce4277">do_chmod</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:ada58724ab625f7e08f5073ea0bce4277"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0ee41adb024712ba6ba1129262e3ba84" id="r_a0ee41adb024712ba6ba1129262e3ba84"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a0ee41adb024712ba6ba1129262e3ba84">do_truncate</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a0ee41adb024712ba6ba1129262e3ba84" id="r_a0ee41adb024712ba6ba1129262e3ba84"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a0ee41adb024712ba6ba1129262e3ba84">do_truncate</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a0ee41adb024712ba6ba1129262e3ba84"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5209dfe6111a13bbada24c954e9009b9" id="r_a5209dfe6111a13bbada24c954e9009b9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a5209dfe6111a13bbada24c954e9009b9">do_locate</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a5209dfe6111a13bbada24c954e9009b9" id="r_a5209dfe6111a13bbada24c954e9009b9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a5209dfe6111a13bbada24c954e9009b9">do_locate</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a5209dfe6111a13bbada24c954e9009b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2ba6c0cc8b10ec6dc89ee7f8a1ced379" id="r_a2ba6c0cc8b10ec6dc89ee7f8a1ced379"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a2ba6c0cc8b10ec6dc89ee7f8a1ced379">do_statvfs</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a2ba6c0cc8b10ec6dc89ee7f8a1ced379" id="r_a2ba6c0cc8b10ec6dc89ee7f8a1ced379"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a2ba6c0cc8b10ec6dc89ee7f8a1ced379">do_statvfs</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a2ba6c0cc8b10ec6dc89ee7f8a1ced379"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a389b1c59cfe82685f46c3baaa5a05e3c" id="r_a389b1c59cfe82685f46c3baaa5a05e3c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a389b1c59cfe82685f46c3baaa5a05e3c">do_df</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a389b1c59cfe82685f46c3baaa5a05e3c" id="r_a389b1c59cfe82685f46c3baaa5a05e3c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a389b1c59cfe82685f46c3baaa5a05e3c">do_df</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a389b1c59cfe82685f46c3baaa5a05e3c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aaeaf5728736d90db754a0baec44e369f" id="r_aaeaf5728736d90db754a0baec44e369f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#aaeaf5728736d90db754a0baec44e369f">do_touch</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a4587724ba0f8f7000149c0f79aeeda94" id="r_a4587724ba0f8f7000149c0f79aeeda94"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a4587724ba0f8f7000149c0f79aeeda94">touch_parse_argv</a> (int argc, char **argv, int *no_create, int *do_atime, int *do_mtime, int *have_t, struct timespec *tspec, const char **arg)</td></tr>
+<tr class="separator:a4587724ba0f8f7000149c0f79aeeda94"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afdfea0c9d5dbd68f429263fcb67ad538" id="r_afdfea0c9d5dbd68f429263fcb67ad538"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#afdfea0c9d5dbd68f429263fcb67ad538">touch_fill_times</a> (struct timespec times[2], int do_atime, int do_mtime, int have_t, const struct timespec *tspec)</td></tr>
+<tr class="separator:afdfea0c9d5dbd68f429263fcb67ad538"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acc69d14cdbe60d35588193b4232cc38d" id="r_acc69d14cdbe60d35588193b4232cc38d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#acc69d14cdbe60d35588193b4232cc38d">touch_ensure_file</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, int no_create)</td></tr>
+<tr class="separator:acc69d14cdbe60d35588193b4232cc38d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaeaf5728736d90db754a0baec44e369f" id="r_aaeaf5728736d90db754a0baec44e369f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#aaeaf5728736d90db754a0baec44e369f">do_touch</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:aaeaf5728736d90db754a0baec44e369f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab746c907ca827340c01173de51c51184" id="r_ab746c907ca827340c01173de51c51184"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ab746c907ca827340c01173de51c51184">do_ln</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:ab746c907ca827340c01173de51c51184" id="r_ab746c907ca827340c01173de51c51184"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ab746c907ca827340c01173de51c51184">do_ln</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:ab746c907ca827340c01173de51c51184"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afdea7c148d41e70c594e7c2432ebe87d" id="r_afdea7c148d41e70c594e7c2432ebe87d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#afdea7c148d41e70c594e7c2432ebe87d">do_readlink</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:afdea7c148d41e70c594e7c2432ebe87d" id="r_afdea7c148d41e70c594e7c2432ebe87d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#afdea7c148d41e70c594e7c2432ebe87d">do_readlink</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:afdea7c148d41e70c594e7c2432ebe87d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6fa7f00ca6943cee2c4c6e221bc80efa" id="r_a6fa7f00ca6943cee2c4c6e221bc80efa"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a6fa7f00ca6943cee2c4c6e221bc80efa">do_cksum</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a6fa7f00ca6943cee2c4c6e221bc80efa" id="r_a6fa7f00ca6943cee2c4c6e221bc80efa"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a6fa7f00ca6943cee2c4c6e221bc80efa">do_cksum</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a6fa7f00ca6943cee2c4c6e221bc80efa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5824ba508cef77239c2401c8974a6a0d" id="r_a5824ba508cef77239c2401c8974a6a0d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a5824ba508cef77239c2401c8974a6a0d">xattr_ls</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path)</td></tr>
+<tr class="memitem:a5824ba508cef77239c2401c8974a6a0d" id="r_a5824ba508cef77239c2401c8974a6a0d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a5824ba508cef77239c2401c8974a6a0d">xattr_ls</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path)</td></tr>
 <tr class="separator:a5824ba508cef77239c2401c8974a6a0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8b0c80fa94dea541cdeaf0539290086a" id="r_a8b0c80fa94dea541cdeaf0539290086a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a8b0c80fa94dea541cdeaf0539290086a">do_xattr</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a33e45b2257e8149ae8b58da865cf143e" id="r_a33e45b2257e8149ae8b58da865cf143e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a33e45b2257e8149ae8b58da865cf143e">xattr_is_subcommand</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
+<tr class="separator:a33e45b2257e8149ae8b58da865cf143e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9e4d5409f8e0341c83a788e425613c19" id="r_a9e4d5409f8e0341c83a788e425613c19"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a9e4d5409f8e0341c83a788e425613c19">xattr_get</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, int argc, char **argv)</td></tr>
+<tr class="separator:a9e4d5409f8e0341c83a788e425613c19"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab3e364953bcbe20c672b894183db3543" id="r_ab3e364953bcbe20c672b894183db3543"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ab3e364953bcbe20c672b894183db3543">xattr_set</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, int argc, char **argv)</td></tr>
+<tr class="separator:ab3e364953bcbe20c672b894183db3543"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac8eea5ed221c4b74e4ac0b994abf0323" id="r_ac8eea5ed221c4b74e4ac0b994abf0323"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ac8eea5ed221c4b74e4ac0b994abf0323">xattr_rm</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, int argc, char **argv)</td></tr>
+<tr class="separator:ac8eea5ed221c4b74e4ac0b994abf0323"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b0c80fa94dea541cdeaf0539290086a" id="r_a8b0c80fa94dea541cdeaf0539290086a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a8b0c80fa94dea541cdeaf0539290086a">do_xattr</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a8b0c80fa94dea541cdeaf0539290086a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9220f2141ea920a26abce434664104a8" id="r_a9220f2141ea920a26abce434664104a8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a9220f2141ea920a26abce434664104a8">do_query</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a9220f2141ea920a26abce434664104a8" id="r_a9220f2141ea920a26abce434664104a8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a9220f2141ea920a26abce434664104a8">do_query</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a9220f2141ea920a26abce434664104a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a307bb55fb87c67ef90bcf6bf094faab2" id="r_a307bb55fb87c67ef90bcf6bf094faab2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a307bb55fb87c67ef90bcf6bf094faab2">do_prepare</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a307bb55fb87c67ef90bcf6bf094faab2" id="r_a307bb55fb87c67ef90bcf6bf094faab2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a307bb55fb87c67ef90bcf6bf094faab2">do_prepare</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a307bb55fb87c67ef90bcf6bf094faab2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad0196292145c827c4c493e01adec17d8" id="r_ad0196292145c827c4c493e01adec17d8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ad0196292145c827c4c493e01adec17d8">do_stage</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:ad0196292145c827c4c493e01adec17d8" id="r_ad0196292145c827c4c493e01adec17d8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#ad0196292145c827c4c493e01adec17d8">do_stage</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:ad0196292145c827c4c493e01adec17d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a41182c8f06a45833ccb8b774fc29050f" id="r_a41182c8f06a45833ccb8b774fc29050f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a41182c8f06a45833ccb8b774fc29050f">do_evict</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
+<tr class="memitem:a41182c8f06a45833ccb8b774fc29050f" id="r_a41182c8f06a45833ccb8b774fc29050f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdfs__meta_8c.html#a41182c8f06a45833ccb8b774fc29050f">do_evict</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *cwd, int argc, char **argv)</td></tr>
 <tr class="separator:a41182c8f06a45833ccb8b774fc29050f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -196,9 +214,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00328">328</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00376">376</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00147">brix_chmod()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrdfs__walk_8c_source.html#l00067">chmod_recursive()</a>, <a class="el" href="proxy__req__unittest_8c_source.html#l00027">failures</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00140">parse_chmod_mode()</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00147">brix_chmod()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdfs__walk_8c_source.html#l00067">chmod_recursive()</a>, <a class="el" href="proxy__req__unittest_8c_source.html#l00027">failures</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00140">parse_chmod_mode()</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -240,9 +258,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00623">623</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00754">754</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00445">brix_query_cksum()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00770">brix_query_cksum()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -284,9 +302,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00432">432</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00480">480</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00184">df_parse_space()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00312">fmt_size()</a>, <a class="el" href="opcodes_8h_source.html#l00198">kXR_Qspace</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00184">df_parse_space()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00386">fmt_size()</a>, <a class="el" href="opcodes_8h_source.html#l00198">kXR_Qspace</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -328,9 +346,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00857">857</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l01062">1062</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="flags_8h_source.html#l00150">kXR_evict</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="flags_8h_source.html#l00150">kXR_evict</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -372,9 +390,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00550">550</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00681">681</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__ext_8c_source.html#l00123">brix_link()</a>, <a class="el" href="ops__fs_8c_source.html#l00087">brix_rm()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="ops__ext_8c_source.html#l00088">brix_symlink()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="ops__ext_8c_source.html#l00125">brix_link()</a>, <a class="el" href="ops__fs_8c_source.html#l00087">brix_rm()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="ops__ext_8c_source.html#l00090">brix_symlink()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -416,9 +434,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00393">393</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00441">441</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00206">brix_locate()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00206">brix_locate()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -460,9 +478,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00152">152</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00200">200</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00104">ls_json_dir()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00046">ls_print_dir()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00152">ls_json_dir()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00116">ls_print_dir()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -504,9 +522,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00190">190</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00238">238</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00071">brix_mkdir()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00071">brix_mkdir()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -548,9 +566,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00305">305</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00353">353</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00110">brix_mv()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00110">brix_mv()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -592,9 +610,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00774">774</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00979">979</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="flags_8h_source.html#l00140">kXR_cancel</a>, <a class="el" href="flags_8h_source.html#l00150">kXR_evict</a>, <a class="el" href="flags_8h_source.html#l00146">kXR_fresh</a>, <a class="el" href="flags_8h_source.html#l00143">kXR_stage</a>, <a class="el" href="flags_8h_source.html#l00144">kXR_wmode</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="flags_8h_source.html#l00140">kXR_cancel</a>, <a class="el" href="flags_8h_source.html#l00150">kXR_evict</a>, <a class="el" href="flags_8h_source.html#l00146">kXR_fresh</a>, <a class="el" href="flags_8h_source.html#l00143">kXR_stage</a>, <a class="el" href="flags_8h_source.html#l00144">kXR_wmode</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -636,9 +654,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00734">734</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00939">939</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="opcodes_8h_source.html#l00196">kXR_Qcksum</a>, <a class="el" href="opcodes_8h_source.html#l00200">kXR_Qconfig</a>, <a class="el" href="opcodes_8h_source.html#l00198">kXR_Qspace</a>, <a class="el" href="opcodes_8h_source.html#l00194">kXR_QStats</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="opcodes_8h_source.html#l00196">kXR_Qcksum</a>, <a class="el" href="opcodes_8h_source.html#l00200">kXR_Qconfig</a>, <a class="el" href="opcodes_8h_source.html#l00198">kXR_Qspace</a>, <a class="el" href="opcodes_8h_source.html#l00194">kXR_QStats</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -680,9 +698,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00596">596</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00727">727</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__ext_8c_source.html#l00158">brix_readlink()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__ext_8c_source.html#l00160">brix_readlink()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -724,9 +742,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00233">233</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00281">281</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00364">brix_cred_hint_for_status()</a>, <a class="el" href="ops__fs_8c_source.html#l00087">brix_rm()</a>, <a class="el" href="rmtree_8c_source.html#l00139">brix_rmtree()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00218">rm_report()</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00487">brix_cred_hint_for_status()</a>, <a class="el" href="ops__fs_8c_source.html#l00087">brix_rm()</a>, <a class="el" href="rmtree_8c_source.html#l00214">brix_rmtree()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00266">rm_report()</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -768,9 +786,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00287">287</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00335">335</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00099">brix_rmdir()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00099">brix_rmdir()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -812,9 +830,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00811">811</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l01016">1016</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="flags_8h_source.html#l00143">kXR_stage</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs_8c_source.html#l00057">wait_online()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="flags_8h_source.html#l00143">kXR_stage</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs_8c_source.html#l00057">wait_online()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -858,7 +876,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00013">13</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00110">json_statinfo()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00081">print_statinfo()</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00110">json_statinfo()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00081">print_statinfo()</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -900,9 +918,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00411">411</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00459">459</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="ops__fs_8c_source.html#l00192">brix_statvfs()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="ops__fs_8c_source.html#l00192">brix_statvfs()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -944,9 +962,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00479">479</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00636">636</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00015">brix_file_open_write()</a>, <a class="el" href="ops__ext_8c_source.html#l00042">brix_setattr()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00206">touch_parse_time()</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="ops__ext_8c_source.html#l00044">brix_setattr()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00608">touch_ensure_file()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00578">touch_fill_times()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00540">touch_parse_argv()</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -988,9 +1006,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00373">373</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00421">421</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="ops__fs_8c_source.html#l00162">brix_truncate()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="ops__fs_8c_source.html#l00162">brix_truncate()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>.</p>
 
 </div>
 </div>
@@ -1032,9 +1050,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00678">678</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00912">912</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fattr_8c_source.html#l00192">brix_fattr_del()</a>, <a class="el" href="fattr_8c_source.html#l00086">brix_fattr_get()</a>, <a class="el" href="fattr_8c_source.html#l00184">brix_fattr_set()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00653">xattr_ls()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrdfs__fmt_8c_source.html#l00019">build_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00840">xattr_get()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00819">xattr_is_subcommand()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00784">xattr_ls()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00897">xattr_rm()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00871">xattr_set()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -1078,11 +1096,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00104">104</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00152">152</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__meta_8c_source.html#l00299">brix_dirlist()</a>, <a class="el" href="jsonout_8c_source.html#l00102">brix_json_kv_bool()</a>, <a class="el" href="jsonout_8c_source.html#l00086">brix_json_kv_ll()</a>, <a class="el" href="jsonout_8c_source.html#l00067">brix_json_kv_str()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="brix__net_8h_source.html#l00156">brix_dirent::have_stat</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__meta_8c_source.html#l00380">brix_dirlist()</a>, <a class="el" href="jsonout_8c_source.html#l00102">brix_json_kv_bool()</a>, <a class="el" href="jsonout_8c_source.html#l00086">brix_json_kv_ll()</a>, <a class="el" href="jsonout_8c_source.html#l00067">brix_json_kv_str()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="brix__net_8h_source.html#l00156">brix_dirent::have_stat</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00152">do_ls()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00200">do_ls()</a>.</p>
 
 </div>
 </div>
@@ -1136,11 +1154,137 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00046">46</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00116">116</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__meta_8c_source.html#l00299">brix_dirlist()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00312">fmt_size()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00303">is_dot()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00320">join_path()</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="flags_8h_source.html#l00052">kXR_readable</a>, <a class="el" href="flags_8h_source.html#l00053">kXR_writable</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00046">ls_print_dir()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__meta_8c_source.html#l00380">brix_dirlist()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00057">ls_print_entry()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00089">ls_recurse_subdirs()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00152">do_ls()</a>, and <a class="el" href="xrdfs__meta_8c_source.html#l00046">ls_print_dir()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00200">do_ls()</a>, and <a class="el" href="xrdfs__meta_8c_source.html#l00089">ls_recurse_subdirs()</a>.</p>
+
+</div>
+</div>
+<a id="a19d5f38a2f950634e1be1fdcd2491273" name="a19d5f38a2f950634e1be1fdcd2491273"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a19d5f38a2f950634e1be1fdcd2491273">&#9670;&#160;</a></span>ls_print_entry()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void ls_print_entry </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__dirent.html">brix_dirent</a> *&#160;</td>
+          <td class="paramname"><em>ent</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prefix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>want_long</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>human</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00057">57</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00386">fmt_size()</a>, <a class="el" href="brix__net_8h_source.html#l00156">brix_dirent::have_stat</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="flags_8h_source.html#l00052">kXR_readable</a>, <a class="el" href="flags_8h_source.html#l00053">kXR_writable</a>, <a class="el" href="brix__net_8h_source.html#l00155">brix_dirent::name</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, and <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00116">ls_print_dir()</a>.</p>
+
+</div>
+</div>
+<a id="a073c192028d0687dcadcf7827d78ac60" name="a073c192028d0687dcadcf7827d78ac60"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a073c192028d0687dcadcf7827d78ac60">&#9670;&#160;</a></span>ls_recurse_subdirs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int ls_recurse_subdirs </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__dirent.html">brix_dirent</a> *&#160;</td>
+          <td class="paramname"><em>ents</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>n</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>want_long</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>human</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__status.html">brix_status</a> *&#160;</td>
+          <td class="paramname"><em>st</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00089">89</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00377">is_dot()</a>, <a class="el" href="xrdfs__fmt_8c_source.html#l00394">join_path()</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00116">ls_print_dir()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00116">ls_print_dir()</a>.</p>
 
 </div>
 </div>
@@ -1184,9 +1328,279 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00218">218</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00266">266</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00233">do_rm()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00281">do_rm()</a>.</p>
+
+</div>
+</div>
+<a id="acc69d14cdbe60d35588193b4232cc38d" name="acc69d14cdbe60d35588193b4232cc38d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acc69d14cdbe60d35588193b4232cc38d">&#9670;&#160;</a></span>touch_ensure_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int touch_ensure_file </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>no_create</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00608">608</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00015">brix_file_open_write()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00636">do_touch()</a>.</p>
+
+</div>
+</div>
+<a id="afdfea0c9d5dbd68f429263fcb67ad538" name="afdfea0c9d5dbd68f429263fcb67ad538"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afdfea0c9d5dbd68f429263fcb67ad538">&#9670;&#160;</a></span>touch_fill_times()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void touch_fill_times </td>
+          <td>(</td>
+          <td class="paramtype">struct timespec&#160;</td>
+          <td class="paramname"><em>times</em>[2], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>do_atime</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>do_mtime</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>have_t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct timespec *&#160;</td>
+          <td class="paramname"><em>tspec</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00578">578</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00636">do_touch()</a>.</p>
+
+</div>
+</div>
+<a id="a4587724ba0f8f7000149c0f79aeeda94" name="a4587724ba0f8f7000149c0f79aeeda94"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4587724ba0f8f7000149c0f79aeeda94">&#9670;&#160;</a></span>touch_parse_argv()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int touch_parse_argv </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>no_create</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>do_atime</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>do_mtime</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>have_t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct timespec *&#160;</td>
+          <td class="paramname"><em>tspec</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>arg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00540">540</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdfs__fmt_8c_source.html#l00300">touch_parse_time()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00636">do_touch()</a>.</p>
+
+</div>
+</div>
+<a id="a9e4d5409f8e0341c83a788e425613c19" name="a9e4d5409f8e0341c83a788e425613c19"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9e4d5409f8e0341c83a788e425613c19">&#9670;&#160;</a></span>xattr_get()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xattr_get </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00840">840</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fattr_8c_source.html#l00086">brix_fattr_get()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00912">do_xattr()</a>.</p>
+
+</div>
+</div>
+<a id="a33e45b2257e8149ae8b58da865cf143e" name="a33e45b2257e8149ae8b58da865cf143e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a33e45b2257e8149ae8b58da865cf143e">&#9670;&#160;</a></span>xattr_is_subcommand()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xattr_is_subcommand </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>s</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00819">819</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00912">do_xattr()</a>.</p>
 
 </div>
 </div>
@@ -1216,11 +1630,119 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00653">653</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00784">784</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fattr_8c_source.html#l00198">brix_fattr_list()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="fattr_8c_source.html#l00206">brix_fattr_list()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00678">do_xattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00912">do_xattr()</a>.</p>
+
+</div>
+</div>
+<a id="ac8eea5ed221c4b74e4ac0b994abf0323" name="ac8eea5ed221c4b74e4ac0b994abf0323"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac8eea5ed221c4b74e4ac0b994abf0323">&#9670;&#160;</a></span>xattr_rm()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xattr_rm </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00897">897</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fattr_8c_source.html#l00200">brix_fattr_del()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00912">do_xattr()</a>.</p>
+
+</div>
+</div>
+<a id="ab3e364953bcbe20c672b894183db3543" name="ab3e364953bcbe20c672b894183db3543"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab3e364953bcbe20c672b894183db3543">&#9670;&#160;</a></span>xattr_set()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int xattr_set </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__conn.html">brix_conn</a> *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrdfs__meta_8c_source.html#l00871">871</a> of file <a class="el" href="xrdfs__meta_8c_source.html">xrdfs_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fattr_8c_source.html#l00192">brix_fattr_set()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00912">do_xattr()</a>.</p>
 
 </div>
 </div>

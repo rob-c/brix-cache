@@ -17,6 +17,8 @@ var geo__answer_8c =
     [ "cvmfs_geo_parse_entry", "geo__answer_8c.html#a7bfb994adac669ce541ae1eee04d3576", null ],
     [ "cvmfs_geo_port_allowed", "geo__answer_8c.html#af6f33bea9ab824b4769b59f1f7305e01", null ],
     [ "cvmfs_geo_render", "geo__answer_8c.html#a6557c62c7af8d89e6998656d1c20da98", null ],
+    [ "cvmfs_geo_scan_host", "geo__answer_8c.html#a19a046c1f3241c6da3b64f49e3aa84c4", null ],
+    [ "cvmfs_geo_scan_port", "geo__answer_8c.html#aa7b217486da45ae47e4e291742c9919c", null ],
     [ "cvmfs_geo_thread", "geo__answer_8c.html#aef18df073ca4d91efb54acc82bb406ce", null ],
     [ "cvmfs_geo_cache", "geo__answer_8c.html#a8dad0af02690d1a93205b59b67d148b9", null ]
 ];

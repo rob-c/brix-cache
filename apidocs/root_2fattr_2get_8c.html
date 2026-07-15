@@ -118,7 +118,7 @@ Functions</h2></td></tr>
 <tr class="separator:a62a3943eefa2a047b7d5d1ca14f5b5dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac5d76a716d87d1c05b54f3f38e75a8ed" id="r_ac5d76a716d87d1c05b54f3f38e75a8ed"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2get_8c.html#ac5d76a716d87d1c05b54f3f38e75a8ed">fattr_value_len_for_response</a> (const <a class="el" href="structbrix__fattr__entry__t.html">brix_fattr_entry_t</a> *attr)</td></tr>
 <tr class="separator:ac5d76a716d87d1c05b54f3f38e75a8ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a79787d81a6a9a83e435f0cb91c716fd7" id="r_a79787d81a6a9a83e435f0cb91c716fd7"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2get_8c.html#a79787d81a6a9a83e435f0cb91c716fd7">fattr_get</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx, const char *path, int fd, u_char *nvec_copy, size_t nvec_len, int numattr, <a class="el" href="structbrix__fattr__entry__t.html">brix_fattr_entry_t</a> *attrs)</td></tr>
+<tr class="memitem:a79787d81a6a9a83e435f0cb91c716fd7" id="r_a79787d81a6a9a83e435f0cb91c716fd7"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="root_2fattr_2get_8c.html#a79787d81a6a9a83e435f0cb91c716fd7">fattr_get</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *vctx, const char *path, int fd, u_char *nvec_copy, size_t nvec_len, int numattr, <a class="el" href="structbrix__fattr__entry__t.html">brix_fattr_entry_t</a> *attrs)</td></tr>
 <tr class="separator:a79787d81a6a9a83e435f0cb91c716fd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -192,9 +192,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="root_2fattr_2get_8c_source.html#l00081">81</a> of file <a class="el" href="root_2fattr_2get_8c_source.html">get.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00055">BRIX_OP_FATTR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="protocols_2root_2fattr_2helpers_8c_source.html#l00017">fattr_errno_to_xrd()</a>, <a class="el" href="root_2fattr_2get_8c_source.html#l00039">fattr_read_value()</a>, <a class="el" href="root_2fattr_2get_8c_source.html#l00020">fattr_read_value_size()</a>, <a class="el" href="protocols_2root_2fattr_2helpers_8c_source.html#l00030">fattr_set_rc()</a>, <a class="el" href="root_2fattr_2get_8c_source.html#l00055">fattr_value_len_for_response()</a>, <a class="el" href="flags_8h_source.html#l00256">kXR_faMaxVlen</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ngx__brix__fattr_8h_source.html#l00044">brix_fattr_entry_t::value</a>, <a class="el" href="ngx__brix__fattr_8h_source.html#l00045">brix_fattr_entry_t::vlen</a>, and <a class="el" href="ngx__brix__fattr_8h_source.html#l00043">brix_fattr_entry_t::xkey</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00055">BRIX_OP_FATTR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="protocols_2root_2fattr_2helpers_8c_source.html#l00017">fattr_errno_to_xrd()</a>, <a class="el" href="root_2fattr_2get_8c_source.html#l00039">fattr_read_value()</a>, <a class="el" href="root_2fattr_2get_8c_source.html#l00020">fattr_read_value_size()</a>, <a class="el" href="protocols_2root_2fattr_2helpers_8c_source.html#l00030">fattr_set_rc()</a>, <a class="el" href="root_2fattr_2get_8c_source.html#l00055">fattr_value_len_for_response()</a>, <a class="el" href="flags_8h_source.html#l00256">kXR_faMaxVlen</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ngx__brix__fattr_8h_source.html#l00044">brix_fattr_entry_t::value</a>, <a class="el" href="ngx__brix__fattr_8h_source.html#l00045">brix_fattr_entry_t::vlen</a>, and <a class="el" href="ngx__brix__fattr_8h_source.html#l00043">brix_fattr_entry_t::xkey</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00034">brix_handle_fattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="root_2fattr_2dispatch_8c_source.html#l00377">fattr_dispatch_named()</a>.</p>
 
 </div>
 </div>
@@ -258,7 +258,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="root_2fattr_2get_8c_source.html#l00039">39</a> of file <a class="el" href="root_2fattr_2get_8c_source.html">get.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00212">brix_vfs_fgetxattr()</a>, and <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00306">brix_vfs_fgetxattr()</a>, and <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="root_2fattr_2get_8c_source.html#l00081">fattr_get()</a>.</p>
 
@@ -312,7 +312,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="root_2fattr_2get_8c_source.html#l00020">20</a> of file <a class="el" href="root_2fattr_2get_8c_source.html">get.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00212">brix_vfs_fgetxattr()</a>, and <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__xattr_8c_source.html#l00306">brix_vfs_fgetxattr()</a>, and <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="root_2fattr_2get_8c_source.html#l00081">fattr_get()</a>.</p>
 

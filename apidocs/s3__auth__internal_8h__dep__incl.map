@@ -1,17 +1,26 @@
 <map id="src/protocols/s3/s3_auth_internal.h" name="src/protocols/s3/s3_auth_internal.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="194,5,337,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="318,5,461,45"/>
 <area shape="rect" id="Node000002" href="$auth__sigv4__parse_8c.html" title=" " alt="" coords="5,93,163,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="214,54,125,96,123,91,212,49"/>
-<area shape="rect" id="Node000003" href="$auth__sigv4__verify_8c.html" title=" " alt="" coords="187,93,344,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="268,59,268,93,263,93,263,59"/>
-<area shape="rect" id="Node000004" href="$s3__post__internal_8h.html" title=" " alt="" coords="369,93,511,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="317,49,403,91,401,96,315,54"/>
-<area shape="rect" id="Node000005" href="$post__form_8c.html" title=" " alt="" coords="91,181,247,221"/>
-<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="368,140,229,184,228,179,367,135"/>
-<area shape="rect" id="Node000006" href="$post__object_8c.html" title=" " alt="" coords="271,181,427,221"/>
-<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="412,145,371,183,368,179,408,141"/>
-<area shape="rect" id="Node000007" href="$post__policy_8c.html" title=" " alt="" coords="451,181,607,221"/>
-<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="472,141,511,179,508,183,468,145"/>
-<area shape="rect" id="Node000008" href="$post__response_8c.html" title=" " alt="" coords="631,181,787,221"/>
-<area shape="poly" id="edge7_Node000004_Node000008" title=" " alt="" coords="513,135,651,179,650,184,511,140"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="310,52,152,96,150,91,309,46"/>
+<area shape="rect" id="Node000003" href="$auth__sigv4__verify_8c.html" title=" " alt="" coords="61,181,219,221"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="310,52,267,71,227,95,204,116,183,139,153,182,149,179,179,136,200,112,224,91,265,66,308,48"/>
+<area shape="rect" id="Node000004" href="$auth__sigv4__verify__crypto_8c.html" title=" " alt="" coords="243,181,410,221"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="415,56,433,93,435,114,429,135,405,163,375,183,372,179,402,159,424,132,429,114,427,95,410,58"/>
+<area shape="rect" id="Node000005" href="$auth__sigv4__verify__internal_8h.html" title=" " alt="" coords="238,93,415,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="369,58,343,95,338,92,365,55"/>
+<area shape="rect" id="Node000006" href="$auth__sigv4__verify__time_8c.html" title=" " alt="" coords="435,181,592,221"/>
+<area shape="poly" id="edge8_Node000001_Node000006" title=" " alt="" coords="419,54,451,92,482,139,506,180,501,183,478,141,447,95,415,57"/>
+<area shape="rect" id="Node000007" href="$s3__post__internal_8h.html" title=" " alt="" coords="803,93,946,133"/>
+<area shape="poly" id="edge9_Node000001_Node000007" title=" " alt="" coords="475,39,804,97,803,102,474,44"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="275,141,182,184,180,179,272,137"/>
+<area shape="poly" id="edge6_Node000005_Node000004" title=" " alt="" coords="329,147,329,181,324,181,324,147"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="381,137,474,179,471,184,379,141"/>
+<area shape="rect" id="Node000008" href="$post__form_8c.html" title=" " alt="" coords="1157,181,1313,221"/>
+<area shape="poly" id="edge10_Node000007_Node000008" title=" " alt="" coords="960,132,1157,179,1156,184,959,137"/>
+<area shape="rect" id="Node000009" href="$post__object_8c.html" title=" " alt="" coords="617,181,773,221"/>
+<area shape="poly" id="edge11_Node000007_Node000009" title=" " alt="" coords="824,142,735,184,733,179,822,137"/>
+<area shape="rect" id="Node000010" href="$post__policy_8c.html" title=" " alt="" coords="797,181,953,221"/>
+<area shape="poly" id="edge12_Node000007_Node000010" title=" " alt="" coords="877,147,877,181,872,181,872,147"/>
+<area shape="rect" id="Node000011" href="$post__response_8c.html" title=" " alt="" coords="977,181,1133,221"/>
+<area shape="poly" id="edge13_Node000007_Node000011" title=" " alt="" coords="927,137,1016,179,1014,184,925,142"/>
 </map>

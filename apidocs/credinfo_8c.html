@@ -129,16 +129,28 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a1b3b34280e632143131a1d72eefa4773" id="r_a1b3b34280e632143131a1d72eefa4773"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a1b3b34280e632143131a1d72eefa4773">decode_payload_json</a> (const char *jwt, char *out, size_t outsz)</td></tr>
 <tr class="separator:a1b3b34280e632143131a1d72eefa4773"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acf3c91fcf02cccbc3cb9bf77695668aa" id="r_acf3c91fcf02cccbc3cb9bf77695668aa"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#acf3c91fcf02cccbc3cb9bf77695668aa">json_str</a> (const char *json, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *out, size_t outsz)</td></tr>
+<tr class="memitem:acf3c91fcf02cccbc3cb9bf77695668aa" id="r_acf3c91fcf02cccbc3cb9bf77695668aa"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#acf3c91fcf02cccbc3cb9bf77695668aa">json_str</a> (const char *json, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *out, size_t outsz)</td></tr>
 <tr class="separator:acf3c91fcf02cccbc3cb9bf77695668aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a11e482f72cda66e2cdf23509b8062e82" id="r_a11e482f72cda66e2cdf23509b8062e82"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a11e482f72cda66e2cdf23509b8062e82">brix_token_explain</a> (const char *jwt, FILE *out)</td></tr>
 <tr class="separator:a11e482f72cda66e2cdf23509b8062e82"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a85b1407eb0b0dc42b7bc29e98f11d0ce" id="r_a85b1407eb0b0dc42b7bc29e98f11d0ce"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a85b1407eb0b0dc42b7bc29e98f11d0ce">token_meta_apply_exp</a> (const char *json, <a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *m)</td></tr>
+<tr class="separator:a85b1407eb0b0dc42b7bc29e98f11d0ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a27958187f003b9c6ed553c3fc31dd5d6" id="r_a27958187f003b9c6ed553c3fc31dd5d6"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a27958187f003b9c6ed553c3fc31dd5d6">token_scope_from_parsed</a> (const <a class="el" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *sc, int nsc, <a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *m)</td></tr>
+<tr class="separator:a27958187f003b9c6ed553c3fc31dd5d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa4b2c4c06da282dba0e0eea42482f7c9" id="r_aa4b2c4c06da282dba0e0eea42482f7c9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#aa4b2c4c06da282dba0e0eea42482f7c9">token_scope_from_heuristic</a> (const char *<a class="el" href="macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab">scope</a>, <a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *m)</td></tr>
+<tr class="separator:aa4b2c4c06da282dba0e0eea42482f7c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8fb5683edcfa6357878e455c7f032516" id="r_a8fb5683edcfa6357878e455c7f032516"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a8fb5683edcfa6357878e455c7f032516">token_meta_apply_scope</a> (const char *json, <a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *m)</td></tr>
+<tr class="separator:a8fb5683edcfa6357878e455c7f032516"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2abc02c5b02570a72cdffc1919cd3196" id="r_a2abc02c5b02570a72cdffc1919cd3196"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a2abc02c5b02570a72cdffc1919cd3196">brix_token_meta_get</a> (const char *jwt, <a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *m)</td></tr>
 <tr class="separator:a2abc02c5b02570a72cdffc1919cd3196"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0d29752ed122da47e3a0b355e9bd007b" id="r_a0d29752ed122da47e3a0b355e9bd007b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a0d29752ed122da47e3a0b355e9bd007b">voms_scan</a> (const unsigned char *der, int len, FILE *out)</td></tr>
 <tr class="separator:a0d29752ed122da47e3a0b355e9bd007b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afdca045118936e4e3374748473cdbc10" id="r_afdca045118936e4e3374748473cdbc10"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#afdca045118936e4e3374748473cdbc10">brix_gsi_cert_explain</a> (const char *<a class="el" href="sec__gsi_8c.html#a64923bfcafc30c480bc04b0c7565c2ea">proxy_path</a>, FILE *out)</td></tr>
 <tr class="separator:afdca045118936e4e3374748473cdbc10"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5e1f435f0d8229eba1237e7fa2392962" id="r_a5e1f435f0d8229eba1237e7fa2392962"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a5e1f435f0d8229eba1237e7fa2392962">diagnose_token</a> (int want_write, const char *prefix, FILE *out)</td></tr>
+<tr class="separator:a5e1f435f0d8229eba1237e7fa2392962"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aea053e9b98671174378d42cd7d3d9362" id="r_aea053e9b98671174378d42cd7d3d9362"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#aea053e9b98671174378d42cd7d3d9362">diagnose_proxy</a> (const char *prefix, FILE *out)</td></tr>
+<tr class="separator:aea053e9b98671174378d42cd7d3d9362"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a41911d2c1c229601bd075d2e0c3e1655" id="r_a41911d2c1c229601bd075d2e0c3e1655"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#a41911d2c1c229601bd075d2e0c3e1655">brix_cred_diagnose</a> (int want_write, const char *prefix, FILE *out)</td></tr>
 <tr class="separator:a41911d2c1c229601bd075d2e0c3e1655"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aad96c4c5d5b2c7f6ffaab8bd729a8292" id="r_aad96c4c5d5b2c7f6ffaab8bd729a8292"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="credinfo_8c.html#aad96c4c5d5b2c7f6ffaab8bd729a8292">brix_cred_hint_for_status_url</a> (const <a class="el" href="structbrix__status.html">brix_status</a> *st, int want_write, FILE *out, const char *url_str)</td></tr>
@@ -159,7 +171,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00161">161</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00235">235</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
 
 </div>
 </div>
@@ -196,11 +208,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00276">276</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00437">437</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00072">brix_proxy_default_path()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00318">brix_proxy_remaining()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="credinfo_8c_source.html#l00111">brix_token_meta_get()</a>, <a class="el" href="brix__auth_8h_source.html#l00033">brix_token_meta::exp</a>, <a class="el" href="brix__auth_8h_source.html#l00034">brix_token_meta::expired</a>, <a class="el" href="brix__auth_8h_source.html#l00035">brix_token_meta::has_scope</a>, <a class="el" href="brix__auth_8h_source.html#l00037">brix_token_meta::has_write</a>, and <a class="el" href="brix__auth_8h_source.html#l00032">brix_token_meta::valid</a>.</p>
+<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00402">diagnose_proxy()</a>, and <a class="el" href="credinfo_8c_source.html#l00353">diagnose_token()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00350">brix_cred_hint_for_status_url()</a>, <a class="el" href="xrdcp_8c_source.html#l00349">main()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00201">xrd_doctor()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00013">xrd_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00473">brix_cred_hint_for_status_url()</a>, <a class="el" href="xrdcp_8c_source.html#l00991">build_and_preflight_credentials()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00427">doctor_report_creds()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00013">xrd_login()</a>.</p>
 
 </div>
 </div>
@@ -236,11 +248,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00364">364</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00487">487</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00350">brix_cred_hint_for_status_url()</a>.</p>
+<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00473">brix_cred_hint_for_status_url()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00233">do_rm()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdfs__meta_8c_source.html#l00281">do_rm()</a>.</p>
 
 </div>
 </div>
@@ -282,11 +294,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00350">350</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00473">473</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00276">brix_cred_diagnose()</a>, <a class="el" href="cli__hint_8c_source.html#l00211">brix_hint_doctor_referral()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, and <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>.</p>
+<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00437">brix_cred_diagnose()</a>, <a class="el" href="cli__hint_8c_source.html#l00211">brix_hint_doctor_referral()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, and <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00364">brix_cred_hint_for_status()</a>, <a class="el" href="cli__conn_8c_source.html#l00067">brix_report_err()</a>, <a class="el" href="xrdcp_8c_source.html#l00349">main()</a>, <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00075">xrdfs_web_hints()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00487">brix_cred_hint_for_status()</a>, <a class="el" href="cli__conn_8c_source.html#l00067">brix_report_err()</a>, <a class="el" href="xrdcp_8c_source.html#l01069">xrdcp_hint_failed_source()</a>, <a class="el" href="xrdfs__internal_8h_source.html#l00038">xrdfs_op_hints()</a>, and <a class="el" href="xrdfs__internal_8h_source.html#l00075">xrdfs_web_hints()</a>.</p>
 
 </div>
 </div>
@@ -316,11 +328,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00193">193</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00267">267</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00050">brix_credfile_bio()</a>, <a class="el" href="sec__gsi_8c_source.html#l00039">proxy_path()</a>, <a class="el" href="credinfo_8c_source.html#l00161">VOMS_AC_OID</a>, and <a class="el" href="credinfo_8c_source.html#l00166">voms_scan()</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00050">brix_credfile_bio()</a>, <a class="el" href="sec__gsi_8c_source.html#l00039">proxy_path()</a>, <a class="el" href="credinfo_8c_source.html#l00235">VOMS_AC_OID</a>, and <a class="el" href="credinfo_8c_source.html#l00240">voms_scan()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00591">brix_explain_conn()</a>, <a class="el" href="diag__check_8c_source.html#l00043">do_check()</a>, <a class="el" href="diag__doctor_8c_source.html#l00853">do_remote_doctor()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00201">xrd_doctor()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00130">xrd_whoami()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__check_8c_source.html#l00349">chk_probe_cred_validity()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00427">doctor_report_creds()</a>, <a class="el" href="conn_8c_source.html#l00673">explain_env_credentials()</a>, <a class="el" href="diag__doctor_8c_source.html#l01145">remote_doctor_report_creds()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00130">xrd_whoami()</a>.</p>
 
 </div>
 </div>
@@ -354,7 +366,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="credinfo_8c_source.html#l00044">decode_payload_json()</a>, and <a class="el" href="credinfo_8c_source.html#l00067">json_str()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00591">brix_explain_conn()</a>, <a class="el" href="diag__check_8c_source.html#l00043">do_check()</a>, <a class="el" href="diag__doctor_8c_source.html#l00853">do_remote_doctor()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00201">xrd_doctor()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00130">xrd_whoami()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__check_8c_source.html#l00349">chk_probe_cred_validity()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00427">doctor_report_creds()</a>, <a class="el" href="conn_8c_source.html#l00673">explain_env_credentials()</a>, <a class="el" href="diag__doctor_8c_source.html#l01145">remote_doctor_report_creds()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00130">xrd_whoami()</a>.</p>
 
 </div>
 </div>
@@ -384,11 +396,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00111">111</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00213">213</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="scopes_8c_source.html#l00126">brix_token_parse_scopes()</a>, <a class="el" href="credinfo_8c_source.html#l00044">decode_payload_json()</a>, <a class="el" href="brix__auth_8h_source.html#l00033">brix_token_meta::exp</a>, <a class="el" href="brix__auth_8h_source.html#l00034">brix_token_meta::expired</a>, <a class="el" href="brix__auth_8h_source.html#l00036">brix_token_meta::has_read</a>, <a class="el" href="brix__auth_8h_source.html#l00035">brix_token_meta::has_scope</a>, <a class="el" href="brix__auth_8h_source.html#l00037">brix_token_meta::has_write</a>, <a class="el" href="credinfo_8c_source.html#l00067">json_str()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brix__auth_8h_source.html#l00032">brix_token_meta::valid</a>.</p>
+<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00044">decode_payload_json()</a>, <a class="el" href="credinfo_8c_source.html#l00112">token_meta_apply_exp()</a>, <a class="el" href="credinfo_8c_source.html#l00180">token_meta_apply_scope()</a>, and <a class="el" href="brix__auth_8h_source.html#l00032">brix_token_meta::valid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__bearer_8c_source.html#l00173">bearer_acquire()</a>, <a class="el" href="credinfo_8c_source.html#l00276">brix_cred_diagnose()</a>, <a class="el" href="diag__doctor_8c_source.html#l00176">doctor_auth_suite()</a>, and <a class="el" href="credrefresh_8c_source.html#l00104">token_needs_refresh()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__doctor_8c_source.html#l00210">auth_suite_token_probes()</a>, <a class="el" href="cred__bearer_8c_source.html#l00173">bearer_acquire()</a>, <a class="el" href="credinfo_8c_source.html#l00353">diagnose_token()</a>, and <a class="el" href="credrefresh_8c_source.html#l00104">token_needs_refresh()</a>.</p>
 
 </div>
 </div>
@@ -436,7 +448,97 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="b64url_8c_source.html#l00042">b64url_decode()</a>, and <a class="el" href="b64url_8c_source.html#l00020">xrdjwt_split()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, and <a class="el" href="credinfo_8c_source.html#l00111">brix_token_meta_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, and <a class="el" href="credinfo_8c_source.html#l00213">brix_token_meta_get()</a>.</p>
+
+</div>
+</div>
+<a id="aea053e9b98671174378d42cd7d3d9362" name="aea053e9b98671174378d42cd7d3d9362"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aea053e9b98671174378d42cd7d3d9362">&#9670;&#160;</a></span>diagnose_proxy()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int diagnose_proxy </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prefix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00402">402</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00072">brix_proxy_default_path()</a>, and <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00395">brix_proxy_remaining()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00437">brix_cred_diagnose()</a>.</p>
+
+</div>
+</div>
+<a id="a5e1f435f0d8229eba1237e7fa2392962" name="a5e1f435f0d8229eba1237e7fa2392962"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5e1f435f0d8229eba1237e7fa2392962">&#9670;&#160;</a></span>diagnose_token()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int diagnose_token </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>want_write</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prefix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">FILE *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00353">353</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="credinfo_8c_source.html#l00213">brix_token_meta_get()</a>, <a class="el" href="brix__auth_8h_source.html#l00033">brix_token_meta::exp</a>, <a class="el" href="brix__auth_8h_source.html#l00034">brix_token_meta::expired</a>, <a class="el" href="brix__auth_8h_source.html#l00035">brix_token_meta::has_scope</a>, <a class="el" href="brix__auth_8h_source.html#l00037">brix_token_meta::has_write</a>, and <a class="el" href="brix__auth_8h_source.html#l00032">brix_token_meta::valid</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00437">brix_cred_diagnose()</a>.</p>
 
 </div>
 </div>
@@ -488,9 +590,183 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00067">67</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="json__min_8c_source.html#l00197">brix_json_get_str()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="json__min_8c_source.html#l00395">brix_json_get_str()</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, and <a class="el" href="credinfo_8c_source.html#l00111">brix_token_meta_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, <a class="el" href="credinfo_8c_source.html#l00112">token_meta_apply_exp()</a>, and <a class="el" href="credinfo_8c_source.html#l00180">token_meta_apply_scope()</a>.</p>
+
+</div>
+</div>
+<a id="a85b1407eb0b0dc42b7bc29e98f11d0ce" name="a85b1407eb0b0dc42b7bc29e98f11d0ce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a85b1407eb0b0dc42b7bc29e98f11d0ce">&#9670;&#160;</a></span>token_meta_apply_exp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void token_meta_apply_exp </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>json</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *&#160;</td>
+          <td class="paramname"><em>m</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00112">112</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__auth_8h_source.html#l00033">brix_token_meta::exp</a>, <a class="el" href="brix__auth_8h_source.html#l00034">brix_token_meta::expired</a>, and <a class="el" href="credinfo_8c_source.html#l00067">json_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00213">brix_token_meta_get()</a>.</p>
+
+</div>
+</div>
+<a id="a8fb5683edcfa6357878e455c7f032516" name="a8fb5683edcfa6357878e455c7f032516"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8fb5683edcfa6357878e455c7f032516">&#9670;&#160;</a></span>token_meta_apply_scope()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void token_meta_apply_scope </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>json</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *&#160;</td>
+          <td class="paramname"><em>m</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00180">180</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="scopes_8c_source.html#l00126">brix_token_parse_scopes()</a>, <a class="el" href="brix__auth_8h_source.html#l00035">brix_token_meta::has_scope</a>, <a class="el" href="credinfo_8c_source.html#l00067">json_str()</a>, <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>, <a class="el" href="credinfo_8c_source.html#l00157">token_scope_from_heuristic()</a>, and <a class="el" href="credinfo_8c_source.html#l00135">token_scope_from_parsed()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00213">brix_token_meta_get()</a>.</p>
+
+</div>
+</div>
+<a id="aa4b2c4c06da282dba0e0eea42482f7c9" name="aa4b2c4c06da282dba0e0eea42482f7c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa4b2c4c06da282dba0e0eea42482f7c9">&#9670;&#160;</a></span>token_scope_from_heuristic()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void token_scope_from_heuristic </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>scope</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *&#160;</td>
+          <td class="paramname"><em>m</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00157">157</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__auth_8h_source.html#l00036">brix_token_meta::has_read</a>, <a class="el" href="brix__auth_8h_source.html#l00037">brix_token_meta::has_write</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00108">scope</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00180">token_meta_apply_scope()</a>.</p>
+
+</div>
+</div>
+<a id="a27958187f003b9c6ed553c3fc31dd5d6" name="a27958187f003b9c6ed553c3fc31dd5d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a27958187f003b9c6ed553c3fc31dd5d6">&#9670;&#160;</a></span>token_scope_from_parsed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void token_scope_from_parsed </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__token__scope__t.html">brix_token_scope_t</a> *&#160;</td>
+          <td class="paramname"><em>sc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>nsc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__token__meta.html">brix_token_meta</a> *&#160;</td>
+          <td class="paramname"><em>m</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00135">135</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__auth_8h_source.html#l00036">brix_token_meta::has_read</a>, <a class="el" href="brix__auth_8h_source.html#l00037">brix_token_meta::has_write</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00180">token_meta_apply_scope()</a>.</p>
 
 </div>
 </div>
@@ -534,9 +810,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00166">166</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="credinfo_8c_source.html#l00240">240</a> of file <a class="el" href="credinfo_8c_source.html">credinfo.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00193">brix_gsi_cert_explain()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="credinfo_8c_source.html#l00267">brix_gsi_cert_explain()</a>.</p>
 
 </div>
 </div>

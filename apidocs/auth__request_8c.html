@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('auth__request_8c.html',''); initResiza
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">auth_request.c File Reference</div></div>
 </div><!--header-->
@@ -112,9 +113,30 @@ $(document).ready(function(){initNavTree('auth__request_8c.html',''); initResiza
 </div>
 <p><a href="auth__request_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsss__cred__t.html">sss_cred_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:adde66bd9d15d22bc8afe6fbc063707ae" id="r_adde66bd9d15d22bc8afe6fbc063707ae"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#adde66bd9d15d22bc8afe6fbc063707ae">brix_handle_sss_auth</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="memitem:ae79ada0bcaac667d30db0ee13e48cf62" id="r_ae79ada0bcaac667d30db0ee13e48cf62"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#ae79ada0bcaac667d30db0ee13e48cf62">sss_header_framing_ok</a> (const u_char *payload, size_t dlen, size_t *hdr_len)</td></tr>
+<tr class="separator:ae79ada0bcaac667d30db0ee13e48cf62"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a387efd54497a381267c480fa43cad6ed" id="r_a387efd54497a381267c480fa43cad6ed"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#a387efd54497a381267c480fa43cad6ed">sss_deny</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structsss__cred__t.html">sss_cred_t</a> *out)</td></tr>
+<tr class="separator:a387efd54497a381267c480fa43cad6ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae706a9b6afeaa6b91ecaf1a317c5f98a" id="r_ae706a9b6afeaa6b91ecaf1a317c5f98a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#ae706a9b6afeaa6b91ecaf1a317c5f98a">sss_parse_header</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <a class="el" href="structsss__cred__t.html">sss_cred_t</a> *out)</td></tr>
+<tr class="separator:ae706a9b6afeaa6b91ecaf1a317c5f98a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0bad3390c3a3837e7ecea353f3c3190b" id="r_a0bad3390c3a3837e7ecea353f3c3190b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#a0bad3390c3a3837e7ecea353f3c3190b">sss_verify_keytab</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <a class="el" href="structsss__cred__t.html">sss_cred_t</a> *out)</td></tr>
+<tr class="separator:a0bad3390c3a3837e7ecea353f3c3190b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a65ba893da8865a579cf49cb542a726a2" id="r_a65ba893da8865a579cf49cb542a726a2"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#a65ba893da8865a579cf49cb542a726a2">sss_recv_cred</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <a class="el" href="structsss__cred__t.html">sss_cred_t</a> *out)</td></tr>
+<tr class="separator:a65ba893da8865a579cf49cb542a726a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0038c6aac647da6975954d8e9888aaa0" id="r_a0038c6aac647da6975954d8e9888aaa0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#a0038c6aac647da6975954d8e9888aaa0">sss_map_identity</a> (const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__sss__identity__t.html">brix_sss_identity_t</a> *id, const char **user, const char **group)</td></tr>
+<tr class="separator:a0038c6aac647da6975954d8e9888aaa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae19614ea330e4da31b05396ccd9d2be8" id="r_ae19614ea330e4da31b05396ccd9d2be8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#ae19614ea330e4da31b05396ccd9d2be8">sss_track_metrics</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:ae19614ea330e4da31b05396ccd9d2be8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aecbf7bca3b8b0181cb2f9a09d4a28a45" id="r_aecbf7bca3b8b0181cb2f9a09d4a28a45"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#aecbf7bca3b8b0181cb2f9a09d4a28a45">sss_reply</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *user, const char *group)</td></tr>
+<tr class="separator:aecbf7bca3b8b0181cb2f9a09d4a28a45"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adde66bd9d15d22bc8afe6fbc063707ae" id="r_adde66bd9d15d22bc8afe6fbc063707ae"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="auth__request_8c.html#adde66bd9d15d22bc8afe6fbc063707ae">brix_handle_sss_auth</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:adde66bd9d15d22bc8afe6fbc063707ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -150,11 +172,407 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00014">14</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00356">356</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ctx__structs_8h_source.html#l00037">brix_ctx_token_t::auth</a>, <a class="el" href="ctx__structs_8h_source.html#l00154">brix_ctx_login_t::auth_done</a>, <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="identity_8h_source.html#l00020">BRIX_AUTHN_SSS</a>, <a class="el" href="identity_8c_source.html#l00227">brix_identity_set_dn()</a>, <a class="el" href="identity_8c_source.html#l00352">brix_identity_set_vos_csv()</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00032">BRIX_OP_AUTH</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="tunables_8h_source.html#l00277">BRIX_RETURN_OK</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00118">brix_session_register()</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00127">brix_sss_auth_failed()</a>, <a class="el" href="sss_8h_source.html#l00021">BRIX_SSS_BASE_TIME</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00078">brix_sss_bf32_crypt()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00067">brix_sss_crc32()</a>, <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00023">BRIX_SSS_ENC_BF32</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00110">brix_sss_find_key()</a>, <a class="el" href="sss_8h_source.html#l00017">BRIX_SSS_HDR_LEN</a>, <a class="el" href="tunables_8h_source.html#l00250">BRIX_SSS_NAME_MAX</a>, <a class="el" href="tunables_8h_source.html#l00254">BRIX_SSS_OPT_ALLUSR</a>, <a class="el" href="tunables_8h_source.html#l00256">BRIX_SSS_OPT_ANYGRP</a>, <a class="el" href="tunables_8h_source.html#l00255">BRIX_SSS_OPT_ANYUSR</a>, <a class="el" href="sss_8h_source.html#l00025">BRIX_SSS_OPT_SNDLID</a>, <a class="el" href="tunables_8h_source.html#l00257">BRIX_SSS_OPT_USRGRP</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00056">brix_sss_parse_identity()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00034">brix_sss_read_be32()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00043">brix_sss_read_be64()</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00134">brix_sss_send_authmore()</a>, <a class="el" href="tracking_8c_source.html#l00108">brix_track_unique_user()</a>, <a class="el" href="tracking_8c_source.html#l00040">brix_track_vo_activity()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00270">BRIX_VO_MAX_TRACKED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00271">BRIX_VO_NAME_LEN</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00178">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00274">ngx_brix_vo_slot_t::name</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::payload</a>, <a class="el" href="ctx__structs_8h_source.html#l00160">brix_ctx_login_t::primary_vo</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00277">ngx_brix_vo_slot_t::requests_total</a>, <a class="el" href="ctx__structs_8h_source.html#l00152">brix_ctx_login_t::sessid</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00281">ngx_brix_vo_global_t::slots</a>, <a class="el" href="types_2config_8h_source.html#l00278">ngx_stream_brix_srv_conf_t::sss_lifetime</a>, <a class="el" href="context_8h_source.html#l00177">brix_ctx_t::token</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00423">ngx_brix_metrics_t::vo_global</a>, and <a class="el" href="ctx__structs_8h_source.html#l00161">brix_ctx_login_t::vo_list</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="auth__request_8c_source.html#l00023">sss_cred_t::clear</a>, <a class="el" href="auth__request_8c_source.html#l00024">sss_cred_t::clear_span</a>, <a class="el" href="auth__request_8c_source.html#l00022">sss_cred_t::id</a>, <a class="el" href="auth__request_8c_source.html#l00021">sss_cred_t::key</a>, <a class="el" href="auth__request_8c_source.html#l00025">sss_cred_t::replied_rc</a>, <a class="el" href="auth__request_8c_source.html#l00250">sss_map_identity()</a>, <a class="el" href="auth__request_8c_source.html#l00226">sss_recv_cred()</a>, and <a class="el" href="auth__request_8c_source.html#l00312">sss_reply()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00123">brix_handle_auth_inner()</a>.</p>
+</div>
+</div>
+<a id="a387efd54497a381267c480fa43cad6ed" name="a387efd54497a381267c480fa43cad6ed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a387efd54497a381267c480fa43cad6ed">&#9670;&#160;</a></span>sss_deny()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sss_deny </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsss__cred__t.html">sss_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00088">88</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__identity__challenge_8c_source.html#l00127">brix_sss_auth_failed()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="auth__request_8c_source.html#l00025">sss_cred_t::replied_rc</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00107">sss_parse_header()</a>, and <a class="el" href="auth__request_8c_source.html#l00149">sss_verify_keytab()</a>.</p>
+
+</div>
+</div>
+<a id="ae79ada0bcaac667d30db0ee13e48cf62" name="ae79ada0bcaac667d30db0ee13e48cf62"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae79ada0bcaac667d30db0ee13e48cf62">&#9670;&#160;</a></span>sss_header_framing_ok()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sss_header_framing_ok </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>payload</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>dlen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>hdr_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00042">42</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00023">BRIX_SSS_ENC_BF32</a>, <a class="el" href="sss_8h_source.html#l00017">BRIX_SSS_HDR_LEN</a>, and <a class="el" href="tunables_8h_source.html#l00250">BRIX_SSS_NAME_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00107">sss_parse_header()</a>.</p>
+
+</div>
+</div>
+<a id="a0038c6aac647da6975954d8e9888aaa0" name="a0038c6aac647da6975954d8e9888aaa0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0038c6aac647da6975954d8e9888aaa0">&#9670;&#160;</a></span>sss_map_identity()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void sss_map_identity </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sss__identity__t.html">brix_sss_identity_t</a> *&#160;</td>
+          <td class="paramname"><em>id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>user</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>group</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00250">250</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00254">BRIX_SSS_OPT_ALLUSR</a>, <a class="el" href="tunables_8h_source.html#l00256">BRIX_SSS_OPT_ANYGRP</a>, <a class="el" href="tunables_8h_source.html#l00255">BRIX_SSS_OPT_ANYUSR</a>, <a class="el" href="tunables_8h_source.html#l00257">BRIX_SSS_OPT_USRGRP</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00356">brix_handle_sss_auth()</a>.</p>
+
+</div>
+</div>
+<a id="ae706a9b6afeaa6b91ecaf1a317c5f98a" name="ae706a9b6afeaa6b91ecaf1a317c5f98a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae706a9b6afeaa6b91ecaf1a317c5f98a">&#9670;&#160;</a></span>sss_parse_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sss_parse_header </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsss__cred__t.html">sss_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00107">107</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__crypto__helpers_8c_source.html#l00110">brix_sss_find_key()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00043">brix_sss_read_be64()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="auth__request_8c_source.html#l00026">sss_cred_t::cipher</a>, <a class="el" href="auth__request_8c_source.html#l00027">sss_cred_t::cipher_len</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="auth__request_8c_source.html#l00028">sss_cred_t::hdr_len</a>, <a class="el" href="auth__request_8c_source.html#l00021">sss_cred_t::key</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="auth__request_8c_source.html#l00088">sss_deny()</a>, and <a class="el" href="auth__request_8c_source.html#l00042">sss_header_framing_ok()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00226">sss_recv_cred()</a>.</p>
+
+</div>
+</div>
+<a id="a65ba893da8865a579cf49cb542a726a2" name="a65ba893da8865a579cf49cb542a726a2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a65ba893da8865a579cf49cb542a726a2">&#9670;&#160;</a></span>sss_recv_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sss_recv_cred </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsss__cred__t.html">sss_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00226">226</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="auth__request_8c_source.html#l00107">sss_parse_header()</a>, and <a class="el" href="auth__request_8c_source.html#l00149">sss_verify_keytab()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00356">brix_handle_sss_auth()</a>.</p>
+
+</div>
+</div>
+<a id="aecbf7bca3b8b0181cb2f9a09d4a28a45" name="aecbf7bca3b8b0181cb2f9a09d4a28a45"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aecbf7bca3b8b0181cb2f9a09d4a28a45">&#9670;&#160;</a></span>sss_reply()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sss_reply </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>user</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>group</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00312">312</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ctx__structs_8h_source.html#l00037">brix_ctx_token_t::auth</a>, <a class="el" href="ctx__structs_8h_source.html#l00160">brix_ctx_login_t::auth_done</a>, <a class="el" href="identity_8h_source.html#l00020">BRIX_AUTHN_SSS</a>, <a class="el" href="identity_8c_source.html#l00228">brix_identity_set_dn()</a>, <a class="el" href="identity_8c_source.html#l00271">brix_identity_set_vos_csv()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00032">BRIX_OP_AUTH</a>, <a class="el" href="tunables_8h_source.html#l00277">BRIX_RETURN_OK</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00268">brix_session_register()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00165">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ctx__structs_8h_source.html#l00166">brix_ctx_login_t::primary_vo</a>, <a class="el" href="ctx__structs_8h_source.html#l00158">brix_ctx_login_t::sessid</a>, <a class="el" href="auth__request_8c_source.html#l00278">sss_track_metrics()</a>, <a class="el" href="context_8h_source.html#l00177">brix_ctx_t::token</a>, and <a class="el" href="ctx__structs_8h_source.html#l00167">brix_ctx_login_t::vo_list</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00356">brix_handle_sss_auth()</a>.</p>
+
+</div>
+</div>
+<a id="ae19614ea330e4da31b05396ccd9d2be8" name="ae19614ea330e4da31b05396ccd9d2be8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae19614ea330e4da31b05396ccd9d2be8">&#9670;&#160;</a></span>sss_track_metrics()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void sss_track_metrics </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00278">278</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00028">brix_metrics_shared()</a>, <a class="el" href="tracking_8c_source.html#l00108">brix_track_unique_user()</a>, <a class="el" href="tracking_8c_source.html#l00040">brix_track_vo_activity()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00270">BRIX_VO_MAX_TRACKED</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00271">BRIX_VO_NAME_LEN</a>, <a class="el" href="ctx__structs_8h_source.html#l00165">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00274">ngx_brix_vo_slot_t::name</a>, <a class="el" href="ctx__structs_8h_source.html#l00166">brix_ctx_login_t::primary_vo</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00277">ngx_brix_vo_slot_t::requests_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00281">ngx_brix_vo_global_t::slots</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00440">ngx_brix_metrics_t::vo_global</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00312">sss_reply()</a>.</p>
+
+</div>
+</div>
+<a id="a0bad3390c3a3837e7ecea353f3c3190b" name="a0bad3390c3a3837e7ecea353f3c3190b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0bad3390c3a3837e7ecea353f3c3190b">&#9670;&#160;</a></span>sss_verify_keytab()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sss_verify_keytab </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structsss__cred__t.html">sss_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="auth__request_8c_source.html#l00149">149</a> of file <a class="el" href="auth__request_8c_source.html">auth_request.c</a>.</p>
+
+<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="sss_8h_source.html#l00021">BRIX_SSS_BASE_TIME</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00078">brix_sss_bf32_crypt()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00067">brix_sss_crc32()</a>, <a class="el" href="sss_8h_source.html#l00019">BRIX_SSS_DATA_HDR_LEN</a>, <a class="el" href="sss_8h_source.html#l00025">BRIX_SSS_OPT_SNDLID</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00056">brix_sss_parse_identity()</a>, <a class="el" href="auth__crypto__helpers_8c_source.html#l00034">brix_sss_read_be32()</a>, <a class="el" href="auth__identity__challenge_8c_source.html#l00134">brix_sss_send_authmore()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="auth__request_8c_source.html#l00026">sss_cred_t::cipher</a>, <a class="el" href="auth__request_8c_source.html#l00027">sss_cred_t::cipher_len</a>, <a class="el" href="auth__request_8c_source.html#l00023">sss_cred_t::clear</a>, <a class="el" href="auth__request_8c_source.html#l00024">sss_cred_t::clear_span</a>, <a class="el" href="auth__request_8c_source.html#l00028">sss_cred_t::hdr_len</a>, <a class="el" href="auth__request_8c_source.html#l00022">sss_cred_t::id</a>, <a class="el" href="auth__request_8c_source.html#l00021">sss_cred_t::key</a>, <a class="el" href="types_2config_8h_source.html#l00038">brix_sss_key_t::key</a>, <a class="el" href="types_2config_8h_source.html#l00037">brix_sss_key_t::key_len</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="auth__request_8c_source.html#l00025">sss_cred_t::replied_rc</a>, and <a class="el" href="auth__request_8c_source.html#l00088">sss_deny()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__request_8c_source.html#l00226">sss_recv_cred()</a>.</p>
 
 </div>
 </div>

@@ -100,6 +100,7 @@ $(document).ready(function(){initNavTree('protocols_2root_2connection_2handler_8
 <code>#include &quot;<a class="el" href="netopt_8h_source.html">netopt.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="relay_8h_source.html">protocols/root/relay/relay.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="sesslog__ngx_8h_source.html">observability/sesslog/sesslog_ngx.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="src_2core_2aio_2uring_8h_source.html">core/aio/uring.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for handler.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -112,10 +113,638 @@ $(document).ready(function(){initNavTree('protocols_2root_2connection_2handler_8
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a381ddd3e572f0114c58a690f0763b598" id="r_a381ddd3e572f0114c58a690f0763b598"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a381ddd3e572f0114c58a690f0763b598">conn_set_immutable_labels</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a381ddd3e572f0114c58a690f0763b598"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8e2e38fe17352f3a632ab1a6272a3a09" id="r_a8e2e38fe17352f3a632ab1a6272a3a09"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a8e2e38fe17352f3a632ab1a6272a3a09">conn_init_slots_and_sessid</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a8e2e38fe17352f3a632ab1a6272a3a09"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a316a92b7b8cd0bb5b426c1c7269bbe91" id="r_a316a92b7b8cd0bb5b426c1c7269bbe91"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a316a92b7b8cd0bb5b426c1c7269bbe91">conn_init_ctx</a> (ngx_stream_session_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:a316a92b7b8cd0bb5b426c1c7269bbe91"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8e2b8246f4bfb3bffefe43b34920e4d4" id="r_a8e2b8246f4bfb3bffefe43b34920e4d4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a8e2b8246f4bfb3bffefe43b34920e4d4">conn_setup_pipeline</a> (ngx_stream_session_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *mconf)</td></tr>
+<tr class="separator:a8e2b8246f4bfb3bffefe43b34920e4d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3c6bb76632bebad7901e95103ca96534" id="r_a3c6bb76632bebad7901e95103ca96534"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a3c6bb76632bebad7901e95103ca96534">conn_metrics_auth_label</a> (ngx_uint_t auth)</td></tr>
+<tr class="separator:a3c6bb76632bebad7901e95103ca96534"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6ff6b83d9b62c0c6998fed878dbd0fd4" id="r_a6ff6b83d9b62c0c6998fed878dbd0fd4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a6ff6b83d9b62c0c6998fed878dbd0fd4">conn_metrics_set_port</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *srv)</td></tr>
+<tr class="separator:a6ff6b83d9b62c0c6998fed878dbd0fd4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b099f6be51bc4f4bec0224071b4464c" id="r_a8b099f6be51bc4f4bec0224071b4464c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a8b099f6be51bc4f4bec0224071b4464c">conn_metrics_set_upstreams</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *mconf, <a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *srv)</td></tr>
+<tr class="separator:a8b099f6be51bc4f4bec0224071b4464c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9d74b3f046b3b92a860ee17eb2d6c439" id="r_a9d74b3f046b3b92a860ee17eb2d6c439"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a9d74b3f046b3b92a860ee17eb2d6c439">conn_metrics_init_labels</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *mconf, <a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *srv)</td></tr>
+<tr class="separator:a9d74b3f046b3b92a860ee17eb2d6c439"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aac7713bdcd3188c853e5aa4155940b4e" id="r_aac7713bdcd3188c853e5aa4155940b4e"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#aac7713bdcd3188c853e5aa4155940b4e">conn_metrics_row</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *mconf)</td></tr>
+<tr class="separator:aac7713bdcd3188c853e5aa4155940b4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa1053d43ef0bef46c795b88c92e62c08" id="r_aa1053d43ef0bef46c795b88c92e62c08"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#aa1053d43ef0bef46c795b88c92e62c08">conn_register_metrics</a> (ngx_stream_session_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *mconf)</td></tr>
+<tr class="separator:aa1053d43ef0bef46c795b88c92e62c08"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a86434bbe3f15ee4860b9c1b60c919f90" id="r_a86434bbe3f15ee4860b9c1b60c919f90"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a86434bbe3f15ee4860b9c1b60c919f90">conn_apply_srv_conf</a> (ngx_stream_session_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a86434bbe3f15ee4860b9c1b60c919f90"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab48fe63e99a544ef9ac9968ea8d0ff69" id="r_ab48fe63e99a544ef9ac9968ea8d0ff69"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#ab48fe63e99a544ef9ac9968ea8d0ff69">conn_try_relay</a> (ngx_stream_session_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:ab48fe63e99a544ef9ac9968ea8d0ff69"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a36505c79acf05f296fab136d5af31450" id="r_a36505c79acf05f296fab136d5af31450"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a36505c79acf05f296fab136d5af31450">conn_begin_session</a> (ngx_stream_session_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a36505c79acf05f296fab136d5af31450"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff2aa45a131ed7c15c43d0823afed645" id="r_aff2aa45a131ed7c15c43d0823afed645"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#aff2aa45a131ed7c15c43d0823afed645">conn_pump</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:aff2aa45a131ed7c15c43d0823afed645"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a01239d2db14b9061cc9e311bbe9030dd" id="r_a01239d2db14b9061cc9e311bbe9030dd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2connection_2handler_8c.html#a01239d2db14b9061cc9e311bbe9030dd">ngx_stream_brix_handler</a> (ngx_stream_session_t *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:a01239d2db14b9061cc9e311bbe9030dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a86434bbe3f15ee4860b9c1b60c919f90" name="a86434bbe3f15ee4860b9c1b60c919f90"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a86434bbe3f15ee4860b9c1b60c919f90">&#9670;&#160;</a></span>conn_apply_srv_conf()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t conn_apply_srv_conf </td>
+          <td>(</td>
+          <td class="paramtype">ngx_stream_session_t *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00366">366</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="netopt_8h_source.html#l00083">brix_apply_tcp_congestion()</a>, <a class="el" href="netopt_8h_source.html#l00039">brix_apply_tcp_deadpeer_opts()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00308">conn_register_metrics()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00157">conn_setup_pipeline()</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00475">ngx_stream_brix_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a36505c79acf05f296fab136d5af31450" name="a36505c79acf05f296fab136d5af31450"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a36505c79acf05f296fab136d5af31450">&#9670;&#160;</a></span>conn_begin_session()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void conn_begin_session </td>
+          <td>(</td>
+          <td class="paramtype">ngx_stream_session_t *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00426">426</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00505">brix_sess_am_from_stream_auth()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00242">brix_sess_begin()</a>, <a class="el" href="sesslog_8h_source.html#l00028">BRIX_SESS_DIR_IN</a>, <a class="el" href="sesslog_8h_source.html#l00017">BRIX_SESS_PROTO_ROOT</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="context_8h_source.html#l00101">brix_ctx_t::sess</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00475">ngx_stream_brix_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a316a92b7b8cd0bb5b426c1c7269bbe91" name="a316a92b7b8cd0bb5b426c1c7269bbe91"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a316a92b7b8cd0bb5b426c1c7269bbe91">&#9670;&#160;</a></span>conn_init_ctx()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> * conn_init_ctx </td>
+          <td>(</td>
+          <td class="paramtype">ngx_stream_session_t *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00116">116</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="identity_8c_source.html#l00176">brix_identity_alloc()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00089">conn_init_slots_and_sessid()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00054">conn_set_immutable_labels()</a>, <a class="el" href="ctx__structs_8h_source.html#l00180">brix_ctx_recv_t::hdr_pos</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, and <a class="el" href="state_8h_source.html#l00025">XRD_ST_HANDSHAKE</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00475">ngx_stream_brix_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a8e2e38fe17352f3a632ab1a6272a3a09" name="a8e2e38fe17352f3a632ab1a6272a3a09"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8e2e38fe17352f3a632ab1a6272a3a09">&#9670;&#160;</a></span>conn_init_slots_and_sessid()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void conn_init_slots_and_sessid </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00089">89</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00065">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00158">brix_ctx_login_t::sessid</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00247">brix_file_t::shared_handle_slot_hint</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00116">conn_init_ctx()</a>.</p>
+
+</div>
+</div>
+<a id="a3c6bb76632bebad7901e95103ca96534" name="a3c6bb76632bebad7901e95103ca96534"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3c6bb76632bebad7901e95103ca96534">&#9670;&#160;</a></span>conn_metrics_auth_label()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const char * conn_metrics_auth_label </td>
+          <td>(</td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>auth</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00185">185</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, and <a class="el" href="tunables_8h_source.html#l00234">BRIX_AUTH_UNIX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00260">conn_metrics_init_labels()</a>.</p>
+
+</div>
+</div>
+<a id="a9d74b3f046b3b92a860ee17eb2d6c439" name="a9d74b3f046b3b92a860ee17eb2d6c439"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9d74b3f046b3b92a860ee17eb2d6c439">&#9670;&#160;</a></span>conn_metrics_init_labels()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void conn_metrics_init_labels </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>mconf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>srv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00260">260</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00185">conn_metrics_auth_label()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00203">conn_metrics_set_port()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00229">conn_metrics_set_upstreams()</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00308">conn_register_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="aac7713bdcd3188c853e5aa4155940b4e" name="aac7713bdcd3188c853e5aa4155940b4e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aac7713bdcd3188c853e5aa4155940b4e">&#9670;&#160;</a></span>conn_metrics_row()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> * conn_metrics_row </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>mconf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00284">284</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="observability_2metrics_2handler_8c_source.html#l00011">ngx_brix_shm_zone</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00383">ngx_brix_metrics_t::servers</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00308">conn_register_metrics()</a>.</p>
+
+</div>
+</div>
+<a id="a6ff6b83d9b62c0c6998fed878dbd0fd4" name="a6ff6b83d9b62c0c6998fed878dbd0fd4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6ff6b83d9b62c0c6998fed878dbd0fd4">&#9670;&#160;</a></span>conn_metrics_set_port()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void conn_metrics_set_port </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>srv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00203">203</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00260">conn_metrics_init_labels()</a>.</p>
+
+</div>
+</div>
+<a id="a8b099f6be51bc4f4bec0224071b4464c" name="a8b099f6be51bc4f4bec0224071b4464c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b099f6be51bc4f4bec0224071b4464c">&#9670;&#160;</a></span>conn_metrics_set_upstreams()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void conn_metrics_set_upstreams </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>mconf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a> *&#160;</td>
+          <td class="paramname"><em>srv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00229">229</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="metrics__proxy_8h_source.html#l00017">BRIX_PROXY_MAX_UPSTREAMS</a>, <a class="el" href="metrics__proxy_8h_source.html#l00019">BRIX_PROXY_UPSTREAM_LABEL_LEN</a>, <a class="el" href="types_2config_8h_source.html#l00089">brix_proxy_upstream_t::host</a>, <a class="el" href="metrics__proxy_8h_source.html#l00027">ngx_brix_proxy_upstream_metrics_t::label</a>, <a class="el" href="types_2config_8h_source.html#l00090">brix_proxy_upstream_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00232">ngx_brix_srv_metrics_t::proxy</a>, and <a class="el" href="metrics__proxy_8h_source.html#l00067">ngx_brix_proxy_metrics_t::upstreams</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00260">conn_metrics_init_labels()</a>.</p>
+
+</div>
+</div>
+<a id="aff2aa45a131ed7c15c43d0823afed645" name="aff2aa45a131ed7c15c43d0823afed645"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aff2aa45a131ed7c15c43d0823afed645">&#9670;&#160;</a></span>conn_pump()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void conn_pump </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00457">457</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="protocols_2root_2connection_2recv_8c_source.html#l00153">ngx_stream_brix_recv()</a>, and <a class="el" href="protocols_2root_2connection_2send_8c_source.html#l00022">ngx_stream_brix_send()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00475">ngx_stream_brix_handler()</a>.</p>
+
+</div>
+</div>
+<a id="aa1053d43ef0bef46c795b88c92e62c08" name="aa1053d43ef0bef46c795b88c92e62c08"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa1053d43ef0bef46c795b88c92e62c08">&#9670;&#160;</a></span>conn_register_metrics()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t conn_register_metrics </td>
+          <td>(</td>
+          <td class="paramtype">ngx_stream_session_t *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>mconf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00308">308</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00227">ngx_brix_srv_metrics_t::cache_enabled</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00228">ngx_brix_srv_metrics_t::cache_eviction_threshold</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00229">ngx_brix_srv_metrics_t::cache_root</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00260">conn_metrics_init_labels()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00284">conn_metrics_row()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00144">ngx_brix_srv_metrics_t::connections_active</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00255">ngx_brix_srv_metrics_t::connections_rejected_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00143">ngx_brix_srv_metrics_t::connections_total</a>, <a class="el" href="context_8h_source.html#l00196">brix_ctx_t::metrics</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00366">conn_apply_srv_conf()</a>.</p>
+
+</div>
+</div>
+<a id="a381ddd3e572f0114c58a690f0763b598" name="a381ddd3e572f0114c58a690f0763b598"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a381ddd3e572f0114c58a690f0763b598">&#9670;&#160;</a></span>conn_set_immutable_labels()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void conn_set_immutable_labels </td>
+          <td>(</td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00054">54</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="context_8h_source.html#l00299">brix_ctx_t::ip_version</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00168">brix_ctx_login_t::peer_ip</a>, and <a class="el" href="context_8h_source.html#l00298">brix_ctx_t::protocol_label</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00116">conn_init_ctx()</a>.</p>
+
+</div>
+</div>
+<a id="a8e2b8246f4bfb3bffefe43b34920e4d4" name="a8e2b8246f4bfb3bffefe43b34920e4d4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8e2b8246f4bfb3bffefe43b34920e4d4">&#9670;&#160;</a></span>conn_setup_pipeline()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t conn_setup_pipeline </td>
+          <td>(</td>
+          <td class="paramtype">ngx_stream_session_t *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>mconf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00157">157</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="context_8h_source.html#l00324">brix_ctx_t::deadline</a>, <a class="el" href="ctx__structs_8h_source.html#l00058">brix_ctx_deadline_t::handshake_ms</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="context_8h_source.html#l00132">brix_ctx_t::out</a>, <a class="el" href="ctx__structs_8h_source.html#l00199">brix_ctx_out_t::pipeline_depth</a>, <a class="el" href="ctx__structs_8h_source.html#l00229">brix_ctx_rd_t::pool</a>, <a class="el" href="context_8h_source.html#l00137">brix_ctx_t::rd</a>, <a class="el" href="ctx__structs_8h_source.html#l00057">brix_ctx_deadline_t::read_ms</a>, <a class="el" href="ctx__structs_8h_source.html#l00200">brix_ctx_out_t::ring</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="ctx__structs_8h_source.html#l00059">brix_ctx_deadline_t::send_ms</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00366">conn_apply_srv_conf()</a>.</p>
+
+</div>
+</div>
+<a id="ab48fe63e99a544ef9ac9968ea8d0ff69" name="ab48fe63e99a544ef9ac9968ea8d0ff69"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab48fe63e99a544ef9ac9968ea8d0ff69">&#9670;&#160;</a></span>conn_try_relay()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t conn_try_relay </td>
+          <td>(</td>
+          <td class="paramtype">ngx_stream_session_t *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00403">403</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+
+<p class="reference">References <a class="el" href="relay_8c_source.html#l00322">brix_relay_start()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00475">ngx_stream_brix_handler()</a>.</p>
+
+</div>
+</div>
 <a id="a01239d2db14b9061cc9e311bbe9030dd" name="a01239d2db14b9061cc9e311bbe9030dd"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a01239d2db14b9061cc9e311bbe9030dd">&#9670;&#160;</a></span>ngx_stream_brix_handler()</h2>
 
@@ -132,11 +761,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00008">8</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00475">475</a> of file <a class="el" href="protocols_2root_2connection_2handler_8c_source.html">handler.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00306">ngx_stream_brix_srv_conf_t::access_log_fd</a>, <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00219">ngx_brix_srv_metrics_t::auth</a>, <a class="el" href="netopt_8h_source.html#l00083">brix_apply_tcp_congestion()</a>, <a class="el" href="netopt_8h_source.html#l00039">brix_apply_tcp_deadpeer_opts()</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00231">BRIX_AUTH_TOKEN</a>, <a class="el" href="tunables_8h_source.html#l00234">BRIX_AUTH_UNIX</a>, <a class="el" href="identity_8c_source.html#l00175">brix_identity_alloc()</a>, <a class="el" href="tunables_8h_source.html#l00159">BRIX_MAX_FILES</a>, <a class="el" href="metrics__proxy_8h_source.html#l00017">BRIX_PROXY_MAX_UPSTREAMS</a>, <a class="el" href="metrics__proxy_8h_source.html#l00019">BRIX_PROXY_UPSTREAM_LABEL_LEN</a>, <a class="el" href="relay_8c_source.html#l00322">brix_relay_start()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00482">brix_sess_am_from_stream_auth()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00242">brix_sess_begin()</a>, <a class="el" href="sesslog_8h_source.html#l00028">BRIX_SESS_DIR_IN</a>, <a class="el" href="sesslog_8h_source.html#l00017">BRIX_SESS_PROTO_ROOT</a>, <a class="el" href="opcodes_8h_source.html#l00030">BRIX_SESSION_ID_LEN</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="types_2config_8h_source.html#l00420">ngx_stream_brix_srv_conf_t::cache</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00227">ngx_brix_srv_metrics_t::cache_enabled</a>, <a class="el" href="types_2config_8h_source.html#l00455">ngx_stream_brix_srv_conf_t::cache_eviction_threshold</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00228">ngx_brix_srv_metrics_t::cache_eviction_threshold</a>, <a class="el" href="types_2config_8h_source.html#l00421">ngx_stream_brix_srv_conf_t::cache_root</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00229">ngx_brix_srv_metrics_t::cache_root</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00144">ngx_brix_srv_metrics_t::connections_active</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00255">ngx_brix_srv_metrics_t::connections_rejected_total</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00143">ngx_brix_srv_metrics_t::connections_total</a>, <a class="el" href="context_8h_source.html#l00312">brix_ctx_t::deadline</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="ctx__structs_8h_source.html#l00058">brix_ctx_deadline_t::handshake_ms</a>, <a class="el" href="types_2config_8h_source.html#l00716">ngx_stream_brix_srv_conf_t::handshake_timeout</a>, <a class="el" href="ctx__structs_8h_source.html#l00174">brix_ctx_recv_t::hdr_pos</a>, <a class="el" href="types_2config_8h_source.html#l00089">brix_proxy_upstream_t::host</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00220">ngx_brix_srv_metrics_t::in_use</a>, <a class="el" href="context_8h_source.html#l00287">brix_ctx_t::ip_version</a>, <a class="el" href="metrics__proxy_8h_source.html#l00027">ngx_brix_proxy_upstream_metrics_t::label</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="types_2config_8h_source.html#l00745">ngx_stream_brix_srv_conf_t::max_connections</a>, <a class="el" href="context_8h_source.html#l00196">brix_ctx_t::metrics</a>, <a class="el" href="types_2config_8h_source.html#l00313">ngx_stream_brix_srv_conf_t::metrics_slot</a>, <a class="el" href="observability_2metrics_2handler_8c_source.html#l00011">ngx_brix_shm_zone</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="protocols_2root_2connection_2recv_8c_source.html#l00253">ngx_stream_brix_recv()</a>, <a class="el" href="protocols_2root_2connection_2send_8c_source.html#l00022">ngx_stream_brix_send()</a>, <a class="el" href="context_8h_source.html#l00132">brix_ctx_t::out</a>, <a class="el" href="ctx__structs_8h_source.html#l00162">brix_ctx_login_t::peer_ip</a>, <a class="el" href="types_2config_8h_source.html#l00618">ngx_stream_brix_srv_conf_t::pipeline_depth</a>, <a class="el" href="ctx__structs_8h_source.html#l00193">brix_ctx_out_t::pipeline_depth</a>, <a class="el" href="ctx__structs_8h_source.html#l00223">brix_ctx_rd_t::pool</a>, <a class="el" href="types_2config_8h_source.html#l00090">brix_proxy_upstream_t::port</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00218">ngx_brix_srv_metrics_t::port</a>, <a class="el" href="context_8h_source.html#l00286">brix_ctx_t::protocol_label</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00232">ngx_brix_srv_metrics_t::proxy</a>, <a class="el" href="context_8h_source.html#l00137">brix_ctx_t::rd</a>, <a class="el" href="ctx__structs_8h_source.html#l00057">brix_ctx_deadline_t::read_ms</a>, <a class="el" href="types_2config_8h_source.html#l00713">ngx_stream_brix_srv_conf_t::read_timeout</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="types_2config_8h_source.html#l00659">ngx_stream_brix_srv_conf_t::relay_addr</a>, <a class="el" href="ctx__structs_8h_source.html#l00194">brix_ctx_out_t::ring</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="ctx__structs_8h_source.html#l00059">brix_ctx_deadline_t::send_ms</a>, <a class="el" href="types_2config_8h_source.html#l00719">ngx_stream_brix_srv_conf_t::send_timeout</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00366">ngx_brix_metrics_t::servers</a>, <a class="el" href="context_8h_source.html#l00101">brix_ctx_t::sess</a>, <a class="el" href="ctx__structs_8h_source.html#l00152">brix_ctx_login_t::sessid</a>, <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>, <a class="el" href="types_2config_8h_source.html#l00305">ngx_stream_brix_srv_conf_t::session_log</a>, <a class="el" href="core_2types_2file_8h_source.html#l00239">brix_file_t::shared_handle_slot_hint</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="types_2config_8h_source.html#l00732">ngx_stream_brix_srv_conf_t::tcp_congestion</a>, <a class="el" href="types_2config_8h_source.html#l00728">ngx_stream_brix_srv_conf_t::tcp_keepalive</a>, <a class="el" href="types_2config_8h_source.html#l00722">ngx_stream_brix_srv_conf_t::tcp_user_timeout</a>, <a class="el" href="conf__structs_8h_source.html#l00158">brix_proxy_conf_t::upstreams</a>, <a class="el" href="metrics__proxy_8h_source.html#l00067">ngx_brix_proxy_metrics_t::upstreams</a>, and <a class="el" href="state_8h_source.html#l00025">XRD_ST_HANDSHAKE</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00366">conn_apply_srv_conf()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00426">conn_begin_session()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00116">conn_init_ctx()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00457">conn_pump()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00403">conn_try_relay()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__conf_8c_source.html#l00890">ngx_stream_brix_enable()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__conf_8c_source.html#l00325">ngx_stream_brix_enable()</a>.</p>
 
 </div>
 </div>

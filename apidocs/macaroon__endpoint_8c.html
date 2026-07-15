@@ -91,7 +91,6 @@ $(document).ready(function(){initNavTree('macaroon__endpoint_8c.html',''); initR
 
 <div class="header">
   <div class="summary">
-<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">macaroon_endpoint.c File Reference</div></div>
 </div><!--header-->
@@ -108,172 +107,58 @@ $(document).ready(function(){initNavTree('macaroon__endpoint_8c.html',''); initR
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;<a class="el" href="time_8h_source.html">time.h</a>&gt;</code><br />
+<code>#include &quot;<a class="el" href="macaroon__endpoint__internal_8h_source.html">macaroon_endpoint_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for macaroon_endpoint.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="macaroon__endpoint_8c__incl.svg" width="100%" height="580"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="macaroon__endpoint_8c__incl.svg" width="100%" height="591"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="macaroon__endpoint_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:a39421a02ddcc8f53b4c1184d63a6e97c" id="r_a39421a02ddcc8f53b4c1184d63a6e97c"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a39421a02ddcc8f53b4c1184d63a6e97c">J_NOT_CONFIGURED</a>&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;not_configured\&quot;}&quot;</td></tr>
-<tr class="separator:a39421a02ddcc8f53b4c1184d63a6e97c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a397c28fcd688b0e90361b3da457330cf" id="r_a397c28fcd688b0e90361b3da457330cf"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a397c28fcd688b0e90361b3da457330cf">J_UNAUTHORIZED</a>&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;unauthorized\&quot;}&quot;</td></tr>
-<tr class="separator:a397c28fcd688b0e90361b3da457330cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af7b0a3665fa9cc61b25938478410639e" id="r_af7b0a3665fa9cc61b25938478410639e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#af7b0a3665fa9cc61b25938478410639e">J_INVALID_REQUEST</a>&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;invalid_request\&quot;}&quot;</td></tr>
-<tr class="separator:af7b0a3665fa9cc61b25938478410639e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adb1c45db8d8dbea8495605ffd3b06351" id="r_adb1c45db8d8dbea8495605ffd3b06351"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#adb1c45db8d8dbea8495605ffd3b06351">J_UNSUPPORTED_GT</a>&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;unsupported_grant_type\&quot;}&quot;</td></tr>
-<tr class="separator:adb1c45db8d8dbea8495605ffd3b06351"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac37255f19789836fb1e01af82e6ff114" id="r_ac37255f19789836fb1e01af82e6ff114"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#ac37255f19789836fb1e01af82e6ff114">J_INVALID_SCOPE</a>&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;invalid_scope\&quot;}&quot;</td></tr>
-<tr class="separator:ac37255f19789836fb1e01af82e6ff114"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a47c3f43f569488aa7803a25e9570a07a" id="r_a47c3f43f569488aa7803a25e9570a07a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a47c3f43f569488aa7803a25e9570a07a">J_SERVER_ERROR</a>&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;server_error\&quot;}&quot;</td></tr>
-<tr class="separator:a47c3f43f569488aa7803a25e9570a07a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a525d0cd8e8480e336832f8115761ab92" id="r_a525d0cd8e8480e336832f8115761ab92"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a525d0cd8e8480e336832f8115761ab92">hex_nibble</a> (char <a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
-<tr class="separator:a525d0cd8e8480e336832f8115761ab92"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aba6e6e52fd0e36ebf59a924ec2081f97" id="r_aba6e6e52fd0e36ebf59a924ec2081f97"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#aba6e6e52fd0e36ebf59a924ec2081f97">urlencode_decode_inplace</a> (char *str)</td></tr>
-<tr class="separator:aba6e6e52fd0e36ebf59a924ec2081f97"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a549626ecafd1290c80b429786e94a6f1" id="r_a549626ecafd1290c80b429786e94a6f1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a549626ecafd1290c80b429786e94a6f1">form_find</a> (const char *form, const char *<a class="el" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *dst, size_t dstsz)</td></tr>
-<tr class="separator:a549626ecafd1290c80b429786e94a6f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8c36a575779f9413e0ea893e14b158df" id="r_a8c36a575779f9413e0ea893e14b158df"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a8c36a575779f9413e0ea893e14b158df">scope_to_activities</a> (const char *scope, char *act_buf, size_t act_sz, char *path_buf, size_t path_sz)</td></tr>
-<tr class="separator:a8c36a575779f9413e0ea893e14b158df"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae6cdf2bb714e3cbffb3f98539d94f73f" id="r_ae6cdf2bb714e3cbffb3f98539d94f73f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#ae6cdf2bb714e3cbffb3f98539d94f73f">send_json</a> (ngx_http_request_t *r, ngx_int_t status, const char *json, size_t json_len)</td></tr>
 <tr class="separator:ae6cdf2bb714e3cbffb3f98539d94f73f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae69e2b7cff7a4ce9406afb6589c5feb5" id="r_ae69e2b7cff7a4ce9406afb6589c5feb5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#ae69e2b7cff7a4ce9406afb6589c5feb5">mac_respond</a> (ngx_http_request_t *r, ngx_int_t status, const char *json, size_t json_len)</td></tr>
+<tr class="separator:ae69e2b7cff7a4ce9406afb6589c5feb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4dc358155d1223bfb92fc0be6e1a828e" id="r_a4dc358155d1223bfb92fc0be6e1a828e"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a4dc358155d1223bfb92fc0be6e1a828e">mac_gate_and_read_body</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, size_t max_body, u_char **body, size_t *body_len)</td></tr>
+<tr class="separator:a4dc358155d1223bfb92fc0be6e1a828e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa36b06120ab21675a20eb990068e9be2" id="r_aa36b06120ab21675a20eb990068e9be2"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#aa36b06120ab21675a20eb990068e9be2">mac_authorize</a> (ngx_http_request_t *r, const char *activities, const char *path)</td></tr>
+<tr class="separator:aa36b06120ab21675a20eb990068e9be2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af4a16bdcf0501151b82ad3670d737852" id="r_af4a16bdcf0501151b82ad3670d737852"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#af4a16bdcf0501151b82ad3670d737852">mac_make_identifier</a> (ngx_http_request_t *r, char *identifier, size_t idsz)</td></tr>
+<tr class="separator:af4a16bdcf0501151b82ad3670d737852"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2774655a9eadbdba7e41b3406ae55a26" id="r_a2774655a9eadbdba7e41b3406ae55a26"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a2774655a9eadbdba7e41b3406ae55a26">mac_build_location</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, ngx_uint_t allow_conf_location, char *location, size_t locsz)</td></tr>
+<tr class="separator:a2774655a9eadbdba7e41b3406ae55a26"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acb31f34b4c9256d6f016ba1d8ce36b68" id="r_acb31f34b4c9256d6f016ba1d8ce36b68"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#acb31f34b4c9256d6f016ba1d8ce36b68">webdav_handle_macaroon_discovery</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:acb31f34b4c9256d6f016ba1d8ce36b68"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5498f7be17d6115338520b1a7fd69963" id="r_a5498f7be17d6115338520b1a7fd69963"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a5498f7be17d6115338520b1a7fd69963">webdav_handle_macaroon_token</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a5498f7be17d6115338520b1a7fd69963"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:add69668f597b4f7eff05b1269e8aea44" id="r_add69668f597b4f7eff05b1269e8aea44"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#add69668f597b4f7eff05b1269e8aea44">mac_iso8601_secs</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, size_t len, time_t max, time_t *out)</td></tr>
-<tr class="separator:add69668f597b4f7eff05b1269e8aea44"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1879995019301eca8a074b744164c8a1" id="r_a1879995019301eca8a074b744164c8a1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a1879995019301eca8a074b744164c8a1">mac_caveats_scan</a> (const char *body, size_t len, char *act, size_t actsz, char *path, size_t pathsz)</td></tr>
-<tr class="separator:a1879995019301eca8a074b744164c8a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4eb864377e0acc6004d992d190e9ad1e" id="r_a4eb864377e0acc6004d992d190e9ad1e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="macaroon__endpoint_8c.html#a4eb864377e0acc6004d992d190e9ad1e">webdav_handle_macaroon_request</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a4eb864377e0acc6004d992d190e9ad1e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="af7b0a3665fa9cc61b25938478410639e" name="af7b0a3665fa9cc61b25938478410639e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af7b0a3665fa9cc61b25938478410639e">&#9670;&#160;</a></span>J_INVALID_REQUEST</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define J_INVALID_REQUEST&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;invalid_request\&quot;}&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a id="ac37255f19789836fb1e01af82e6ff114" name="ac37255f19789836fb1e01af82e6ff114"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac37255f19789836fb1e01af82e6ff114">&#9670;&#160;</a></span>J_INVALID_SCOPE</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define J_INVALID_SCOPE&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;invalid_scope\&quot;}&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a id="a39421a02ddcc8f53b4c1184d63a6e97c" name="a39421a02ddcc8f53b4c1184d63a6e97c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a39421a02ddcc8f53b4c1184d63a6e97c">&#9670;&#160;</a></span>J_NOT_CONFIGURED</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define J_NOT_CONFIGURED&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;not_configured\&quot;}&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a id="a47c3f43f569488aa7803a25e9570a07a" name="a47c3f43f569488aa7803a25e9570a07a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a47c3f43f569488aa7803a25e9570a07a">&#9670;&#160;</a></span>J_SERVER_ERROR</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define J_SERVER_ERROR&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;server_error\&quot;}&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a id="a397c28fcd688b0e90361b3da457330cf" name="a397c28fcd688b0e90361b3da457330cf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a397c28fcd688b0e90361b3da457330cf">&#9670;&#160;</a></span>J_UNAUTHORIZED</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define J_UNAUTHORIZED&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;unauthorized\&quot;}&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a id="adb1c45db8d8dbea8495605ffd3b06351" name="adb1c45db8d8dbea8495605ffd3b06351"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adb1c45db8d8dbea8495605ffd3b06351">&#9670;&#160;</a></span>J_UNSUPPORTED_GT</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define J_UNSUPPORTED_GT&#160;&#160;&#160;&quot;{\&quot;error\&quot;:\&quot;unsupported_grant_type\&quot;}&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a549626ecafd1290c80b429786e94a6f1" name="a549626ecafd1290c80b429786e94a6f1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a549626ecafd1290c80b429786e94a6f1">&#9670;&#160;</a></span>form_find()</h2>
+<a id="aa36b06120ab21675a20eb990068e9be2" name="aa36b06120ab21675a20eb990068e9be2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa36b06120ab21675a20eb990068e9be2">&#9670;&#160;</a></span>mac_authorize()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t form_find </td>
+          <td class="memname">ngx_int_t mac_authorize </td>
           <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>form</em>, </td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
+          <td class="paramname"><em>activities</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>dst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>dstsz</em>&#160;</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -281,97 +166,103 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00079">79</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00156">156</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00049">urlencode_decode_inplace()</a>.</p>
+<p class="reference">References <a class="el" href="identity_8c_source.html#l00401">brix_identity_check_token_scope()</a>, <a class="el" href="scopes_8c_source.html#l00238">brix_token_check_read()</a>, <a class="el" href="scopes_8c_source.html#l00265">brix_token_check_write()</a>, <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="macaroon__endpoint__internal_8h_source.html#l00019">J_UNAUTHORIZED</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00095">mac_respond()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav_8h_source.html#l00157">ngx_http_brix_webdav_req_ctx_t::token_auth</a>, <a class="el" href="webdav_8h_source.html#l00167">ngx_http_brix_webdav_req_ctx_t::token_scope_count</a>, and <a class="el" href="webdav_8h_source.html#l00168">ngx_http_brix_webdav_req_ctx_t::token_scopes</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__endpoint__request_8c_source.html#l00203">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00278">webdav_handle_macaroon_token()</a>.</p>
 
 </div>
 </div>
-<a id="a525d0cd8e8480e336832f8115761ab92" name="a525d0cd8e8480e336832f8115761ab92"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a525d0cd8e8480e336832f8115761ab92">&#9670;&#160;</a></span>hex_nibble()</h2>
+<a id="a2774655a9eadbdba7e41b3406ae55a26" name="a2774655a9eadbdba7e41b3406ae55a26"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2774655a9eadbdba7e41b3406ae55a26">&#9670;&#160;</a></span>mac_build_location()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int hex_nibble </td>
+          <td class="memname">void mac_build_location </td>
           <td>(</td>
-          <td class="paramtype">char&#160;</td>
-          <td class="paramname"><em>c</em></td><td>)</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>allow_conf_location</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>location</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>locsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00039">39</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00237">237</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00108">ngx_http_brix_webdav_loc_conf_t::macaroon_location</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="tier__config_8c_source.html#l00026">scheme</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00092">ngx_http_brix_webdav_loc_conf_t::token_issuer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00049">urlencode_decode_inplace()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__endpoint__request_8c_source.html#l00203">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00278">webdav_handle_macaroon_token()</a>.</p>
 
 </div>
 </div>
-<a id="a1879995019301eca8a074b744164c8a1" name="a1879995019301eca8a074b744164c8a1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1879995019301eca8a074b744164c8a1">&#9670;&#160;</a></span>mac_caveats_scan()</h2>
+<a id="a4dc358155d1223bfb92fc0be6e1a828e" name="a4dc358155d1223bfb92fc0be6e1a828e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4dc358155d1223bfb92fc0be6e1a828e">&#9670;&#160;</a></span>mac_gate_and_read_body()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void mac_caveats_scan </td>
+          <td class="memname">ngx_int_t mac_gate_and_read_body </td>
           <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>max_body</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">u_char **&#160;</td>
           <td class="paramname"><em>body</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>act</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>actsz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>pathsz</em>&#160;</td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>body_len</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -379,53 +270,39 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00559">559</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00112">112</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00365">brix_http_body_read_all()</a>, <a class="el" href="macaroon__endpoint__internal_8h_source.html#l00020">J_INVALID_REQUEST</a>, <a class="el" href="macaroon__endpoint__internal_8h_source.html#l00018">J_NOT_CONFIGURED</a>, <a class="el" href="macaroon__endpoint__internal_8h_source.html#l00019">J_UNAUTHORIZED</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00095">mac_respond()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00100">ngx_http_brix_webdav_loc_conf_t::token_macaroon_secret</a>, and <a class="el" href="webdav_8h_source.html#l00151">ngx_http_brix_webdav_req_ctx_t::verified</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__endpoint__request_8c_source.html#l00203">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00278">webdav_handle_macaroon_token()</a>.</p>
 
 </div>
 </div>
-<a id="add69668f597b4f7eff05b1269e8aea44" name="add69668f597b4f7eff05b1269e8aea44"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#add69668f597b4f7eff05b1269e8aea44">&#9670;&#160;</a></span>mac_iso8601_secs()</h2>
+<a id="af4a16bdcf0501151b82ad3670d737852" name="af4a16bdcf0501151b82ad3670d737852"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af4a16bdcf0501151b82ad3670d737852">&#9670;&#160;</a></span>mac_make_identifier()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t mac_iso8601_secs </td>
+          <td class="memname">void mac_make_identifier </td>
           <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>s</em>, </td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>identifier</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">time_t&#160;</td>
-          <td class="paramname"><em>max</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">time_t *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
+          <td class="paramname"><em>idsz</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -433,59 +310,43 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00514">514</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00202">202</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__endpoint__request_8c_source.html#l00203">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00278">webdav_handle_macaroon_token()</a>.</p>
 
 </div>
 </div>
-<a id="a8c36a575779f9413e0ea893e14b158df" name="a8c36a575779f9413e0ea893e14b158df"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8c36a575779f9413e0ea893e14b158df">&#9670;&#160;</a></span>scope_to_activities()</h2>
+<a id="ae69e2b7cff7a4ce9406afb6589c5feb5" name="ae69e2b7cff7a4ce9406afb6589c5feb5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae69e2b7cff7a4ce9406afb6589c5feb5">&#9670;&#160;</a></span>mac_respond()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t scope_to_activities </td>
+          <td class="memname">void mac_respond </td>
           <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_int_t&#160;</td>
+          <td class="paramname"><em>status</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
           <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>scope</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>act_buf</em>, </td>
+          <td class="paramname"><em>json</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>act_sz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>path_buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>path_sz</em>&#160;</td>
+          <td class="paramname"><em>json_len</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -493,18 +354,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00118">118</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00095">95</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="macaroon__endpoint_8c_source.html#l00048">send_json()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00156">mac_authorize()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00112">mac_gate_and_read_body()</a>, <a class="el" href="macaroon__endpoint__request_8c_source.html#l00174">mac_request_respond()</a>, <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00241">mac_token_parse_form()</a>, <a class="el" href="macaroon__endpoint__request_8c_source.html#l00203">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint__oauth2_8c_source.html#l00278">webdav_handle_macaroon_token()</a>.</p>
 
 </div>
 </div>
@@ -554,43 +410,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00194">194</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00048">48</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00237">webdav_handle_macaroon_discovery()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>.</p>
-
-</div>
-</div>
-<a id="aba6e6e52fd0e36ebf59a924ec2081f97" name="aba6e6e52fd0e36ebf59a924ec2081f97"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aba6e6e52fd0e36ebf59a924ec2081f97">&#9670;&#160;</a></span>urlencode_decode_inplace()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static size_t urlencode_decode_inplace </td>
-          <td>(</td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>str</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00049">49</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
-
-<p class="reference">References <a class="el" href="macaroon__endpoint_8c_source.html#l00039">hex_nibble()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00079">form_find()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="macaroon__endpoint_8c_source.html#l00095">mac_respond()</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00273">webdav_handle_macaroon_discovery()</a>.</p>
 
 </div>
 </div>
@@ -610,59 +434,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00237">237</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00273">273</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tier__config_8c_source.html#l00026">scheme</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00194">send_json()</a>.</p>
+<p class="reference">References <a class="el" href="tier__config_8c_source.html#l00026">scheme</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00048">send_json()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
-
-</div>
-</div>
-<a id="a4eb864377e0acc6004d992d190e9ad1e" name="a4eb864377e0acc6004d992d190e9ad1e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4eb864377e0acc6004d992d190e9ad1e">&#9670;&#160;</a></span>webdav_handle_macaroon_request()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void webdav_handle_macaroon_request </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00610">610</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="identity_8c_source.html#l00482">brix_identity_check_token_scope()</a>, <a class="el" href="json__min_8c_source.html#l00197">brix_json_get_str()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00070">brix_macaroon_issue()</a>, <a class="el" href="macaroon__issue_8h_source.html#l00014">BRIX_MACAROON_ISSUE_OUT_MAX</a>, <a class="el" href="macaroon_8c_source.html#l00092">brix_macaroon_secret_parse()</a>, <a class="el" href="scopes_8c_source.html#l00238">brix_token_check_read()</a>, <a class="el" href="scopes_8c_source.html#l00265">brix_token_check_write()</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="macaroon__endpoint_8c.html#af7b0a3665fa9cc61b25938478410639e">J_INVALID_REQUEST</a>, <a class="el" href="macaroon__endpoint_8c.html#a39421a02ddcc8f53b4c1184d63a6e97c">J_NOT_CONFIGURED</a>, <a class="el" href="macaroon__endpoint_8c.html#a47c3f43f569488aa7803a25e9570a07a">J_SERVER_ERROR</a>, <a class="el" href="macaroon__endpoint_8c.html#a397c28fcd688b0e90361b3da457330cf">J_UNAUTHORIZED</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00559">mac_caveats_scan()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00514">mac_iso8601_secs()</a>, <a class="el" href="webdav_8h_source.html#l00217">ngx_http_brix_webdav_loc_conf_t::macaroon_location</a>, <a class="el" href="webdav_8h_source.html#l00216">ngx_http_brix_webdav_loc_conf_t::macaroon_max_validity</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="tier__config_8c_source.html#l00026">scheme</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00194">send_json()</a>, <a class="el" href="webdav_8h_source.html#l00339">ngx_http_brix_webdav_req_ctx_t::token_auth</a>, <a class="el" href="webdav_8h_source.html#l00201">ngx_http_brix_webdav_loc_conf_t::token_issuer</a>, <a class="el" href="webdav_8h_source.html#l00209">ngx_http_brix_webdav_loc_conf_t::token_macaroon_secret</a>, <a class="el" href="webdav_8h_source.html#l00340">ngx_http_brix_webdav_req_ctx_t::token_scope_count</a>, <a class="el" href="webdav_8h_source.html#l00341">ngx_http_brix_webdav_req_ctx_t::token_scopes</a>, <a class="el" href="webdav_8h_source.html#l00333">ngx_http_brix_webdav_req_ctx_t::verified</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
-
-</div>
-</div>
-<a id="a5498f7be17d6115338520b1a7fd69963" name="a5498f7be17d6115338520b1a7fd69963"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5498f7be17d6115338520b1a7fd69963">&#9670;&#160;</a></span>webdav_handle_macaroon_token()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void webdav_handle_macaroon_token </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="macaroon__endpoint_8c_source.html#l00271">271</a> of file <a class="el" href="macaroon__endpoint_8c_source.html">macaroon_endpoint.c</a>.</p>
-
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="identity_8c_source.html#l00482">brix_identity_check_token_scope()</a>, <a class="el" href="macaroon__issue_8c_source.html#l00070">brix_macaroon_issue()</a>, <a class="el" href="macaroon__issue_8h_source.html#l00014">BRIX_MACAROON_ISSUE_OUT_MAX</a>, <a class="el" href="macaroon_8c_source.html#l00092">brix_macaroon_secret_parse()</a>, <a class="el" href="scopes_8c_source.html#l00238">brix_token_check_read()</a>, <a class="el" href="scopes_8c_source.html#l00265">brix_token_check_write()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00079">form_find()</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="macaroon__endpoint_8c.html#af7b0a3665fa9cc61b25938478410639e">J_INVALID_REQUEST</a>, <a class="el" href="macaroon__endpoint_8c.html#ac37255f19789836fb1e01af82e6ff114">J_INVALID_SCOPE</a>, <a class="el" href="macaroon__endpoint_8c.html#a39421a02ddcc8f53b4c1184d63a6e97c">J_NOT_CONFIGURED</a>, <a class="el" href="macaroon__endpoint_8c.html#a47c3f43f569488aa7803a25e9570a07a">J_SERVER_ERROR</a>, <a class="el" href="macaroon__endpoint_8c.html#a397c28fcd688b0e90361b3da457330cf">J_UNAUTHORIZED</a>, <a class="el" href="macaroon__endpoint_8c.html#adb1c45db8d8dbea8495605ffd3b06351">J_UNSUPPORTED_GT</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="tier__config_8c_source.html#l00026">scheme</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00118">scope_to_activities()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00194">send_json()</a>, <a class="el" href="webdav_8h_source.html#l00339">ngx_http_brix_webdav_req_ctx_t::token_auth</a>, <a class="el" href="webdav_8h_source.html#l00201">ngx_http_brix_webdav_loc_conf_t::token_issuer</a>, <a class="el" href="webdav_8h_source.html#l00209">ngx_http_brix_webdav_loc_conf_t::token_macaroon_secret</a>, <a class="el" href="webdav_8h_source.html#l00340">ngx_http_brix_webdav_req_ctx_t::token_scope_count</a>, <a class="el" href="webdav_8h_source.html#l00341">ngx_http_brix_webdav_req_ctx_t::token_scopes</a>, <a class="el" href="webdav_8h_source.html#l00333">ngx_http_brix_webdav_req_ctx_t::verified</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00075">webdav_dispatch_macaroon()</a>.</p>
 
 </div>
 </div>

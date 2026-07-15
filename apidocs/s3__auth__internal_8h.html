@@ -113,7 +113,7 @@ Data Structures</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:aa61b59cafce62b3fe43cdde6d0ada37c" id="r_aa61b59cafce62b3fe43cdde6d0ada37c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__auth__internal_8h.html#aa61b59cafce62b3fe43cdde6d0ada37c">s3_sigv4_derive_signing_key_cached</a> (const ngx_str_t *secret_key, const char *<a class="el" href="auth__sigv4__verify_8c.html#a20d8c6b5428110e36cdf8d8c847d6dc9">date</a>, const char *<a class="el" href="auth__sigv4__verify_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, u_char out[32])</td></tr>
+<tr class="memitem:aa61b59cafce62b3fe43cdde6d0ada37c" id="r_aa61b59cafce62b3fe43cdde6d0ada37c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__auth__internal_8h.html#aa61b59cafce62b3fe43cdde6d0ada37c">s3_sigv4_derive_signing_key_cached</a> (const ngx_str_t *secret_key, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a20d8c6b5428110e36cdf8d8c847d6dc9">date</a>, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, u_char out[32])</td></tr>
 <tr class="separator:aa61b59cafce62b3fe43cdde6d0ada37c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aecd468f01f2dbed7ed442b7263b428d3" id="r_aecd468f01f2dbed7ed442b7263b428d3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__auth__internal_8h.html#aecd468f01f2dbed7ed442b7263b428d3">parse_authorization</a> (const ngx_str_t *auth, <a class="el" href="structsigv4__components__t.html">sigv4_components_t</a> *out)</td></tr>
 <tr class="separator:aecd468f01f2dbed7ed442b7263b428d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -151,6 +151,8 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="s3__auth__internal_8h_source.html#l00038">sigv4_components_t::signature</a>, <a class="el" href="s3__auth__internal_8h_source.html#l00037">sigv4_components_t::signed_hdrs</a>, <a class="el" href="auth__sigv4__parse_8c_source.html#l00104">sigv4_extract_auth_value()</a>, and <a class="el" href="auth__sigv4__parse_8c_source.html#l00143">sigv4_parse_credential_scope()</a>.</p>
 
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__verify_8c_source.html#l00213">s3_sigv4_parse_authz_header()</a>.</p>
+
 </div>
 </div>
 <a id="a305a2fa63cce1bfb4322b4fe2a76fde8" name="a305a2fa63cce1bfb4322b4fe2a76fde8"></a>
@@ -182,6 +184,8 @@ Functions</h2></td></tr>
 <p class="definition">Definition at line <a class="el" href="auth__sigv4__parse_8c_source.html#l00294">294</a> of file <a class="el" href="auth__sigv4__parse_8c_source.html">auth_sigv4_parse.c</a>.</p>
 
 <p class="reference">References <a class="el" href="s3__auth__internal_8h_source.html#l00036">sigv4_components_t::amz_date</a>, <a class="el" href="s3__auth__internal_8h_source.html#l00040">sigv4_components_t::amz_expires</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="s3__auth__internal_8h_source.html#l00039">sigv4_components_t::presigned</a>, <a class="el" href="s3__auth__internal_8h_source.html#l00038">sigv4_components_t::signature</a>, <a class="el" href="s3__auth__internal_8h_source.html#l00037">sigv4_components_t::signed_hdrs</a>, <a class="el" href="auth__sigv4__parse_8c_source.html#l00197">sigv4_copy_arg_decoded()</a>, <a class="el" href="auth__sigv4__parse_8c_source.html#l00143">sigv4_parse_credential_scope()</a>, and <a class="el" href="auth__sigv4__parse_8c_source.html#l00222">sigv4_parse_expires()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__sigv4__verify_8c_source.html#l00213">s3_sigv4_parse_authz_header()</a>.</p>
 
 </div>
 </div>
@@ -223,11 +227,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="auth__sigv4__verify_8c_source.html#l00245">245</a> of file <a class="el" href="auth__sigv4__verify_8c_source.html">auth_sigv4_verify.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00068">68</a> of file <a class="el" href="auth__sigv4__verify__crypto_8c_source.html">auth_sigv4_verify_crypto.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sigv4_8c_source.html#l00014">brix_sigv4_signing_key()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00239">date</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>, and <a class="el" href="auth__sigv4__verify_8c.html#af4308ce61e3c5da4bfd3bdd2b25c1ac5">s_signing_key_cache</a>.</p>
+<p class="reference">References <a class="el" href="sigv4_8c_source.html#l00014">brix_sigv4_signing_key()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00049">date</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c.html#a0742154ff1733147d1a54b41bc80686a">s_signing_key_cache</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00339">s3_post_verify_policy()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00360">s3_verify_sigv4()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00544">s3_post_verify_signature()</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00183">s3_sigv4_compute_signature()</a>.</p>
 
 </div>
 </div>

@@ -111,6 +111,10 @@ Data Fields</h2></td></tr>
 <tr class="separator:a1660b9bdea155303e087f924ef58357b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab309222c83be0cf56eadc311a35574a1" id="r_ab309222c83be0cf56eadc311a35574a1"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__identity__t.html">brix_identity_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__http__s3__req__ctx__t.html#ab309222c83be0cf56eadc311a35574a1">identity</a></td></tr>
 <tr class="separator:ab309222c83be0cf56eadc311a35574a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a40e392417793940a0f56b4a8e7230466" id="r_a40e392417793940a0f56b4a8e7230466"><td class="memItemLeft" align="right" valign="top">ngx_str_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__http__s3__req__ctx__t.html#a40e392417793940a0f56b4a8e7230466">bearer_token</a></td></tr>
+<tr class="separator:a40e392417793940a0f56b4a8e7230466"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8709679116b24455e6bbcb1dc8dd355d" id="r_a8709679116b24455e6bbcb1dc8dd355d"><td class="memItemLeft" align="right" valign="top">ngx_str_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__http__s3__req__ctx__t.html#a8709679116b24455e6bbcb1dc8dd355d">deleg_proxy_pem</a></td></tr>
+<tr class="separator:a8709679116b24455e6bbcb1dc8dd355d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a605824caa4f7e83f307cce9538a412de" id="r_a605824caa4f7e83f307cce9538a412de"><td class="memItemLeft" align="right" valign="top">unsigned&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__http__s3__req__ctx__t.html#a605824caa4f7e83f307cce9538a412de">exclusive_create</a>:1</td></tr>
 <tr class="separator:a605824caa4f7e83f307cce9538a412de"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1693c13af8bbf440519088b4b910839a" id="r_a1693c13af8bbf440519088b4b910839a"><td class="memItemLeft" align="right" valign="top">unsigned&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__http__s3__req__ctx__t.html#a1693c13af8bbf440519088b4b910839a">have_sigv4</a>:1</td></tr>
@@ -132,6 +136,42 @@ Data Fields</h2></td></tr>
 <div class="textblock">
 <p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00119">119</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
+<a id="a40e392417793940a0f56b4a8e7230466" name="a40e392417793940a0f56b4a8e7230466"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a40e392417793940a0f56b4a8e7230466">&#9670;&#160;</a></span>bearer_token</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_str_t ngx_http_s3_req_ctx_t::bearer_token</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00125">125</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="auth__bearer_8c_source.html#l00088">s3_verify_bearer()</a>, and <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>.</p>
+
+</div>
+</div>
+<a id="a8709679116b24455e6bbcb1dc8dd355d" name="a8709679116b24455e6bbcb1dc8dd355d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8709679116b24455e6bbcb1dc8dd355d">&#9670;&#160;</a></span>deleg_proxy_pem</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_str_t ngx_http_s3_req_ctx_t::deleg_proxy_pem</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00130">130</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00271">s3_capture_delegate_proxy()</a>, and <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>.</p>
+
+</div>
+</div>
 <a id="a605824caa4f7e83f307cce9538a412de" name="a605824caa4f7e83f307cce9538a412de"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a605824caa4f7e83f307cce9538a412de">&#9670;&#160;</a></span>exclusive_create</h2>
 
@@ -144,9 +184,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00124">124</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00133">133</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__finalize_8c_source.html#l00021">s3_commit_put()</a>, and <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00124">s3_apply_put_precondition()</a>, and <a class="el" href="put__finalize_8c_source.html#l00021">s3_commit_put()</a>.</p>
 
 </div>
 </div>
@@ -164,7 +204,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00120">120</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00290">s3_multipart_complete_body_handler_inner()</a>, <a class="el" href="s3_2put_8c_source.html#l00262">s3_put_body_inner()</a>, and <a class="el" href="tagging_8c_source.html#l00347">s3_put_object_tagging_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="multipart__complete__body_8c_source.html#l00295">s3_multipart_complete_body_handler_inner()</a>, <a class="el" href="handler__object__route_8c_source.html#l00080">s3_prepare_upload_part()</a>, <a class="el" href="put__inner_8c_source.html#l00218">s3_put_body_inner()</a>, <a class="el" href="tagging_8c_source.html#l00424">s3_put_object_tagging_body_handler()</a>, and <a class="el" href="handler__dispatch_8c_source.html#l00287">s3_resolve_object_key()</a>.</p>
 
 </div>
 </div>
@@ -180,9 +220,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00130">130</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00139">139</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00121">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00360">s3_verify_sigv4()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00133">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00305">s3_sigv4_finish()</a>.</p>
 
 </div>
 </div>
@@ -200,7 +240,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00121">121</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00094">s3_cksum_vfs_open()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00066">s3_cksum_vfs_unlink()</a>, <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00055">s3_copy_vfs_ctx()</a>, <a class="el" href="s3_2put_8c_source.html#l00024">s3_dashboard_identity()</a>, <a class="el" href="delete__objects_8c_source.html#l00267">s3_delete_objects_body_handler()</a>, <a class="el" href="delete__objects_8c_source.html#l00053">s3_delete_one()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>, <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00056">s3_multipart_complete_body_handler()</a>, <a class="el" href="post__object_8c_source.html#l00219">s3_post_object_body_handler()</a>, <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>, <a class="el" href="conditional_8c_source.html#l00144">s3_put_precondition()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00077">s3_sess_auth_method()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00095">s3_sess_user()</a>, <a class="el" href="tagging_8c_source.html#l00053">s3_tag_vfs_ctx()</a>, <a class="el" href="usermeta_8c_source.html#l00038">s3_user_meta_vfs_ctx()</a>, and <a class="el" href="object_8c_source.html#l00049">s3_vfs_ctx()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>, <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00271">s3_capture_delegate_proxy()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00161">s3_check_token_scope()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00095">s3_cksum_vfs_open()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00067">s3_cksum_vfs_unlink()</a>, <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00061">s3_copy_vfs_ctx()</a>, <a class="el" href="s3_2put_8c_source.html#l00024">s3_dashboard_identity()</a>, <a class="el" href="delete__objects_8c_source.html#l00507">s3_delete_objects_body_handler()</a>, <a class="el" href="delete__objects_8c_source.html#l00063">s3_delete_one()</a>, <a class="el" href="object_8c_source.html#l00316">s3_get_resolve_identity()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00056">s3_multipart_complete_body_handler()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00303">s3_pmark_begin_if_enabled()</a>, <a class="el" href="post__object_8c_source.html#l00219">s3_post_object_body_handler()</a>, <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>, <a class="el" href="conditional_8c_source.html#l00144">s3_put_precondition()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00077">s3_sess_auth_method()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00095">s3_sess_user()</a>, <a class="el" href="tagging_8c_source.html#l00053">s3_tag_vfs_ctx()</a>, <a class="el" href="usermeta_8c_source.html#l00038">s3_user_meta_vfs_ctx()</a>, and <a class="el" href="object_8c_source.html#l00050">s3_vfs_ctx()</a>.</p>
 
 </div>
 </div>
@@ -216,7 +256,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00135">135</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00144">144</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00190">s3_sess_finish_xfer()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00170">s3_sess_start_xfer()</a>.</p>
 
@@ -234,7 +274,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00136">136</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00145">145</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00190">s3_sess_finish_xfer()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00170">s3_sess_start_xfer()</a>.</p>
 
@@ -252,9 +292,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00133">133</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00142">142</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00121">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00360">s3_verify_sigv4()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00133">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00305">s3_sigv4_finish()</a>.</p>
 
 </div>
 </div>
@@ -270,9 +310,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00134">134</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00143">143</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00121">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00360">s3_verify_sigv4()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00133">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00305">s3_sigv4_finish()</a>.</p>
 
 </div>
 </div>
@@ -288,9 +328,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00132">132</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00141">141</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00121">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00360">s3_verify_sigv4()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00133">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00305">s3_sigv4_finish()</a>.</p>
 
 </div>
 </div>
@@ -306,9 +346,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00131">131</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3_8h_source.html#l00140">140</a> of file <a class="el" href="s3_8h_source.html">s3.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00121">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00360">s3_verify_sigv4()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00133">s3_build_chunk_verify()</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00305">s3_sigv4_finish()</a>.</p>
 
 </div>
 </div>

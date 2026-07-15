@@ -109,7 +109,12 @@ $(document).ready(function(){initNavTree('protocols_2root_2stream_2module_8c.htm
 <code>#include &quot;<a class="el" href="cns_8h_source.html">net/cms/cns.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="credential__block_8h_source.html">core/config/credential_block.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="module__enums_8h_source.html">module_enums.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="sd_8h_source.html">fs/backend/sd.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="tier__directives_8h_source.html">core/config/tier_directives.h</a>&quot;</code><br />
+<code>#include &lt;stdio.h&gt;</code><br />
+<code>#include &lt;openssl/pem.h&gt;</code><br />
+<code>#include &lt;openssl/x509.h&gt;</code><br />
+<code>#include &lt;openssl/evp.h&gt;</code><br />
 <code>#include &quot;directives_tier.inc&quot;</code><br />
 <code>#include &quot;directives_auth.inc&quot;</code><br />
 <code>#include &quot;directives_security.inc&quot;</code><br />
@@ -133,6 +138,8 @@ $(document).ready(function(){initNavTree('protocols_2root_2stream_2module_8c.htm
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a2037258058b0347cd946c146c7e9407c" id="r_a2037258058b0347cd946c146c7e9407c"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2stream_2module_8c.html#a2037258058b0347cd946c146c7e9407c">brix_conf_set_stream_mint_ca</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:a2037258058b0347cd946c146c7e9407c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0362c04b3a2182b0ba4a152b00873e18" id="r_a0362c04b3a2182b0ba4a152b00873e18"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2stream_2module_8c.html#a0362c04b3a2182b0ba4a152b00873e18">brix_ssi_service_directive</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:a0362c04b3a2182b0ba4a152b00873e18"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -140,10 +147,60 @@ Functions</h2></td></tr>
 Variables</h2></td></tr>
 <tr class="memitem:a458030812f5e03ab5c0ec3743448e9d9" id="r_a458030812f5e03ab5c0ec3743448e9d9"><td class="memItemLeft" align="right" valign="top">static ngx_conf_enum_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2stream_2module_8c.html#a458030812f5e03ab5c0ec3743448e9d9">brix_ssi_executor_enum</a> []</td></tr>
 <tr class="separator:a458030812f5e03ab5c0ec3743448e9d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a67543a4bd0f922e640a7b456f74ab47c" id="r_a67543a4bd0f922e640a7b456f74ab47c"><td class="memItemLeft" align="right" valign="top">static ngx_conf_enum_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2stream_2module_8c.html#a67543a4bd0f922e640a7b456f74ab47c">brix_stream_backend_delegation_enum</a> []</td></tr>
+<tr class="separator:a67543a4bd0f922e640a7b456f74ab47c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab9be160652cef60aa047fdf7940dfe4d" id="r_ab9be160652cef60aa047fdf7940dfe4d"><td class="memItemLeft" align="right" valign="top">static ngx_conf_enum_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2stream_2module_8c.html#ab9be160652cef60aa047fdf7940dfe4d">brix_stream_credential_fallback_enum</a> []</td></tr>
+<tr class="separator:ab9be160652cef60aa047fdf7940dfe4d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acfd9a7f03ff6a3480b77691c01415b18" id="r_acfd9a7f03ff6a3480b77691c01415b18"><td class="memItemLeft" align="right" valign="top">ngx_command_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2stream_2module_8c.html#acfd9a7f03ff6a3480b77691c01415b18">ngx_stream_brix_commands</a> []</td></tr>
 <tr class="separator:acfd9a7f03ff6a3480b77691c01415b18"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a2037258058b0347cd946c146c7e9407c" name="a2037258058b0347cd946c146c7e9407c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2037258058b0347cd946c146c7e9407c">&#9670;&#160;</a></span>brix_conf_set_stream_mint_ca()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static char * brix_conf_set_stream_mint_ca </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00081">81</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
+
+</div>
+</div>
 <a id="a0362c04b3a2182b0ba4a152b00873e18" name="a0362c04b3a2182b0ba4a152b00873e18"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a0362c04b3a2182b0ba4a152b00873e18">&#9670;&#160;</a></span>brix_ssi_service_directive()</h2>
 
@@ -184,9 +241,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00045">45</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
-
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00348">ngx_stream_brix_srv_conf_t::ssi_cta_enable</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00129">129</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>
@@ -216,7 +271,75 @@ Variables</h2></td></tr>
 <div class="line">    { ngx_null_string,    0 }</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00032">32</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00038">38</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+
+</div>
+</div>
+<a id="a67543a4bd0f922e640a7b456f74ab47c" name="a67543a4bd0f922e640a7b456f74ab47c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a67543a4bd0f922e640a7b456f74ab47c">&#9670;&#160;</a></span>brix_stream_backend_delegation_enum</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_conf_enum_t brix_stream_backend_delegation_enum[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { ngx_string(<span class="stringliteral">&quot;select&quot;</span>),      <a class="code hl_enumvalue" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b">BRIX_CRED_SELECT</a> },</div>
+<div class="line">    { ngx_string(<span class="stringliteral">&quot;passthrough&quot;</span>), <a class="code hl_enumvalue" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd">BRIX_CRED_PASSTHROUGH</a> },</div>
+<div class="line">    { ngx_string(<span class="stringliteral">&quot;exchange&quot;</span>),    <a class="code hl_enumvalue" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214">BRIX_CRED_EXCHANGE</a> },</div>
+<div class="line">    { ngx_string(<span class="stringliteral">&quot;delegate&quot;</span>),    <a class="code hl_enumvalue" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03">BRIX_CRED_DELEGATE</a> },</div>
+<div class="line">    { ngx_string(<span class="stringliteral">&quot;mint&quot;</span>),        <a class="code hl_enumvalue" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739">BRIX_CRED_MINT</a> },</div>
+<div class="line">    { ngx_string(<span class="stringliteral">&quot;auto&quot;</span>),        <a class="code hl_enumvalue" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a> },</div>
+<div class="line">    { ngx_null_string,           0 }</div>
+<div class="line">}</div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03">BRIX_CRED_DELEGATE</a></div><div class="ttdeci">@ BRIX_CRED_DELEGATE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00195">sd.h:195</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214">BRIX_CRED_EXCHANGE</a></div><div class="ttdeci">@ BRIX_CRED_EXCHANGE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00194">sd.h:194</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b">BRIX_CRED_SELECT</a></div><div class="ttdeci">@ BRIX_CRED_SELECT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00192">sd.h:192</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739">BRIX_CRED_MINT</a></div><div class="ttdeci">@ BRIX_CRED_MINT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00196">sd.h:196</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd">BRIX_CRED_PASSTHROUGH</a></div><div class="ttdeci">@ BRIX_CRED_PASSTHROUGH</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00193">sd.h:193</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a></div><div class="ttdeci">@ BRIX_CRED_AUTO</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00198">sd.h:197</a></div></div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00050">50</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+
+</div>
+</div>
+<a id="ab9be160652cef60aa047fdf7940dfe4d" name="ab9be160652cef60aa047fdf7940dfe4d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab9be160652cef60aa047fdf7940dfe4d">&#9670;&#160;</a></span>brix_stream_credential_fallback_enum</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_conf_enum_t brix_stream_credential_fallback_enum[]</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    { ngx_string(<span class="stringliteral">&quot;allow&quot;</span>), 0 },</div>
+<div class="line">    { ngx_string(<span class="stringliteral">&quot;deny&quot;</span>),  1 },</div>
+<div class="line">    { ngx_null_string,     0 }</div>
+<div class="line">}</div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00060">60</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>
@@ -232,7 +355,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00069">69</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00153">153</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>

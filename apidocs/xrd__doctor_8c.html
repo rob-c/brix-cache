@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('xrd__doctor_8c.html',''); initResizabl
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">xrd_doctor.c File Reference</div></div>
 </div><!--header-->
@@ -106,22 +107,739 @@ $(document).ready(function(){initNavTree('xrd__doctor_8c.html',''); initResizabl
 </div>
 <p><a href="xrd__doctor_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:abd826de3044e3671a421a25d538fe94c" id="r_abd826de3044e3671a421a25d538fe94c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#abd826de3044e3671a421a25d538fe94c">xrd_doctor_probe</a> (const char *endpoint, <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
 <tr class="separator:abd826de3044e3671a421a25d538fe94c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8f51ddaa0d170ff24557146dd6a4deb3" id="r_a8f51ddaa0d170ff24557146dd6a4deb3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a8f51ddaa0d170ff24557146dd6a4deb3">xrd_json_str</a> (FILE *f, const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:a8f51ddaa0d170ff24557146dd6a4deb3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7927fa65d1b512897fa6d5406fb57c39" id="r_a7927fa65d1b512897fa6d5406fb57c39"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a7927fa65d1b512897fa6d5406fb57c39">xrd_doctor_json</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p, int token_present, const char *token_path, int proxy_present, const char *<a class="el" href="sec__gsi_8c.html#a64923bfcafc30c480bc04b0c7565c2ea">proxy_path</a>, const <a class="el" href="structxrd__battery.html">xrd_battery</a> *bats, int nbats)</td></tr>
-<tr class="separator:a7927fa65d1b512897fa6d5406fb57c39"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5b3566b091bc23386dacfacc4de1c3eb" id="r_a5b3566b091bc23386dacfacc4de1c3eb"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a5b3566b091bc23386dacfacc4de1c3eb">doctor_json_head</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
+<tr class="separator:a5b3566b091bc23386dacfacc4de1c3eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1126e65e1dcf4d40e29f11917a60b178" id="r_a1126e65e1dcf4d40e29f11917a60b178"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a1126e65e1dcf4d40e29f11917a60b178">doctor_json_tls</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
+<tr class="separator:a1126e65e1dcf4d40e29f11917a60b178"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6958db813ad42cb7b44382346245bd12" id="r_a6958db813ad42cb7b44382346245bd12"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a6958db813ad42cb7b44382346245bd12">doctor_json_cert</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
+<tr class="separator:a6958db813ad42cb7b44382346245bd12"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b9b45420c0da3c79b7fd171d7348106" id="r_a8b9b45420c0da3c79b7fd171d7348106"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a8b9b45420c0da3c79b7fd171d7348106">doctor_json_clock</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
+<tr class="separator:a8b9b45420c0da3c79b7fd171d7348106"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae309326f3e42fd4285aa181158fb570d" id="r_ae309326f3e42fd4285aa181158fb570d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#ae309326f3e42fd4285aa181158fb570d">doctor_json_caps</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
+<tr class="separator:ae309326f3e42fd4285aa181158fb570d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b585d6f186838cb9de0ca9104f6666d" id="r_a2b585d6f186838cb9de0ca9104f6666d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a2b585d6f186838cb9de0ca9104f6666d">doctor_json_creds</a> (const <a class="el" href="structxrd__cred__facts.html">xrd_cred_facts</a> *cf)</td></tr>
+<tr class="separator:a2b585d6f186838cb9de0ca9104f6666d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1be56b0f17200af0b67bf2a6293319e0" id="r_a1be56b0f17200af0b67bf2a6293319e0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a1be56b0f17200af0b67bf2a6293319e0">doctor_json_battery</a> (const <a class="el" href="structxrd__battery.html">xrd_battery</a> *bt, int idx)</td></tr>
+<tr class="separator:a1be56b0f17200af0b67bf2a6293319e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b25c921c779294bd0c90bd02ffb6840" id="r_a2b25c921c779294bd0c90bd02ffb6840"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a2b25c921c779294bd0c90bd02ffb6840">doctor_json_tests</a> (const <a class="el" href="structxrd__battery.html">xrd_battery</a> *bats, int nbats)</td></tr>
+<tr class="separator:a2b25c921c779294bd0c90bd02ffb6840"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7fd960986ebbc2cdcce7990cd703f6b7" id="r_a7fd960986ebbc2cdcce7990cd703f6b7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a7fd960986ebbc2cdcce7990cd703f6b7">xrd_doctor_json</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p, const <a class="el" href="structxrd__cred__facts.html">xrd_cred_facts</a> *cf, const <a class="el" href="structxrd__battery.html">xrd_battery</a> *bats, int nbats)</td></tr>
+<tr class="separator:a7fd960986ebbc2cdcce7990cd703f6b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac6f66f3500c0282856fcb302a318b367" id="r_ac6f66f3500c0282856fcb302a318b367"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#ac6f66f3500c0282856fcb302a318b367">doctor_parse_args</a> (int argc, char **argv, <a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *d)</td></tr>
+<tr class="separator:ac6f66f3500c0282856fcb302a318b367"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af83af87a1460262592a2e7d3c90d86dc" id="r_af83af87a1460262592a2e7d3c90d86dc"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#af83af87a1460262592a2e7d3c90d86dc">doctor_discover_creds</a> (<a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *d)</td></tr>
+<tr class="separator:af83af87a1460262592a2e7d3c90d86dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa0b205b0c146f79941804888f72ea114" id="r_aa0b205b0c146f79941804888f72ea114"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#aa0b205b0c146f79941804888f72ea114">doctor_run_batteries</a> (<a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *d)</td></tr>
+<tr class="separator:aa0b205b0c146f79941804888f72ea114"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0ed68d0724f517277771e92f7e3a7ed4" id="r_a0ed68d0724f517277771e92f7e3a7ed4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a0ed68d0724f517277771e92f7e3a7ed4">doctor_emit_json</a> (<a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *d)</td></tr>
+<tr class="separator:a0ed68d0724f517277771e92f7e3a7ed4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0a38ebf89a0f1a7a94e9a4a4a06853f6" id="r_a0a38ebf89a0f1a7a94e9a4a4a06853f6"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a0a38ebf89a0f1a7a94e9a4a4a06853f6">doctor_report_creds</a> (<a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *d)</td></tr>
+<tr class="separator:a0a38ebf89a0f1a7a94e9a4a4a06853f6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac963e817684b584eca8bf57834afd09c" id="r_ac963e817684b584eca8bf57834afd09c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#ac963e817684b584eca8bf57834afd09c">doctor_report_conn</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p, int *fatal)</td></tr>
+<tr class="separator:ac963e817684b584eca8bf57834afd09c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a09e6ab2a05490e09e76a161463d1827b" id="r_a09e6ab2a05490e09e76a161463d1827b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a09e6ab2a05490e09e76a161463d1827b">doctor_report_cert</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p, int *fatal)</td></tr>
+<tr class="separator:a09e6ab2a05490e09e76a161463d1827b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1a25997556dc61e8af905929893b4f6a" id="r_a1a25997556dc61e8af905929893b4f6a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a1a25997556dc61e8af905929893b4f6a">doctor_report_clock</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p, int *fatal)</td></tr>
+<tr class="separator:a1a25997556dc61e8af905929893b4f6a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b416477cd883f66f72c13d6c872ec71" id="r_a8b416477cd883f66f72c13d6c872ec71"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a8b416477cd883f66f72c13d6c872ec71">doctor_report_caps</a> (const <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
+<tr class="separator:a8b416477cd883f66f72c13d6c872ec71"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4f3d212537449bcd8b0e633a5b62d8c6" id="r_a4f3d212537449bcd8b0e633a5b62d8c6"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a4f3d212537449bcd8b0e633a5b62d8c6">doctor_report_endpoint</a> (<a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *d)</td></tr>
+<tr class="separator:a4f3d212537449bcd8b0e633a5b62d8c6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a279cbdf6f62fa5583ac424bf6954ebe4" id="r_a279cbdf6f62fa5583ac424bf6954ebe4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a279cbdf6f62fa5583ac424bf6954ebe4">doctor_report_batteries</a> (const <a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *d)</td></tr>
+<tr class="separator:a279cbdf6f62fa5583ac424bf6954ebe4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a50bac7903e4ce05fa08b5df7e974fc07" id="r_a50bac7903e4ce05fa08b5df7e974fc07"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#a50bac7903e4ce05fa08b5df7e974fc07">xrd_doctor</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a50bac7903e4ce05fa08b5df7e974fc07"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab18acbee47cd157182c080964bf3ef25" id="r_ab18acbee47cd157182c080964bf3ef25"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#ab18acbee47cd157182c080964bf3ef25">xrd_probe_caps</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
+<tr class="memitem:ab18acbee47cd157182c080964bf3ef25" id="r_ab18acbee47cd157182c080964bf3ef25"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#ab18acbee47cd157182c080964bf3ef25">xrd_probe_caps</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structxrd__probe.html">xrd_probe</a> *p)</td></tr>
 <tr class="separator:ab18acbee47cd157182c080964bf3ef25"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae3514e5e7f713a31d15318a5598a1f24" id="r_ae3514e5e7f713a31d15318a5598a1f24"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__doctor_8c.html#ae3514e5e7f713a31d15318a5598a1f24">xrd_certinfo</a> (int argc, char **argv)</td></tr>
 <tr class="separator:ae3514e5e7f713a31d15318a5598a1f24"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="af83af87a1460262592a2e7d3c90d86dc" name="af83af87a1460262592a2e7d3c90d86dc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af83af87a1460262592a2e7d3c90d86dc">&#9670;&#160;</a></span>doctor_discover_creds()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_discover_creds </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *&#160;</td>
+          <td class="paramname"><em>d</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00360">360</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00072">brix_proxy_default_path()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00320">xrd_doctor_run::proxy_present</a>, <a class="el" href="xrd__doctor_8c_source.html#l00319">xrd_doctor_run::pxp</a>, <a class="el" href="xrd__doctor_8c_source.html#l00317">xrd_doctor_run::tok</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00318">xrd_doctor_run::token_present</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00605">xrd_doctor()</a>.</p>
+
+</div>
+</div>
+<a id="a0ed68d0724f517277771e92f7e3a7ed4" name="a0ed68d0724f517277771e92f7e3a7ed4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0ed68d0724f517277771e92f7e3a7ed4">&#9670;&#160;</a></span>doctor_emit_json()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int doctor_emit_json </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *&#160;</td>
+          <td class="paramname"><em>d</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00401">401</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__doctor_8c_source.html#l00321">xrd_doctor_run::bats</a>, <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="xrd__doctor_8c_source.html#l00311">xrd_doctor_run::endpoint</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="xrd__doctor_8c_source.html#l00323">xrd_doctor_run::fatal</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="xrd__doctor_8c_source.html#l00322">xrd_doctor_run::nbats</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00079">xrd_cred_facts::proxy_path</a>, <a class="el" href="xrd__doctor_8c_source.html#l00320">xrd_doctor_run::proxy_present</a>, <a class="el" href="xrd__internal_8h_source.html#l00078">xrd_cred_facts::proxy_present</a>, <a class="el" href="xrd__doctor_8c_source.html#l00319">xrd_doctor_run::pxp</a>, <a class="el" href="xrd__doctor_8c_source.html#l00317">xrd_doctor_run::tok</a>, <a class="el" href="xrd__internal_8h_source.html#l00077">xrd_cred_facts::token_path</a>, <a class="el" href="xrd__doctor_8c_source.html#l00318">xrd_doctor_run::token_present</a>, <a class="el" href="xrd__internal_8h_source.html#l00076">xrd_cred_facts::token_present</a>, <a class="el" href="xrd__doctor_8c_source.html#l00285">xrd_doctor_json()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00605">xrd_doctor()</a>.</p>
+
+</div>
+</div>
+<a id="a1be56b0f17200af0b67bf2a6293319e0" name="a1be56b0f17200af0b67bf2a6293319e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1be56b0f17200af0b67bf2a6293319e0">&#9670;&#160;</a></span>doctor_json_battery()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_json_battery </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__battery.html">xrd_battery</a> *&#160;</td>
+          <td class="paramname"><em>bt</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>idx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00234">234</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00061">xrd_battery::checks</a>, <a class="el" href="xrd__internal_8h_source.html#l00053">xrd_check::detail</a>, <a class="el" href="xrd__internal_8h_source.html#l00057">xrd_battery::endpoint</a>, <a class="el" href="xrd__internal_8h_source.html#l00060">xrd_battery::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::n</a>, <a class="el" href="xrd__internal_8h_source.html#l00050">xrd_check::name</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nfail</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::npass</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nskip</a>, <a class="el" href="xrd__internal_8h_source.html#l00051">xrd_check::ok</a>, <a class="el" href="xrd__internal_8h_source.html#l00058">xrd_battery::protocol</a>, <a class="el" href="xrd__internal_8h_source.html#l00059">xrd_battery::reachable</a>, <a class="el" href="xrd__internal_8h_source.html#l00052">xrd_check::skipped</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00071">xrd_json_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00269">doctor_json_tests()</a>.</p>
+
+</div>
+</div>
+<a id="ae309326f3e42fd4285aa181158fb570d" name="ae309326f3e42fd4285aa181158fb570d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae309326f3e42fd4285aa181158fb570d">&#9670;&#160;</a></span>doctor_json_caps()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_json_caps </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00192">192</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00071">xrd_json_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00285">xrd_doctor_json()</a>.</p>
+
+</div>
+</div>
+<a id="a6958db813ad42cb7b44382346245bd12" name="a6958db813ad42cb7b44382346245bd12"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6958db813ad42cb7b44382346245bd12">&#9670;&#160;</a></span>doctor_json_cert()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_json_cert </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00138">138</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="brix__net_8h_source.html#l00250">brix_cert_info::days_left</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="brix__net_8h_source.html#l00253">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00246">brix_cert_info::issuer</a>, <a class="el" href="brix__net_8h_source.html#l00249">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00248">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="brix__net_8h_source.html#l00247">brix_cert_info::sans</a>, <a class="el" href="brix__net_8h_source.html#l00254">brix_cert_info::self_signed</a>, <a class="el" href="brix__net_8h_source.html#l00245">brix_cert_info::subject</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00071">xrd_json_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00285">xrd_doctor_json()</a>.</p>
+
+</div>
+</div>
+<a id="a8b9b45420c0da3c79b7fd171d7348106" name="a8b9b45420c0da3c79b7fd171d7348106"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b9b45420c0da3c79b7fd171d7348106">&#9670;&#160;</a></span>doctor_json_clock()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_json_clock </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00171">171</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00042">xrd_probe::clock_method</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00045">xrd_probe::rtt_ms</a>, <a class="el" href="xrd__internal_8h_source.html#l00043">xrd_probe::server_epoch</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00071">xrd_json_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00285">xrd_doctor_json()</a>.</p>
+
+</div>
+</div>
+<a id="a2b585d6f186838cb9de0ca9104f6666d" name="a2b585d6f186838cb9de0ca9104f6666d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b585d6f186838cb9de0ca9104f6666d">&#9670;&#160;</a></span>doctor_json_creds()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_json_creds </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__cred__facts.html">xrd_cred_facts</a> *&#160;</td>
+          <td class="paramname"><em>cf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00214">214</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00079">xrd_cred_facts::proxy_path</a>, <a class="el" href="xrd__internal_8h_source.html#l00078">xrd_cred_facts::proxy_present</a>, <a class="el" href="xrd__internal_8h_source.html#l00077">xrd_cred_facts::token_path</a>, <a class="el" href="xrd__internal_8h_source.html#l00076">xrd_cred_facts::token_present</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00071">xrd_json_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00285">xrd_doctor_json()</a>.</p>
+
+</div>
+</div>
+<a id="a5b3566b091bc23386dacfacc4de1c3eb" name="a5b3566b091bc23386dacfacc4de1c3eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5b3566b091bc23386dacfacc4de1c3eb">&#9670;&#160;</a></span>doctor_json_head()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_json_head </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00096">96</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00036">xrd_probe::auth</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="xrd__internal_8h_source.html#l00031">xrd_probe::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00028">xrd_probe::host</a>, <a class="el" href="xrd__internal_8h_source.html#l00029">xrd_probe::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00037">xrd_probe::sec_list</a>, <a class="el" href="xrd__internal_8h_source.html#l00035">xrd_probe::server_flags</a>, <a class="el" href="xrd__doctor_8c_source.html#l00071">xrd_json_str()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00116">xrd_role_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00285">xrd_doctor_json()</a>.</p>
+
+</div>
+</div>
+<a id="a2b25c921c779294bd0c90bd02ffb6840" name="a2b25c921c779294bd0c90bd02ffb6840"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b25c921c779294bd0c90bd02ffb6840">&#9670;&#160;</a></span>doctor_json_tests()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_json_tests </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__battery.html">xrd_battery</a> *&#160;</td>
+          <td class="paramname"><em>bats</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>nbats</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00269">269</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__doctor_8c_source.html#l00234">doctor_json_battery()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00285">xrd_doctor_json()</a>.</p>
+
+</div>
+</div>
+<a id="a1126e65e1dcf4d40e29f11917a60b178" name="a1126e65e1dcf4d40e29f11917a60b178"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1126e65e1dcf4d40e29f11917a60b178">&#9670;&#160;</a></span>doctor_json_tls()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_json_tls </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00118">118</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00032">xrd_probe::tls_active</a>, <a class="el" href="xrd__internal_8h_source.html#l00034">xrd_probe::tls_cipher</a>, <a class="el" href="xrd__internal_8h_source.html#l00033">xrd_probe::tls_ver</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00071">xrd_json_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00285">xrd_doctor_json()</a>.</p>
+
+</div>
+</div>
+<a id="ac6f66f3500c0282856fcb302a318b367" name="ac6f66f3500c0282856fcb302a318b367"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac6f66f3500c0282856fcb302a318b367">&#9670;&#160;</a></span>doctor_parse_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_parse_args </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *&#160;</td>
+          <td class="paramname"><em>d</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00335">335</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__doctor_8c_source.html#l00312">xrd_doctor_run::also</a>, <a class="el" href="xrd__doctor_8c_source.html#l00315">xrd_doctor_run::do_rw</a>, <a class="el" href="xrd__doctor_8c_source.html#l00311">xrd_doctor_run::endpoint</a>, <a class="el" href="xrd__doctor_8c_source.html#l00313">xrd_doctor_run::nalso</a>, <a class="el" href="xrd__doctor_8c_source.html#l00316">xrd_doctor_run::verify</a>, <a class="el" href="xrd__doctor_8c_source.html#l00314">xrd_doctor_run::want_json</a>, and <a class="el" href="xrd__internal_8h_source.html#l00065">XRD_DOCTOR_MAX_EP</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00605">xrd_doctor()</a>.</p>
+
+</div>
+</div>
+<a id="a279cbdf6f62fa5583ac424bf6954ebe4" name="a279cbdf6f62fa5583ac424bf6954ebe4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a279cbdf6f62fa5583ac424bf6954ebe4">&#9670;&#160;</a></span>doctor_report_batteries()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_report_batteries </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *&#160;</td>
+          <td class="paramname"><em>d</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00572">572</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__doctor_8c_source.html#l00321">xrd_doctor_run::bats</a>, <a class="el" href="xrd__internal_8h_source.html#l00061">xrd_battery::checks</a>, <a class="el" href="xrd__internal_8h_source.html#l00053">xrd_check::detail</a>, <a class="el" href="xrd__doctor_8c_source.html#l00315">xrd_doctor_run::do_rw</a>, <a class="el" href="xrd__internal_8h_source.html#l00057">xrd_battery::endpoint</a>, <a class="el" href="xrd__internal_8h_source.html#l00060">xrd_battery::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::n</a>, <a class="el" href="xrd__internal_8h_source.html#l00050">xrd_check::name</a>, <a class="el" href="xrd__doctor_8c_source.html#l00322">xrd_doctor_run::nbats</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nfail</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::npass</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nskip</a>, <a class="el" href="xrd__internal_8h_source.html#l00051">xrd_check::ok</a>, <a class="el" href="xrd__internal_8h_source.html#l00058">xrd_battery::protocol</a>, <a class="el" href="xrd__internal_8h_source.html#l00059">xrd_battery::reachable</a>, and <a class="el" href="xrd__internal_8h_source.html#l00052">xrd_check::skipped</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00605">xrd_doctor()</a>.</p>
+
+</div>
+</div>
+<a id="a8b416477cd883f66f72c13d6c872ec71" name="a8b416477cd883f66f72c13d6c872ec71"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b416477cd883f66f72c13d6c872ec71">&#9670;&#160;</a></span>doctor_report_caps()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_report_caps </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00528">528</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, and <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00550">doctor_report_endpoint()</a>.</p>
+
+</div>
+</div>
+<a id="a09e6ab2a05490e09e76a161463d1827b" name="a09e6ab2a05490e09e76a161463d1827b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a09e6ab2a05490e09e76a161463d1827b">&#9670;&#160;</a></span>doctor_report_cert()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_report_cert </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>fatal</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00471">471</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="brix__net_8h_source.html#l00250">brix_cert_info::days_left</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="brix__net_8h_source.html#l00253">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00246">brix_cert_info::issuer</a>, <a class="el" href="brix__net_8h_source.html#l00249">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00248">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="brix__net_8h_source.html#l00245">brix_cert_info::subject</a>, and <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00550">doctor_report_endpoint()</a>.</p>
+
+</div>
+</div>
+<a id="a1a25997556dc61e8af905929893b4f6a" name="a1a25997556dc61e8af905929893b4f6a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1a25997556dc61e8af905929893b4f6a">&#9670;&#160;</a></span>doctor_report_clock()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_report_clock </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>fatal</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00503">503</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00042">xrd_probe::clock_method</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00045">xrd_probe::rtt_ms</a>, and <a class="el" href="xrd__clockskew_8c_source.html#l00021">xrd_fabs()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00550">doctor_report_endpoint()</a>.</p>
+
+</div>
+</div>
+<a id="ac963e817684b584eca8bf57834afd09c" name="ac963e817684b584eca8bf57834afd09c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac963e817684b584eca8bf57834afd09c">&#9670;&#160;</a></span>doctor_report_conn()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_report_conn </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structxrd__probe.html">xrd_probe</a> *&#160;</td>
+          <td class="paramname"><em>p</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>fatal</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00445">445</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00036">xrd_probe::auth</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="xrd__internal_8h_source.html#l00031">xrd_probe::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00037">xrd_probe::sec_list</a>, <a class="el" href="xrd__internal_8h_source.html#l00035">xrd_probe::server_flags</a>, <a class="el" href="xrd__internal_8h_source.html#l00032">xrd_probe::tls_active</a>, <a class="el" href="xrd__internal_8h_source.html#l00034">xrd_probe::tls_cipher</a>, <a class="el" href="xrd__internal_8h_source.html#l00033">xrd_probe::tls_ver</a>, and <a class="el" href="xrd__mount_8c_source.html#l00116">xrd_role_str()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00550">doctor_report_endpoint()</a>.</p>
+
+</div>
+</div>
+<a id="a0a38ebf89a0f1a7a94e9a4a4a06853f6" name="a0a38ebf89a0f1a7a94e9a4a4a06853f6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0a38ebf89a0f1a7a94e9a4a4a06853f6">&#9670;&#160;</a></span>doctor_report_creds()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_report_creds </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *&#160;</td>
+          <td class="paramname"><em>d</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00427">427</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="credinfo_8c_source.html#l00437">brix_cred_diagnose()</a>, <a class="el" href="credinfo_8c_source.html#l00267">brix_gsi_cert_explain()</a>, <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00323">xrd_doctor_run::fatal</a>, <a class="el" href="xrd__doctor_8c_source.html#l00320">xrd_doctor_run::proxy_present</a>, <a class="el" href="xrd__doctor_8c_source.html#l00319">xrd_doctor_run::pxp</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00317">xrd_doctor_run::tok</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00605">xrd_doctor()</a>.</p>
+
+</div>
+</div>
+<a id="a4f3d212537449bcd8b0e633a5b62d8c6" name="a4f3d212537449bcd8b0e633a5b62d8c6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4f3d212537449bcd8b0e633a5b62d8c6">&#9670;&#160;</a></span>doctor_report_endpoint()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_report_endpoint </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *&#160;</td>
+          <td class="paramname"><em>d</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00550">550</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__doctor_8c_source.html#l00528">doctor_report_caps()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00471">doctor_report_cert()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00503">doctor_report_clock()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00445">doctor_report_conn()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00311">xrd_doctor_run::endpoint</a>, <a class="el" href="xrd__doctor_8c_source.html#l00323">xrd_doctor_run::fatal</a>, <a class="el" href="xrd__internal_8h_source.html#l00028">xrd_probe::host</a>, <a class="el" href="xrd__internal_8h_source.html#l00029">xrd_probe::port</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00605">xrd_doctor()</a>.</p>
+
+</div>
+</div>
+<a id="aa0b205b0c146f79941804888f72ea114" name="aa0b205b0c146f79941804888f72ea114"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa0b205b0c146f79941804888f72ea114">&#9670;&#160;</a></span>doctor_run_batteries()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void doctor_run_batteries </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structxrd__doctor__run.html">xrd_doctor_run</a> *&#160;</td>
+          <td class="paramname"><em>d</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00377">377</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrd__doctor_8c_source.html#l00312">xrd_doctor_run::also</a>, <a class="el" href="xrd__doctor_8c_source.html#l00321">xrd_doctor_run::bats</a>, <a class="el" href="xrd__doctor_8c_source.html#l00315">xrd_doctor_run::do_rw</a>, <a class="el" href="xrd__doctor_8c_source.html#l00311">xrd_doctor_run::endpoint</a>, <a class="el" href="xrd__doctor_8c_source.html#l00323">xrd_doctor_run::fatal</a>, <a class="el" href="xrd__doctor_8c_source.html#l00313">xrd_doctor_run::nalso</a>, <a class="el" href="xrd__doctor_8c_source.html#l00322">xrd_doctor_run::nbats</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nfail</a>, <a class="el" href="xrd__doctor_8c_source.html#l00316">xrd_doctor_run::verify</a>, and <a class="el" href="xrd__battery_8c_source.html#l00653">xrd_run_battery()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00605">xrd_doctor()</a>.</p>
+
+</div>
+</div>
 <a id="ae3514e5e7f713a31d15318a5598a1f24" name="ae3514e5e7f713a31d15318a5598a1f24"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ae3514e5e7f713a31d15318a5598a1f24">&#9670;&#160;</a></span>xrd_certinfo()</h2>
 
@@ -148,11 +866,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00377">377</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00670">670</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00474">brix_connect_no_login()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00476">brix_tls_peer_cert_info()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="brix__net_8h_source.html#l00250">brix_cert_info::days_left</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00253">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00034">brix_opts::insecure_tls</a>, <a class="el" href="brix__net_8h_source.html#l00246">brix_cert_info::issuer</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__net_8h_source.html#l00249">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00248">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="brix__net_8h_source.html#l00247">brix_cert_info::sans</a>, <a class="el" href="brix__net_8h_source.html#l00254">brix_cert_info::self_signed</a>, <a class="el" href="brix__net_8h_source.html#l00245">brix_cert_info::subject</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, and <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00144">main()</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00480">brix_connect_no_login()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00476">brix_tls_peer_cert_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00250">brix_cert_info::days_left</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00253">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00034">brix_opts::insecure_tls</a>, <a class="el" href="brix__net_8h_source.html#l00246">brix_cert_info::issuer</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__net_8h_source.html#l00249">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00248">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="brix__net_8h_source.html#l00247">brix_cert_info::sans</a>, <a class="el" href="brix__net_8h_source.html#l00254">brix_cert_info::self_signed</a>, <a class="el" href="brix__net_8h_source.html#l00245">brix_cert_info::subject</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, and <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>.</p>
 
 </div>
 </div>
@@ -182,16 +898,14 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00201">201</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00605">605</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="xrd__internal_8h_source.html#l00036">xrd_probe::auth</a>, <a class="el" href="credinfo_8c_source.html#l00276">brix_cred_diagnose()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="credinfo_8c_source.html#l00193">brix_gsi_cert_explain()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00072">brix_proxy_default_path()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="xrd__internal_8h_source.html#l00061">xrd_battery::checks</a>, <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00042">xrd_probe::clock_method</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="brix__net_8h_source.html#l00250">brix_cert_info::days_left</a>, <a class="el" href="xrd__internal_8h_source.html#l00053">xrd_check::detail</a>, <a class="el" href="xrd__internal_8h_source.html#l00057">xrd_battery::endpoint</a>, <a class="el" href="xrd__internal_8h_source.html#l00031">xrd_probe::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00060">xrd_battery::err</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="xrd__internal_8h_source.html#l00028">xrd_probe::host</a>, <a class="el" href="brix__net_8h_source.html#l00253">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00246">brix_cert_info::issuer</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::n</a>, <a class="el" href="xrd__internal_8h_source.html#l00050">xrd_check::name</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nfail</a>, <a class="el" href="brix__net_8h_source.html#l00249">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00248">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::npass</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nskip</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00051">xrd_check::ok</a>, <a class="el" href="xrd__internal_8h_source.html#l00029">xrd_probe::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00058">xrd_battery::protocol</a>, <a class="el" href="xrd__internal_8h_source.html#l00059">xrd_battery::reachable</a>, <a class="el" href="xrd__internal_8h_source.html#l00045">xrd_probe::rtt_ms</a>, <a class="el" href="xrd__internal_8h_source.html#l00037">xrd_probe::sec_list</a>, <a class="el" href="xrd__internal_8h_source.html#l00035">xrd_probe::server_flags</a>, <a class="el" href="xrd__internal_8h_source.html#l00052">xrd_check::skipped</a>, <a class="el" href="brix__net_8h_source.html#l00245">brix_cert_info::subject</a>, <a class="el" href="xrd__internal_8h_source.html#l00032">xrd_probe::tls_active</a>, <a class="el" href="xrd__internal_8h_source.html#l00034">xrd_probe::tls_cipher</a>, <a class="el" href="xrd__internal_8h_source.html#l00033">xrd_probe::tls_ver</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="xrd__doctor_8c_source.html#l00089">xrd_doctor_json()</a>, <a class="el" href="xrd__internal_8h_source.html#l00065">XRD_DOCTOR_MAX_EP</a>, <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00021">xrd_fabs()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>, <a class="el" href="xrd__mount_8c_source.html#l00116">xrd_role_str()</a>, and <a class="el" href="xrd__battery_8c_source.html#l00502">xrd_run_battery()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00144">main()</a>.</p>
+<p class="reference">References <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00360">doctor_discover_creds()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00401">doctor_emit_json()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00335">doctor_parse_args()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00572">doctor_report_batteries()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00427">doctor_report_creds()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00550">doctor_report_endpoint()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00377">doctor_run_batteries()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00311">xrd_doctor_run::endpoint</a>, <a class="el" href="xrd__doctor_8c_source.html#l00323">xrd_doctor_run::fatal</a>, <a class="el" href="xrd__doctor_8c_source.html#l00322">xrd_doctor_run::nbats</a>, <a class="el" href="xrd__doctor_8c_source.html#l00316">xrd_doctor_run::verify</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00314">xrd_doctor_run::want_json</a>.</p>
 
 </div>
 </div>
-<a id="a7927fa65d1b512897fa6d5406fb57c39" name="a7927fa65d1b512897fa6d5406fb57c39"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7927fa65d1b512897fa6d5406fb57c39">&#9670;&#160;</a></span>xrd_doctor_json()</h2>
+<a id="a7fd960986ebbc2cdcce7990cd703f6b7" name="a7fd960986ebbc2cdcce7990cd703f6b7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7fd960986ebbc2cdcce7990cd703f6b7">&#9670;&#160;</a></span>xrd_doctor_json()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -205,26 +919,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>token_present</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>token_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>proxy_present</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>proxy_path</em>, </td>
+          <td class="paramtype">const <a class="el" href="structxrd__cred__facts.html">xrd_cred_facts</a> *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -246,11 +942,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00089">89</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00285">285</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00036">xrd_probe::auth</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="xrd__internal_8h_source.html#l00061">xrd_battery::checks</a>, <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00042">xrd_probe::clock_method</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="brix__net_8h_source.html#l00250">brix_cert_info::days_left</a>, <a class="el" href="xrd__internal_8h_source.html#l00053">xrd_check::detail</a>, <a class="el" href="xrd__internal_8h_source.html#l00057">xrd_battery::endpoint</a>, <a class="el" href="xrd__internal_8h_source.html#l00031">xrd_probe::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00060">xrd_battery::err</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="xrd__internal_8h_source.html#l00028">xrd_probe::host</a>, <a class="el" href="brix__net_8h_source.html#l00253">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00246">brix_cert_info::issuer</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::n</a>, <a class="el" href="xrd__internal_8h_source.html#l00050">xrd_check::name</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nfail</a>, <a class="el" href="brix__net_8h_source.html#l00249">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00248">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::npass</a>, <a class="el" href="xrd__internal_8h_source.html#l00062">xrd_battery::nskip</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00051">xrd_check::ok</a>, <a class="el" href="xrd__internal_8h_source.html#l00029">xrd_probe::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00058">xrd_battery::protocol</a>, <a class="el" href="sec__gsi_8c_source.html#l00039">proxy_path()</a>, <a class="el" href="xrd__internal_8h_source.html#l00059">xrd_battery::reachable</a>, <a class="el" href="xrd__internal_8h_source.html#l00045">xrd_probe::rtt_ms</a>, <a class="el" href="brix__net_8h_source.html#l00247">brix_cert_info::sans</a>, <a class="el" href="xrd__internal_8h_source.html#l00037">xrd_probe::sec_list</a>, <a class="el" href="brix__net_8h_source.html#l00254">brix_cert_info::self_signed</a>, <a class="el" href="xrd__internal_8h_source.html#l00043">xrd_probe::server_epoch</a>, <a class="el" href="xrd__internal_8h_source.html#l00035">xrd_probe::server_flags</a>, <a class="el" href="xrd__internal_8h_source.html#l00052">xrd_check::skipped</a>, <a class="el" href="brix__net_8h_source.html#l00245">brix_cert_info::subject</a>, <a class="el" href="xrd__internal_8h_source.html#l00032">xrd_probe::tls_active</a>, <a class="el" href="xrd__internal_8h_source.html#l00034">xrd_probe::tls_cipher</a>, <a class="el" href="xrd__internal_8h_source.html#l00033">xrd_probe::tls_ver</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00071">xrd_json_str()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00116">xrd_role_str()</a>.</p>
+<p class="reference">References <a class="el" href="xrd__doctor_8c_source.html#l00192">doctor_json_caps()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00138">doctor_json_cert()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00171">doctor_json_clock()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00214">doctor_json_creds()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00096">doctor_json_head()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00269">doctor_json_tests()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00118">doctor_json_tls()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00201">xrd_doctor()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00401">doctor_emit_json()</a>.</p>
 
 </div>
 </div>
@@ -282,9 +978,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00013">13</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00036">xrd_probe::auth</a>, <a class="el" href="conn_8c_source.html#l00533">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00412">brix_connect()</a>, <a class="el" href="conn_8c_source.html#l00474">brix_connect_no_login()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00427">brix_tls_info()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00476">brix_tls_peer_cert_info()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="xrd__internal_8h_source.html#l00031">xrd_probe::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00028">xrd_probe::host</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00034">brix_opts::insecure_tls</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00029">xrd_probe::port</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00037">xrd_probe::sec_list</a>, <a class="el" href="xrd__internal_8h_source.html#l00035">xrd_probe::server_flags</a>, <a class="el" href="xrd__internal_8h_source.html#l00032">xrd_probe::tls_active</a>, <a class="el" href="xrd__internal_8h_source.html#l00034">xrd_probe::tls_cipher</a>, <a class="el" href="xrd__internal_8h_source.html#l00033">xrd_probe::tls_ver</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00350">xrd_probe_caps()</a>, and <a class="el" href="brix_8h_source.html#l00042">XRDC_MSG_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00036">xrd_probe::auth</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="conn_8c_source.html#l00480">brix_connect_no_login()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00427">brix_tls_info()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00476">brix_tls_peer_cert_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="xrd__internal_8h_source.html#l00031">xrd_probe::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00028">xrd_probe::host</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00034">brix_opts::insecure_tls</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00029">xrd_probe::port</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00037">xrd_probe::sec_list</a>, <a class="el" href="xrd__internal_8h_source.html#l00035">xrd_probe::server_flags</a>, <a class="el" href="xrd__internal_8h_source.html#l00032">xrd_probe::tls_active</a>, <a class="el" href="xrd__internal_8h_source.html#l00034">xrd_probe::tls_cipher</a>, <a class="el" href="xrd__internal_8h_source.html#l00033">xrd_probe::tls_ver</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00643">xrd_probe_caps()</a>, and <a class="el" href="brix_8h_source.html#l00042">XRDC_MSG_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00201">xrd_doctor()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00401">doctor_emit_json()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00550">doctor_report_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -318,7 +1014,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00089">xrd_doctor_json()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00234">doctor_json_battery()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00192">doctor_json_caps()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00138">doctor_json_cert()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00171">doctor_json_clock()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00214">doctor_json_creds()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00096">doctor_json_head()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00118">doctor_json_tls()</a>.</p>
 
 </div>
 </div>
@@ -348,9 +1044,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00350">350</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00643">643</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="opcodes_8h_source.html#l00200">kXR_Qconfig</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="xrd_8c_source.html#l00017">XRD_CAP_KEYS</a>, and <a class="el" href="xrd__internal_8h_source.html#l00024">XRD_CAPS_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="opcodes_8h_source.html#l00200">kXR_Qconfig</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="xrd_8c_source.html#l00017">XRD_CAP_KEYS</a>, and <a class="el" href="xrd__internal_8h_source.html#l00024">XRD_CAPS_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00168">xrd_caps()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>.</p>
 

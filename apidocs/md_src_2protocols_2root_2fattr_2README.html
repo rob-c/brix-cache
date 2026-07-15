@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2fattr_2README
   <div class="headertitle"><div class="title">fattr — XRootD &lt;tt&gt;kXR_fattr&lt;/tt&gt; extended-attribute operations</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md326"></a> </p>
-<h1><a class="anchor" id="autotoc_md327"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md327"></a> </p>
+<h1><a class="anchor" id="autotoc_md328"></a>
 Overview</h1>
 <p>This subsystem implements the XRootD <code>kXR_fattr</code> opcode, which lets <code>root://</code> clients read, write, delete, and enumerate <em>extended attributes</em> (xattrs) on exported files. XRootD attributes map directly onto the POSIX <code>user.</code> xattr namespace: a client-visible name such as <code>mykey</code> is stored on disk under the kernel key <code>user.U.mykey</code> and reported back to the client as <code>U.mykey</code>. The <code>user.U.</code> prefix (<code>BRIX_FATTR_XKEY_PFX</code>) namespaces our managed attributes so listing never leaks unrelated <code>user.*</code> xattrs written by other tools.</p>
 <p><code>kXR_fattr</code> is a single wire opcode carrying one of four sub-codes — <code>Get</code>, <code>Set</code>, <code>Del</code>, <code>List</code>. Since phase-62 <b>every xattr syscall here goes through the VFS xattr seam</b> (<code>brix_vfs_*xattr</code>, <code><a class="el" href="vfs__xattr_8c.html">src/fs/vfs/vfs_xattr.c</a></code>), never a raw <code>getxattr(2)</code> — so each touch is confined, impersonation-aware, and metered (<code>OP_XATTR</code>). The subsystem is reached only from the <b>stream</b> (<code>root://</code>) path; WebDAV and S3 do not expose <code>kXR_fattr</code> (they have their own VFS-routed dead-properties / tagging). There is no AIO offload here: xattr ops are cheap metadata operations executed inline on the event-loop thread, then a single response frame is built and sent.</p>
 <p>A request can target a file two ways: by an <b>open file handle</b> (the 1-byte <code>fhandle</code> index into <code>ctx-&gt;files[]</code>, routed through the <b>fd-based</b> VFS xattr variants <code>brix_vfs_f{get,set,list,remove}xattr</code> — the fd was already opened confined, so confinement travels with the descriptor) or by <b>path</b> (routed through the <b>ctx-based</b> VFS xattr ops, confined to <code>ctx-&gt;resolved</code>). The dispatcher builds one <code><a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a></code> and selects the mode from the wire framing (see Control &amp; data flow). Path-targeted requests are confined under the export root before any op runs, and a list-recurse local extension lets a directory target enumerate attributes across its whole subtree via <code>brix_vfs_opendir_quiet</code>/<code>readdir</code>.</p>
 <p>Where it sits in the lifecycle: <code><a class="el" href="dispatch__read_8c.html">handshake/dispatch_read.c</a></code> routes <code>kXR_fattr</code> to <code><a class="el" href="ngx__brix__module_8h.html#a6e13afbff60d2de8950936a274da7b40">brix_handle_fattr()</a></code> (this subsystem) after login/auth has completed. The dispatcher validates parameters, resolves the target, runs the auth gate for path requests, and fans out to the per-sub-code handlers. Each handler reports per-attribute results and increments the <code>BRIX_OP_FATTR</code> metric slot.</p>
-<h1><a class="anchor" id="autotoc_md328"></a>
+<h1><a class="anchor" id="autotoc_md329"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -120,7 +120,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="list_8c.html">list.c</a></code>   </td><td class="markdownTableBodyNone"><code><a class="el" href="list_8c.html#aae85a2e83e432eb3cf24dd1af0628005">fattr_list()</a></code> — <code>kXR_fattrList</code>. Enumerates <code>user.U.*</code> names via <code>brix_vfs_listxattr</code>/<code>brix_vfs_flistxattr</code>, strips the <code>user.</code> prefix; with <code>kXR_fa_aData</code> also appends values (via <code>brix_vfs_getxattr</code>/<code>fgetxattr</code>); with the <code>kXR_fa_recurse</code> local extension on a directory target, walks the subtree via <code>brix_vfs_opendir_quiet</code>/<code>readdir</code> + a per-file confined ctx, emitting <code>relpath:U.name\0</code> entries.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md329"></a>
+<h1><a class="anchor" id="autotoc_md330"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structbrix__fattr__entry__t.html">brix_fattr_entry_t</a></code>** (<code><a class="el" href="ngx__brix__fattr_8h.html">ngx_brix_fattr.h</a></code>) — the parsed view of one name-vector entry, one per requested attribute (stack array sized <code>kXR_faMaxVars</code> = 16). Fields:<ul>
@@ -134,7 +134,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structfattr__recurse__ctx__t.html">fattr_recurse_ctx_t</a></code>** (<code><a class="el" href="list_8c.html">list.c</a></code>, file-local) — accumulator for the <code>kXR_fa_recurse</code> directory walk: output <code>buf</code>/<code>cap</code>/<code>len</code> plus <code>root_len</code> so emitted paths are relative to the target directory.</li>
 <li><b>Wire constants</b> (<code><a class="el" href="opcodes_8h.html">src/protocols/root/protocol/opcodes.h</a></code>, <code><a class="el" href="flags_8h.html">src/protocols/root/protocol/flags.h</a></code>): <code>kXR_fattrDel/Get/List/Set</code> (sub-codes 0–3, <code>kXR_fattrMaxSC</code> = 3); <code>kXR_faMaxVars</code> = 16, <code>kXR_faMaxNlen</code> = 248, <code>kXR_faMaxVlen</code> = 65536; option flags <code>kXR_fa_isNew</code> (0x01), <code>kXR_fa_aData</code> (0x10), and the local extension <code>kXR_fa_recurse</code> (0x20).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md330"></a>
+<h1><a class="anchor" id="autotoc_md331"></a>
 Control &amp; data flow</h1>
 <p><b>Entry.</b> <code><a class="el" href="dispatch__read_8c.html">handshake/dispatch_read.c</a></code> maps <code>kXR_fattr</code> to <code>brix_handle_fattr(ctx, c, conf)</code>. The wire header is read as a <code><a class="el" href="structClientFattrRequest.html">ClientFattrRequest</a></code> from <code>ctx-&gt;hdr_buf</code>; the post-header payload is <code>ctx-&gt;payload</code> with length <code>ctx-&gt;cur_dlen</code>.</p>
 <p><b>Target resolution (in <code>dispatch.c</code>):</b></p><ol type="1">
@@ -154,7 +154,7 @@ Control &amp; data flow</h1>
 <li>List builds a NUL-separated name (and optional value) buffer.</li>
 </ul>
 <p><b>Calls out to:</b> <code>../path/</code> (path extraction, confinement, auth gate), <code>../metrics/</code> (<code>BRIX_OP_OK</code>/<code>BRIX_OP_ERR</code> on slot <code>BRIX_OP_FATTR</code>), the shared response framer <code><a class="el" href="basic_8c.html#a92044f57c42b1d164212dbd304be599d">brix_send_ok()</a></code>/<code><a class="el" href="basic_8c.html#a3bb0965e1cf62be0fa2a2681fdb9095d">brix_send_error()</a></code>, and the kernel <code>&lt;sys/xattr.h&gt;</code> syscalls directly. It reads file descriptors from <code>ctx-&gt;files[]</code> (see <a class="el" href="md_src_2protocols_2root_2connection_2README.html">../connection/README.md</a> / <code><a class="el" href="fd__table_8c.html">fd_table.c</a></code>). It does <b>not</b> use <a class="el" href="md_src_2core_2aio_2README.html">../aio/README.md</a> — xattr ops run inline.</p>
-<h1><a class="anchor" id="autotoc_md331"></a>
+<h1><a class="anchor" id="autotoc_md332"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Path confinement is mandatory and explicit.</b> Path-form requests never call raw <code>*xattr</code> on the client path until <code><a class="el" href="beneath_8c.html#a2d89f3d683d57ae91b574f2a295e33f1">brix_open_beneath()</a></code> has succeeded against <code>conf-&gt;rootfd</code> (RESOLVE_BENEATH); the canonical full path from <code><a class="el" href="beneath_8h.html#ad2bc403112cecfe17a2c294c1808c08b">brix_beneath_full_path()</a></code> is what the syscalls use (<code>dispatch.c:101-126</code>). The recurse walk (<code><a class="el" href="list_8c.html">list.c</a></code>) operates only inside the already-confined target directory.</li>
@@ -169,14 +169,14 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Stale doc note (corrected here):</b> earlier docs claimed handle requests are serviced via a <code>/proc/self/fd/N</code> path. They are not — handle requests use the <code>f*xattr</code> syscall family directly (<code>get.c</code>, <code>set.c</code>, <code><a class="el" href="del_8c.html">del.c</a></code>, <code><a class="el" href="list_8c.html">list.c</a></code>).</li>
 <li>**<code>kXR_fattrMkPath</code>** is mentioned in the header comment but is <b>not</b> consulted by the dispatcher; the only option flags acted on are <code>kXR_fa_isNew</code>, <code>kXR_fa_aData</code>, and <code>kXR_fa_recurse</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md332"></a>
+<h1><a class="anchor" id="autotoc_md333"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a new sub-code:</b> define it in <code><a class="el" href="opcodes_8h.html">src/protocols/root/protocol/opcodes.h</a></code>, bump <code>kXR_fattrMaxSC</code>, add a <code>case</code> in the <code>switch</code> in <code><a class="el" href="ngx__brix__module_8h.html#a6e13afbff60d2de8950936a274da7b40">brix_handle_fattr()</a></code> (<code>dispatch.c</code>), implement the handler in a new <code>.c</code> file plus a prototype in <code><a class="el" href="ngx__brix__fattr_8h.html">ngx_brix_fattr.h</a></code>, register the file in the top-level <code>config</code> script (the module's <code>ngx_module_srcs</code> / <code>NGX_ADDON_SRCS</code> list), then <code>./configure</code> + <code>make</code>.</li>
 <li><b>Add a new option flag:</b> define it in <code><a class="el" href="flags_8h.html">src/protocols/root/protocol/flags.h</a></code> and branch on <code>options &amp;</code> your flag in the relevant handler (mirror how <code>kXR_fa_isNew</code>/<code>kXR_fa_aData</code>/<code>kXR_fa_recurse</code> are handled).</li>
 <li><b>Reuse, don't reimplement:</b> use <code><a class="el" href="protocols_2root_2fattr_2helpers_8c.html#a8531a44dc462b26055d65d4ed4d30acc">fattr_parse_nvec()</a></code>, <code><a class="el" href="protocols_2root_2fattr_2helpers_8c.html#a2d5a9a9b32fe6de7c9eec75484c4ae1c">fattr_set_rc()</a></code>, <code><a class="el" href="protocols_2root_2fattr_2helpers_8c.html#ab058d6ae8c261e0ee0a72445efd28a0b">fattr_errno_to_xrd()</a></code>, and <code><a class="el" href="protocols_2root_2fattr_2helpers_8c.html#a2cebeb2f46107212c44e34b798a38fd4">fattr_send_vector_status()</a></code> rather than open-coding name-vector parsing or status framing.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md333"></a>
+<h1><a class="anchor" id="autotoc_md334"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2fs_2path_2README.html">../path/README.md</a> — path extraction, <code>brix_beneath_full_path</code>, <code>brix_open_beneath</code>, and <code>brix_auth_gate</code> confinement/authorization.</li>

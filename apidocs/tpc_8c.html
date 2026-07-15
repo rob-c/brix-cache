@@ -95,7 +95,9 @@ $(document).ready(function(){initNavTree('tpc_8c.html',''); initResizable(); });
   <div class="headertitle"><div class="title">tpc.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><code>#include &quot;<a class="el" href="webdav_8h_source.html">webdav.h</a>&quot;</code><br />
+<div class="textblock"><code>#include &quot;<a class="el" href="tpc__internal__split_8h_source.html">tpc_internal_split.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="webdav_8h_source.html">webdav.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="tpc__user__proxy_8h_source.html">tpc_user_proxy.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2fs_2vfs_2vfs_8h_source.html">fs/vfs/vfs.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__headers_8h_source.html">core/http/http_headers.h</a>&quot;</code><br />
@@ -122,28 +124,22 @@ $(document).ready(function(){initNavTree('tpc_8c.html',''); initResizable(); });
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:abe803cd8d20b788181a36e3377b237ea" id="r_abe803cd8d20b788181a36e3377b237ea"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#abe803cd8d20b788181a36e3377b237ea">webdav_tpc_probe</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *path, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *sb)</td></tr>
-<tr class="separator:abe803cd8d20b788181a36e3377b237ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a20fe7a6e1f33c01a0b55cf760fd4503b" id="r_a20fe7a6e1f33c01a0b55cf760fd4503b"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a20fe7a6e1f33c01a0b55cf760fd4503b">webdav_dashboard_identity</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a20fe7a6e1f33c01a0b55cf760fd4503b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac778ddbfacdaa64ff19526ee3821ddc9" id="r_ac778ddbfacdaa64ff19526ee3821ddc9"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#ac778ddbfacdaa64ff19526ee3821ddc9">webdav_dashboard_identity</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:ac778ddbfacdaa64ff19526ee3821ddc9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae8444b89808517c4df3226475852b7f8" id="r_ae8444b89808517c4df3226475852b7f8"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__identity__t.html">brix_identity_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#ae8444b89808517c4df3226475852b7f8">webdav_tpc_request_identity</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:ae8444b89808517c4df3226475852b7f8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0c8213c43c8234fc3a0d86c7153c03f8" id="r_a0c8213c43c8234fc3a0d86c7153c03f8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a0c8213c43c8234fc3a0d86c7153c03f8">webdav_tpc_note_client_copy_xfer</a> (ngx_http_request_t *r, off_t bytes, int64_t expected)</td></tr>
-<tr class="separator:a0c8213c43c8234fc3a0d86c7153c03f8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adf250fc877d1ba746e05ef6cb367ec3c" id="r_adf250fc877d1ba746e05ef6cb367ec3c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#adf250fc877d1ba746e05ef6cb367ec3c">webdav_tpc_url_path</a> (const char *url, ngx_str_t *out)</td></tr>
-<tr class="separator:adf250fc877d1ba746e05ef6cb367ec3c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a307ff48ca9f78c1fc0ff4bd9c06bd039" id="r_a307ff48ca9f78c1fc0ff4bd9c06bd039"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a307ff48ca9f78c1fc0ff4bd9c06bd039">webdav_tpc_authorize</a> (ngx_http_request_t *r, const ngx_str_t *src_path, const ngx_str_t *dst_path)</td></tr>
-<tr class="separator:a307ff48ca9f78c1fc0ff4bd9c06bd039"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a015c96116dc7363d5e585442912a45db" id="r_a015c96116dc7363d5e585442912a45db"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a015c96116dc7363d5e585442912a45db">webdav_tpc_register_transfer</a> (ngx_http_request_t *r, ngx_uint_t direction, const char *src, const char *dst, off_t bytes_total)</td></tr>
-<tr class="separator:a015c96116dc7363d5e585442912a45db"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2d5297cf99438b241b17ea48136a9e70" id="r_a2d5297cf99438b241b17ea48136a9e70"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a2d5297cf99438b241b17ea48136a9e70">webdav_tpc_extract_subject_token</a> (ngx_http_request_t *r, ngx_table_elt_t *auth_hdr, const char **subject_token)</td></tr>
-<tr class="separator:a2d5297cf99438b241b17ea48136a9e70"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abb655e8c7439795f829f4693f4eec35e" id="r_abb655e8c7439795f829f4693f4eec35e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#abb655e8c7439795f829f4693f4eec35e">webdav_tpc_handle_push</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, ngx_table_elt_t *dest_hdr)</td></tr>
-<tr class="separator:abb655e8c7439795f829f4693f4eec35e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9d0df205523a9a06eccc199d2f5fb48c" id="r_a9d0df205523a9a06eccc199d2f5fb48c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a9d0df205523a9a06eccc199d2f5fb48c">webdav_tpc_apply_credential_delegation</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *source_url, ngx_array_t *transfer_headers)</td></tr>
-<tr class="memdesc:a9d0df205523a9a06eccc199d2f5fb48c"><td class="mdescLeft">&#160;</td><td class="mdescRight">WHAT: Handle HTTP-TPC (Third-Party Copy) COPY requests — implements GridFTP-style cross-server file transfer layered on WebDAV.  <br /></td></tr>
-<tr class="separator:a9d0df205523a9a06eccc199d2f5fb48c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5038783bef96f2f6a0f3361d1b87fc2c" id="r_a5038783bef96f2f6a0f3361d1b87fc2c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a5038783bef96f2f6a0f3361d1b87fc2c">webdav_tpc_note_client_copy_xfer</a> (ngx_http_request_t *r, off_t bytes, int64_t expected)</td></tr>
+<tr class="separator:a5038783bef96f2f6a0f3361d1b87fc2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af7059a60916c265904332e0aa1563aa5" id="r_af7059a60916c265904332e0aa1563aa5"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#af7059a60916c265904332e0aa1563aa5">webdav_tpc_authorize</a> (ngx_http_request_t *r, const ngx_str_t *src_path, const ngx_str_t *dst_path)</td></tr>
+<tr class="separator:af7059a60916c265904332e0aa1563aa5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7751606d4c5ed8d1e5c2f9660f33db47" id="r_a7751606d4c5ed8d1e5c2f9660f33db47"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a7751606d4c5ed8d1e5c2f9660f33db47">webdav_tpc_register_transfer</a> (ngx_http_request_t *r, ngx_uint_t direction, const char *src, const char *dst, off_t bytes_total)</td></tr>
+<tr class="separator:a7751606d4c5ed8d1e5c2f9660f33db47"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af3c2132fab8dc94cd96d2b8c74e0c65b" id="r_af3c2132fab8dc94cd96d2b8c74e0c65b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#af3c2132fab8dc94cd96d2b8c74e0c65b">webdav_tpc_extract_subject_token</a> (ngx_http_request_t *r, ngx_table_elt_t *auth_hdr, const char **subject_token)</td></tr>
+<tr class="separator:af3c2132fab8dc94cd96d2b8c74e0c65b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9737866273132e11e8ffec105d42a70a" id="r_a9737866273132e11e8ffec105d42a70a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a9737866273132e11e8ffec105d42a70a">webdav_tpc_add_bearer_header</a> (ngx_http_request_t *r, ngx_array_t *headers, ngx_str_t *delegated_token)</td></tr>
+<tr class="separator:a9737866273132e11e8ffec105d42a70a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a18681fc630aeb741d774adf041e2a3e4" id="r_a18681fc630aeb741d774adf041e2a3e4"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tpc_8c.html#a18681fc630aeb741d774adf041e2a3e4">ngx_http_brix_webdav_tpc_handle_copy</a> (ngx_http_request_t *r)</td></tr>
+<tr class="memdesc:a18681fc630aeb741d774adf041e2a3e4"><td class="mdescLeft">&#160;</td><td class="mdescRight">WHAT: Handle HTTP-TPC (Third-Party Copy) COPY requests — implements GridFTP-style cross-server file transfer layered on WebDAV.  <br /></td></tr>
 <tr class="separator:a18681fc630aeb741d774adf041e2a3e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -163,57 +159,49 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00551">551</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p>WHAT: Handle HTTP-TPC (Third-Party Copy) COPY requests — implements GridFTP-style cross-server file transfer layered on WebDAV. </p>
+<p>Supports two modes: pull (fetch remote → local) and push (local → upload remote). Both modes use external curl process to perform the actual data transfer while nginx handles authentication, path confinement, and HTTP header management. Returns 201 Created for new files or 204 No Content for overwrites on pull; 201 Created on push success. Rejects requests with ambiguous headers (both Source + Destination present) or missing required headers via 400 Bad Request. Uses temporary file staging (&lt;path&gt;.nginx-xrootd-tpc.&lt;pid&gt;.&lt;time&gt;) for pull mode to ensure atomic commit — rename/link on success, unlink on failure. </p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00162">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00188">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00314">brix_dashboard_http_finish()</a>, <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__tracking_8c_source.html#l00296">brix_dashboard_http_tpc_remote()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="staged__file_8c_source.html#l00770">brix_staged_abort()</a>, <a class="el" href="staged__file_8c_source.html#l00739">brix_staged_commit()</a>, <a class="el" href="staged__file_8c_source.html#l00059">brix_staged_open()</a>, <a class="el" href="transfer_8h_source.html#l00032">BRIX_TPC_DIR_PULL</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00011">BRIX_TPC_METRIC_ERROR</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00009">BRIX_TPC_METRIC_STARTED</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00010">BRIX_TPC_METRIC_SUCCESS</a>, <a class="el" href="tpc_2common_2metrics_8c_source.html#l00017">brix_tpc_metric_transfer()</a>, <a class="el" href="transfer_8h_source.html#l00030">BRIX_TPC_PROTO_WEBDAV</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00421">brix_tpc_registry_remove()</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00344">brix_tpc_registry_update()</a>, <a class="el" href="transfer_8h_source.html#l00037">BRIX_TPC_STATE_DONE</a>, <a class="el" href="transfer_8h_source.html#l00038">BRIX_TPC_STATE_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00064">BRIX_WEBDAV_TPC_BAD_REQUEST</a>, <a class="el" href="metrics__webdav_8h_source.html#l00065">BRIX_WEBDAV_TPC_COMMIT_ERROR</a>, <a class="el" href="metrics__webdav_8h_source.html#l00057">BRIX_WEBDAV_TPC_PULL_STARTED</a>, <a class="el" href="metrics__webdav_8h_source.html#l00058">BRIX_WEBDAV_TPC_PULL_SUCCESS</a>, <a class="el" href="dashboard_8h_source.html#l00063">BRIX_XFER_DIR_TPC</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_WEBDAV</a>, <a class="el" href="xfer_8h_source.html#l00064">BRIX_XFER_SRC_ERR</a>, <a class="el" href="xfer_8h_source.html#l00040">BRIX_XFER_TPC</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="staged__file_8h_source.html#l00029">brix_staged_file_t::fd</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00058">ngx_http_brix_webdav_resolve_path()</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="staged__file_8h_source.html#l00031">brix_staged_file_t::tmp_path</a>, <a class="el" href="webdav_8h_source.html#l00193">ngx_http_brix_webdav_loc_conf_t::tpc_marker_interval</a>, <a class="el" href="webdav_8h_source.html#l00194">ngx_http_brix_webdav_loc_conf_t::tpc_max_streams</a>, <a class="el" href="tpc_8c_source.html#l00055">webdav_dashboard_identity()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="webdav_8h_source.html#l00511">webdav_send_no_body()</a>, <a class="el" href="tpc_8c_source.html#l00474">webdav_tpc_apply_credential_delegation()</a>, <a class="el" href="tpc_8c_source.html#l00134">webdav_tpc_authorize()</a>, <a class="el" href="tpc__headers_8c_source.html#l00020">webdav_tpc_collect_transfer_headers()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00046">webdav_tpc_find_header</a>, <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00050">webdav_tpc_header_value_equals</a>, <a class="el" href="tpc__marker_8c_source.html#l00416">webdav_tpc_marker_start()</a>, <a class="el" href="tpc_8c_source.html#l00075">webdav_tpc_note_client_copy_xfer()</a>, <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>, <a class="el" href="tpc_8c_source.html#l00026">webdav_tpc_probe()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00055">webdav_tpc_pstrndup0()</a>, <a class="el" href="tpc_8c_source.html#l00155">webdav_tpc_register_transfer()</a>, <a class="el" href="tpc__curl_8c_source.html#l00198">webdav_tpc_run_curl_pull()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00048">webdav_tpc_str_has_ctl</a>, and <a class="el" href="tpc_8c_source.html#l00103">webdav_tpc_url_path()</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00218">218</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">References <a class="el" href="tpc__internal__split_8h_source.html#l00060">webdav_tpc_pull_ctx_t::conf</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00070">webdav_tpc_pull_ctx_t::n_streams</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00071">webdav_tpc_pull_ctx_t::overwrite</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00062">webdav_tpc_pull_ctx_t::path</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00063">webdav_tpc_pull_ctx_t::path_len</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00059">webdav_tpc_pull_ctx_t::r</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00064">webdav_tpc_pull_ctx_t::sb</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00061">webdav_tpc_pull_ctx_t::source_url</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00066">webdav_tpc_pull_ctx_t::staged</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="tpc__internal__split_8h_source.html#l00065">webdav_tpc_pull_ctx_t::transfer_headers</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="tpc__copy_8c_source.html#l00050">webdav_tpc_apply_credential_delegation()</a>, <a class="el" href="tpc__copy_8c_source.html#l00312">webdav_tpc_apply_user_proxy()</a>, <a class="el" href="tpc__headers_8c_source.html#l00020">webdav_tpc_collect_transfer_headers()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00070">webdav_tpc_find_header</a>, <a class="el" href="tpc__copy_8c_source.html#l00260">webdav_tpc_forward_user_bearer()</a>, <a class="el" href="tpc__push_8c_source.html#l00278">webdav_tpc_handle_push()</a>, <a class="el" href="tpc__copy_8c_source.html#l00182">webdav_tpc_parse_overwrite()</a>, <a class="el" href="tpc__copy_8c_source.html#l00140">webdav_tpc_parse_stream_count()</a>, <a class="el" href="tpc__pull_8c_source.html#l00106">webdav_tpc_prepare_pull_target()</a>, <a class="el" href="tpc__pull_8c_source.html#l00396">webdav_tpc_pull_execute()</a>, <a class="el" href="tpc__pull_8c_source.html#l00160">webdav_tpc_pull_start_accounting()</a>, <a class="el" href="tpc__copy_8c_source.html#l00161">webdav_tpc_source_url()</a>, and <a class="el" href="tpc__copy_8c_source.html#l00127">webdav_tpc_validate_copy_headers()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00219">webdav_dispatch_copy()</a>.</p>
 
 </div>
 </div>
-<a id="a20fe7a6e1f33c01a0b55cf760fd4503b" name="a20fe7a6e1f33c01a0b55cf760fd4503b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a20fe7a6e1f33c01a0b55cf760fd4503b">&#9670;&#160;</a></span>webdav_dashboard_identity()</h2>
+<a id="ac778ddbfacdaa64ff19526ee3821ddc9" name="ac778ddbfacdaa64ff19526ee3821ddc9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac778ddbfacdaa64ff19526ee3821ddc9">&#9670;&#160;</a></span>webdav_dashboard_identity()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static const char * webdav_dashboard_identity </td>
+          <td class="memname">const char * webdav_dashboard_identity </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00055">55</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00047">47</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00335">ngx_http_brix_webdav_req_ctx_t::dn</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>.</p>
+<p class="reference">References <a class="el" href="webdav_8h_source.html#l00153">ngx_http_brix_webdav_req_ctx_t::dn</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__push_8c_source.html#l00278">webdav_tpc_handle_push()</a>, and <a class="el" href="tpc__pull_8c_source.html#l00160">webdav_tpc_pull_start_accounting()</a>.</p>
 
 </div>
 </div>
-<a id="a9d0df205523a9a06eccc199d2f5fb48c" name="a9d0df205523a9a06eccc199d2f5fb48c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9d0df205523a9a06eccc199d2f5fb48c">&#9670;&#160;</a></span>webdav_tpc_apply_credential_delegation()</h2>
+<a id="a9737866273132e11e8ffec105d42a70a" name="a9737866273132e11e8ffec105d42a70a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9737866273132e11e8ffec105d42a70a">&#9670;&#160;</a></span>webdav_tpc_add_bearer_header()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t webdav_tpc_apply_credential_delegation </td>
+          <td class="memname">ngx_int_t webdav_tpc_add_bearer_header </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -221,20 +209,14 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>source_url</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
           <td class="paramtype">ngx_array_t *&#160;</td>
-          <td class="paramname"><em>transfer_headers</em>&#160;</td>
+          <td class="paramname"><em>headers</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>delegated_token</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -242,35 +224,24 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p>WHAT: Handle HTTP-TPC (Third-Party Copy) COPY requests — implements GridFTP-style cross-server file transfer layered on WebDAV. </p>
-<p>Supports two modes: pull (fetch remote → local) and push (local → upload remote). Both modes use external curl process to perform the actual data transfer while nginx handles authentication, path confinement, and HTTP header management. Returns 201 Created for new files or 204 No Content for overwrites on pull; 201 Created on push success. Rejects requests with ambiguous headers (both Source + Destination present) or missing required headers via 400 Bad Request. Uses temporary file staging (&lt;path&gt;.nginx-xrootd-tpc.&lt;pid&gt;.&lt;time&gt;) for pull mode to ensure atomic commit — rename/link on success, unlink on failure. </p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00181">181</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00474">474</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
-<p class="reference">References <a class="el" href="tpc__cred_8h_source.html#l00033">BRIX_TPC_CRED_UNKNOWN</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00064">BRIX_WEBDAV_TPC_BAD_REQUEST</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="tpc__config_8h_source.html#l00029">ngx_http_brix_tpc_conf_t::token_scope</a>, <a class="el" href="webdav_8h_source.html#l00197">ngx_http_brix_webdav_loc_conf_t::tpc_cred</a>, <a class="el" href="tpc__cred_8c_source.html#l00461">webdav_tpc_cred_obtain_token()</a>, <a class="el" href="tpc__cred_8c_source.html#l00443">webdav_tpc_cred_parse_mode()</a>, <a class="el" href="tpc_8c_source.html#l00191">webdav_tpc_extract_subject_token()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00046">webdav_tpc_find_header</a>, and <a class="el" href="webdav__tpc_8h_source.html#l00050">webdav_tpc_header_value_equals</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__copy_8c_source.html#l00260">webdav_tpc_forward_user_bearer()</a>, and <a class="el" href="tpc__push_8c_source.html#l00042">webdav_tpc_push_apply_credential()</a>.</p>
 
 </div>
 </div>
-<a id="a307ff48ca9f78c1fc0ff4bd9c06bd039" name="a307ff48ca9f78c1fc0ff4bd9c06bd039"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a307ff48ca9f78c1fc0ff4bd9c06bd039">&#9670;&#160;</a></span>webdav_tpc_authorize()</h2>
+<a id="af7059a60916c265904332e0aa1563aa5" name="af7059a60916c265904332e0aa1563aa5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af7059a60916c265904332e0aa1563aa5">&#9670;&#160;</a></span>webdav_tpc_authorize()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t webdav_tpc_authorize </td>
+          <td class="memname">ngx_int_t webdav_tpc_authorize </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -293,32 +264,24 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00134">134</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00095">95</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2tpc_2common_2auth_8c_source.html#l00066">brix_tpc_check_authz()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00064">BRIX_WEBDAV_TPC_BAD_REQUEST</a>, and <a class="el" href="tpc_8c_source.html#l00066">webdav_tpc_request_identity()</a>.</p>
+<p class="reference">References <a class="el" href="src_2tpc_2common_2auth_8c_source.html#l00066">brix_tpc_check_authz()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00064">BRIX_WEBDAV_TPC_BAD_REQUEST</a>, and <a class="el" href="tpc_8c_source.html#l00058">webdav_tpc_request_identity()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__push_8c_source.html#l00278">webdav_tpc_handle_push()</a>, and <a class="el" href="tpc__pull_8c_source.html#l00106">webdav_tpc_prepare_pull_target()</a>.</p>
 
 </div>
 </div>
-<a id="a2d5297cf99438b241b17ea48136a9e70" name="a2d5297cf99438b241b17ea48136a9e70"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2d5297cf99438b241b17ea48136a9e70">&#9670;&#160;</a></span>webdav_tpc_extract_subject_token()</h2>
+<a id="af3c2132fab8dc94cd96d2b8c74e0c65b" name="af3c2132fab8dc94cd96d2b8c74e0c65b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af3c2132fab8dc94cd96d2b8c74e0c65b">&#9670;&#160;</a></span>webdav_tpc_extract_subject_token()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t webdav_tpc_extract_subject_token </td>
+          <td class="memname">ngx_int_t webdav_tpc_extract_subject_token </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -341,80 +304,24 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00191">191</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00152">152</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00115">brix_http_extract_bearer()</a>, and <a class="el" href="webdav__tpc_8h_source.html#l00055">webdav_tpc_pstrndup0()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00165">brix_http_extract_bearer()</a>, and <a class="el" href="webdav__tpc_8h_source.html#l00079">webdav_tpc_pstrndup0()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00474">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__copy_8c_source.html#l00050">webdav_tpc_apply_credential_delegation()</a>, and <a class="el" href="tpc__push_8c_source.html#l00042">webdav_tpc_push_apply_credential()</a>.</p>
 
 </div>
 </div>
-<a id="abb655e8c7439795f829f4693f4eec35e" name="abb655e8c7439795f829f4693f4eec35e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abb655e8c7439795f829f4693f4eec35e">&#9670;&#160;</a></span>webdav_tpc_handle_push()</h2>
+<a id="a5038783bef96f2f6a0f3361d1b87fc2c" name="a5038783bef96f2f6a0f3361d1b87fc2c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5038783bef96f2f6a0f3361d1b87fc2c">&#9670;&#160;</a></span>webdav_tpc_note_client_copy_xfer()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t webdav_tpc_handle_push </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_table_elt_t *&#160;</td>
-          <td class="paramname"><em>dest_hdr</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00232">232</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
-
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00162">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00188">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00314">brix_dashboard_http_finish()</a>, <a class="el" href="http__tracking_8c_source.html#l00095">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__tracking_8c_source.html#l00296">brix_dashboard_http_tpc_remote()</a>, <a class="el" href="tpc__cred_8h_source.html#l00033">BRIX_TPC_CRED_UNKNOWN</a>, <a class="el" href="transfer_8h_source.html#l00033">BRIX_TPC_DIR_PUSH</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00011">BRIX_TPC_METRIC_ERROR</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00009">BRIX_TPC_METRIC_STARTED</a>, <a class="el" href="tpc_2common_2metrics_8h_source.html#l00010">BRIX_TPC_METRIC_SUCCESS</a>, <a class="el" href="tpc_2common_2metrics_8c_source.html#l00017">brix_tpc_metric_transfer()</a>, <a class="el" href="transfer_8h_source.html#l00030">BRIX_TPC_PROTO_WEBDAV</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00421">brix_tpc_registry_remove()</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00344">brix_tpc_registry_update()</a>, <a class="el" href="transfer_8h_source.html#l00037">BRIX_TPC_STATE_DONE</a>, <a class="el" href="transfer_8h_source.html#l00038">BRIX_TPC_STATE_ERROR</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00064">BRIX_WEBDAV_TPC_BAD_REQUEST</a>, <a class="el" href="metrics__webdav_8h_source.html#l00062">BRIX_WEBDAV_TPC_PUSH_STARTED</a>, <a class="el" href="metrics__webdav_8h_source.html#l00063">BRIX_WEBDAV_TPC_PUSH_SUCCESS</a>, <a class="el" href="dashboard_8h_source.html#l00063">BRIX_XFER_DIR_TPC</a>, <a class="el" href="xfer_8h_source.html#l00065">BRIX_XFER_DST_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_WEBDAV</a>, <a class="el" href="xfer_8h_source.html#l00040">BRIX_XFER_TPC</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="tpc__config_8h_source.html#l00029">ngx_http_brix_tpc_conf_t::token_scope</a>, <a class="el" href="webdav_8h_source.html#l00197">ngx_http_brix_webdav_loc_conf_t::tpc_cred</a>, <a class="el" href="tpc_8c_source.html#l00055">webdav_dashboard_identity()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>, <a class="el" href="webdav_8h_source.html#l00511">webdav_send_no_body()</a>, <a class="el" href="tpc_8c_source.html#l00134">webdav_tpc_authorize()</a>, <a class="el" href="tpc__headers_8c_source.html#l00020">webdav_tpc_collect_transfer_headers()</a>, <a class="el" href="tpc__cred_8c_source.html#l00461">webdav_tpc_cred_obtain_token()</a>, <a class="el" href="tpc__cred_8c_source.html#l00443">webdav_tpc_cred_parse_mode()</a>, <a class="el" href="tpc_8c_source.html#l00191">webdav_tpc_extract_subject_token()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00046">webdav_tpc_find_header</a>, <a class="el" href="webdav__tpc_8h_source.html#l00050">webdav_tpc_header_value_equals</a>, <a class="el" href="tpc_8c_source.html#l00075">webdav_tpc_note_client_copy_xfer()</a>, <a class="el" href="tpc__thread_8c_source.html#l00326">webdav_tpc_post_thread_task()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00055">webdav_tpc_pstrndup0()</a>, <a class="el" href="tpc_8c_source.html#l00155">webdav_tpc_register_transfer()</a>, <a class="el" href="tpc__curl_8c_source.html#l00211">webdav_tpc_run_curl_push()</a>, and <a class="el" href="webdav__tpc_8h_source.html#l00048">webdav_tpc_str_has_ctl</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>.</p>
-
-</div>
-</div>
-<a id="a0c8213c43c8234fc3a0d86c7153c03f8" name="a0c8213c43c8234fc3a0d86c7153c03f8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0c8213c43c8234fc3a0d86c7153c03f8">&#9670;&#160;</a></span>webdav_tpc_note_client_copy_xfer()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void webdav_tpc_note_client_copy_xfer </td>
+          <td class="memname">void webdav_tpc_note_client_copy_xfer </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -437,86 +344,24 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00075">75</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00067">67</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00399">brix_sess_xfer_add()</a>, <a class="el" href="sesslog_8h_source.html#l00077">brix_sess_xfer_t::bytes</a>, <a class="el" href="sesslog_8h_source.html#l00078">brix_sess_xfer_t::expected</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav_8h_source.html#l00372">ngx_http_brix_webdav_req_ctx_t::sess_xfer</a>, and <a class="el" href="webdav_8h_source.html#l00373">ngx_http_brix_webdav_req_ctx_t::sess_xfer_started</a>.</p>
+<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00413">brix_sess_xfer_add()</a>, <a class="el" href="sesslog_8h_source.html#l00077">brix_sess_xfer_t::bytes</a>, <a class="el" href="sesslog_8h_source.html#l00078">brix_sess_xfer_t::expected</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav_8h_source.html#l00199">ngx_http_brix_webdav_req_ctx_t::sess_xfer</a>, and <a class="el" href="webdav_8h_source.html#l00200">ngx_http_brix_webdav_req_ctx_t::sess_xfer_started</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__pull_8c_source.html#l00333">webdav_tpc_finish_pull_success()</a>, <a class="el" href="tpc__pull_8c_source.html#l00249">webdav_tpc_pull_sync_exec()</a>, <a class="el" href="tpc__push_8c_source.html#l00183">webdav_tpc_push_sync_error()</a>, and <a class="el" href="tpc__push_8c_source.html#l00222">webdav_tpc_push_sync_exec()</a>.</p>
 
 </div>
 </div>
-<a id="abe803cd8d20b788181a36e3377b237ea" name="abe803cd8d20b788181a36e3377b237ea"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abe803cd8d20b788181a36e3377b237ea">&#9670;&#160;</a></span>webdav_tpc_probe()</h2>
+<a id="a7751606d4c5ed8d1e5c2f9660f33db47" name="a7751606d4c5ed8d1e5c2f9660f33db47"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7751606d4c5ed8d1e5c2f9660f33db47">&#9670;&#160;</a></span>webdav_tpc_register_transfer()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t webdav_tpc_probe </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
-          <td class="paramname"><em>sb</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00026">26</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
-
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__open_8c_source.html#l00041">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00172">brix_vfs_probe()</a>, <a class="el" href="webdav_8h_source.html#l00140">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00066">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00062">brix_vfs_stat_t::size</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>.</p>
-
-</div>
-</div>
-<a id="a015c96116dc7363d5e585442912a45db" name="a015c96116dc7363d5e585442912a45db"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a015c96116dc7363d5e585442912a45db">&#9670;&#160;</a></span>webdav_tpc_register_transfer()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static uint64_t webdav_tpc_register_transfer </td>
+          <td class="memname">uint64_t webdav_tpc_register_transfer </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -551,18 +396,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00155">155</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00116">116</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
 <p class="reference">References <a class="el" href="transfer_8h_source.html#l00030">BRIX_TPC_PROTO_WEBDAV</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00259">brix_tpc_registry_add()</a>, <a class="el" href="transfer_8h_source.html#l00035">BRIX_TPC_STATE_PENDING</a>, <a class="el" href="transfer_8h_source.html#l00057">brix_tpc_transfer_t::bytes_total</a>, <a class="el" href="transfer_8h_source.html#l00054">brix_tpc_transfer_t::direction</a>, <a class="el" href="transfer_8h_source.html#l00056">brix_tpc_transfer_t::dst_path</a>, <a class="el" href="transfer_8h_source.html#l00053">brix_tpc_transfer_t::protocol</a>, <a class="el" href="transfer_8h_source.html#l00055">brix_tpc_transfer_t::src_url</a>, and <a class="el" href="transfer_8h_source.html#l00061">brix_tpc_transfer_t::state</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>, and <a class="el" href="tpc_8c_source.html#l00232">webdav_tpc_handle_push()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__pull_8c_source.html#l00173">webdav_tpc_pull_marker_exec()</a>, <a class="el" href="tpc__pull_8c_source.html#l00249">webdav_tpc_pull_sync_exec()</a>, and <a class="el" href="tpc__push_8c_source.html#l00222">webdav_tpc_push_sync_exec()</a>.</p>
 
 </div>
 </div>
@@ -590,53 +430,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00066">66</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00058">58</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>.</p>
+<p class="reference">References <a class="el" href="webdav_8h_source.html#l00152">ngx_http_brix_webdav_req_ctx_t::identity</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00134">webdav_tpc_authorize()</a>.</p>
-
-</div>
-</div>
-<a id="adf250fc877d1ba746e05ef6cb367ec3c" name="adf250fc877d1ba746e05ef6cb367ec3c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adf250fc877d1ba746e05ef6cb367ec3c">&#9670;&#160;</a></span>webdav_tpc_url_path()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void webdav_tpc_url_path </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>url</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_str_t *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="tpc_8c_source.html#l00103">103</a> of file <a class="el" href="tpc_8c_source.html">tpc.c</a>.</p>
-
-<p class="reference">References <a class="el" href="tier__config_8c_source.html#l00026">scheme</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00551">ngx_http_brix_webdav_tpc_handle_copy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc_8c_source.html#l00095">webdav_tpc_authorize()</a>.</p>
 
 </div>
 </div>
