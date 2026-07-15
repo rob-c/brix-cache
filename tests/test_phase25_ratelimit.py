@@ -98,8 +98,10 @@ def test_http_handler_and_filter_wired():
 
 def test_directives_distinct_from_phase20():
     # Phase 25 directives must be distinct from the Phase 20 brix_rate_limit.
-    wd = _read("src/protocols/webdav/module.c")
-    st = _read("src/protocols/root/stream/module.c")
+    # phase-79 split: the clustering/traffic directive tables moved into
+    # directives_net.inc on both surfaces.
+    wd = _read("src/protocols/webdav/directives_net.inc")
+    st = _read("src/protocols/root/stream/directives_net.inc")
     for name in ("brix_rate_limit_zone", "brix_rate_limit_rule",
                  "brix_bandwidth_limit"):
         assert name in wd, name

@@ -238,9 +238,10 @@ def test_export_root_helper_present():
             "brix_prepare_export_root",
         ],
     )
-    # WebDAV merge uses the helper
+    # WebDAV merge uses the helper (phase-79 split: the merge half of config.c
+    # moved into config_merge.c)
     _assert_markers(
-        "src/protocols/webdav/config.c",
+        "src/protocols/webdav/config_merge.c",
         [
             "brix_prepare_export_root",
         ],

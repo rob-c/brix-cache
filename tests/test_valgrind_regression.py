@@ -71,7 +71,9 @@ def test_finding2_jwks_pool_cleanup_defined():
 
 def test_finding2_jwks_cleanup_called_at_both_sites():
     # Reverting EITHER call reintroduces the per-reload EVP_PKEY leak.
-    assert "brix_jwks_register_cleanup" in _read("src/protocols/webdav/config.c"), (
+    # phase-79 split: the proxy/token half of webdav config.c (which registers
+    # the JWKS cleanup) moved into config_proxy.c.
+    assert "brix_jwks_register_cleanup" in _read("src/protocols/webdav/config_proxy.c"), (
         "HTTP/WebDAV conf must register the JWKS pool cleanup"
     )
     assert "brix_jwks_register_cleanup" in _read("src/auth/token/config.c"), (

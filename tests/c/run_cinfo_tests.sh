@@ -33,6 +33,9 @@ fi
 
 cc -O -Wall "${SAN_FLAGS[@]}" -o "${BIN}" "${HERE}/test_cinfo.c" "${CACHE_OBJ}/cinfo.o" \
     "${OBJS_DIR}/addon/meta/xmeta.o" "${OBJS_DIR}/addon/meta/xmeta_path.o" \
+    "${OBJS_DIR}/addon/meta/xmeta_decode.o" \
+    "${OBJS_DIR}/addon/meta/xmeta_encode.o" \
+    "${OBJS_DIR}/addon/meta/xmeta_carrier.o" \
     "${OBJS_DIR}/addon/compat/crc32c.o"
 
 "${BIN}"

@@ -60,9 +60,13 @@ brix_vfs_rename_path(brix_sd_instance_t *sd, ngx_log_t *log,
 }
 
 /* Move the resolved ctx source path to the confined destination `dst`.
- * Write-gated; both endpoints must be confined. Metered as OP_RENAME. */
+ * Write-gated; both endpoints must be confined. Metered as OP_RENAME.
+ * `overwrite_dirs` lets the rename replace an existing directory destination
+ * (its tree is removed first — WebDAV MOVE Overwrite:T); 0 keeps kXR_mv
+ * semantics where an existing dir dest fails with EEXIST. */
 ngx_int_t
-brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst)
+brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
+    unsigned overwrite_dirs)
 {
     brix_ns_result_t        res;
     const char               *path;
@@ -145,14 +149,19 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst)
 
     res = brix_ns_rename(ctx->log, ctx->root_canon,
                            brix_vfs_ctx_path(ctx),
-                           (const char *) dst->resolved.data, 0);
+                           (const char *) dst->resolved.data,
+                           overwrite_dirs ? 1 : 0);
     if (res.status == BRIX_NS_OK) {
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
                                   NGX_OK, 0, start);
         return NGX_OK;
     }
 
-    errno = res.sys_errno != 0 ? res.sys_errno : EIO;
+    /* A pre-checked refusal (e.g. destination is an existing directory →
+     * BRIX_NS_EXISTS) carries no syscall errno; map the status instead of
+     * collapsing it to EIO so mv/MOVE report the true category. */
+    errno = res.sys_errno != 0 ? res.sys_errno
+                               : brix_vfs_ns_status_errno(res.status);
     saved_errno = errno;
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
                               NGX_ERROR, saved_errno, start);

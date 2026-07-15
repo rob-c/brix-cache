@@ -291,7 +291,8 @@ mv_execute(brix_ctx_t *ctx, ngx_connection_t *c,
 	dst_result.resolved.data = (u_char *) mv->dst_resolved;
 	dst_result.resolved.len = ngx_strlen(mv->dst_resolved);
 
-	if (brix_vfs_rename(&rvctx, &dst_result) == NGX_OK) {
+	if (brix_vfs_rename(&rvctx, &dst_result,
+	                      0 /* kXR_mv: never replace a dir dest */) == NGX_OK) {
 		return NGX_OK;
 	}
 
@@ -299,6 +300,12 @@ mv_execute(brix_ctx_t *ctx, ngx_connection_t *c,
 	if (e == EACCES || e == EPERM) {           /* NS_DENIED */
 		kxr = kXR_NotAuthorized;
 		msg = "permission denied";
+	} else if (e == EISDIR) {
+		/* rename(file, existing-dir) → EISDIR straight from the kernel
+		 * (no EEXIST detour, so the was_dir probe below never runs).
+		 * Stock reports kXR_isDirectory ("… is a directory") — match it. */
+		kxr = kXR_isDirectory;
+		msg = "destination is a directory";
 	} else if (e == EEXIST) {                  /* NS_EXISTS */
 		/* was_dir source changed: brix_vfs_rename does not report it,
 		 * so probe the (still-existing) destination directly to

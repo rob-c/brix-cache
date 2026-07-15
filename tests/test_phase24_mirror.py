@@ -88,11 +88,14 @@ def test_http_phase_handlers_present():
 
 
 def test_directives_registered():
-    wd = _read("src/protocols/webdav/module.c")
+    # phase-79 split: the clustering/traffic directive tables moved into
+    # directives_net.inc on both surfaces (webdav via module_commands.c,
+    # stream via module.c — each #includes its directives_net.inc).
+    wd = _read("src/protocols/webdav/directives_net.inc")
     for name in ("brix_mirror_url", "brix_mirror_methods",
                  "brix_mirror_sample", "brix_mirror_strip_auth"):
         assert name in wd, name
-    st = _read("src/protocols/root/stream/module.c")
+    st = _read("src/protocols/root/stream/directives_net.inc")
     for name in ("brix_stream_mirror_url", "brix_mirror_opcodes"):
         assert name in st, name
 
@@ -250,12 +253,16 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
     op_all = re.search(r"define\s+BRIX_MIRROR_OP_ALL\b(.*?)\n\n", mh, re.S)
     assert op_all and "MKDIR" not in op_all.group(1) and "OP_WRITE" not in op_all.group(1)
     # The stream maybe() enforces mirror_writes as a second, independent guard.
-    sm = _read("src/net/mirror/stream_mirror.c")
+    # phase-79 split: the launch/opcode-gating half of stream_mirror.c moved
+    # into stream_mirror_launch.c.
+    sm = _read("src/net/mirror/stream_mirror_launch.c")
     assert "OP_WRITE_ALL" in sm and "mirror_writes" in sm
-    # Default merge is 0 (off) on both surfaces.
+    # Default merge is 0 (off) on both surfaces.  phase-79 split: the cluster/
+    # mirror merge moved from server_conf.c into server_conf_merge_cluster.c,
+    # and the webdav proxy/mirror merge from config.c into config_proxy.c.
     assert "conf->mirror.mirror_writes,\n                         prev->mirror.mirror_writes, 0" \
-        in _read("src/core/config/server_conf.c")
-    assert "prev->mirror.mirror_writes, 0" in _read("src/protocols/webdav/config.c")
+        in _read("src/core/config/server_conf_merge_cluster.c")
+    assert "prev->mirror.mirror_writes, 0" in _read("src/protocols/webdav/config_proxy.c")
 
 
 # --------------------------------------------------------------------------- #

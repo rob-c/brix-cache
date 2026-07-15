@@ -11,7 +11,10 @@
 # the root-owned nginx fleet), and the test PKI it reads for GSI (a+rX + readable
 # key/cert). Non-root runs are unchanged (empty user -> original launch).
 # DROP this shim once the harness always runs unprivileged (see TESTING.md §0).
-_ref_runas_user() { [ "$(id -u)" = "0" ] && echo "${REF_RUNAS_USER:-nobody}"; }
+# NOTE: must always return 0 — callers assign `u="$(_ref_runas_user)"` under
+# `set -e`, so a bare `[ root ] && echo` (exit 1 when unprivileged) would abort
+# the whole start-all on any non-root box.
+_ref_runas_user() { if [ "$(id -u)" = "0" ]; then echo "${REF_RUNAS_USER:-nobody}"; fi; }
 
 _ref_launch() {  # _ref_launch <cfg> <log>
     local cfg="$1" log="$2" u; u="$(_ref_runas_user)"

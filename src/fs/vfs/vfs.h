@@ -382,9 +382,12 @@ ngx_int_t brix_vfs_unlink(brix_vfs_ctx_t *ctx);
 ngx_int_t brix_vfs_rmdir(brix_vfs_ctx_t *ctx, unsigned recursive);
 /* Move the resolved ctx (source) path to the already-resolved destination `dst`
  * (borrowed; must be is_confined with a non-empty resolved path). Write-gated;
- * both endpoints confined; metered as OP_RENAME. NGX_ERROR with errno set. */
+ * both endpoints confined; metered as OP_RENAME. `overwrite_dirs` removes an
+ * existing DIRECTORY destination first (WebDAV MOVE Overwrite:T; rename(2)
+ * alone only replaces an empty dir); with it 0 an existing dir dest fails
+ * with errno==EEXIST (kXR_mv semantics). NGX_ERROR with errno set. */
 ngx_int_t brix_vfs_rename(brix_vfs_ctx_t *ctx,
-    const brix_path_result_t *dst);
+    const brix_path_result_t *dst, unsigned overwrite_dirs);
 /* Thread-safe confined rename of src→dst under root_canon (no pool alloc, no
  * metric — usable off the event loop / pool-less). `overwrite` replaces an
  * existing destination; otherwise an existing dst fails with errno==EEXIST.

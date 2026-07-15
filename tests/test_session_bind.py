@@ -269,7 +269,9 @@ class TestBindHandleSlotCache:
         assert "shared_handle_slot_hint" in rd("src/core/types/file.h")
         assert "shared_handle_slot_hint = -1" in rd("src/protocols/root/connection/handler.c")
         # Reset on free so a reopened/closed handle drops its stale slot.
-        assert "shared_handle_slot_hint = -1" in rd("src/protocols/root/connection/fd_table.c")
+        # phase-79 split: the free/teardown half of fd_table.c moved into
+        # fd_table_teardown.c.
+        assert "shared_handle_slot_hint = -1" in rd("src/protocols/root/connection/fd_table_teardown.c")
         # Hinted lookup keeps the full key check (in_use guards revocation).
         h = rd("src/protocols/root/session/handles.c")
         assert "brix_session_handle_lookup_hint" in h

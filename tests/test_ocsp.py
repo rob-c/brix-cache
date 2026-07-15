@@ -39,7 +39,11 @@ from settings import (
 # Constants
 # ---------------------------------------------------------------------------
 
-OCSP_SOURCE = Path(__file__).resolve().parents[1] / "src" / "auth" / "crypto" / "ocsp.c"
+# phase-79 file-size split: the HTTP(S) responder transport (URL scheme
+# handling, TLS BIO, peer/hostname verification) moved out of ocsp.c into
+# ocsp_transport.c; ocsp.c keeps the public entry points.
+OCSP_SOURCE = (Path(__file__).resolve().parents[1]
+               / "src" / "auth" / "crypto" / "ocsp_transport.c")
 
 
 # ---------------------------------------------------------------------------
