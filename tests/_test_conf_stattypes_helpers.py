@@ -205,10 +205,18 @@ def srv(tmp_path_factory):
     # OS, same code path), so we take the intersection to be safe.
     our_made = _build_matrix(ctx["our_data"])
     off_made = _build_matrix(ctx["off_data"])
+    # The fleet stock server runs as `nobody`; harmonize the just-built /types
+    # matrix (owner triad mirrored into group+other, on BOTH roots identically) so
+    # our root server's owner-match and the stock server's other-match report the
+    # SAME kXR readable/writable/xset flags. Assertions are our==off, so mirroring
+    # keeps them exact while eliminating the root-vs-nobody identity divergence.
+    L.harmonize_perms(ctx["our_data"], ctx["off_data"])
     common = [x for x in our_made if x in off_made]
     ctx["matrix"] = common
-    ctx["our_port"] = OUR_PORT
-    ctx["off_port"] = OFF_PORT
+    # Raw-wire client ports come from the fleet attach (start_pair); the module
+    # OUR_PORT/OFF_PORT are legacy worker-shift values with no live server.
+    ctx.setdefault("our_port", L.FLEET_OUR_PORT)
+    ctx.setdefault("off_port", L.FLEET_OFF_PORT)
     yield ctx
     L.stop_pair(procs)
 

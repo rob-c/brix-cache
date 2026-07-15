@@ -8,6 +8,7 @@
 #include "cinfo_l1.h"
 
 #include <errno.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,6 +32,12 @@ typedef struct {
     size_t             count;
     size_t             max;
     ngx_log_t         *log;
+    /* The L1 is shared between the main event loop (get/drop on the open path)
+     * and cache-fill worker threads (put on fill completion). Every mutating
+     * accessor — including get, which reorders the LRU — must hold this. Without
+     * it the hash/LRU pointers race and corrupt, which manifested downstream as
+     * pool use-after-free / SIGSEGV under concurrent fills (found via TSan). */
+    pthread_mutex_t    mtx;
 } cinfo_l1_impl_t;
 
 /* ---- pure helpers --------------------------------------------------------- */
@@ -182,6 +189,13 @@ brix_cinfo_l1_create(size_t max_entries, ngx_log_t *log)
         errno = ENOMEM;
         return NULL;
     }
+    if (pthread_mutex_init(&t->mtx, NULL) != 0) {
+        free(t->buckets);
+        free(t);
+        free(l1);
+        errno = ENOMEM;
+        return NULL;
+    }
     l1->opaque = t;
     return l1;
 }
@@ -205,6 +219,7 @@ brix_cinfo_l1_destroy(brix_cinfo_l1_t *l1)
         free(e);
         e = next;
     }
+    pthread_mutex_destroy(&t->mtx);
     free(t->buckets);
     free(t);
     free(l1);
@@ -217,19 +232,22 @@ brix_cinfo_l1_get(brix_cinfo_l1_t *l1, const char *key,
     cinfo_l1_impl_t  *t;
     cinfo_l1_entry_t *e;
     size_t            bucket;
+    ngx_int_t         rc = NGX_DECLINED;
 
     if (l1 == NULL || l1->opaque == NULL || key == NULL || out == NULL) {
         return NGX_DECLINED;
     }
     t = l1->opaque;
     bucket = (size_t) (cinfo_l1_hash(key) & t->mask);
+    pthread_mutex_lock(&t->mtx);
     e = cinfo_l1_find(t, key, bucket);
-    if (e == NULL) {
-        return NGX_DECLINED;
+    if (e != NULL) {
+        *out = e->hdr;
+        cinfo_l1_touch(t, e);          /* mutates the LRU — must hold the lock */
+        rc = NGX_OK;
     }
-    *out = e->hdr;
-    cinfo_l1_touch(t, e);
-    return NGX_OK;
+    pthread_mutex_unlock(&t->mtx);
+    return rc;
 }
 
 void
@@ -246,20 +264,24 @@ brix_cinfo_l1_put(brix_cinfo_l1_t *l1, const char *key,
     t = l1->opaque;
     bucket = (size_t) (cinfo_l1_hash(key) & t->mask);
 
+    pthread_mutex_lock(&t->mtx);
     e = cinfo_l1_find(t, key, bucket);
     if (e != NULL) {
         e->hdr = *hdr;                 /* write-through update */
         cinfo_l1_touch(t, e);
+        pthread_mutex_unlock(&t->mtx);
         return;
     }
 
     e = calloc(1, sizeof(*e));
     if (e == NULL) {
+        pthread_mutex_unlock(&t->mtx);
         return;                        /* L1 is best-effort - a miss just refetches */
     }
     e->key = strdup(key);
     if (e->key == NULL) {
         free(e);
+        pthread_mutex_unlock(&t->mtx);
         return;
     }
     e->hdr = *hdr;
@@ -271,6 +293,7 @@ brix_cinfo_l1_put(brix_cinfo_l1_t *l1, const char *key,
     if (t->count > t->max) {
         cinfo_l1_evict_tail(t);
     }
+    pthread_mutex_unlock(&t->mtx);
 }
 
 void
@@ -285,8 +308,10 @@ brix_cinfo_l1_drop(brix_cinfo_l1_t *l1, const char *key)
     }
     t = l1->opaque;
     bucket = (size_t) (cinfo_l1_hash(key) & t->mask);
+    pthread_mutex_lock(&t->mtx);
     e = cinfo_l1_find(t, key, bucket);
     if (e == NULL) {
+        pthread_mutex_unlock(&t->mtx);
         return;
     }
     cinfo_l1_bucket_remove(t, e, bucket);
@@ -294,4 +319,5 @@ brix_cinfo_l1_drop(brix_cinfo_l1_t *l1, const char *key)
     free(e->key);
     free(e);
     t->count--;
+    pthread_mutex_unlock(&t->mtx);
 }

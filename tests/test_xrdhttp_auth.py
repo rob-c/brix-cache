@@ -70,6 +70,24 @@ def _curl_with_proxy(*args):
     return _curl("--cert", PROXY_STD, "--key", PROXY_STD, *args)
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _require_reference_xrdhttp():
+    """Every case here is an nginx-vs-reference *agreement* check, so it is only
+    meaningful when the reference XrdHttp server answers. Probe it once: if it is
+    down (curl connect fails) or hung (the readiness curl blocks to its own
+    timeout), skip the whole module cleanly rather than letting each test block
+    on its 30 s per-request timeout against a wedged reference peer."""
+    try:
+        r = subprocess.run(
+            ["curl", "-sk", "-o", "/dev/null", "-w", "%{http_code}", REF_URL],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip("reference XrdHttp server hung/unresponsive")
+    if r.returncode != 0:
+        pytest.skip("reference XrdHttp server not reachable")
+
+
 # ---------------------------------------------------------------------------
 # GSI Certificate Auth — standard proxy certificate.
 # ---------------------------------------------------------------------------

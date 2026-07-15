@@ -27,10 +27,14 @@ Skipping rules
 
 Determinism
 -----------
-Output hashes are SHA-256 of the raw bytes.  No stripping of timestamps or
-other fields is performed.  If a tool's output is genuinely non-deterministic
-across identical invocations it must be listed in NON_DETERMINISTIC_BINS below
-with a brief explanation; those binaries are excluded from the no-arg matrix.
+Output hashes are SHA-256 of the raw bytes, with exactly one normalization:
+the absolute invocation path (argv[0]) is collapsed to its basename before
+hashing (see _normalize_argv0), because a handful of tools echo argv[0]
+verbatim in usage text, which would otherwise bake the checkout location into
+the hash.  No timestamp/pid/other stripping is performed.  If a tool's output
+is genuinely non-deterministic across identical invocations it must be listed
+in NON_DETERMINISTIC_BINS below with a brief explanation; those binaries are
+excluded from the no-arg matrix.
 
 All commands use run_pipe (subprocess pipes, stdin=/dev/null, 30 s timeout).
 """
@@ -118,6 +122,24 @@ def _list_binaries() -> List[str]:
     )
 
 
+def _normalize_argv0(output: bytes, argv0: str) -> bytes:
+    """Replace the absolute invocation path (argv[0]) with its basename.
+
+    Several tools (xrdadler32/xrdcrc32c/xrdcrc64/xrdckverify/xrdprep/xrdqstats/
+    wait41) echo ``argv[0]`` verbatim in their usage/error text.  Because the
+    harness invokes each binary by its ABSOLUTE path (``BIN_DIR / name``), that
+    text embeds the checkout location — output that is byte-identical in content
+    but differs across machines/checkouts.  Well-behaved tools (xrdcp, xrdfs)
+    already print only the basename, so they are unaffected by this pass.
+
+    Normalizing the single non-deterministic element (the invocation path) to
+    the basename makes the stored golden hashes checkout-independent while
+    leaving every other byte of the output under exact-match scrutiny.
+    """
+    basename = os.path.basename(argv0)
+    return output.replace(argv0.encode(), basename.encode())
+
+
 def _run_entry(argv: List[str], env_extra: Optional[Dict[str, str]] = None):
     """Run one matrix entry; return (exit_code, stdout_sha256, stderr_sha256).
 
@@ -135,6 +157,8 @@ def _run_entry(argv: List[str], env_extra: Optional[Dict[str, str]] = None):
     if env_extra:
         env.update(env_extra)
     exit_code, stdout, stderr = run_pipe(argv, env=env, timeout=TIMEOUT_S)
+    stdout = _normalize_argv0(stdout, argv[0])
+    stderr = _normalize_argv0(stderr, argv[0])
     return exit_code, _sha256(stdout), _sha256(stderr)
 
 

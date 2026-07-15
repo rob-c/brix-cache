@@ -72,9 +72,11 @@ typedef struct {
 } tpc_open_ctx_t;
 
 /*
- * tpc_open_wait_resend — WHAT: sleep the clamped retry-after seconds then resend
+ * tpc_open_wait_resend — WHAT: sleep a short retry-poll interval then resend
  * the open. WHY: kXR_wait / deferred-wait share this exact sleep+resend step;
- * factoring it removes the duplicate and keeps the resolver flat.
+ * factoring it removes the duplicate and keeps the resolver flat. The sleep is
+ * a short poll (NOT the source's full wait hint — that lapses the
+ * briefly-visible TPC grant).
  * HOW: parse the (bounded) wait seconds from `body`, sleep, resend `oc`; 0 on a
  * successful resend, -1 (with t->err_msg set) if the resend fails.
  */
@@ -82,7 +84,7 @@ static int
 tpc_open_wait_resend(brix_tpc_pull_t *t, const tpc_open_ctx_t *oc,
                      const u_char *body, uint32_t dlen, const char *what)
 {
-    uint32_t secs = xrd_wait_secs_parse(body, dlen, 1, TPC_OPEN_WAIT_CAP_SEC);
+    uint32_t secs = xrd_wait_secs_parse(body, dlen, 1, TPC_OPEN_WAIT_RETRY_SEC);
 
     sleep((unsigned) secs);
     if (tpc_send_all(t, oc->fd, oc->buf, oc->len) != 0) {

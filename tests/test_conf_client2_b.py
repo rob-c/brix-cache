@@ -46,6 +46,9 @@ def test_chmod_symbolic_parity(srv, idx, mode_arg, want):
     ours = _ondisk(srv, "off", rel)
     with open(ours, "w") as f:
         f.write("c\n")
+    # The stock server runs as `nobody` and can only chmod files it OWNS
+    # (root cause #2); give it ownership of these off-tree targets.
+    L.chown_stock(ours)
     # Reference: same chmod via the stock client on a sibling file. The stock
     # *server* may clamp some bits (e.g. world-write), so the oracle is the
     # stock client's RESULTING mode on this server, not the literal argument.
@@ -53,6 +56,7 @@ def test_chmod_symbolic_parity(srv, idx, mode_arg, want):
     ref = _ondisk(srv, "off", ref_rel)
     with open(ref, "w") as f:
         f.write("c\n")
+    L.chown_stock(ref)
     frc, _, fe = fs(srv["off"], "chmod", ref_rel, mode_arg)
     assert frc == 0, f"stock chmod {mode_arg} failed (oracle): {fe!r}"
     ref_mode = _stat.S_IMODE(os.stat(ref).st_mode)
@@ -86,6 +90,7 @@ def test_chmod_octal_extension(srv, mode_arg, want):
     ours = _ondisk(srv, "off", rel)
     with open(ours, "w") as f:
         f.write("c\n")
+    L.chown_stock(ours)   # stock server (nobody) must own it to chmod it
     rc, o, e = ourfs(srv["off"], "chmod", rel, mode_arg)
     assert rc == 0, f"OUR chmod octal {mode_arg} failed: {o}{e}"
     assert _stat.S_IMODE(os.stat(ours).st_mode) == want, \

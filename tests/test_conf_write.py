@@ -90,7 +90,11 @@ def cp(*args, timeout=300):
 
 
 def uniq(name):
-    return "/" + name
+    # Tag every working-file name with the pytest-xdist worker id so that under
+    # `-n8 --dist load` no two concurrent workers ever create the same fixed-name
+    # file in the shared export (which would race a create-NEW/O_EXCL open, e.g.
+    # "open /overlap_off_2.bin failed; file exists"). Serial runs use "main".
+    return "/%s_%s" % (L.worker_tag(), name)
 
 
 def our_disk(ctx, path):

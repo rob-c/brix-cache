@@ -22,7 +22,16 @@ if [[ ! -f "${CACHE_OBJ}/cinfo.o" ]]; then
     exit 2
 fi
 
-cc -O -Wall -o "${BIN}" "${HERE}/test_cinfo.c" "${CACHE_OBJ}/cinfo.o" \
+# If the deployed module objects were built with ThreadSanitizer (the fleet is
+# sometimes compiled -fsanitize=thread), they carry __tsan_* references that only
+# resolve against the tsan runtime. Detect that and link the unit test the same
+# way so the standalone binary resolves cleanly.
+SAN_FLAGS=()
+if nm "${CACHE_OBJ}/cinfo.o" 2>/dev/null | grep -q '__tsan'; then
+    SAN_FLAGS=(-fsanitize=thread)
+fi
+
+cc -O -Wall "${SAN_FLAGS[@]}" -o "${BIN}" "${HERE}/test_cinfo.c" "${CACHE_OBJ}/cinfo.o" \
     "${OBJS_DIR}/addon/meta/xmeta.o" "${OBJS_DIR}/addon/meta/xmeta_path.o" \
     "${OBJS_DIR}/addon/compat/crc32c.o"
 

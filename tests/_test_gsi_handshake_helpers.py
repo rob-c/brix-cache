@@ -50,16 +50,29 @@ STOCK_XRDFS = "/usr/bin/xrdfs"
 STOCK_XRDCP = "/usr/bin/xrdcp"
 
 # Private port band (kept clear of the 11xxx fleet and the 2109x interop band).
-P_STOCK_ROOT = 21130
-P_ROOT = {"off": 21131, "auto": 21132, "require": 21133}
-P_ROOT_NEG = 21134          # a dedicated "off" server for negative/identity tests
-P_TLS = 21135               # GSI + in-protocol TLS upgrade
-P_SIGVER = 21136            # GSI + kXR_sigver request signing (security_level)
-P_RSA4096 = 21137           # GSI with RSA-4096 host + proxy keys
-P_BOTH = 21138              # brix_auth both (ztn + gsi advertised)
-P_VOMS = 21139              # GSI + VOMS VO ACL enforcement
-P_WEBDAV = 21140
-P_CIPHER = 21145            # GSI server advertising ONLY aes-256-cbc (WS-A)
+#
+# Under `pytest -n<N> --dist load`, several xdist workers import this helper
+# concurrently and each spins up its OWN throwaway stock-xrootd + nginx GSI
+# servers (the per-session `pki` fixture makes shared fleet instances
+# impractical here).  To keep those self-started servers collision-free, every
+# P_* port is shifted by a per-worker OFFSET computed once from the xdist worker
+# id: gw0→+20, gw1→+40, …  Serial runs (no PYTEST_XDIST_WORKER) get offset 0, so
+# behaviour is unchanged outside xdist.  The base span 21130..21145 is 16 slots;
+# a 20-slot stride per worker keeps each worker's band contiguous and clear of
+# both the next worker's band and the 2109x interop / 11xxx fleet ranges.
+_WK = os.environ.get("PYTEST_XDIST_WORKER", "")   # "gw0".."gwN" under xdist, "" serial
+_WOFF = (int(_WK[2:]) + 1) * 20 if _WK.startswith("gw") else 0
+
+P_STOCK_ROOT = 21130 + _WOFF
+P_ROOT = {"off": 21131 + _WOFF, "auto": 21132 + _WOFF, "require": 21133 + _WOFF}
+P_ROOT_NEG = 21134 + _WOFF  # a dedicated "off" server for negative/identity tests
+P_TLS = 21135 + _WOFF       # GSI + in-protocol TLS upgrade
+P_SIGVER = 21136 + _WOFF    # GSI + kXR_sigver request signing (security_level)
+P_RSA4096 = 21137 + _WOFF   # GSI with RSA-4096 host + proxy keys
+P_BOTH = 21138 + _WOFF      # brix_auth both (ztn + gsi advertised)
+P_VOMS = 21139 + _WOFF      # GSI + VOMS VO ACL enforcement
+P_WEBDAV = 21140 + _WOFF
+P_CIPHER = 21145 + _WOFF    # GSI server advertising ONLY aes-256-cbc (WS-A)
 
 
 # --------------------------------------------------------------------------- #
@@ -226,8 +239,12 @@ def _signed(ca_key, ca_pem, cn, key, cert, base, bits=2048):
 
 
 def _mint_proxy(eec_cert, eec_key, out, certs, env):
+    # NB: no -certdir flag — xrootd-client's xrdgsiproxy only accepts
+    # -valid/-cert/-key/-out/-bits (a stray -certdir makes it print usage and
+    # exit 50). It reads the CA dir from X509_CERT_DIR, which every caller has
+    # already set to `certs` in `env`; the param is kept for that contract.
     _run(["xrdgsiproxy", "init", "-cert", eec_cert, "-key", eec_key,
-          "-out", out, "-certdir", certs, "-valid", "1:00"],
+          "-out", out, "-valid", "1:00"],
          input="\n\n", env=env)
     return os.path.exists(out)
 
@@ -402,6 +419,19 @@ def pki(tmp_path_factory):
 
     with open(os.path.join(data, "hello.txt"), "w") as f:
         f.write("hello-gsi-handshake\n")
+
+    # The pytest fleet runs with umask 000, so os.makedirs(certs) above created
+    # the CA dir world-WRITABLE (0777). XrdCl's TLS client init (XrdClTls.cc
+    # InitTLS -> XrdOucUtils::ValPath, mask 0755) REFUSES a CA directory with
+    # group/other-write bits ("has excessive access rights") and throws
+    # "Failed to initialize TLS", so EVERY roots:// (GSI+TLS-upgrade) test that
+    # points X509_CERT_DIR here fails — deterministically once you notice it, but
+    # masked as a flake because it only surfaces on workers heavy enough to hit
+    # these cases. Clamp the CA dir to 0755: still world-readable/traversable (the
+    # stock server-as-`nobody` and every client can read the CA), no longer
+    # "excessive" so TLS client init accepts it. (stock_root's broad `a+rwX`
+    # re-loosens it to 0777; it re-clamps there too.)
+    os.chmod(certs, 0o755)
 
     yield {
         "fqdn": fqdn, "base": base, "certs": certs, "data": data,
@@ -707,9 +737,37 @@ def stock_root(pki):
             "-crl:0 -gmapopt:10 -dlgpxy:0\n"
             "sec.protbind * only gsi\n")
     _free_port(P_STOCK_ROOT)
-    proc = subprocess.Popen(["xrootd", "-c", cfg, "-l",
-                             os.path.join(base, "stock.log"), "-n", "gsihs"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # xrootd refuses to run as the superuser; under a root test runner drop it to
+    # `nobody` (-R) and open the tree + private key it must read/write as that
+    # user (mirrors the fleet's refxrootd.sh _ref_launch shim).
+    xrd_cmd = ["xrootd", "-c", cfg, "-l",
+               os.path.join(base, "stock.log"), "-n", "gsihs"]
+    if os.geteuid() == 0:
+        subprocess.run(["chmod", "-R", "a+rwX", base], check=False)
+        subprocess.run(["chown", "nobody", pki["hostkey"]], check=False)
+        subprocess.run(["chmod", "0400", pki["hostkey"]], check=False)
+        # The broad `chmod -R a+rwX base` (so xrootd-as-`nobody` can read the
+        # export tree) also loosens the user's PRIVATE proxy + key under base/user/
+        # to world-accessible. The native client's credential loader
+        # (brix_open_credfile secret=1) correctly refuses any proxy that is
+        # group/other-accessible ("gsi: cannot load proxy credential"), so restore
+        # those two files to 0600 (owned by the root test runner) — the stock
+        # server never needs them.
+        for cred in (pki["valid_proxy"], pki["userkey"]):
+            subprocess.run(["chmod", "0600", cred], check=False)
+        # The broad `a+rwX` also left the shared CA dir (certs/) world-WRITABLE
+        # (0777). XrdCl's TLS client init (XrdClTls.cc InitTLS -> XrdOucUtils::
+        # ValPath, mask 0755) REFUSES a CA directory with group/other-write bits
+        # ("has excessive access rights") and throws "Failed to initialize TLS".
+        # Every later roots:// test in this module points X509_CERT_DIR at certs/,
+        # so if a stock-server test seeds this fixture first the TLS cases fail
+        # (order-dependent under -n<N> --dist load -> flaky). Restore certs/ to
+        # 0755: still traversable/readable by the stock server-as-`nobody`, but
+        # no longer "excessive" so TLS client init accepts it.
+        subprocess.run(["chmod", "0755", pki["certs"]], check=False)
+        xrd_cmd += ["-R", "nobody"]
+    proc = subprocess.Popen(xrd_cmd, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
     _wait_listen(proc, P_STOCK_ROOT, "stock xrootd")
     yield {"url": f"root://{pki['fqdn']}:{P_STOCK_ROOT}"}
     _terminate(proc)

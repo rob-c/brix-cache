@@ -101,6 +101,13 @@ class Node:
         self.listen = _free_port()
         for sub in ("conf", "logs", "data"):
             os.makedirs(os.path.join(prefix, sub), exist_ok=True)
+        # nginx master runs as root here, so the worker drops to the built-in
+        # 'nobody' user. The checkpoint-recovery lock is created INSIDE the
+        # export, so the export dir must be writable by that worker user (the
+        # fleet exports are 0777 for the same reason). Without this the worker
+        # fails the recovery lock with EACCES and exits fatally before it can
+        # register with the CMS manager.
+        os.chmod(os.path.join(prefix, "data"), 0o777)
         with open(self.conf, "w") as fh:
             fh.write(f"""\
 worker_processes 1;

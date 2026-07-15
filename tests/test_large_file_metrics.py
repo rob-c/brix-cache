@@ -13,6 +13,16 @@ All tests are marked slow, large, and requires_local_server.
 Run with: pytest tests/test_large_file_metrics.py -v -m large
 """
 
+# --- Python 3.9 compat (EL9 system python) --------------------------------
+# This suite uses PEP 604 unions (`X | None`) in annotations. On Python 3.9
+# those are evaluated at def-time and raise TypeError; PEP 604 only works at
+# runtime on Python >= 3.10. `from __future__ import annotations` (PEP 563)
+# makes ALL annotations in this module lazy strings, so 3.9 imports cleanly.
+# DROP this block (and the import) once the minimum supported Python is >=3.10.
+from __future__ import annotations
+# --------------------------------------------------------------------------
+
+
 import hashlib
 import os
 import re

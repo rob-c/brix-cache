@@ -30,12 +30,35 @@ import pytest
 
 from settings import (
     CA_DIR as HARNESS_CA_DIR,
+    DATA_ROOT,
     NGINX_GSI_PORT,
     PROXY_STD,
     SERVER_HOST,
 )
 
 pytestmark = pytest.mark.timeout(300)
+
+
+def _harness_listing_dir():
+    """Create a stable, per-xdist-worker directory in the harness export and
+    return its server-relative path.
+
+    The read-only listing commands (ls -R / find / du / tree) recurse over
+    EOS_DIR. Pointing them at the shared export root ("/") makes them flaky
+    under -n8: other test files concurrently create and delete files and
+    subdirectories in the root, so a recursive walk can fail (rc != 0) when an
+    entry vanishes mid-descent. Confining the walk to a small directory owned by
+    this worker removes that cross-test churn without weakening any assertion —
+    the commands still exercise the exact same server code paths.
+    """
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "") or "main"
+    rel = f"_eos_x509_ls_{worker}"
+    abs_dir = os.path.join(DATA_ROOT, rel)
+    os.makedirs(abs_dir, exist_ok=True)
+    for name in ("alpha.txt", "beta.txt"):
+        with open(os.path.join(abs_dir, name), "w") as fh:
+            fh.write("eos-x509 listing fixture\n")
+    return "/" + rel
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -47,7 +70,8 @@ ENDPOINT = os.environ.get(
 EOS_FILE = os.environ.get(
     "TEST_EOS_FILE", "/eos/lhcb/README" if USE_LIVE_EOS else "/test.txt")
 EOS_DIR = os.environ.get(
-    "TEST_EOS_DIR", "/eos/lhcb/user/r/rcurrie" if USE_LIVE_EOS else "/")
+    "TEST_EOS_DIR",
+    "/eos/lhcb/user/r/rcurrie" if USE_LIVE_EOS else _harness_listing_dir())
 PROXY = os.environ.get(
     "X509_USER_PROXY", f"/tmp/x509up_u{os.getuid()}" if USE_LIVE_EOS else PROXY_STD)
 CA_DIR = os.environ.get(

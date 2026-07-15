@@ -376,9 +376,7 @@ sd_cache_close(brix_sd_obj_t *obj)
     sd_cache_partial_t *p = (obj != NULL) ? obj->state : NULL;
 
     if (p != NULL) {
-        if (p->src_obj != NULL && p->src_obj->driver->close != NULL) {
-            p->src_obj->driver->close(p->src_obj);   /* object's own vtable */
-        }
+        brix_sd_obj_release(p->src_obj);   /* close + free heap shell if any */
         if (p->cache_fd >= 0) {
             (void) close(p->cache_fd);
         }

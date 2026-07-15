@@ -20,16 +20,18 @@ incompressible-MIME deny list that the existing roundtrip suites
                     BEFORE negotiating; a .txt/.bin compressible control object
                     still gets compressed.
 
-Self-contained: launches its OWN minimal plain-HTTP nginx with
-`brix_compress on` + a types{} block (using the project nginx binary),
-so it never depends on the shared harness's config. Raw GETs go through urllib3
-with decode_content=False so we observe the real wire encoding.
+Attaches to the fleet's dedicated "compress" instance (WebDAV surface,
+`brix_compress on` + an http-level types{} block) started once by
+start_all_dedicated, rather than launching its own nginx: a fixed-port self-start
+collides across pytest-xdist workers. Raw GETs go through urllib3 with
+decode_content=False so we observe the real wire encoding. The types{} block maps
+.gz/.jpg to incompressible MIME types (application/gzip, image/jpeg) and .txt/.bin
+to compressible ones, which the deny-list cases below depend on.
 """
 
 import gzip
 import os
 import shutil
-import socket
 import subprocess
 import time
 import uuid
@@ -38,97 +40,33 @@ import pytest
 import requests
 import urllib3
 
-from settings import NGINX_BIN
-
 urllib3.disable_warnings()
 
-WORK = os.path.join(os.environ["TMPDIR"], "xrd-cmp-neg")
+# Fixed port of the fleet "compress" instance WebDAV surface (see
+# tests/lib/dedicated.sh -> start_all_dedicated + tests/configs/nginx_compress.conf).
+COMPRESS_WEBDAV_PORT = int(os.environ.get("TEST_COMPRESS_WEBDAV_PORT", "12960"))
+BASE_URL = f"http://127.0.0.1:{COMPRESS_WEBDAV_PORT}"
 _POOL = urllib3.PoolManager()
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _write_conf(prefix, port, data_dir):
-    # A types{} block so the negotiator can resolve content-type from the file
-    # extension before deciding whether to compress. .gz/.jpg are on the
-    # incompressible deny list (application/gzip, image/*); .txt/.bin map to
-    # compressible types (or fall through to the default, which is compressible).
-    conf = f"""
-worker_processes 1;
-error_log {prefix}/error.log info;
-pid {prefix}/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_max_body_size 64m;
-    default_type application/octet-stream;
-    types {{
-        text/plain               txt;
-        application/octet-stream  bin;
-        application/gzip          gz;
-        image/jpeg                jpg;
-    }}
-    server {{
-        listen {port};
-        server_name localhost;
-        location / {{
-            root {data_dir};
-            dav_methods DELETE MKCOL;
-            brix_webdav on;
-            brix_storage_backend posix:{data_dir};
-            brix_webdav_auth none;
-            brix_allow_write on;
-            brix_compress on;
-        }}
-    }}
-}}
-"""
-    path = os.path.join(prefix, "nginx.conf")
-    with open(path, "w") as fh:
-        fh.write(conf)
-    return path
+def _wait_listen(url, tries=50):
+    for _ in range(tries):
+        try:
+            requests.get(url, timeout=1)
+            return True
+        except Exception:
+            time.sleep(0.1)
+    return False
 
 
 @pytest.fixture(scope="module")
 def base():
-    if not os.path.isfile(NGINX_BIN) or not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not available: {NGINX_BIN}")
-    shutil.rmtree(WORK, ignore_errors=True)
-    data = os.path.join(WORK, "data")
-    os.makedirs(data, exist_ok=True)
-    os.makedirs(os.path.join(WORK, "logs"), exist_ok=True)
-    port = _free_port()
-    conf = _write_conf(WORK, port, data)
-
-    chk = subprocess.run([NGINX_BIN, "-p", WORK, "-c", conf, "-t"],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"standalone nginx config rejected:\n{chk.stderr}")
-    proc = subprocess.Popen([NGINX_BIN, "-p", WORK, "-c", conf, "-g", "daemon off;"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    url = f"http://127.0.0.1:{port}"
-    for _ in range(50):
-        try:
-            requests.get(url, timeout=1)
-            break
-        except Exception:
-            time.sleep(0.1)
-    else:
-        proc.terminate()
-        pytest.fail("standalone nginx did not come up")
-    yield url
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
-    shutil.rmtree(WORK, ignore_errors=True)
+    """Attach to the fleet "compress" WebDAV surface; skip cleanly if it is down.
+    The tests PUT and GET their own uuid-named objects, so no seeding is needed."""
+    if not _wait_listen(BASE_URL):
+        pytest.skip(
+            f"fleet compress instance not listening on {COMPRESS_WEBDAV_PORT}")
+    yield BASE_URL
 
 
 # A >256-byte highly-compressible payload (gzip-negotiation min size is 256).

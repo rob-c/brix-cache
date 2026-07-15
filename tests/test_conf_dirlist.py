@@ -43,8 +43,10 @@ pytestmark = [pytest.mark.timeout(240),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs not installed")]
 
-OUR_PORT = L.worker_port(14028)
-OFF_PORT = L.worker_port(14029)
+# Raw-socket connections go straight to these ports, so they must be the live
+# fleet pair (worker_port() shifts into an unbound per-worker band → refused).
+OUR_PORT = L.FLEET_OUR_PORT
+OFF_PORT = L.FLEET_OFF_PORT
 # wire constants (XProtocol.hh)
 kXR_login, kXR_dirlist = 3007, 3004
 kXR_ok, kXR_oksofar, kXR_error = 0, 4000, 4003
@@ -60,10 +62,36 @@ kXR_isDir = 0x02                      # StatGen flag bit
 SPECIAL_NAMES = ["a-b", "a.b.c", "UPPER", "with space", "dot.txt",
                  "MixedCase", "two words here", "trailing.dot."]
 
+# Per-xdist-worker pseudo-root. The real export '/' is SHARED, so under
+# `-n8 --dist load` other workers' working files show up in a listing of '/' and
+# break any FULL our-vs-stock set comparison. Every test that compares the whole
+# root listing enumerates this isolated per-worker dir instead (seeded
+# identically on both data roots by _build_extra_dirs). Its contents mirror what
+# '/' exercised: files of varied sizes + subdirs (for ls -l sizes / dir-flag /
+# recursion). Tests that only check a SUBSET of '/' (baseline sizes present, no
+# artifact leak) are pollution-immune and keep using the real '/'.
+WROOT = "/wroot_" + L.worker_tag()
+WROOT_FILES = {"walpha.txt": b"alpha\n", "wbeta.bin": bytes(range(64)),
+               "wempty.txt": b""}
+WROOT_SUBDIRS = {"wsub": {"leaf.txt": b"leaf\n"},
+                 "wmix": {"m1.txt": b"one\n", "m2.bin": bytes(range(32))}}
+WROOT_BASELINE = set(WROOT_FILES) | set(WROOT_SUBDIRS)
+
 
 def _build_extra_dirs(root):
     """Create the additional trees this module needs, identically on a root."""
     j = os.path.join
+    # per-worker pseudo-root for the full-listing differentials
+    w = j(root, WROOT.lstrip("/"))
+    os.makedirs(w, exist_ok=True)
+    for name, data in WROOT_FILES.items():
+        with open(j(w, name), "wb") as f:
+            f.write(data)
+    for d, files in WROOT_SUBDIRS.items():
+        os.makedirs(j(w, d), exist_ok=True)
+        for name, data in files.items():
+            with open(j(w, d, name), "wb") as f:
+                f.write(data)
     # 200-entry dir (no truncation at large N)
     bigdir = j(root, "bigdir")
     os.makedirs(bigdir, exist_ok=True)
@@ -300,8 +328,8 @@ def _wire_dstat(port, path, with_cksum=False):
 # 1) plain `ls /D` — basename SET equals stock's set (parametrized)
 # =========================================================================== #
 @pytest.mark.parametrize("path", [
-    "/", "/sub", "/empty_dir", "/many", "/deep", "/bigdir", "/special",
-    "/mixed", "/nest", "/nest/x/y/z", "/deep/a/b/c",
+    pytest.param(WROOT, id="wroot"), "/sub", "/empty_dir", "/many", "/deep",
+    "/bigdir", "/special", "/mixed", "/nest", "/nest/x/y/z", "/deep/a/b/c",
 ])
 def test_ls_basename_set_matches(srv, path):
     orc, oout, _ = fs(srv["our"], "ls", path)
@@ -315,7 +343,8 @@ def test_ls_basename_set_matches(srv, path):
 # =========================================================================== #
 # 2) `ls -l` — per-entry size column matches stock (parametrized incl bigdir)
 # =========================================================================== #
-@pytest.mark.parametrize("path", ["/", "/many", "/bigdir", "/sub", "/mixed"])
+@pytest.mark.parametrize("path", [pytest.param(WROOT, id="wroot"), "/many",
+                                  "/bigdir", "/sub", "/mixed"])
 def test_ls_l_sizes_match_stock(srv, path):
     o = _ls_l_sizes(fs(srv["our"], "ls", "-l", path)[1])
     f = _ls_l_sizes(fs(srv["off"], "ls", "-l", path)[1])
@@ -329,7 +358,8 @@ def test_ls_l_sizes_match_stock(srv, path):
 # =========================================================================== #
 # 3) `ls -l` — per-entry dir-flag column matches stock (parametrized)
 # =========================================================================== #
-@pytest.mark.parametrize("path", ["/", "/mixed", "/deep", "/nest"])
+@pytest.mark.parametrize("path", [pytest.param(WROOT, id="wroot"), "/mixed",
+                                  "/deep", "/nest"])
 def test_ls_l_dirflag_matches_stock(srv, path):
     o = _ls_l_rows(fs(srv["our"], "ls", "-l", path)[1])
     f = _ls_l_rows(fs(srv["off"], "ls", "-l", path)[1])
@@ -357,11 +387,11 @@ def test_ls_l_subdir_flagged_dir(srv, subdir):
 # 5) `ls -R /` — full recursive leaf-name set equals stock's
 # =========================================================================== #
 def test_ls_recursive_leaf_set_matches(srv):
-    orc, oout, _ = fs(srv["our"], "ls", "-R", "/")
-    frc, fout, _ = fs(srv["off"], "ls", "-R", "/")
+    orc, oout, _ = fs(srv["our"], "ls", "-R", WROOT)
+    frc, fout, _ = fs(srv["off"], "ls", "-R", WROOT)
     assert orc == 0 and frc == 0, "ls -R should succeed on both"
     assert _ls_set(oout) == _ls_set(fout), \
-        f"ls -R / leaf-set divergence: missing-from-ours={_ls_set(fout) - _ls_set(oout)} " \
+        f"ls -R {WROOT} leaf-set divergence: missing-from-ours={_ls_set(fout) - _ls_set(oout)} " \
         f"extra-in-ours={_ls_set(oout) - _ls_set(fout)}"
 
 
@@ -550,7 +580,8 @@ def test_no_artifact_leak_wire_root(srv):
 # =========================================================================== #
 # 14) raw-wire PLAIN dirlist — name set equals stock's wire set (parametrized)
 # =========================================================================== #
-@pytest.mark.parametrize("path", ["/", "/sub", "/many", "/mixed", "/nest/x/y/z"])
+@pytest.mark.parametrize("path", [pytest.param(WROOT, id="wroot"), "/sub",
+                                  "/many", "/mixed", "/nest/x/y/z"])
 def test_wire_plain_set_matches_stock(srv, path):
     our = _wire_plain_names(OUR_PORT, path)
     off = _wire_plain_names(OFF_PORT, path)
@@ -558,13 +589,14 @@ def test_wire_plain_set_matches_stock(srv, path):
 
 
 def test_wire_plain_root_includes_baseline(srv):
-    """Sanity anchor: wire '/' carries the known baseline tree on both."""
-    our = _wire_plain_names(OUR_PORT, "/")
-    off = _wire_plain_names(OFF_PORT, "/")
-    baseline = {"hello.txt", "data.bin", "sub", "bigdir", "special", "mixed"}
-    assert baseline <= our, f"our wire '/' missing baseline: {baseline - our}"
-    assert baseline <= off, f"stock wire '/' missing baseline: {baseline - off}"
-    assert our == off, f"wire '/' set divergence: {our ^ off}"
+    """Sanity anchor: the wire dirlist carries the known baseline tree on both,
+    and the full set agrees. Uses the per-worker pseudo-root (WROOT) so a
+    concurrent worker's files under the shared '/' can't perturb the equality."""
+    our = _wire_plain_names(OUR_PORT, WROOT)
+    off = _wire_plain_names(OFF_PORT, WROOT)
+    assert WROOT_BASELINE <= our, f"our wire {WROOT} missing baseline: {WROOT_BASELINE - our}"
+    assert WROOT_BASELINE <= off, f"stock wire {WROOT} missing baseline: {WROOT_BASELINE - off}"
+    assert our == off, f"wire {WROOT} set divergence: {our ^ off}"
 
 
 # =========================================================================== #

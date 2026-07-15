@@ -31,15 +31,23 @@ def srv(tmp_path_factory):
     off_data = os.path.join(base, "off_data")
     os.makedirs(our_data); os.makedirs(off_data)
     L.make_tree(our_data); L.make_tree(off_data)
-    ours = L.start_our_server(str(base), our_data)
-    off = L.start_official_server(str(base), off_data)
+    # Self-started servers MUST bind per-worker ports: the default OUR_PORT/
+    # OFF_PORT are FIXED, so under `-n<N> --dist load` two workers that both run
+    # this module would collide on the same port (the 2nd nginx/xrootd fails to
+    # bind, or the client silently reaches the WRONG worker's tree -> spurious
+    # differential failures). worker_port() shifts each worker into its own band,
+    # exactly as every other self-provisioning conf module already does.
+    our_port = L.worker_port(L.OUR_PORT)
+    off_port = L.worker_port(L.OFF_PORT)
+    ours = L.start_our_server(str(base), our_data, port=our_port)
+    off = L.start_official_server(str(base), off_data, port=off_port)
     if not ours:
         pytest.skip("our nginx server did not start")
     if not off:
         if ours:
             ours.terminate()
         pytest.skip("stock xrootd server did not start")
-    ctx = {"our": L.our_url(), "off": L.off_url(),
+    ctx = {"our": L.our_url(our_port), "off": L.off_url(off_port),
            "our_data": our_data, "off_data": off_data}
     yield ctx
     for p in (ours, off):

@@ -182,6 +182,12 @@ def dest(tmp_path):
         pytest.skip("nginx / xrdcp not built")
     ddata = tmp_path / "dstdata"
     ddata.mkdir()
+    # nginx master runs as root here, so the worker drops to the built-in
+    # 'nobody' user; the checkpoint-recovery lock is written INTO the export, so
+    # the export must be writable by that worker user (the fleet exports are 0777
+    # for the same reason). Without this the worker fails the recovery lock with
+    # EACCES and exits fatally, and the dest never comes up.
+    ddata.chmod(0o777)
     cfg = tmp_path / "dst.conf"
     cfg.write_text(
         "daemon off;\nworker_processes 1;\n"

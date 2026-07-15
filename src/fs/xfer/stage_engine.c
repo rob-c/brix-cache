@@ -236,7 +236,7 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
      * source (stage store) is always local so no cred is needed there. */
     ds = brix_sd_staged_open_maybe_cred(ep->dst, ep->dst_key, mode, cred, &oerr);
     if (ds == NULL) {
-        ep->src->driver->close(so);
+        brix_sd_obj_release(so);
         *err_out = oerr ? oerr : EIO;
         ngx_log_error(NGX_LOG_ERR, ep->dst->log, *err_out,
             "stage move: dest staged_open failed (%s key=\"%s\")",
@@ -245,7 +245,7 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
     }
 
     res = stage_move_copy_loop(ep, so, ds, bytes_out, err_out);
-    ep->src->driver->close(so);
+    brix_sd_obj_release(so);
     if (res != BRIX_XFER_OK) {
         ep->dst->driver->staged_abort(ds);     /* copy failed - drop the temp */
         return res;

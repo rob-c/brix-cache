@@ -27,7 +27,16 @@ INCS=(-I "${NGX_SRC}/src/core" -I "${NGX_SRC}/src/event"
       -I "${OBJS_DIR}" -I "${NGX_SRC}/src/stream" -I "${NGX_SRC}/src/http"
       -I "${NGX_SRC}/src/http/modules" -I "${REPO}/src")
 
-cc -O -Wall "${INCS[@]}" -o "${BIN}" \
+# Match the sanitizer the module object was built with. If lock.o was compiled
+# with ThreadSanitizer (module built --with-debug/tsan), it carries unresolved
+# __tsan_* references; the test binary must be linked with -fsanitize=thread too
+# or the link fails. Detect the instrumentation directly from the object.
+SAN_FLAGS=()
+if nm "${LOCK_OBJ}" 2>/dev/null | grep -q '__tsan_'; then
+    SAN_FLAGS+=(-fsanitize=thread)
+fi
+
+cc -O -Wall "${SAN_FLAGS[@]}" "${INCS[@]}" -o "${BIN}" \
     "${HERE}/test_cache_lock_reclaim.c" "${LOCK_OBJ}"
 
 "${BIN}"

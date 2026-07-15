@@ -81,10 +81,11 @@ BuildRequires:  libcephfs-devel
 # nginx-mod-stream provides the stream {} core that our modules load into.
 # openssl-libs: directly linked (-lssl -lcrypto) — auto-detected by find-requires
 # but listed explicitly for clarity.
-# libvomsapi.so.1: loaded at runtime via dlopen(); not a link-time dep so
-# find-requires cannot detect it — required for VOMS VO/FQAN ACL enforcement.
-# Required by soname capability (EPEL 9 ships it in the `voms` package; the
-# old `voms-libs` package name does not exist on EL9).
+# VOMS: loaded at runtime via dlopen(libvomsapi.so.1); not a link-time dep so
+# find-requires cannot detect it.  Required for VOMS VO/FQAN ACL enforcement.
+# Require the soname directly rather than a package name: the C VOMS library is
+# packaged as voms-libs on EL8 but as voms on EL9+, and both Provide
+# libvomsapi.so.1()(64bit), so this one line resolves on every supported EL.
 # curl: used to be fork/exec'd, now primarily used via libcurl, but kept for
 # compatibility with site scripts.
 Requires:       nginx-mod-stream%{?_isa}

@@ -57,36 +57,23 @@ start_xrdhttp() {
         return 1
     fi
 
-    cat >"$cfg_path" <<EOF
-all.role server
-all.export /
-oss.localroot ${data_dir}
-all.adminpath ${xrdhttp_dir}/admin-conf
-all.pidpath   ${xrdhttp_dir}/run-conf
+    render_cfg "${CONFIGS_DIR}/xrootd_xrdhttp.conf" "$cfg_path" \
+        DATA_DIR="${data_dir}" \
+        ADMIN_DIR="${xrdhttp_dir}/admin-conf" \
+        RUN_DIR="${xrdhttp_dir}/run-conf" \
+        ROOT_PORT="${root_port}" \
+        SECLIB="${sec_lib:-/usr/lib64/libXrdSec-5.so}" \
+        HTTP_PORT="${port}" \
+        HTTP_LIB="${http_lib}" \
+        SERVER_CERT="${PKI_DIR}/server/hostcert.pem" \
+        SERVER_KEY="${PKI_DIR}/server/hostkey.pem" \
+        CA_DIR="${PKI_DIR}/ca" \
+        TPC_LIB="${tpc_lib}"
 
-xrd.port ${root_port}
-xrootd.seclib ${sec_lib:-/usr/lib64/libXrdSec-5.so}
-xrd.protocol XrdHttp:${port} ${http_lib}
-
-http.cert ${PKI_DIR}/server/hostcert.pem
-http.key  ${PKI_DIR}/server/hostkey.pem
-http.cadir ${PKI_DIR}/ca
-http.desthttps yes
-http.selfhttps2http no
-http.exthandler xrdtpc ${tpc_lib}
-tpc.timeout 10
-# The whole test fleet runs on loopback (127.0.0.1 / localhost), so XrdHttpTPC's
-# default SSRF guard ("connection to local/private addresses is forbidden")
-# rejects every interop pull with HTTP 403.  The guard has two independent flags
-# (allow_local for loopback/127.0.0.1, allow_private for RFC1918) and a 127.0.0.1
-# source trips the LOCAL check — so permit BOTH for this local reference instance
-# so the nginx<->XrdHttp TPC interop tests work.
-tpc.allow local
-tpc.allow private
-EOF
-
-    # Start xrootd with HTTP module
-    "$REF_BIN" -c "$cfg_path" -l "$log_path" -b >/dev/null 2>&1 || true
+    # Start xrootd with HTTP module. Via _ref_launch (refxrootd.sh) so it drops to
+    # an unprivileged user under a root harness — XrdHttp is xrootd-based and
+    # refuses to run as superuser, same as the reference xrootd.
+    _ref_launch "$cfg_path" "$log_path" || true
 
     # Wait for readiness
     local ready=false

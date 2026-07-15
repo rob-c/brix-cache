@@ -98,7 +98,7 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
      * vtable can differ from the instance's — dispatching object ops through the
      * instance vtable reinterprets a foreign object state (type confusion). */
     if (fs->so->driver->pread == NULL) {
-        if (fs->so->driver->close != NULL) { fs->so->driver->close(fs->so); }
+        brix_sd_obj_release(fs->so);
         errno = ENOSYS;
         return NGX_ERROR;
     }
@@ -124,7 +124,7 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
     fmode = S_IRUSR | S_IWUSR;          /* 0600 — svc-owned cache artifact */
 
     if (!sd_cache_admit(&st->policy, key, fs->snap.size)) {
-        fs->so->driver->close(fs->so);
+        brix_sd_obj_release(fs->so);
         return NGX_DECLINED;            /* too big / filtered - do not cache */
     }
 
@@ -133,13 +133,13 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
         ngx_log_error(NGX_LOG_WARN, st->log, errno,
             "sd_cache: fill_open on the cache store failed for \"%s\" - not cached",
             key);
-        fs->so->driver->close(fs->so);
+        brix_sd_obj_release(fs->so);
         return NGX_ERROR;
     }
     fs->buf = malloc(SD_CACHE_CHUNK);
     if (fs->buf == NULL) {
         brix_cstore_fill_abort(fs->staged);
-        fs->so->driver->close(fs->so);
+        brix_sd_obj_release(fs->so);
         errno = ENOMEM;
         return NGX_ERROR;
     }
@@ -175,7 +175,7 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
             }
             free(fs->buf);
             brix_cstore_fill_abort(fs->staged);
-            fs->so->driver->close(fs->so);
+            brix_sd_obj_release(fs->so);
             if (sd_cache_stale_serve_ok(st, key)) {
                 return NGX_DONE;        /* bounded stale-if-error (phase-68) */
             }
@@ -196,7 +196,7 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
         {
             free(fs->buf);
             brix_cstore_fill_abort(fs->staged);
-            fs->so->driver->close(fs->so);
+            brix_sd_obj_release(fs->so);
             return NGX_ERROR;
         }
         fs->off += r;
@@ -206,7 +206,7 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
     }
     free(fs->buf);
     fs->buf = NULL;
-    fs->so->driver->close(fs->so);
+    brix_sd_obj_release(fs->so);
     fs->so = NULL;
     return NGX_OK;
 }

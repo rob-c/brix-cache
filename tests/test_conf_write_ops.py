@@ -372,6 +372,9 @@ def test_chmod_existing_succeeds_matches_stock(srv):
         disk = our_disk(srv, w) if url == srv["our"] else off_disk(srv, w)
         with open(disk, "w") as f:
             f.write("c")
+        if url == srv["off"]:
+            # stock server runs as `nobody` and can only chmod files it owns
+            L.chown_stock(disk)
     rc_o, o_o, e_o = fs(srv["our"], "chmod", our_w, "rw-r--r--")
     rc_f, o_f, e_f = fs(srv["off"], "chmod", off_w, "rw-r--r--")
     assert (rc_o == 0) == (rc_f == 0), \

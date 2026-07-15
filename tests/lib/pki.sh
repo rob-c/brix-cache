@@ -10,7 +10,9 @@ regenerate_pki() {
         mkdir -p "$pki_dir"/{ca,server,user,voms,vomsdir}
     fi
 
-    cd /home/rcurrie/HEP-x/nginx-xrootd || return 1
+    # Repo root, derived from this sourced file's own location
+    # (tests/lib/pki.sh -> ../.. == repo root). Was a hardcoded developer path.
+    cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" || return 1
 
     python3 -c "
 import os

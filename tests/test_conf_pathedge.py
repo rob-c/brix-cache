@@ -627,8 +627,11 @@ def test_chmod_special_name_parity(pair):
     """chmod '/chmod[b].txt' (brackets) -> rc parity across servers."""
     with open(os.path.join(pair["our_data"], "chmod[b].txt"), "w") as f:
         f.write("c")
-    with open(os.path.join(pair["off_data"], "chmod[b].txt"), "w") as f:
+    off_target = os.path.join(pair["off_data"], "chmod[b].txt")
+    with open(off_target, "w") as f:
         f.write("c")
+    # stock server runs as `nobody` and can only chmod files it owns
+    L.chown_stock(off_target)
     o_rc, _, _ = fs(pair["our"], "chmod", "/chmod[b].txt", "rwxr-xr-x")
     f_rc, _, _ = fs(pair["off"], "chmod", "/chmod[b].txt", "rwxr-xr-x")
     assert _ok(o_rc) == _ok(f_rc), \
