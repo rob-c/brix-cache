@@ -71,8 +71,11 @@ pytestmark = [pytest.mark.timeout(300),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
 
-OUR_PORT = L.worker_port(14040)
-OFF_PORT = L.worker_port(14041)
+# Raw-socket connections go straight to these ports, so they must be the live
+# fleet pair (worker_port() shifts into an unbound per-worker band → refused).
+# See _test_conf_sessions_helpers.py for the full rationale.
+OUR_PORT = L.FLEET_OUR_PORT
+OFF_PORT = L.FLEET_OFF_PORT
 BIND = "127.0.0.1"
 
 # opcodes / status
@@ -359,6 +362,10 @@ def _make_pair_file(srv, rel, payload=b""):
         f.write(payload)
     with open(off_disk(srv, rel), "wb") as f:
         f.write(payload)
+    # The fleet stock server runs as `nobody`; harmonize (owner triad mirrored
+    # into group+other) so it can set/remove user.* xattrs on the seeded file as
+    # our root-run server can (setxattr needs write permission).
+    L.harmonize_perms(our_disk(srv, rel), off_disk(srv, rel))
 
 
 def _disk_xattrs(path):

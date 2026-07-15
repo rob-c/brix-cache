@@ -1,23 +1,17 @@
 {
   "_meta": {
     "binaries": [
+      "aio_waitresp",
       "brixMount",
-      "ckmanifest_unit",
-      "cli_cred_unit",
-      "copy_filter_unit",
-      "cred_store_unit",
-      "cred_unit",
-      "envalias_unit",
-      "jsonout_unit",
+      "gai_shim.so",
       "mpxstats",
-      "relsafe_unit",
-      "suggest_unit",
-      "vfs_block_unit",
-      "vfs_posix_unit",
       "wait41",
-      "xferjournal_unit",
       "xrd",
       "xrdadler32",
+      "xrdceph_cephfs_to_striper",
+      "xrdceph_migrate",
+      "xrdceph_striper_migrate",
+      "xrdcephfs_rescue",
       "xrdcinfo",
       "xrdcksum",
       "xrdckverify",
@@ -31,51 +25,26 @@
       "xrdmapc",
       "xrdprep",
       "xrdqstats",
-      "xrdrc_defaults_unit",
+      "xrdrados_rescue",
       "xrdsssadmin",
       "xrdstorascan",
       "xrootdfs"
     ],
     "fleet_captured": true
   },
+  "noarg:aio_waitresp": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "3dfbce56965e58da0132f9a42b4debd6c11454973e4ce5f824efcda8113fb0a9"
+  },
   "noarg:brixMount": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "073fb0aa448817d02eed5712859d43403fd5fa184cb05dec3550bfdb61472008"
   },
-  "noarg:ckmanifest_unit": {
-    "exit": 0,
-    "stdout_sha": "7e2d655e02ab3964fa29ebd4c536f52403b76e5f58032cd51d6685c4e5a3b5a6",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:cli_cred_unit": {
-    "exit": 0,
-    "stdout_sha": "c9c1d9ec9e30f25cb3328e6c26c42868d10e3e539f040c231ad428de3f9a8e02",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:copy_filter_unit": {
-    "exit": 0,
-    "stdout_sha": "fb4580ae5cee26d34cbcefbf21f5acc5d477d645179bee66e7e56527ba59d849",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:cred_store_unit": {
-    "exit": 0,
-    "stdout_sha": "99e3cae1d6a4ff68bb6c6901cf65da698e47c36983e44e0d991986ec1b62aed2",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:cred_unit": {
-    "exit": 0,
-    "stdout_sha": "c6578b2fc42c42438088f6c34132000dd8bb55fdbd6d4cd72ee287c561028066",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:envalias_unit": {
-    "exit": 0,
-    "stdout_sha": "f6539804f3fa219498335f26aef4235c160cb60eae225c208ec1410e3a42f3d9",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:jsonout_unit": {
-    "exit": 0,
-    "stdout_sha": "52a6875a02d3deb83cdf08d40f266c4a1227645308eccfd67c7f6c453c5021dc",
+  "noarg:gai_shim.so": {
+    "exit": -11,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "noarg:mpxstats": {
@@ -83,35 +52,10 @@
     "stdout_sha": "6b4036abbbb99dbecfc2b01d8206d53e91cf50fe18e8d83241f4dedfcec510f5",
     "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
-  "noarg:relsafe_unit": {
-    "exit": 0,
-    "stdout_sha": "c4b77a32486ed4243fedbb7c9f3fd004cd7e12ba5bc99e7a17a68b2764774102",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:suggest_unit": {
-    "exit": 0,
-    "stdout_sha": "3e288e7e01d5de8c95e9486b225458c8dba6bca44126bd385a06fd7613a126eb",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:vfs_block_unit": {
-    "exit": 0,
-    "stdout_sha": "37be45c7df31924b47e3d76007585c1060897db94fe32780a92f4f33a06e5a37",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  "noarg:vfs_posix_unit": {
-    "exit": 0,
-    "stdout_sha": "60017de61c01aaedf746968e118d459c183f5cb9eb244d520a057e035fba7d07",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
   "noarg:wait41": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "161baedb213a30eacd567ec01334bb75c14910c509f2b4b91a28ba453ef9896d"
-  },
-  "noarg:xferjournal_unit": {
-    "exit": 0,
-    "stdout_sha": "80c03683ce88dae8e77e64b9550476086dafc91dc3e96c63425d4d1da0d8439c",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    "stderr_sha": "b98453f48bb772e36ff1f3f30a5aadeeb3ee66a8903105c6026d46549b887305"
   },
   "noarg:xrd": {
     "exit": 50,
@@ -121,7 +65,27 @@
   "noarg:xrdadler32": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "1975bcf1739be36c8ef95c8dc032bc00a775f2ee9e34f044d9dc62d257dc5335"
+    "stderr_sha": "16a3d0b547b15d1b074d383b7ab724468e6660029b7c29f4c3e5020c72ae5cbe"
+  },
+  "noarg:xrdceph_cephfs_to_striper": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "50d0ef46e5afaa3af4f17078e4f7613e8a33a84fad9661d8e728be8b3ffdcb22"
+  },
+  "noarg:xrdceph_migrate": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "2ee1637f65947a64b0d6ffa55dd9b407842650f8929d34876666cf4b7f024d51"
+  },
+  "noarg:xrdceph_striper_migrate": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "3ba7a2339302b85a1efa14b3c6c58ee57637d50f5c627eea231b3debb8971b38"
+  },
+  "noarg:xrdcephfs_rescue": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "a3499984b5798ec791d5b84261fbcd1c9c4e419e2f8093ccf84e6aa168dd4261"
   },
   "noarg:xrdcinfo": {
     "exit": 4,
@@ -136,7 +100,7 @@
   "noarg:xrdckverify": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "19a97a6d4aaf05fb2c649b5ea466fc79176fbaddd12f824097a426b5be0f3c85"
+    "stderr_sha": "9d11d94810e9338e147fc4473a5fd8ed3802a92a6e1f522ffea0bb3682c63d60"
   },
   "noarg:xrdcp": {
     "exit": 50,
@@ -146,12 +110,12 @@
   "noarg:xrdcrc32c": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "347ece2126450a1d8403b91edaf3a3316b866b96555fa0b188b3343f518184a3"
+    "stderr_sha": "78a5e3a6f24b377d88762d54a857d0fe84e5042257c2cda5a4f07f5b1adfc8b7"
   },
   "noarg:xrdcrc64": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "f7e4e8c04e7482f60c5cf78f56097d9a42da82d4040cd53783ede61b02e09595"
+    "stderr_sha": "c632b7b5970518d45b0f97b98503a824bc2c41b3b62ab67bf8c437d4eb935ff2"
   },
   "noarg:xrddiag": {
     "exit": 50,
@@ -181,17 +145,17 @@
   "noarg:xrdprep": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "8bce1de55f8f81434c57e8f09463d8a244906d2d8a46f0f82338df06eee3c6ce"
+    "stderr_sha": "ee1b160d4fb94ea28a6499c04599800987942d319bcafd05e42a85be9604e7ee"
   },
   "noarg:xrdqstats": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "b41633683ccfeabc84f55501d7370d76c64aa84d18fde0567b71515dfd03218a"
+    "stderr_sha": "b0011c1a173c202bfcabc431b61c3479cee2f4c57073b5e7c845af93ce5b05f4"
   },
-  "noarg:xrdrc_defaults_unit": {
-    "exit": 0,
-    "stdout_sha": "6a958e669362245fa04b14ac5ff45ef31888368890bb0247cfe62d3ade9d92a1",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  "noarg:xrdrados_rescue": {
+    "exit": 2,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "d096ed731e29382aae6a09b109c9dbca3d383230c8b4a2278fe3cbb11c858756"
   },
   "noarg:xrdsssadmin": {
     "exit": 2,
@@ -207,11 +171,6 @@
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "d3005191324a712dafc3ead26dec5ee5bfb94848cf790c2127b9b65e7f9964e1"
-  },
-  "fleet:xrdfs_ls_root": {
-    "exit": 0,
-    "stdout_sha": "814a7d34e529ad370b47a965a9ad6033015f58e6d7e2200da764ab7701325152",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "fleet:xrdcp_missing": {
     "exit": 54,

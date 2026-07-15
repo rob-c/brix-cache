@@ -141,6 +141,18 @@ def _remove(rel):
     elif os.path.isdir(full):
         import shutil
         shutil.rmtree(full)
+    # Also clear any resumable-upload staged partials for this path.  With
+    # brix_upload_resume on, an incomplete Content-Range PUT leaves a persistent,
+    # identity-keyed "<dest>.xrdresume.<id>.part" sidecar that survives across
+    # runs; unlinking only the destination leaves it behind, so a later "first
+    # segment" PUT is (correctly) rejected 409 for not being contiguous with the
+    # stale partial.  Removing the sidecars makes _remove a true state reset.
+    import glob
+    for part in glob.glob(f"{full}.xrdresume.*.part"):
+        try:
+            os.unlink(part)
+        except OSError:
+            pass
 
 
 # ---------------------------------------------------------------------------

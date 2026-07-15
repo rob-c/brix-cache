@@ -34,6 +34,7 @@ NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 _CONF = """\
 worker_processes 1;
 daemon off;
+{user_directive}
 error_log {logs}/error.log error;
 pid {logs}/nginx.pid;
 events {{ worker_connections 1024; }}
@@ -76,8 +77,16 @@ def server16m():
     with open(os.path.join(data, "big.bin"), "wb") as fh:
         fh.write(payload)
     port = _free_port()
+    # When the master runs as root, nginx drops workers to 'nobody', which
+    # cannot open the root-owned temp export dir — the worker then exits fatal
+    # ("cannot open export root ... for kernel-confined path operations") and
+    # the port listens with no worker, hanging every client query. The shared
+    # fleet avoids this via the brix-test-nginx wrapper, which injects the same
+    # directive; this self-started instance must keep workers as root too.
+    user_directive = "user root;" if os.geteuid() == 0 else ""
     with open(os.path.join(confd, "nginx.conf"), "w") as fh:
-        fh.write(_CONF.format(port=port, data=data, logs=logs))
+        fh.write(_CONF.format(port=port, data=data, logs=logs,
+                              user_directive=user_directive))
     env = dict(os.environ)
     env.pop("LD_LIBRARY_PATH", None)   # conda prefix breaks system XRootD libs
     proc = subprocess.Popen([NGINX_BIN, "-p", prefix, "-c", "conf/nginx.conf"], env=env)

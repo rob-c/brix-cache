@@ -125,6 +125,37 @@ def _wait_for_port(host, port, timeout=5):
     return False
 
 
+def _revoked_stat_rc(port):
+    """xrdfs stat with the REVOKED proxy; rc==0 means the CRL is NOT enforced."""
+    env = os.environ.copy()
+    env["X509_CERT_DIR"]     = os.path.join(PKI_DIR, "ca")
+    env["X509_USER_PROXY"]   = PROXY_PEM
+    env["XrdSecPROTOCOL"]    = "gsi"
+    env["XrdSecGSISRVNAMES"] = "*"
+    return subprocess.run(
+        ["xrdfs", f"root://{url_host(HOST)}:{port}", "stat", "/test.txt"],
+        capture_output=True, text=True, timeout=10, env=env,
+    ).returncode
+
+
+def _wait_revoked_accepted(port, timeout=12):
+    """Poll until the revoked proxy is ACCEPTED (the in-memory CRL was dropped).
+
+    The crl-reload instance is long-lived and shared across sessions: a previous
+    run's test_rejects_after_crl_reload leaves a CRL loaded in the worker.  After
+    removing the CRL file + SIGHUP, the drop is not instantaneous — it takes up to
+    one brix_crl_reload interval (~2s) for the reload timer to re-scan the now-empty
+    directory.  Poll for the observable cleared state rather than sleeping a fixed
+    (and too-short) 1.0s, so test_initially_accepts_revoked_cert sees a clean slate.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _revoked_stat_rc(port) == 0:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -192,10 +223,15 @@ def crl_reload_nginx(crl_file):
                 os.kill(int(line.strip()), signal.SIGHUP)
             except (OSError, ValueError):
                 pass
-        time.sleep(1.0)
 
     if not _wait_for_port(CRL_HOST, CRL_RELOAD_PORT):
         pytest.fail("CRL reload nginx did not start.")
+
+    # Wait for the in-memory CRL to actually clear (reload timer re-scans the
+    # now-empty dir) before the reload tests run. A fixed short sleep races the
+    # ~2s reload interval and leaves test_initially_accepts_revoked_cert seeing a
+    # stale CRL from a prior run.
+    _wait_revoked_accepted(CRL_RELOAD_PORT)
 
     yield {
         "crl_src": crl_file,
@@ -292,14 +328,34 @@ class TestCRLConfigDirectives:
         )
 
     def test_crl_loaded_in_logs(self, crl_nginx):
-        """Error log should contain a message confirming the CRL was loaded."""
-        log_path = os.path.join(crl_nginx["log_dir"], "error.log")
-        if not os.path.exists(log_path):
-            pytest.skip("error.log not found")
-        with open(log_path) as f:
-            log_content = f.read()
-        assert "CRL" in log_content and "loaded" in log_content, (
-            f"expected CRL loaded message in error.log:\n{log_content[:500]}"
+        """The configured CRL must be loaded into the GSI store and enforced.
+
+        Confirmation-of-load is asserted by its ground-truth OPERATIONAL effect
+        (the revoked proxy is rejected), not by log-scraping.  The module logs
+        its startup "loaded N CRL(s)" confirmation from ``brix_configure_gsi``
+        via ``cf->log`` during config PARSE (master, pre-daemonization).  On the
+        fleet's nginx build (1.20.1) ``cycle->log`` is not yet switched to the
+        configured ``error_log`` at that point, so that NOTICE goes to the
+        transient startup stderr and is discarded — it never reaches error.log
+        (verified: no config-parse notice, e.g. "root:// endpoint ready", lands
+        in this instance's error.log; only worker-context notices do).  The only
+        place the confirmation survives to error.log is worker context — the CRL
+        reload timer — which is exercised by TestCRLReload.  A revoked cert being
+        rejected here is a strictly stronger proof that the CRL actually loaded.
+        """
+        env = os.environ.copy()
+        env["X509_CERT_DIR"]     = os.path.join(PKI_DIR, "ca")
+        env["X509_USER_PROXY"]   = PROXY_PEM
+        env["XrdSecPROTOCOL"]    = "gsi"
+        env["XrdSecGSISRVNAMES"] = "*"
+
+        result = subprocess.run(
+            ["xrdfs", f"root://{url_host(HOST)}:{CRL_PORT}", "stat", "/test.txt"],
+            capture_output=True, text=True, timeout=10, env=env,
+        )
+        assert result.returncode != 0, (
+            "revoked proxy was accepted — the configured CRL did not load into "
+            "the GSI store"
         )
 
 
@@ -340,14 +396,27 @@ class TestCRLDirectoryMode:
         )
 
     def test_directory_crl_loaded_in_logs(self, crl_dir_nginx):
-        """Error log should confirm CRL files were loaded from the directory."""
-        log_path = os.path.join(crl_dir_nginx["log_dir"], "error.log")
-        if not os.path.exists(log_path):
-            pytest.skip("error.log not found")
-        with open(log_path) as f:
-            log_content = f.read()
-        assert "CRL" in log_content and "loaded" in log_content, (
-            f"expected CRL loaded message in error.log:\n{log_content[:500]}"
+        """Directory-mode CRLs must be loaded into the GSI store and enforced.
+
+        As in TestCRLConfigDirectives.test_crl_loaded_in_logs, the startup
+        "loaded N CRL(s)" confirmation is emitted at config-parse time via
+        ``cf->log`` and is discarded on the fleet's nginx 1.20.1 build (it never
+        reaches error.log), so load is asserted by its operational effect: a
+        revoked proxy is rejected via the directory-loaded CRL.
+        """
+        env = os.environ.copy()
+        env["X509_CERT_DIR"]     = os.path.join(PKI_DIR, "ca")
+        env["X509_USER_PROXY"]   = PROXY_PEM
+        env["XrdSecPROTOCOL"]    = "gsi"
+        env["XrdSecGSISRVNAMES"] = "*"
+
+        result = subprocess.run(
+            ["xrdfs", f"root://{url_host(HOST)}:{CRL_DIR_PORT}", "stat", "/test.txt"],
+            capture_output=True, text=True, timeout=10, env=env,
+        )
+        assert result.returncode != 0, (
+            "revoked proxy was accepted — the directory-mode CRL did not load "
+            "into the GSI store"
         )
 
 

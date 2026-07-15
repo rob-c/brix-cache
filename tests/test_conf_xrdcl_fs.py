@@ -126,13 +126,18 @@ def _mk_scratch(pair, name, builder):
     with the absolute disk path. Returns the logical path ``/<name>``.
     """
     logical = "/" + name
-    for _, _, data in _both(pair):
+    for tag, _, data in _both(pair):
         d = os.path.join(data, name)
         # fresh each time so re-runs are deterministic
         if os.path.isdir(d):
             _rmtree(d)
         os.makedirs(d, exist_ok=True)
         builder(d)
+        # The stock server runs as `nobody`; give it ownership of its scratch
+        # subtree so chmod/chown parity is owner-legal (root cause #2), exactly
+        # as the root-run server owns its own tree.
+        if tag == "off":
+            L.chown_stock(d)
     return logical
 
 
@@ -157,7 +162,36 @@ def _assert_trees_match(pair, subdir):
 # --------------------------------------------------------------------------- #
 # 1. dirlist — name-set parity (plain), per-test path matrix
 # --------------------------------------------------------------------------- #
-DIRLIST_PATHS = ["/", "/sub", "/many", "/empty_dir", "/deep", "/deep/a/b/c"]
+# The real export root '/' is SHARED and, under `-n8 --dist load`, is polluted
+# by other workers' working files — so the root-listing differentials enumerate
+# this per-worker pseudo-root (seeded identically on both data roots below)
+# instead of '/'. Every other path is a seeded dir no test writes into.
+DLROOT = "/dlroot_" + L.worker_tag()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _seed_dlroot(pair):
+    """Seed DLROOT identically on both data roots with a deterministic mix of
+    files (varied sizes) and subdirs, giving the root-listing tests a stable,
+    concurrency-isolated tree to compare our-vs-stock."""
+    for _tag, _url, data in _both(pair):
+        d = os.path.join(data, DLROOT.lstrip("/"))
+        if os.path.isdir(d):
+            _rmtree(d)
+        os.makedirs(os.path.join(d, "sd1"), exist_ok=True)
+        os.makedirs(os.path.join(d, "sd2"), exist_ok=True)
+        open(os.path.join(d, "a.txt"), "w").write("AAA")
+        open(os.path.join(d, "b.bin"), "wb").write(b"Z" * 100)
+        open(os.path.join(d, "c.dat"), "wb").write(b"")
+        open(os.path.join(d, "sd1", "inner.txt"), "w").write("inner")
+    yield
+
+
+# pytest.param with a STABLE id keeps every xdist worker's collected node id
+# identical ([dlroot]) while the per-worker path value differs — otherwise xdist
+# aborts with "different tests were collected between gwN and gwM".
+DIRLIST_PATHS = [pytest.param(DLROOT, id="dlroot"), "/sub", "/many",
+                 "/empty_dir", "/deep", "/deep/a/b/c"]
 
 
 @pytest.mark.parametrize("path", DIRLIST_PATHS)
@@ -196,7 +230,7 @@ def test_dirlist_parent_path(pair, path):
 # --------------------------------------------------------------------------- #
 # 2. dirlist with Stat — per-entry flags + sizes parity
 # --------------------------------------------------------------------------- #
-STAT_DIRS = ["/", "/sub", "/many", "/deep/a/b/c"]
+STAT_DIRS = [pytest.param(DLROOT, id="dlroot"), "/sub", "/many", "/deep/a/b/c"]
 
 
 @pytest.mark.parametrize("path", STAT_DIRS)

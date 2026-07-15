@@ -73,6 +73,10 @@ def srv(tmp_path_factory):
     # Build identical extra scaffolding on BOTH roots.
     for data in (ctx["our_data"], ctx["off_data"]):
         _seed_scaffold(data)
+    # The fleet stock server runs as `nobody`; make the scaffold dirs writable by
+    # it (owner triad mirrored into group+other, identically on both roots) so a
+    # cross-dir move INTO rn_d2/... succeeds on the stock side as it does on ours.
+    L.harmonize_perms(ctx["our_data"], ctx["off_data"])
     yield ctx
     L.stop_pair(procs)
 

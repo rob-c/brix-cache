@@ -107,10 +107,15 @@ def _get_xrdhttp_port():
 def xrdhttp_backend():
     """Use the suite-level XrdHttp reference server."""
     http_port = _get_xrdhttp_port()
-    result = subprocess.run(
-        ["curl", "-skf", f"https://{url_host(HOST)}:{http_port}/"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
-    )
+    try:
+        result = subprocess.run(
+            ["curl", "-skf", f"https://{url_host(HOST)}:{http_port}/"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        # A hung (vs. down) reference server blocks the readiness curl to its own
+        # timeout; treat it as unreachable (skip) rather than a setup ERROR.
+        pytest.skip(f"XrdHttp reference server hung/unresponsive at port {http_port}")
     if result.returncode != 0:
         pytest.skip(f"XrdHttp server not reachable at port {http_port}")
 

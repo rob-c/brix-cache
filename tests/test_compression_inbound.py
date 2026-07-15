@@ -92,6 +92,12 @@ CODECS = {
     "lz4":    ("lz4", c_lz4),
 }
 
+# zstd + lz4 are compile-gated OPTIONAL decoders (-DBRIX_HAVE_ZSTD / -DBRIX_HAVE_LZ4).
+# A server built without libzstd/liblz4 dev headers rejects those Content-Encodings
+# with 415 (exactly like the deliberately-unsupported "snappy" case below). Skip the
+# optional case then; mandatory decoders (gzip/deflate/xz/br/bzip2) are always run.
+OPTIONAL_CODECS = {"zstd", "lz4"}
+
 
 def _payload(n=200_000):
     # Mixed structured + random so the codecs actually compress but the
@@ -134,6 +140,10 @@ def test_put_compressed_roundtrip(codec):
     path = f"/cmp_in_{codec}_{uuid.uuid4().hex}.bin"
     try:
         r = _put(path, comp, {"Content-Encoding": token})
+        if codec in OPTIONAL_CODECS and r.status_code == 415:
+            pytest.skip(
+                f"server build lacks inbound decoder for optional codec "
+                f"'{codec}' (415 unsupported-encoding)")
         assert r.status_code in (200, 201, 204), \
             f"{codec} PUT status {r.status_code}: {r.text[:200]}"
         g = _get(path)

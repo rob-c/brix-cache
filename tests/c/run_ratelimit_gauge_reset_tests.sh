@@ -48,7 +48,15 @@ void ngx_conf_log_error(ngx_uint_t l, ngx_conf_t *cf, ngx_err_t e, const char *f
 void *ngx_brix_shm_zone;
 EOF
 
-cc -O -Wall "${INCS[@]}" -o "${BIN}" \
+# If the deployed ratelimit_zone.o was built with ThreadSanitizer (the fleet is
+# sometimes compiled -fsanitize=thread), it carries __tsan_* references that only
+# resolve against the tsan runtime. Detect that and link with the same flag.
+SAN_FLAGS=()
+if nm "${ZONE_OBJ}" 2>/dev/null | grep -q '__tsan'; then
+    SAN_FLAGS=(-fsanitize=thread)
+fi
+
+cc -O -Wall "${SAN_FLAGS[@]}" "${INCS[@]}" -o "${BIN}" \
     "${HERE}/test_ratelimit_gauge_reset.c" "${STUBS}" "${ZONE_OBJ}"
 
 "${BIN}"

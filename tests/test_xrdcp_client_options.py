@@ -28,6 +28,52 @@ def _require_xrdcp():
         pytest.skip(f"{XRDCP_BIN} not found on PATH")
 
 
+_OPTION_SUPPORT_CACHE: dict = {}
+
+
+def _xrdcp_supports_option(opt: str) -> bool:
+    """Return True when the installed xrdcp recognizes the long option *opt*.
+
+    Probes by invoking the client with the option alone; a client that does not
+    know a flag emits ``unknown option '<opt>'`` to stderr (and exits non-zero),
+    whereas a recognized option instead produces an argument/usage diagnostic
+    that never contains that phrase.  The result is cached per option so the
+    probe runs at most once per option per session.
+    """
+    if opt in _OPTION_SUPPORT_CACHE:
+        return _OPTION_SUPPORT_CACHE[opt]
+
+    proc = subprocess.run(
+        [XRDCP_BIN, opt],
+        env=_anon_env(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+    )
+    text = (proc.stdout + proc.stderr).decode(errors="replace")
+    supported = f"unknown option '{opt}'" not in text
+    _OPTION_SUPPORT_CACHE[opt] = supported
+    return supported
+
+
+def _require_xrdcp_option(opt: str):
+    """Skip cleanly when the installed xrdcp lacks the option under test.
+
+    These are official-client option-coverage tests: they verify that a given
+    xrdcp command-line option works end-to-end against the nginx root:// module.
+    When the installed client genuinely does not implement the option (e.g. a
+    client build that uses a different spelling), there is nothing to exercise,
+    so the case skips rather than failing.  This never masks a server-side
+    regression — it only gates on client capability.
+    """
+    _require_xrdcp()
+    if not _xrdcp_supports_option(opt):
+        pytest.skip(
+            f"{XRDCP_BIN} does not support {opt!r}; "
+            f"installed client lacks this option"
+        )
+
+
 def _anon_env() -> dict:
     env = os.environ.copy()
     for key in (
@@ -161,7 +207,7 @@ def test_xrdcp_streams_uses_secondary_bind_and_round_trips(test_env, tmp_path):
 
 def test_xrdcp_parallel_multi_file_uploads(test_env, tmp_path):
     """xrdcp --parallel should upload several files in one client invocation."""
-    _require_xrdcp()
+    _require_xrdcp_option("--parallel")
 
     remote_dir = f"{PREFIX}parallel"
     remote_disk_dir = Path(test_env["data_dir"]) / remote_dir
@@ -245,7 +291,7 @@ def test_xrdcp_posc_upload_with_crc32c_checksum_verification(test_env, tmp_path)
 
 def test_xrdcp_continue_resumes_partial_download(test_env, tmp_path):
     """xrdcp --continue should resume reading from an existing local partial."""
-    _require_xrdcp()
+    _require_xrdcp_option("--continue")
 
     remote_name = f"{PREFIX}continue.bin"
     remote_disk = Path(test_env["data_dir"]) / remote_name
@@ -268,7 +314,7 @@ def test_xrdcp_continue_resumes_partial_download(test_env, tmp_path):
 
 def test_xrdcp_recursive_upload(test_env, tmp_path):
     """xrdcp --recursive should create and populate a remote directory tree."""
-    _require_xrdcp()
+    _require_xrdcp_option("--recursive")
 
     local_tree = tmp_path / "recursive-src"
     nested = local_tree / "subdir"

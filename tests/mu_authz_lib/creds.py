@@ -7,10 +7,12 @@ proxy_key. VOMS proxies delegate to utils/voms_proxy_fake.py against a self-cont
 signing cert + vomsdir. Tokens use utils/make_token.TokenIssuer.
 """
 import datetime
+import fcntl
 import hashlib
 import os
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 from cryptography import x509
@@ -41,6 +43,28 @@ def _fresh(*paths: str) -> None:
             pass
 
 
+@contextmanager
+def _pki_lock(name: str):
+    """Cross-worker exclusive lock keyed on `name`.
+
+    The shared MU PKI dir is written by session fixtures that, under pytest-xdist,
+    run once *per worker* — so N workers race to (re)generate the SAME files: one
+    unlinks `bob_usercert.pem` while another reads it, giving spurious mint/parse
+    failures that scale with -n. Every generator below acquires this lock and then
+    reuses any already-present artifact (deterministic per name), so exactly one
+    worker generates and the rest read a stable file instead of stomping it.
+    """
+    lock_dir = Path(ports.MU.PKI_DIR)
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_dir / f".{name}.lock"), os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
 def _serial_for(name: str) -> str:
     """A stable, positive 63-bit serial derived from `name` (decimal string)."""
     return str(int(hashlib.sha256(name.encode()).hexdigest()[:15], 16) | 1)
@@ -61,22 +85,25 @@ def gen_user_cert(dn: str, name: str) -> "tuple[str, str]":
     key = str(ud / f"{name}_userkey.pem")
     ca_cert, ca_key = _ca_paths()
 
-    _fresh(key, cert)
-    subprocess.run(["openssl", "genrsa", "-out", key, "2048"], check=True, capture_output=True)
-    os.chmod(key, 0o400)
-    csr = cert.replace(".pem", ".csr")
-    subprocess.run(["openssl", "req", "-new", "-key", key, "-subj", dn, "-out", csr],
-                   check=True, capture_output=True)
-    ext = cert.replace(".pem", ".ext")
-    # keyUsage critical incl. keyEncipherment is required for XrdCrypto proxy delegation.
-    Path(ext).write_text("keyUsage=critical,digitalSignature,keyEncipherment\n"
-                         "extendedKeyUsage=clientAuth\n")
-    # -set_serial (a stable per-name serial), NOT -CAcreateserial: the shared test CA's
-    # ca.srl is also used by the running fleet, and -CAcreateserial mutates it
-    # non-atomically -> a race. A fixed serial per name avoids touching ca.srl entirely.
-    subprocess.run(["openssl", "x509", "-req", "-in", csr, "-CA", ca_cert, "-CAkey", ca_key,
-                    "-set_serial", _serial_for(name), "-out", cert, "-days", "3650",
-                    "-sha256", "-extfile", ext], check=True, capture_output=True)
+    with _pki_lock(f"user_{name}"):
+        if os.path.exists(cert) and os.path.exists(key):
+            return cert, key
+        _fresh(key, cert)
+        subprocess.run(["openssl", "genrsa", "-out", key, "2048"], check=True, capture_output=True)
+        os.chmod(key, 0o400)
+        csr = cert.replace(".pem", ".csr")
+        subprocess.run(["openssl", "req", "-new", "-key", key, "-subj", dn, "-out", csr],
+                       check=True, capture_output=True)
+        ext = cert.replace(".pem", ".ext")
+        # keyUsage critical incl. keyEncipherment is required for XrdCrypto proxy delegation.
+        Path(ext).write_text("keyUsage=critical,digitalSignature,keyEncipherment\n"
+                             "extendedKeyUsage=clientAuth\n")
+        # -set_serial (a stable per-name serial), NOT -CAcreateserial: the shared test CA's
+        # ca.srl is also used by the running fleet, and -CAcreateserial mutates it
+        # non-atomically -> a race. A fixed serial per name avoids touching ca.srl entirely.
+        subprocess.run(["openssl", "x509", "-req", "-in", csr, "-CA", ca_cert, "-CAkey", ca_key,
+                        "-set_serial", _serial_for(name), "-out", cert, "-days", "3650",
+                        "-sha256", "-extfile", ext], check=True, capture_output=True)
     return cert, key
 
 
@@ -120,43 +147,46 @@ def _proxy_cert_info_der() -> bytes:
 def gen_gsi_proxy(cert_path: str, key_path: str, name: str) -> str:
     """Build an RFC 3820 proxy from a user cert/key; write proxy+cert+key bundle."""
     out = str(_user_dir() / f"{name}_proxy.pem")
-    with open(cert_path, "rb") as f:
-        user_cert = x509.load_pem_x509_certificate(f.read())
-    with open(key_path, "rb") as f:
-        user_key = serialization.load_pem_private_key(f.read(), password=None)
+    with _pki_lock(f"gsiproxy_{name}"):
+        if os.path.exists(out):
+            return out
+        with open(cert_path, "rb") as f:
+            user_cert = x509.load_pem_x509_certificate(f.read())
+        with open(key_path, "rb") as f:
+            user_key = serialization.load_pem_private_key(f.read(), password=None)
 
-    proxy_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    serial = 12346
-    proxy_subject = x509.Name(list(user_cert.subject)
-                              + [x509.NameAttribute(NameOID.COMMON_NAME, str(serial))])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    proxy_cert = (x509.CertificateBuilder()
-                  .subject_name(proxy_subject)
-                  .issuer_name(user_cert.subject)
-                  .public_key(proxy_key.public_key())
-                  .serial_number(serial)
-                  .not_valid_before(now - datetime.timedelta(minutes=5))
-                  .not_valid_after(now + datetime.timedelta(hours=12))
-                  .add_extension(x509.UnrecognizedExtension(
-                      x509.ObjectIdentifier("1.3.6.1.5.5.7.1.14"), _proxy_cert_info_der()),
-                      critical=True)
-                  .add_extension(x509.KeyUsage(
-                      digital_signature=True, content_commitment=False, key_encipherment=False,
-                      data_encipherment=False, key_agreement=False, key_cert_sign=False,
-                      crl_sign=False, encipher_only=False, decipher_only=False), critical=True)
-                  .sign(user_key, hashes.SHA256()))
+        proxy_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        serial = 12346
+        proxy_subject = x509.Name(list(user_cert.subject)
+                                  + [x509.NameAttribute(NameOID.COMMON_NAME, str(serial))])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        proxy_cert = (x509.CertificateBuilder()
+                      .subject_name(proxy_subject)
+                      .issuer_name(user_cert.subject)
+                      .public_key(proxy_key.public_key())
+                      .serial_number(serial)
+                      .not_valid_before(now - datetime.timedelta(minutes=5))
+                      .not_valid_after(now + datetime.timedelta(hours=12))
+                      .add_extension(x509.UnrecognizedExtension(
+                          x509.ObjectIdentifier("1.3.6.1.5.5.7.1.14"), _proxy_cert_info_der()),
+                          critical=True)
+                      .add_extension(x509.KeyUsage(
+                          digital_signature=True, content_commitment=False, key_encipherment=False,
+                          data_encipherment=False, key_agreement=False, key_cert_sign=False,
+                          crl_sign=False, encipher_only=False, decipher_only=False), critical=True)
+                      .sign(user_key, hashes.SHA256()))
 
-    proxy_key_pem = proxy_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption())
-    _fresh(out)
-    with open(out, "wb") as f:
-        f.write(proxy_cert.public_bytes(serialization.Encoding.PEM))
-        with open(cert_path, "rb") as uc:
-            f.write(uc.read())
-        f.write(proxy_key_pem)
-    os.chmod(out, 0o400)
+        proxy_key_pem = proxy_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption())
+        _fresh(out)
+        with open(out, "wb") as f:
+            f.write(proxy_cert.public_bytes(serialization.Encoding.PEM))
+            with open(cert_path, "rb") as uc:
+                f.write(uc.read())
+            f.write(proxy_key_pem)
+        os.chmod(out, 0o400)
     return out
 
 
@@ -170,20 +200,21 @@ def _voms_signing_cert() -> "tuple[str, str]":
     vdir.mkdir(parents=True, exist_ok=True)
     cert = str(vdir / "voms_cert.pem")
     key = str(vdir / "voms_key.pem")
-    if os.path.exists(cert) and os.path.exists(key):
-        return cert, key
-    ca_cert, ca_key = _ca_paths()
-    subprocess.run(["openssl", "genrsa", "-out", key, "2048"], check=True, capture_output=True)
-    csr = cert.replace(".pem", ".csr")
-    subprocess.run(["openssl", "req", "-new", "-key", key,
-                    "-subj", "/DC=test/DC=xrootd/CN=voms.test.local", "-out", csr],
-                   check=True, capture_output=True)
-    ext = cert.replace(".pem", "_ext.conf")
-    Path(ext).write_text("[voms_ext]\nsubjectKeyIdentifier = hash\n"
-                         "authorityKeyIdentifier = keyid:always\nbasicConstraints = CA:FALSE\n")
-    subprocess.run(["openssl", "x509", "-req", "-in", csr, "-CA", ca_cert, "-CAkey", ca_key,
-                    "-set_serial", _serial_for("voms-signing"), "-out", cert, "-days", "365",
-                    "-extensions", "voms_ext", "-extfile", ext], check=True, capture_output=True)
+    with _pki_lock("voms_signing"):
+        if os.path.exists(cert) and os.path.exists(key):
+            return cert, key
+        ca_cert, ca_key = _ca_paths()
+        subprocess.run(["openssl", "genrsa", "-out", key, "2048"], check=True, capture_output=True)
+        csr = cert.replace(".pem", ".csr")
+        subprocess.run(["openssl", "req", "-new", "-key", key,
+                        "-subj", "/DC=test/DC=xrootd/CN=voms.test.local", "-out", csr],
+                       check=True, capture_output=True)
+        ext = cert.replace(".pem", "_ext.conf")
+        Path(ext).write_text("[voms_ext]\nsubjectKeyIdentifier = hash\n"
+                             "authorityKeyIdentifier = keyid:always\nbasicConstraints = CA:FALSE\n")
+        subprocess.run(["openssl", "x509", "-req", "-in", csr, "-CA", ca_cert, "-CAkey", ca_key,
+                        "-set_serial", _serial_for("voms-signing"), "-out", cert, "-days", "365",
+                        "-extensions", "voms_ext", "-extfile", ext], check=True, capture_output=True)
     return cert, key
 
 
@@ -207,14 +238,17 @@ def gen_voms_proxy(cert_path: str, key_path: str, name: str, vo: str) -> str:
     _ensure_vomsdir(vo)
     voms_cert, voms_key = _voms_signing_cert()
     out = str(_user_dir() / f"{name}_voms_{vo}.pem")
-    _fresh(out)
-    subprocess.run([sys.executable, str(_UTILS / "voms_proxy_fake.py"),
-                    "-cert", cert_path, "-key", key_path, "-certdir", ports.MU.CA_DIR,
-                    "-hostcert", voms_cert, "-hostkey", voms_key, "-voms", vo,
-                    "-fqan", f"/{vo}/Role=NULL/Capability=NULL",
-                    "-uri", "voms.test.local:15000", "-out", out, "-hours", "24"],
-                   check=True, capture_output=True)
-    os.chmod(out, 0o400)
+    with _pki_lock(f"voms_{name}_{vo}"):
+        if os.path.exists(out):
+            return out
+        _fresh(out)
+        subprocess.run([sys.executable, str(_UTILS / "voms_proxy_fake.py"),
+                        "-cert", cert_path, "-key", key_path, "-certdir", ports.MU.CA_DIR,
+                        "-hostcert", voms_cert, "-hostkey", voms_key, "-voms", vo,
+                        "-fqan", f"/{vo}/Role=NULL/Capability=NULL",
+                        "-uri", "voms.test.local:15000", "-out", out, "-hours", "24"],
+                       check=True, capture_output=True)
+        os.chmod(out, 0o400)
     return out
 
 

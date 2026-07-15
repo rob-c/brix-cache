@@ -275,6 +275,27 @@ def _wr_full(wr_stack, rel):
     return os.path.join(wr_stack["data_dir"], rel.lstrip("/"))
 
 
+def _wr_clear_staging(wr_stack, rel):
+    """Idempotent cleanup for a POSC/create target on the persistent /tmp data
+    root: remove the final file AND any staging siblings a prior *aborted* run
+    left behind — the POSC temp ("<base>.xrd-tmp.*") and, crucially, the
+    checkpoint-resume partial ("<base>.xrdresume.*.part"). A stale resume partial
+    makes the server treat a fresh kXR_new (exclusive-create) POSC open as
+    "already exists" (kXR_ItExists / 3018), so a carried-over partial from an
+    earlier run would wedge this test forever."""
+    final = _wr_full(wr_stack, rel)
+    if os.path.exists(final):
+        os.unlink(final)
+    data_dir = wr_stack["data_dir"]
+    base = os.path.basename(rel.lstrip("/"))
+    for name in os.listdir(data_dir):
+        if name.startswith(base + ".xrd"):
+            try:
+                os.unlink(os.path.join(data_dir, name))
+            except OSError:
+                pass
+
+
 # ===========================================================================
 # kXR_open flag semantics
 # ===========================================================================
@@ -448,8 +469,7 @@ class TestPoscLifecycle:
     def test_posc_clean_close_persists(self, wr_stack):
         rel = "/posc_clean.bin"
         final = _wr_full(wr_stack, rel)
-        if os.path.exists(final):
-            os.unlink(final)
+        _wr_clear_staging(wr_stack, rel)
         sock = _session(wr_stack["host"], wr_stack["port"])
         try:
             _, status, body = _open(sock, rel, kXR_new | kXR_posc)
@@ -474,8 +494,7 @@ class TestPoscLifecycle:
         is unlinked on session teardown."""
         rel = "/posc_aborted.bin"
         final = _wr_full(wr_stack, rel)
-        if os.path.exists(final):
-            os.unlink(final)
+        _wr_clear_staging(wr_stack, rel)
         data_dir = wr_stack["data_dir"]
         before = set(os.listdir(data_dir))
 

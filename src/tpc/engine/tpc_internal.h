@@ -31,10 +31,20 @@
  * it settles. tpc_open_resolve() honours that flow, bounded on every axis so a
  * source that never resolves fails cleanly instead of hanging the pull thread. */
 #define TPC_OPEN_RESOLVE_MAX_SEC   120  /* total wall-clock cap for the negotiation */
-#define TPC_OPEN_WAIT_CAP_SEC       15  /* clamp a single wait sleep AND the per-recv
-                                         * idle timeout during open resolution, so a
-                                         * silent (no-attn) source fails fast enough
-                                         * for the client's --tpc fallback to run */
+#define TPC_OPEN_WAIT_CAP_SEC       15  /* clamp the per-recv idle timeout during open
+                                         * resolution, so a silent (no-attn) source
+                                         * fails fast enough for the client's --tpc
+                                         * fallback to run */
+#define TPC_OPEN_WAIT_RETRY_SEC      1  /* how long to sleep before RESENDing an open
+                                         * after a kXR_wait. A real xrootd source can
+                                         * request a multi-second wait while the TPC
+                                         * grant is only briefly visible to our racing
+                                         * dest-open; sleeping the server's full hint
+                                         * (up to CAP_SEC) misses the window and the
+                                         * grant lapses ("tpc authorization expired").
+                                         * Stock XrdCl re-polls sub-second, so cap our
+                                         * retry sleep here (MAX_ITERS/MAX_SEC still
+                                         * bound the total) and re-poll while valid. */
 #define TPC_OPEN_RESOLVE_MAX_ITERS  16  /* max wait/waitresp/attn rounds */
 
 #define BRIX_TPC_REPLY_OPEN  1

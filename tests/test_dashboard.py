@@ -247,10 +247,17 @@ def _rows_for_path(snap, needle):
     ]
 
 
-def _wait_for_state(cookie, needle, predicate, timeout=20.0):
+def _wait_for_state(cookie, needle, predicate, timeout=45.0):
     """Poll the snapshot until a row matching `needle` and `predicate` is seen
     with idle_ms past the (short, test-config) stalled threshold; return its
-    state string, or None on timeout."""
+    state string, or None on timeout.
+
+    The budget is generous (45s) on purpose: under the -n8 fast lane the fleet's
+    dashboard/metrics refresh loop is CPU-starved, so idle_ms/avg_bps propagate
+    into the snapshot more slowly than the transfer's real timeline. The
+    throttled window itself is wide (avg_bps is a slowly-decaying lifetime rate),
+    so a longer poll only tolerates slow propagation — it does not relax WHAT is
+    asserted (still an exact 'throttled'/'stalled' state)."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         rows = _rows_for_path(_snapshot(cookie), needle)

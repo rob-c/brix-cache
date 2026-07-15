@@ -129,6 +129,21 @@ start_all_dedicated() {
     start_dedicated_nginx "s3-mpu" "nginx_s3-mpu.conf" "${S3_MPU_PORT:-22017}"
     NGINX_S3_PORT="${READONLY_HTTP_S3_PORT:-11217}" start_dedicated_nginx "readonly-http" "nginx_readonly-http.conf" "${READONLY_HTTP_DAV_PORT:-11216}"
     start_dedicated_nginx "xrdhttp-digest" "nginx_xrdhttp_digest.conf" "${XRDHTTP_DIGEST_PORT:-12988}"
+    # ZIP member-access instance (test_zip_member.py) — root:// + WebDAV + S3 over
+    # one export; the test seeds a.zip into data-zip and attaches (no self-start).
+    NGINX_HTTP_WEBDAV_PORT="${ZIP_HTTP_PORT:-21198}" NGINX_S3_PORT="${ZIP_S3_PORT:-21199}" \
+        start_dedicated_nginx "zip" "nginx_zip.conf" "${ZIP_STREAM_PORT:-21196}"
+    # Compression instance — brix_compress on over one export, two HTTP server
+    # blocks (WebDAV {PORT} + S3 {S3_PORT}). Consumed by test_compression_outbound
+    # + test_compression_negotiation_gaps (WebDAV) and test_compression_s3_outbound
+    # + test_compression_s3_chunked_codec (S3); each PUTs/GETs its own objects.
+    NGINX_S3_PORT="${COMPRESS_S3_PORT:-12961}" \
+        start_dedicated_nginx "compress" "nginx_compress.conf" "${COMPRESS_WEBDAV_PORT:-12960}"
+    # Differential-conformance pair (test_conf_*.py via official_interop_lib):
+    # our nginx-xrootd + a stock xrootd on a byte-identical deterministic tree.
+    # start_pair() attaches to these fixed ports + seeds; no per-module self-start.
+    start_dedicated_nginx "interop-our" "nginx_interop.conf" "${INTEROP_OUR_PORT:-21200}"
+    start_extra_ref_anon "interop-off" "${INTEROP_OFF_PORT:-21201}" "${TEST_ROOT}/data-interop-off"
 
     # --- Phase 36: IPv6 dedicated instances (all listen on [::1]) ---
     # Consumed by tests/test_ipv6_*.py; each gates on requires_ipv6_loopback and

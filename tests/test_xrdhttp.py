@@ -186,7 +186,8 @@ class TestXrdHttpChecksum:
 
     def test_crc32c_digest_header(self, xrd_file):
         """Success path: Digest: header with crc32c is returned when requested."""
-        import crc32c as _crc32c_mod
+        _crc32c_mod = pytest.importorskip(
+            "crc32c", reason="python crc32c module not installed to verify digest")
         r = requests.get(
             xrd_file["url"] + "?xrd.want.cksum=crc32c",
             headers={"X-Xrootd-Proto": "xroot"},

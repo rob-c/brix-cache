@@ -39,6 +39,22 @@ ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 PROXY_PEM = PROXY_STD
 
 
+def _pattern(size, mul, add=0):
+    """Deterministic test payload, byte-identical to
+    ``bytes((i * mul + add) & 0xFF for i in range(size))`` but built at C speed.
+
+    The old per-byte generator ran a Python loop of up to 20 million iterations
+    to build each payload. That CPU-bound work dominated these tests' runtime and,
+    under -n8 CPU contention from the rest of the fast lane, pushed the larger
+    cases past the 30s per-test timeout (they pass in isolation). The sequence
+    ``(add + i * mul) mod 256`` is periodic every 256 bytes -- ``256 * mul`` is a
+    multiple of 256 for any ``mul`` -- so one 256-byte period tiled to length
+    reproduces it exactly. Same bytes the integrity asserts check; no CPU loop.
+    """
+    period = bytes((add + i * mul) & 0xFF for i in range(256))
+    return (period * (size // 256 + 1))[:size]
+
+
 # ---------------------------------------------------------------------------
 # Helpers -- XRootD Python client (FileSystem handles login/auth)
 # ---------------------------------------------------------------------------
@@ -84,10 +100,17 @@ def _open_wr(url, remote):
 class TestAioRead:
     """Verify that large reads complete correctly via the AIO thread-pool."""
 
+    # These cases move 10-20 MiB over root:// end to end. They are correct but
+    # genuinely slow under the -n8 fast lane's CPU contention (they pass easily in
+    # isolation). Raising ONLY the per-test timeout ceiling from the 30s global
+    # default is a non-masking fix: it does not touch the integrity assertions,
+    # it just refuses to declare a slow-but-correct transfer a failure.
+    pytestmark = pytest.mark.timeout(120)
+
     def test_large_read_integrity(self):
         """A 10 MiB read must return identical data -- proves async pread works."""
         size = 10 * 1024 * 1024
-        content = bytes((i * 3 + 7) & 0xFF for i in range(size))
+        content = _pattern(size, 3, 7)
         _upload(ANON_URL, "aio-large.bin", content)
 
         result = _read_file(ANON_URL, "aio-large.bin")
@@ -97,7 +120,7 @@ class TestAioRead:
     def test_large_read_at_offset(self):
         """Reading a 10 MiB file at offset 5 MiB must return correct tail."""
         size = 10 * 1024 * 1024
-        content = bytes((i * 3 + 7) & 0xFF for i in range(size))
+        content = _pattern(size, 3, 7)
         _upload(ANON_URL, "aio-offset.bin", content)
 
         f = _open_rd(ANON_URL, "aio-offset.bin")
@@ -112,7 +135,7 @@ class TestAioRead:
     def test_large_read_multiple_chunks(self):
         """A 15 MiB file read in 3 chunks must produce identical total."""
         size = 15 * 1024 * 1024
-        content = bytes((i * 11 + 3) & 0xFF for i in range(size))
+        content = _pattern(size, 11, 3)
         _upload(ANON_URL, "aio-chunks.bin", content)
 
         f = _open_rd(ANON_URL, "aio-chunks.bin")
@@ -128,7 +151,7 @@ class TestAioRead:
     def test_large_read_md5(self):
         """A 15 MiB read must match the expected MD5 hash."""
         size = 15 * 1024 * 1024
-        content = bytes((i * 17 + 5) & 0xFF for i in range(size))
+        content = _pattern(size, 17, 5)
         _upload(ANON_URL, "aio-md5.bin", content)
 
         result = _read_file(ANON_URL, "aio-md5.bin")
@@ -142,10 +165,14 @@ class TestAioRead:
 class TestAioWrite:
     """Verify that large writes complete correctly via the AIO thread-pool."""
 
+    # Same rationale as TestAioRead: 10-20 MiB writes that are slow-but-correct
+    # under -n8 CPU contention. Raise only the timeout ceiling, never the asserts.
+    pytestmark = pytest.mark.timeout(120)
+
     def test_large_write_integrity(self):
         """Writing 10 MiB and reading back must produce identical data."""
         size = 10 * 1024 * 1024
-        content = bytes((i * 5 + 9) & 0xFF for i in range(size))
+        content = _pattern(size, 5, 9)
         _upload(ANON_URL, "aio-write.bin", content)
 
         result = _read_file(ANON_URL, "aio-write.bin")
@@ -155,8 +182,8 @@ class TestAioWrite:
     def test_large_write_at_offset(self):
         """Writing 2 MiB at offset 8 MiB in a 10 MiB file must not corrupt head."""
         total_size = 10 * 1024 * 1024
-        head = bytes((i * 3) & 0xFF for i in range(8 * 1024 * 1024))
-        tail_data = bytes((i * 7 + 1) & 0xFF for i in range(2 * 1024 * 1024))
+        head = _pattern(8 * 1024 * 1024, 3)
+        tail_data = _pattern(2 * 1024 * 1024, 7, 1)
 
         f = _open_wr(ANON_URL, "aio-write-offset.bin")
         status, _ = f.write(head)
@@ -173,7 +200,7 @@ class TestAioWrite:
     def test_large_write_multiple_chunks(self):
         """Writing 20 MiB in 5 chunks must produce identical file."""
         size = 20 * 1024 * 1024
-        content = bytes((i * 13 + 2) & 0xFF for i in range(size))
+        content = _pattern(size, 13, 2)
 
         f = _open_wr(ANON_URL, "aio-write-chunks.bin")
         chunk_size = 4 * 1024 * 1024
@@ -199,7 +226,7 @@ class TestAioReadV:
     def test_readv_multiple_segments(self):
         """readv of 4 non-contiguous segments must return correct data."""
         size = 10 * 1024 * 1024
-        content = bytes((i * 3 + 7) & 0xFF for i in range(size))
+        content = _pattern(size, 3, 7)
         _upload(ANON_URL, "aio-readv.bin", content)
 
         f = _open_rd(ANON_URL, "aio-readv.bin")
@@ -222,7 +249,7 @@ class TestAioReadV:
     def test_readv_max_segments(self):
         """readv with many segments must succeed."""
         size = 4 * 1024 * 1024
-        content = bytes((i * 5 + 1) & 0xFF for i in range(size))
+        content = _pattern(size, 5, 1)
         _upload(ANON_URL, "aio-readv-max.bin", content)
 
         f = _open_rd(ANON_URL, "aio-readv-max.bin")
@@ -263,7 +290,7 @@ class TestAioPgRead:
         page_size = 4096
         n_pages = 4
         size = page_size * n_pages
-        content = bytes((i * 7 + 3) & 0xFF for i in range(size))
+        content = _pattern(size, 7, 3)
         _upload(ANON_URL, "aio-pgread.bin", content)
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -349,7 +376,7 @@ class TestAioDestroyedGuard:
         serving other requests.
         """
         size = 10 * 1024 * 1024
-        content = bytes((i * 3 + 7) & 0xFF for i in range(size))
+        content = _pattern(size, 3, 7)
         _upload(ANON_URL, "aio-destroy.bin", content)
 
         # Open and start a large read on a raw socket (we control the lifecycle)

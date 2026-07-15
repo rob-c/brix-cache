@@ -100,15 +100,39 @@ def _nginx(conf, tmp_path, *args):
     )
 
 
+def _port_listening(port, timeout=0.3):
+    try:
+        with socket.create_connection((HOST, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def _serve(conf, tmp_path):
     assert _nginx(conf, tmp_path, "-t").returncode == 0
     assert _nginx(conf, tmp_path).returncode == 0
-    time.sleep(0.5)
+    # Poll for the listener instead of a fixed 0.5s sleep. Under the -n8 fast
+    # lane, a freshly forked nginx worker can take well over half a second to
+    # start accepting; firing the curl before then produced NO firefly datagrams
+    # ("assert 'start' in []"). Wait for a real TCP connect (up to ~15s) so the
+    # request always reaches a ready server.
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        if _port_listening(HTTP_PORT):
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"pmark nginx did not begin listening on {HTTP_PORT}")
 
 
 def _stop(conf, tmp_path):
     _nginx(conf, tmp_path, "-s", "stop")
-    time.sleep(0.3)
+    # Wait for the port to actually free so the next test's bind can't collide
+    # with a still-shutting-down worker under load (instead of a fixed sleep).
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if not _port_listening(HTTP_PORT, timeout=0.1):
+            return
+        time.sleep(0.05)
 
 
 def test_firefly_scitag_override(tmp_path):

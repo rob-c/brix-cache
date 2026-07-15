@@ -190,10 +190,16 @@ def xrdhttp_backend():
     """Use the suite-level XrdHttp reference server."""
     _require_curl()
     http_port = _get_xrdhttp_port()
-    result = subprocess.run(
-        ["curl", "-skf", f"https://{url_host(HOST)}:{http_port}/"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
-    )
+    try:
+        result = subprocess.run(
+            ["curl", "-skf", f"https://{url_host(HOST)}:{http_port}/"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        # A hung (vs. simply down) reference server blocks the readiness curl until
+        # its own timeout. Treat that identically to "not reachable" — a skip, not a
+        # setup ERROR — so a wedged reference peer never masquerades as a test failure.
+        pytest.skip(f"XrdHttp reference server hung/unresponsive at port {http_port}")
     if result.returncode != 0:
         pytest.skip(f"XrdHttp server not reachable at port {http_port}")
     yield XrdHttpBackend(port=http_port, url_base=f"https://{url_host(HOST)}:{http_port}")
@@ -354,7 +360,7 @@ class TestPROPFindCommon:
 class TestSSRFPolicy:
     """Security negative tests for SSRF policy on HTTP-TPC."""
 
-    def test_xrdhttp_rejects_loopback_source(self):
+    def test_xrdhttp_rejects_loopback_source(self, xrdhttp_backend):
         """XrdHttp should not allow accessing internal loopback resources via TPC."""
         port = _get_xrdhttp_port()
         url = f"https://{url_host(HOST)}:{port}/should-not-accept.txt"
@@ -489,7 +495,7 @@ class TestLargeFileTransfer:
 class TestAuthBoundaryErrors:
     """Tests for authentication error handling boundaries."""
 
-    def test_missing_tls_credentials_to_https(self):
+    def test_missing_tls_credentials_to_https(self, xrdhttp_backend):
         """HTTPS endpoint without client certs should still serve public resources."""
         port = _get_xrdhttp_port()
         url = f"https://{url_host(HOST)}:{port}/"
@@ -498,7 +504,7 @@ class TestAuthBoundaryErrors:
         result = _curl_no_cert("-s", "-o", "/dev/null", "-w", "%{http_code}", url)
         assert result.returncode == 0, "Basic HTTPS GET should succeed without client certs"
 
-    def test_invalid_tls_certificate_handling(self):
+    def test_invalid_tls_certificate_handling(self, xrdhttp_backend):
         """HTTPS endpoint should handle invalid certificate gracefully."""
         port = _get_xrdhttp_port()
         url = f"https://{url_host(HOST)}:{port}/"
