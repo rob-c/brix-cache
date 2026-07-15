@@ -29,9 +29,16 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
 
-_FNAME = f"_xrdfsweb_{os.getpid()}.bin"
+# List a dedicated per-pid subdirectory rather than the export root: the shared
+# fleet's DATA_ROOT accumulates thousands of files from other suites, and a
+# PROPFIND of the whole root overflows the native client's 8 MiB diagnostic body
+# cap (RC=52). A small owned subdir keeps the listing bounded and deterministic.
+_SUBDIR = f"_xrdfsweb_{os.getpid()}"
+_FNAME = "probe.bin"
 _PAYLOAD = os.urandom(4096)
 _WEB = f"http://{SERVER_HOST}:{NGINX_HTTP_WEBDAV_PORT}/"
+_LSDIR = f"/{_SUBDIR}"
+_RELPATH = f"{_SUBDIR}/{_FNAME}"
 
 
 def _port_up(host, port):
@@ -55,13 +62,16 @@ def xrdfs(): # noqa: D401
 
 @pytest.fixture(scope="module")
 def data_file(xrdfs):
-    os.makedirs(DATA_ROOT, exist_ok=True)
-    path = os.path.join(DATA_ROOT, _FNAME)
+    subdir = os.path.join(DATA_ROOT, _SUBDIR)
+    os.makedirs(subdir, exist_ok=True)
+    path = os.path.join(subdir, _FNAME)
     with open(path, "wb") as fh:
         fh.write(_PAYLOAD)
     yield _FNAME
     with contextlib.suppress(OSError):
         os.unlink(path)
+    with contextlib.suppress(OSError):
+        os.rmdir(subdir)
 
 
 def _run(*args):
@@ -70,21 +80,21 @@ def _run(*args):
 
 def test_web_scheme_is_accepted(data_file):
     """An https/http WebDAV URL no longer errors with 'scheme not supported'."""
-    r = _run(_WEB, "ls")
+    r = _run(_WEB, "ls", _LSDIR)
     assert "scheme not supported" not in (r.stdout + r.stderr)
     assert r.returncode == 0, r.stderr
 
 
 def test_web_ls_lists_file(data_file):
     """`xrdfs <webdav> ls` lists a known file in the export."""
-    r = _run(_WEB, "ls")
+    r = _run(_WEB, "ls", _LSDIR)
     assert r.returncode == 0, r.stderr
     assert _FNAME in r.stdout
 
 
 def test_web_ls_long(data_file):
     """`ls -l` prints the size and a dir/file flag column."""
-    r = _run(_WEB, "ls", "-l")
+    r = _run(_WEB, "ls", "-l", _LSDIR)
     assert r.returncode == 0, r.stderr
     line = next((ln for ln in r.stdout.splitlines() if _FNAME in ln), "")
     assert str(len(_PAYLOAD)) in line          # size present
@@ -93,7 +103,7 @@ def test_web_ls_long(data_file):
 
 def test_web_stat(data_file):
     """`stat` reports the size of a file over WebDAV."""
-    r = _run(_WEB, "stat", _FNAME)
+    r = _run(_WEB, "stat", _RELPATH)
     assert r.returncode == 0, r.stderr
     assert f"Size:   {len(_PAYLOAD)}" in r.stdout
     assert "Path:   " in r.stdout

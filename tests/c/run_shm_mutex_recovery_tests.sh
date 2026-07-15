@@ -30,7 +30,15 @@ INCS=(-I "${NGX_SRC}/src/core" -I "${NGX_SRC}/src/event"
       -I "${NGX_SRC}/src/event/modules" -I "${NGX_SRC}/src/os/unix"
       -I "${OBJS_DIR}" -I "${REPO}/src")
 
-cc -O -Wall "${INCS[@]}" -o "${BIN}" \
+# If the deployed objects were built with ThreadSanitizer (the fleet is sometimes
+# compiled -fsanitize=thread), they carry __tsan_* references that only resolve
+# against the tsan runtime. Detect that and link the unit test the same way.
+SAN_FLAGS=()
+if nm "${SHMTX_OBJ}" "${SHM_OBJ}" 2>/dev/null | grep -q '__tsan'; then
+    SAN_FLAGS=(-fsanitize=thread)
+fi
+
+cc -O -Wall "${SAN_FLAGS[@]}" "${INCS[@]}" -o "${BIN}" \
     "${HERE}/test_shm_mutex_recovery.c" "${SHM_OBJ}" "${SHMTX_OBJ}" -pthread
 
 "${BIN}"

@@ -34,8 +34,15 @@ _ref_launch() {  # _ref_launch <cfg> <log>
     : > "$log" 2>/dev/null; chown "$u" "$log" 2>/dev/null
     if [ -d "${PKI_DIR:-/nonexistent}" ]; then
         chmod a+rX "$PKI_DIR" "$PKI_DIR"/ca "$PKI_DIR"/server 2>/dev/null
-        chmod a+r  "$PKI_DIR"/server/hostkey.pem "$PKI_DIR"/server/hostcert.pem 2>/dev/null
+        # The public cert + CA chain may be world-readable.
+        chmod a+r  "$PKI_DIR"/server/hostcert.pem 2>/dev/null
         chmod a+r  "$PKI_DIR"/ca/*.pem 2>/dev/null
+        # The PRIVATE hostkey must NOT be group/world-readable: XrdHttp refuses a
+        # key with "excessive access rights" and fails HTTPS init. Give the -R
+        # user exclusive read (own + 0400) so xrootd-as-$u can read it while the
+        # root-owned nginx fleet still can (root ignores mode bits).
+        chown "$u" "$PKI_DIR"/server/hostkey.pem 2>/dev/null
+        chmod 0400 "$PKI_DIR"/server/hostkey.pem 2>/dev/null
     fi
     "$REF_BIN" -c "$cfg" -l "$log" -R "$u" -b >/dev/null 2>&1
 }

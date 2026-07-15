@@ -22,6 +22,8 @@ from pathlib import Path
 import pytest
 import requests
 
+from settings import TEST_ROOT
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX_BIN = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -108,51 +110,28 @@ def _read_all(sock, fhandle, total):
 
 
 @pytest.fixture(scope="module")
-def zipsrv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not built")
-    base = tmp_path_factory.mktemp("zipmember")
-    data, logs = base / "data", base / "logs"
-    data.mkdir(); logs.mkdir()
-    with zipfile.ZipFile(data / "a.zip", "w") as z:
-        z.writestr("stored.txt", STORED, compress_type=zipfile.ZIP_STORED)
-        zi = zipfile.ZipInfo("sub/defl.bin"); zi.compress_type = zipfile.ZIP_DEFLATED
-        z.writestr(zi, DEFL)
-    cfg = base / "nginx.conf"
-    cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
-        f"error_log {logs}/err.log info;\npid {base}/nginx.pid;\n"
-        "events { worker_connections 64; }\n"
-        f"stream {{ server {{ listen 127.0.0.1:{PORT}; brix_root on; "
-        f"brix_storage_backend posix:{data}; brix_auth none; brix_zip_access on; "
-        f"brix_access_log {logs}/access.log; }} }}\n"
-        "http {\n"
-        f"  server {{ listen 127.0.0.1:{HTTP_PORT};\n"
-        "    location / {\n"
-        "      brix_webdav on;\n"
-        f"      brix_storage_backend posix:{data};\n"
-        "      brix_webdav_auth none;\n"
-        "      brix_webdav_zip_access on;\n"
-        "    }\n  }\n"
-        f"  server {{ listen 127.0.0.1:{S3_PORT};\n"
-        "    location / {\n"
-        "      brix_s3 on;\n"
-        f"      brix_storage_backend posix:{data};\n"
-        f"      brix_s3_bucket {S3_BUCKET};\n"
-        "      brix_s3_zip_access on;\n"
-        "    }\n  }\n}\n")
-    _run(["bash", "-c", f"fuser -k {PORT}/tcp 2>/dev/null"])
-    proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg), "-p", str(base)],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if (not _wait_listen(PORT) or not _wait_listen(HTTP_PORT)
-            or not _wait_listen(S3_PORT)):
-        proc.terminate(); pytest.skip("zip nginx did not come up")
-    yield {"base": str(base), "data": str(data)}
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+def zipsrv():
+    """Attach to the fleet's dedicated "zip" instance (started once by
+    start_all_dedicated) and seed the a.zip corpus into its export.
+
+    The instance serves root://{PORT}, WebDAV/{HTTP_PORT} and S3/{S3_PORT} with
+    brix zip-member access enabled.  No per-test nginx is spun up: a fixed-port
+    self-start collides across xdist workers (and burns readiness budget on
+    failure).  Seeding a data file into the shared export is safe; starting a
+    server is the fleet's job."""
+    data = os.path.join(TEST_ROOT, "data-zip")
+    os.makedirs(data, exist_ok=True)
+    zpath = os.path.join(data, "a.zip")
+    if not os.path.exists(zpath):
+        with zipfile.ZipFile(zpath, "w") as z:
+            z.writestr("stored.txt", STORED, compress_type=zipfile.ZIP_STORED)
+            zi = zipfile.ZipInfo("sub/defl.bin")
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(zi, DEFL)
+    for p in (PORT, HTTP_PORT, S3_PORT):
+        if not _wait_listen(p):
+            pytest.skip(f"fleet zip instance not listening on {p}")
+    yield {"base": str(TEST_ROOT), "data": data}
 
 
 # ---- raw-wire tests: exercise the SERVER member path ----

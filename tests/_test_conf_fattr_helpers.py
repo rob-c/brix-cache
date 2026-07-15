@@ -212,15 +212,24 @@ def _make_pair_file(ctx, rel, payload=b""):
         os.makedirs(os.path.dirname(disk), exist_ok=True)
         with open(disk, "wb") as f:
             f.write(payload)
+    # The fleet stock server runs as `nobody`; harmonize (owner triad mirrored
+    # into group+other) so it can set/remove user.* xattrs on the seeded file as
+    # our root-run server can (setxattr needs write permission).
+    L.harmonize_perms(_our_disk(ctx, rel), _off_disk(ctx, rel))
 
 
 _counter = {"n": 0}
 
 
 def _scratch(ctx, payload=b"x", suffix="bin"):
-    """Allocate a unique scratch file present identically on both roots."""
+    """Allocate a unique scratch file present identically on both roots.
+
+    The name is tagged with the pytest-xdist worker id so that under
+    `-n8 --dist load` a concurrent worker's xattr writes never land on the same
+    file (which would inflate list-count / value differentials); the per-process
+    counter keeps successive scratch files within a worker distinct."""
     _counter["n"] += 1
-    rel = f"/fa_scratch_{_counter['n']:04d}.{suffix}"
+    rel = f"/fa_scratch_{L.worker_tag()}_{_counter['n']:04d}.{suffix}"
     _make_pair_file(ctx, rel, payload)
     return rel
 

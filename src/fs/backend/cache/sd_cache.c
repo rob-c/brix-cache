@@ -70,7 +70,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
      * vtable can differ from the instance's — dispatching object ops through the
      * instance vtable reinterprets a foreign object state (type confusion). */
     if (so->driver->pread == NULL) {
-        if (so->driver->close != NULL) { so->driver->close(so); }
+        brix_sd_obj_release(so);
         errno = ENOSYS;
         return NGX_ERROR;
     }
@@ -96,7 +96,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     fmode = S_IRUSR | S_IWUSR;          /* 0600 — svc-owned cache artifact */
 
     if (!sd_cache_admit(&st->policy, key, snap.size)) {
-        so->driver->close(so);
+        brix_sd_obj_release(so);
         return NGX_DECLINED;            /* too big / filtered - do not cache */
     }
 
@@ -105,13 +105,13 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         ngx_log_error(NGX_LOG_WARN, st->log, errno,
             "sd_cache: fill_open on the cache store failed for \"%s\" - not cached",
             key);
-        so->driver->close(so);
+        brix_sd_obj_release(so);
         return NGX_ERROR;
     }
     buf = malloc(SD_CACHE_CHUNK);
     if (buf == NULL) {
         brix_cstore_fill_abort(staged);
-        so->driver->close(so);
+        brix_sd_obj_release(so);
         errno = ENOMEM;
         return NGX_ERROR;
     }
@@ -127,7 +127,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
             }
             free(buf);
             brix_cstore_fill_abort(staged);
-            so->driver->close(so);
+            brix_sd_obj_release(so);
             if (sd_cache_stale_serve_ok(st, key)) {
                 return NGX_OK;          /* bounded stale-if-error (phase-68) */
             }
@@ -146,7 +146,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         if (brix_cstore_fill_write(staged, buf, (size_t) r, off) < 0) {
             free(buf);
             brix_cstore_fill_abort(staged);
-            so->driver->close(so);
+            brix_sd_obj_release(so);
             return NGX_ERROR;
         }
         off += r;
@@ -155,7 +155,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
         }
     }
     free(buf);
-    so->driver->close(so);
+    brix_sd_obj_release(so);
 
     /* phase-68: digest-verify the staged bytes BEFORE the commit publishes
      * them (cvmfs-cas: the key names its own sha1 — no origin digest). A
@@ -762,9 +762,7 @@ sd_cache_close(brix_sd_obj_t *obj)
     sd_cache_partial_t *p = (obj != NULL) ? obj->state : NULL;
 
     if (p != NULL) {
-        if (p->src_obj != NULL && p->src_obj->driver->close != NULL) {
-            p->src_obj->driver->close(p->src_obj);   /* object's own vtable */
-        }
+        brix_sd_obj_release(p->src_obj);   /* close + free heap shell if any */
         if (p->cache_fd >= 0) {
             (void) close(p->cache_fd);
         }

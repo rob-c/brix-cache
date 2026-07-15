@@ -226,7 +226,7 @@ def test_presigned_url_get_succeeds(s3_auth_instance):
     content = b"presigned-url-ok"
     _put_object_file(s3_auth_instance, key, content)
 
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
     url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
 
     r = requests.get(url, timeout=10)
@@ -238,7 +238,7 @@ def test_presigned_url_expired_returns_403(s3_auth_instance):
     key = "presigned/expired.txt"
     _put_object_file(s3_auth_instance, key, b"expired")
 
-    old = dt.datetime.now(dt.UTC).replace(microsecond=0) - dt.timedelta(minutes=5)
+    old = dt.datetime.now(dt.timezone.utc).replace(microsecond=0) - dt.timedelta(minutes=5)
     url = _presigned_get_url(
         s3_auth_instance["base"], key, request_time=old, expires=1
     )
@@ -252,7 +252,7 @@ def test_presigned_url_future_skew_returns_403(s3_auth_instance):
     _put_object_file(s3_auth_instance, key, b"future-skew")
 
     future = (
-        dt.datetime.now(dt.UTC).replace(microsecond=0)
+        dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         + dt.timedelta(hours=1)
     )
     url = _presigned_get_url(s3_auth_instance["base"], key, request_time=future)
@@ -266,7 +266,7 @@ def test_presigned_url_bad_signature_returns_403(s3_auth_instance):
     key = "presigned/bad-signature.txt"
     _put_object_file(s3_auth_instance, key, b"bad-signature")
 
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
     url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
     url = url[:-1] + ("0" if url[-1] != "0" else "1")
 
@@ -279,7 +279,7 @@ def test_sigv4_header_auth_still_works(s3_auth_instance):
     content = b"header-auth-ok"
     _put_object_file(s3_auth_instance, key, content)
 
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
     url = f"{s3_auth_instance['base']}/{BUCKET}/{key}"
     r = requests.get(url, headers=_header_auth(s3_auth_instance["base"], key, now),
                      timeout=10)
@@ -293,7 +293,7 @@ def test_sigv4_header_auth_future_skew_returns_403(s3_auth_instance):
     _put_object_file(s3_auth_instance, key, b"header-future-skew")
 
     future = (
-        dt.datetime.now(dt.UTC).replace(microsecond=0)
+        dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         + dt.timedelta(hours=1)
     )
     url = f"{s3_auth_instance['base']}/{BUCKET}/{key}"
@@ -310,7 +310,7 @@ def test_sigv4_header_auth_future_skew_returns_403(s3_auth_instance):
 def test_post_object_signed_policy_succeeds(s3_auth_instance):
     key = "post-policy/success.txt"
     content = b"signed-post-policy-ok"
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
 
     r = requests.post(
         f"{s3_auth_instance['base']}/{BUCKET}/",
@@ -332,7 +332,7 @@ def test_post_object_signed_policy_succeeds(s3_auth_instance):
 def test_post_object_signed_policy_content_type_field_succeeds(s3_auth_instance):
     key = "post-policy/content-type.txt"
     content = b"signed-post-content-type-ok"
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
 
     r = requests.post(
         f"{s3_auth_instance['base']}/{BUCKET}/",
@@ -356,7 +356,7 @@ def test_post_object_signed_policy_content_type_field_succeeds(s3_auth_instance)
 def test_post_object_signed_policy_bad_signature_rejected(s3_auth_instance):
     key = "post-policy/bad-signature.txt"
     content = b"bad-signature"
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
 
     r = requests.post(
         f"{s3_auth_instance['base']}/{BUCKET}/",
@@ -373,7 +373,7 @@ def test_post_object_signed_policy_bad_signature_rejected(s3_auth_instance):
 def test_post_object_signed_policy_condition_rejected(s3_auth_instance):
     key = "post-policy/condition-target.txt"
     content = b"condition-mismatch"
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
 
     r = requests.post(
         f"{s3_auth_instance['base']}/{BUCKET}/",
@@ -394,7 +394,7 @@ def test_session_token_rejected_by_default(s3_auth_instance):
     key = "sts/default-reject.txt"
     _put_object_file(s3_auth_instance, key, b"sts-default-reject")
 
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
     url = f"{s3_auth_instance['base']}/{BUCKET}/{key}"
     r = requests.get(
         url,
@@ -415,7 +415,7 @@ def test_session_token_header_allowed_with_static_secret(s3_auth_sts_instance):
     content = b"sts-header-allowed"
     _put_object_file(s3_auth_sts_instance, key, content)
 
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
     url = f"{s3_auth_sts_instance['base']}/{BUCKET}/{key}"
     r = requests.get(
         url,
@@ -437,7 +437,7 @@ def test_session_token_presigned_allowed_with_static_secret(s3_auth_sts_instance
     content = b"sts-presigned-allowed"
     _put_object_file(s3_auth_sts_instance, key, content)
 
-    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
     url = _presigned_get_url(
         s3_auth_sts_instance["base"],
         key,

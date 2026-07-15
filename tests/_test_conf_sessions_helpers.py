@@ -60,8 +60,13 @@ pytestmark = [pytest.mark.timeout(360),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
 
-OUR_PORT = L.worker_port(14046)
-OFF_PORT = L.worker_port(14047)
+# Raw-socket modules connect to these ports DIRECTLY (not via ctx["our"/"off"]
+# urls), so they must be the live fleet ports. worker_port() is a dead leftover
+# from the retired self-provisioning era (it shifts into a per-worker band that
+# no server listens on → ConnectionRefused); the fleet-attach model serves every
+# worker from the one fixed pair, exactly like the ctx-based conf modules.
+OUR_PORT = L.FLEET_OUR_PORT
+OFF_PORT = L.FLEET_OFF_PORT
 BIND = "127.0.0.1"
 
 # opcodes

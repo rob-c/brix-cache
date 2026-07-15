@@ -4,8 +4,10 @@ from _test_conf_client2_helpers import *  # noqa: F401,F403  (Phase-38 split sha
 # OUR xrdfs ls — name-set parity with the stock client on the stock server     #
 # =========================================================================== #
 @pytest.mark.parametrize("path,expect", [
-    ("/", {"hello.txt", "data.bin", "sub", "many", "deep", "cksum.bin",
-           "empty.txt", "empty_dir", "big1m.bin", "with space.txt"}),
+    # '/' is SHARED and concurrent xdist workers pollute its listing under -n8,
+    # so the full-set case enumerates a per-worker isolated dir (resolved in the
+    # body); the stable node id keeps xdist collection consistent.
+    pytest.param(L.LISTING_ROOT_SENTINEL, L.LISTING_ROOT_ENTRIES, id="listing_root"),
     ("/sub", {"nested.txt"}),
     ("/many", {f"f{i:02d}.txt" for i in range(12)}),
     ("/deep", {"a"}),
@@ -13,6 +15,8 @@ from _test_conf_client2_helpers import *  # noqa: F401,F403  (Phase-38 split sha
     ("/empty_dir", set()),
 ])
 def test_ls_nameset_matches_stock_client(srv, path, expect):
+    if path == L.LISTING_ROOT_SENTINEL:
+        path = L.ensure_listing_root(srv)
     orc, oout, oerr = ourfs(srv["off"], "ls", path)
     frc, fout, ferr = fs(srv["off"], "ls", path)
     assert orc == 0 and frc == 0, \
@@ -71,12 +75,13 @@ def test_ls_long_size_column_value_parity(srv):
 
 
 def test_ls_recursive_leaf_set_matches_stock(srv):
-    orc, oout, _ = ourfs(srv["off"], "ls", "-R", "/")
-    frc, fout, _ = fs(srv["off"], "ls", "-R", "/")
+    # Recurse a per-worker isolated dir, not the shared '/' (whose recursive
+    # listing a concurrent worker's transient files would perturb under -n8).
+    lroot = L.ensure_listing_root(srv)
+    orc, oout, _ = ourfs(srv["off"], "ls", "-R", lroot)
+    frc, fout, _ = fs(srv["off"], "ls", "-R", lroot)
     assert orc == 0 and frc == 0, "ls -R should succeed on both clients"
-    leaves = {"hello.txt", "nested.txt", "leaf.txt", "data.bin", "cksum.bin",
-              "big1m.bin", "empty.txt"}
-    leaves |= {f"f{i:02d}.txt" for i in range(12)}
+    leaves = set(L.LISTING_ROOT_FILES) | {"leaf.txt"}   # files + the subdir leaf
     our, off = _names(oout), _names(fout)
     assert leaves <= our, f"OUR ls -R missing {leaves - our}"
     assert leaves <= off, f"stock ls -R missing {leaves - off}"

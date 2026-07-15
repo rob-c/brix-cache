@@ -47,8 +47,10 @@ pytestmark = [pytest.mark.timeout(240),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
 
-OUR_PORT = L.worker_port(14024)
-OFF_PORT = L.worker_port(14025)
+# Raw-socket connections go straight to these ports, so they must be the live
+# fleet pair (worker_port() shifts into an unbound per-worker band → refused).
+OUR_PORT = L.FLEET_OUR_PORT
+OFF_PORT = L.FLEET_OFF_PORT
 BIND = "127.0.0.1"
 
 # opcodes / status
@@ -342,6 +344,10 @@ def _seed_pair(srv, our_w, off_w, payload=b""):
         f.write(payload)
     with open(off_disk(srv, off_w), "wb") as f:
         f.write(payload)
+    # The fleet stock server runs as `nobody`; harmonize the seeded files (owner
+    # triad mirrored into group+other) so it can truncate/overwrite them exactly
+    # as our root-run server can, and so their stat flags agree.
+    L.harmonize_perms(our_disk(srv, our_w), off_disk(srv, off_w))
 
 
 @pytest.mark.parametrize("idx", range(6))

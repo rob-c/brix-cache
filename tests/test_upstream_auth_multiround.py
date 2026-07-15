@@ -180,6 +180,13 @@ def redirector(tmp_path):
     token.write_text("eyJhbGciOiJSUzI1NiJ9.multiround.sig\n")
     data = tmp_path / "data"
     data.mkdir()
+    # nginx master runs as root here, so the worker drops to the built-in
+    # 'nobody' user; the checkpoint-recovery lock is written INTO the export, so
+    # the export must be writable by that worker (the fleet exports are 0777 for
+    # the same reason). Without this the worker fails the lock with EACCES and
+    # exits fatally — the master still holds the listen socket (so _wait_listen
+    # passes) but no worker answers, and the client handshake times out.
+    data.chmod(0o777)
     cfg = tmp_path / "redir.conf"
     cfg.write_text(
         "daemon off;\nworker_processes 1;\n"

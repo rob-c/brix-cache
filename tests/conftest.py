@@ -113,6 +113,75 @@ def _ensure_client_x509_env():
         return
     os.environ.setdefault("X509_CERT_DIR", CA_DIR)
     os.environ.setdefault("X509_USER_PROXY", PROXY_STD)
+    # Publish LARGE_FILE_MD5 from the sidecar the controller wrote when seeding
+    # the shared export (attach mode) — so xdist workers get it without
+    # re-hashing 200 MiB.  No-op when own-fleet setup already set it.
+    if "LARGE_FILE_MD5" not in os.environ:
+        side = os.path.join(DATA_ROOT, ".large200.md5")
+        try:
+            with open(side) as f:
+                os.environ["LARGE_FILE_MD5"] = f.read().strip()
+        except OSError:
+            pass
+
+
+def _seed_canonical_data():
+    """Idempotently place the canonical seed files in the shared export.
+
+    Own-fleet setup wipes + seeds DATA_ROOT; attach mode (an external fleet owns
+    the lifecycle) skips that, and neither manage_test_servers.sh nor the fleet
+    seeds the MAIN export — so test.txt / random.bin / large200.bin can be absent
+    (and a canonical file another test deleted is never restored), which fails
+    every read / GSI / large-file test that expects them.  Runs on the xdist
+    controller only, before workers spawn, so it needs no lock; each file is
+    (re)created only when missing or the wrong size.  The large-file MD5 is
+    written to a sidecar so worker processes publish LARGE_FILE_MD5 cheaply
+    (see _ensure_client_x509_env)."""
+    import hashlib as _hashlib
+
+    os.makedirs(DATA_ROOT, exist_ok=True)
+
+    tp = os.path.join(DATA_ROOT, "test.txt")
+    if not os.path.exists(tp):
+        with open(tp, "wb") as f:
+            f.write(b"hello from nginx-xrootd\n")
+
+    rp = os.path.join(DATA_ROOT, "random.bin")
+    if not os.path.exists(rp) or os.path.getsize(rp) != 5242880:
+        with open(rp, "wb") as f:
+            f.write(random.randbytes(5242880))
+
+    size = 200 * 1024 * 1024
+    lp = os.path.join(DATA_ROOT, "large200.bin")
+    side = os.path.join(DATA_ROOT, ".large200.md5")
+    if not os.path.exists(lp) or os.path.getsize(lp) != size:
+        h = _hashlib.md5()
+        rng = random.Random(int(os.environ.get("LARGE_FILE_SEED", "42")))
+        with open(lp, "wb") as f:
+            remaining = size
+            while remaining > 0:
+                n = min(16 * 1024 * 1024, remaining)
+                chunk = rng.randbytes(n)
+                f.write(chunk)
+                h.update(chunk)
+                remaining -= n
+        digest = h.hexdigest()
+    elif os.path.exists(side):
+        with open(side) as f:
+            digest = f.read().strip()
+    else:
+        h = _hashlib.md5()
+        with open(lp, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        digest = h.hexdigest()
+
+    os.environ["LARGE_FILE_MD5"] = digest
+    try:
+        with open(side, "w") as f:
+            f.write(digest)
+    except OSError:
+        pass
 
 
 def _check_server_reachable(host: str, port: int, timeout: float = 5.0) -> bool:
@@ -475,6 +544,13 @@ def pytest_sessionstart(session):
         # lane-2 retry-ladder GSI failures: the --lf rerun attaches to the prior
         # attempt's not-yet-stopped fleet.  Set the client env even when attaching.
         _ensure_client_x509_env()
+        # Attach mode also skips _setup_session's seeding of the shared export, so
+        # the fleet's main DATA_ROOT lacks the canonical test.txt / random.bin /
+        # large200.bin.  Seed them here (controller only, before workers dispatch)
+        # so read/GSI/large-file tests find their fixtures.  Not for a remote
+        # fleet, whose data lives on the server.
+        if _external_fleet_attached() and not REMOTE_SERVER:
+            _seed_canonical_data()
         return
     _setup_session()
 
@@ -552,6 +628,21 @@ def pytest_collection_modifyitems(config, items):
         # The <5min PR gate runs `-m "not slow"`; --nightly runs the slow set.
         if _is_slow_module(name):
             item.add_marker(pytest.mark.slow)
+
+        # The multi-user impersonation suite (test_mu_*) is privileged AND binds a
+        # fixed-port paired fleet, so it can run neither unprivileged nor in
+        # parallel: its mu_fleet/cast fixtures pytest.skip() without root, and
+        # under xdist every worker would collide on the same MU ports (bind:
+        # address already in use -> the fleet nginx exits 1 -> ~180 setup errors).
+        # It is meant to run only via its dedicated serial harness
+        # (tests/run_multiuser_authz.sh, under sudo, which selects test_mu_*.py by
+        # name and does NOT filter on `serial`). Auto-mark it `serial` so the
+        # parallel fast lane (`-m "not slow and not serial"`) excludes it cleanly;
+        # the dedicated runner is unaffected. Same for any privileged/leak test.
+        if (name.startswith("test_mu_")
+                or item.get_closest_marker("privileged")
+                or item.get_closest_marker("leak")):
+            item.add_marker(pytest.mark.serial)
 
         if item.get_closest_marker("requires_local_server") and REMOTE_SERVER:
             item.add_marker(

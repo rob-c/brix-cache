@@ -516,6 +516,23 @@ webdav_put_body_inner(ngx_http_request_t *r)
                     return;
                 }
                 put_codec = d->id;
+
+                /* A non-identity Content-Encoding declares the body IS an encoded
+                 * stream, but no codec emits a zero-byte stream (gzip/zstd/… all
+                 * carry a header/trailer). An empty body with a real codec is
+                 * therefore malformed — reject it (same contract as a truncated
+                 * stream) instead of storing a spurious empty object. */
+                if (put_codec != BRIX_CODEC_IDENTITY
+                    && !body_summary.has_spooled && body_summary.bytes == 0)
+                {
+                    brix_dashboard_http_error(r,
+                        "webdav PUT empty body with Content-Encoding");
+                    brix_dashboard_http_finish(r);
+                    brix_vfs_staged_abort(staged, 1);
+                    webdav_metrics_finalize_request(r,
+                        NGX_HTTP_UNSUPPORTED_MEDIA_TYPE);
+                    return;
+                }
             }
         }
 

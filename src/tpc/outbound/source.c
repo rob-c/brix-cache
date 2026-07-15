@@ -82,9 +82,10 @@ tpc_open_resolve(brix_tpc_pull_t *t, int fd,
             return -1;
         }
 
-        /* kXR_wait: sleep the (clamped) retry-after, then resend the open. */
+        /* kXR_wait: sleep a short retry-poll interval (NOT the source's full wait
+         * hint — that lapses the briefly-visible TPC grant), then resend. */
         if (st == kXR_wait) {
-            uint32_t secs = xrd_wait_secs_parse(b, dl, 1, TPC_OPEN_WAIT_CAP_SEC);
+            uint32_t secs = xrd_wait_secs_parse(b, dl, 1, TPC_OPEN_WAIT_RETRY_SEC);
 
             free(b);
             sleep((unsigned) secs);
@@ -147,7 +148,7 @@ tpc_open_resolve(brix_tpc_pull_t *t, int fd,
             /* A deferred reply that is itself a wait folds back into the loop. */
             if (est == kXR_wait) {
                 uint32_t secs = xrd_wait_secs_parse(ebody, edlen, 1,
-                                                    TPC_OPEN_WAIT_CAP_SEC);
+                                                    TPC_OPEN_WAIT_RETRY_SEC);
                 free(ebody);
                 sleep((unsigned) secs);
                 if (tpc_send_all(t, fd, open_buf, send_len) != 0) {

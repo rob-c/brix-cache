@@ -223,7 +223,7 @@ stage_engine_move(brix_sd_instance_t *src, const char *src_key,
 
     ds = dst->driver->staged_open(dst, dst_key, mode, &oerr);
     if (ds == NULL) {
-        src->driver->close(so);
+        brix_sd_obj_release(so);
         *err_out = oerr ? oerr : EIO;
         ngx_log_error(NGX_LOG_ERR, dst->log, *err_out,
             "stage move: dest staged_open failed (%s key=\"%s\")",
@@ -234,7 +234,7 @@ stage_engine_move(brix_sd_instance_t *src, const char *src_key,
     buf = malloc(STAGE_ENGINE_CHUNK);
     if (buf == NULL) {
         dst->driver->staged_abort(ds);
-        src->driver->close(so);
+        brix_sd_obj_release(so);
         *err_out = ENOMEM;
         return BRIX_XFER_DST_ERR;
     }
@@ -252,7 +252,7 @@ stage_engine_move(brix_sd_instance_t *src, const char *src_key,
                 off, src->driver->name, src_key);
             free(buf);
             dst->driver->staged_abort(ds);
-            src->driver->close(so);
+            brix_sd_obj_release(so);
             *err_out = oerr;
             return BRIX_XFER_SRC_ERR;
         }
@@ -266,7 +266,7 @@ stage_engine_move(brix_sd_instance_t *src, const char *src_key,
                 off, dst->driver->name, dst_key);
             free(buf);
             dst->driver->staged_abort(ds);
-            src->driver->close(so);
+            brix_sd_obj_release(so);
             *err_out = oerr;
             return BRIX_XFER_DST_ERR;
         }
@@ -274,7 +274,7 @@ stage_engine_move(brix_sd_instance_t *src, const char *src_key,
     }
 
     free(buf);
-    src->driver->close(so);
+    brix_sd_obj_release(so);
 
     if (dst->driver->staged_commit(ds, 0) != NGX_OK) {
         oerr = errno ? errno : EIO;
