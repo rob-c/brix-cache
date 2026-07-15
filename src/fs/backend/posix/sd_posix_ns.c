@@ -321,9 +321,18 @@ sd_posix_staged_open(brix_sd_instance_t *inst, const char *final_path,
     sd_posix_staged_t  *ps;
     char                abspath[PATH_MAX];
 
-    handle = ngx_pcalloc(inst->pool, sizeof(*handle));
-    ps = ngx_pcalloc(inst->pool, sizeof(*ps));
+    /* Allocate the staged handle on the heap (ngx_calloc), NOT from inst->pool.
+     * staged_open runs in a cache-fill thread-pool thread (brix_cache_fill_*),
+     * but inst->pool is the shared, thread-UNSAFE backend pool the main thread
+     * also allocates from (sd_posix_open/opendir). Concurrent fills racing on
+     * inst->pool corrupt its `last` pointer -> a bad allocation whose memzero
+     * SIGSEGVs. The handle + ps are freed explicitly in staged_commit /
+     * staged_abort (the terminal ops — the driver vtable has no close). */
+    handle = ngx_calloc(sizeof(*handle), inst->log);
+    ps = ngx_calloc(sizeof(*ps), inst->log);
     if (handle == NULL || ps == NULL) {
+        if (handle != NULL) { ngx_free(handle); }
+        if (ps != NULL) { ngx_free(ps); }
         if (err_out != NULL) { *err_out = ENOMEM; }
         return NULL;
     }
@@ -335,6 +344,8 @@ sd_posix_staged_open(brix_sd_instance_t *inst, const char *final_path,
     if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
                           st->root_canon, final_path) >= sizeof(abspath))
     {
+        ngx_free(handle);
+        ngx_free(ps);
         if (err_out != NULL) { *err_out = ENAMETOOLONG; }
         return NULL;
     }
@@ -348,6 +359,8 @@ sd_posix_staged_open(brix_sd_instance_t *inst, const char *final_path,
             .attempts   = 8,
         };
         if (brix_staged_open(inst->log, &oreq, &ps->staged) != NGX_OK) {
+            ngx_free(handle);
+            ngx_free(ps);
             if (err_out != NULL) { *err_out = errno; }
             return NULL;
         }
@@ -377,12 +390,17 @@ sd_posix_staged_commit(brix_sd_staged_t *st, int noreplace)
 {
     sd_posix_staged_t *ps = st->state;
     sd_posix_state_t  *inst_st = st->inst->state;
+    ngx_int_t          rc;
 
-    return noreplace
+    rc = noreplace
         ? brix_staged_commit_excl(st->inst->log, inst_st->root_canon,
                                     &ps->staged, ps->final_path)
         : brix_staged_commit(st->inst->log, inst_st->root_canon,
                                &ps->staged, ps->final_path);
+    /* Terminal op — release the heap-allocated handle (see staged_open). */
+    ngx_free(ps);
+    ngx_free(st);
+    return rc;
 }
 
 void
@@ -392,6 +410,9 @@ sd_posix_staged_abort(brix_sd_staged_t *st)
     sd_posix_state_t  *inst_st = st->inst->state;
 
     brix_staged_abort(st->inst->log, inst_st->root_canon, &ps->staged, 1);
+    /* Terminal op — release the heap-allocated handle (see staged_open). */
+    ngx_free(ps);
+    ngx_free(st);
 }
 
 /* Physical staged-temp path — lets the cache tier digest-verify a fill (and

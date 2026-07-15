@@ -2,10 +2,12 @@
 Phase-42 W2 — outbound (GET) response compression on the S3 surface.
 
 Exercises the `brix_compress` directive added this phase (without it, S3
-GetObject compression is dead config).  Self-contained: launches its OWN minimal
-S3 nginx (anonymous, allow_write, compress on) using the project binary, so it
-doesn't perturb the shared harness (where global compression would make every GET
-chunked and break Content-Length assertions in other S3 tests).
+GetObject compression is dead config).  Attaches to the fleet's dedicated
+"compress" instance (S3 surface: anonymous, allow_write, compress on) started once
+by start_all_dedicated, rather than launching its own nginx: a fixed-port
+self-start collides across pytest-xdist workers, and the shared harness's default
+S3 port cannot be reused because global compression would make every GET chunked
+and break Content-Length assertions in other S3 tests.
 
 For each codec the server can emit: PUT an object uncompressed, GET it advertising
 ONLY that codec, and assert the response carries `Content-Encoding: <token>` +
@@ -19,7 +21,6 @@ import gzip
 import lzma
 import os
 import shutil
-import socket
 import subprocess
 import time
 import uuid
@@ -29,85 +30,34 @@ import pytest
 import requests
 import urllib3
 
-from settings import NGINX_BIN
-
 urllib3.disable_warnings()
 
-WORK = os.path.join(os.environ["TMPDIR"], "xrd-cmp-s3out")
 BUCKET = "testbucket"
+# Fixed port of the fleet "compress" instance S3 surface (see
+# tests/lib/dedicated.sh -> start_all_dedicated + tests/configs/nginx_compress.conf).
+COMPRESS_S3_PORT = int(os.environ.get("TEST_COMPRESS_S3_PORT", "12961"))
+BASE_URL = f"http://127.0.0.1:{COMPRESS_S3_PORT}"
 _POOL = urllib3.PoolManager()
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _write_conf(prefix, port, data_dir):
-    conf = f"""
-worker_processes 1;
-error_log {prefix}/error.log info;
-pid {prefix}/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_max_body_size 256m;
-    server {{
-        listen {port};
-        server_name localhost;
-        location / {{
-            brix_s3            on;
-            brix_storage_backend       posix:{data_dir};
-            brix_s3_bucket     {BUCKET};
-            brix_allow_write on;
-            brix_compress   on;
-        }}
-    }}
-}}
-"""
-    path = os.path.join(prefix, "nginx.conf")
-    with open(path, "w") as fh:
-        fh.write(conf)
-    return path
+def _wait_listen(url, tries=50):
+    for _ in range(tries):
+        try:
+            requests.get(url, timeout=1)
+            return True
+        except Exception:
+            time.sleep(0.1)
+    return False
 
 
 @pytest.fixture(scope="module")
 def base():
-    if not os.path.isfile(NGINX_BIN) or not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not available: {NGINX_BIN}")
-    shutil.rmtree(WORK, ignore_errors=True)
-    data = os.path.join(WORK, "data")
-    os.makedirs(data, exist_ok=True)
-    os.makedirs(os.path.join(WORK, "logs"), exist_ok=True)
-    port = _free_port()
-    conf = _write_conf(WORK, port, data)
-
-    chk = subprocess.run([NGINX_BIN, "-p", WORK, "-c", conf, "-t"],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"standalone S3 nginx config rejected:\n{chk.stderr}")
-    proc = subprocess.Popen([NGINX_BIN, "-p", WORK, "-c", conf, "-g", "daemon off;"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    url = f"http://127.0.0.1:{port}"
-    for _ in range(50):
-        try:
-            requests.get(url, timeout=1)
-            break
-        except Exception:
-            time.sleep(0.1)
-    else:
-        proc.terminate()
-        pytest.fail("standalone S3 nginx did not come up")
-    yield url
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
-    shutil.rmtree(WORK, ignore_errors=True)
+    """Attach to the fleet "compress" S3 surface; skip cleanly if it is down. The
+    tests PUT and GET their own uuid-named objects, so no seeding is needed."""
+    if not _wait_listen(BASE_URL):
+        pytest.skip(
+            f"fleet compress instance not listening on {COMPRESS_S3_PORT}")
+    yield BASE_URL
 
 
 def _decompress_cli(tool, args, data):
@@ -151,6 +101,12 @@ CODECS = {
     "xz": d_xz, "br": d_brotli, "bzip2": d_bzip2, "lz4": d_lz4,
 }
 
+# zstd + lz4 are compile-gated OPTIONAL extensions (-DBRIX_HAVE_ZSTD / -DBRIX_HAVE_LZ4).
+# A server built without libzstd/liblz4 dev headers registers them with available=0
+# and emits identity for those tokens. Skip (not fail) the optional case then;
+# mandatory codecs (gzip/deflate/xz/br/bzip2) are always asserted in full.
+OPTIONAL_CODECS = {"zstd", "lz4"}
+
 
 def _payload(n=200_000):
     return (b"the quick brown fox jumps over the lazy dog 0123456789\n"
@@ -187,6 +143,10 @@ def test_s3_get_compressed_roundtrip(base, token):
         r = _raw_get(base, path, {"Accept-Encoding": token})
         assert r.status == 200, f"{token} GET status {r.status}"
         enc = r.headers.get("Content-Encoding", "")
+        if not enc and token in OPTIONAL_CODECS:
+            pytest.skip(
+                f"server build lacks optional codec '{token}' "
+                f"(returned identity for a compressible payload)")
         assert enc.lower() == token, f"{token}: Content-Encoding={enc!r}"
         raw = r.data
         assert len(raw) < len(data), f"{token}: not smaller ({len(raw)})"

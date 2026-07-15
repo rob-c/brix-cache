@@ -246,11 +246,20 @@ def test_ls_basename_set_matches(srv, path):
 # ls root — the stable baseline tree is a subset on both, no leaked artifacts
 # =========================================================================== #
 def test_ls_root_matches(srv):
-    our = _ls_set(fs(srv["our"], "ls", "/")[1])
-    off = _ls_set(fs(srv["off"], "ls", "/")[1])
-    assert our == off, f"ls / divergence: ours={our} stock={off}"
-    assert not any(n.startswith(".nginx-xrootd") for n in our), \
-        f"our server leaks an internal artifact into the namespace: {our}"
+    # Full our-vs-stock set equality runs against a per-worker isolated dir: the
+    # shared export '/' is polluted by concurrent xdist workers under -n8.
+    lroot = L.ensure_listing_root(srv)
+    our_l = _ls_set(fs(srv["our"], "ls", lroot)[1])
+    off_l = _ls_set(fs(srv["off"], "ls", lroot)[1])
+    assert our_l == off_l, f"ls {lroot} divergence: ours={our_l} stock={off_l}"
+    assert L.LISTING_ROOT_ENTRIES <= our_l, \
+        f"ls {lroot}: missing {L.LISTING_ROOT_ENTRIES - our_l}"
+    # The artifact-leak check stays on the REAL root — pollution-immune, since
+    # only our server could ever surface a .nginx-xrootd name (no worker seeds
+    # one), and it is the real namespace we must prove clean.
+    our_root = _ls_set(fs(srv["our"], "ls", "/")[1])
+    assert not any(n.startswith(".nginx-xrootd") for n in our_root), \
+        f"our server leaks an internal artifact into the namespace: {our_root}"
 
 
 # =========================================================================== #

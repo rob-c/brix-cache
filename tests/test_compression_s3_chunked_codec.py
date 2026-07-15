@@ -21,96 +21,46 @@ which needs no per-chunk sig).  They prove:
   (2) plain ``Content-Encoding: aws-chunked`` (no inner codec) still round-trips
       byte-exact (control — the fix did not break normal chunked uploads).
 
-Self-contained: launches its OWN minimal S3 nginx (anonymous + allow_write) via the
-project binary so it never depends on the shared harness being up / writable.
+Attaches to the fleet's dedicated "compress" instance (S3 surface: anonymous +
+allow_write) started once by start_all_dedicated, rather than launching its own
+nginx: a fixed-port self-start collides across pytest-xdist workers. The inner
+aws-chunked-codec guard lives on the PUT path, so the S3 surface having
+`brix_compress on` (an outbound-GET directive) does not affect these cases.
 """
 
 import gzip
 import os
-import shutil
-import socket
-import subprocess
 import time
 import uuid
 
 import pytest
 import requests
 
-from settings import NGINX_BIN
-
-WORK = os.path.join(os.environ["TMPDIR"], "xrd-cmp-s3-chunked-ce")
 BUCKET = "testbucket"
+# Fixed port of the fleet "compress" instance S3 surface (see
+# tests/lib/dedicated.sh -> start_all_dedicated + tests/configs/nginx_compress.conf).
+COMPRESS_S3_PORT = int(os.environ.get("TEST_COMPRESS_S3_PORT", "12961"))
+BASE_URL = f"http://127.0.0.1:{COMPRESS_S3_PORT}"
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _write_conf(prefix, port, data_dir):
-    conf = f"""
-worker_processes 1;
-error_log {prefix}/error.log info;
-pid {prefix}/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_max_body_size 256m;
-    server {{
-        listen {port};
-        server_name localhost;
-        location / {{
-            brix_s3             on;
-            brix_storage_backend        posix:{data_dir};
-            brix_s3_bucket      {BUCKET};
-            brix_allow_write on;
-        }}
-    }}
-}}
-"""
-    path = os.path.join(prefix, "nginx.conf")
-    with open(path, "w") as fh:
-        fh.write(conf)
-    return path
+def _wait_listen(url, tries=50):
+    for _ in range(tries):
+        try:
+            requests.get(url, timeout=1)
+            return True
+        except Exception:
+            time.sleep(0.1)
+    return False
 
 
 @pytest.fixture(scope="module")
 def base():
-    if not os.path.isfile(NGINX_BIN) or not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not available: {NGINX_BIN}")
-    shutil.rmtree(WORK, ignore_errors=True)
-    data = os.path.join(WORK, "data")
-    os.makedirs(data, exist_ok=True)
-    os.makedirs(os.path.join(WORK, "logs"), exist_ok=True)
-    port = _free_port()
-    conf = _write_conf(WORK, port, data)
-
-    chk = subprocess.run([NGINX_BIN, "-p", WORK, "-c", conf, "-t"],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"standalone S3 nginx config rejected:\n{chk.stderr}")
-    proc = subprocess.Popen([NGINX_BIN, "-p", WORK, "-c", conf, "-g", "daemon off;"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    url = f"http://127.0.0.1:{port}"
-    for _ in range(50):
-        try:
-            requests.get(url, timeout=1)
-            break
-        except Exception:
-            time.sleep(0.1)
-    else:
-        proc.terminate()
-        pytest.fail("standalone S3 nginx did not come up")
-    yield url
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
-    shutil.rmtree(WORK, ignore_errors=True)
+    """Attach to the fleet "compress" S3 surface; skip cleanly if it is down. The
+    tests PUT and GET their own uuid-named objects, so no seeding is needed."""
+    if not _wait_listen(BASE_URL):
+        pytest.skip(
+            f"fleet compress instance not listening on {COMPRESS_S3_PORT}")
+    yield BASE_URL
 
 
 # ---------------------------------------------------------------------------

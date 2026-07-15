@@ -75,9 +75,11 @@ def srv(tmp_path_factory):
         procs, ctx = L.start_pair(base, our_port=OUR_PORT, off_port=OFF_PORT)
     except RuntimeError as e:
         pytest.skip(f"server pair launch failed: {e}")
-    # ports for the raw-wire client (start_pair binds these on BIND)
-    ctx["our_port"] = OUR_PORT
-    ctx["off_port"] = OFF_PORT
+    # Raw-wire client ports: start_pair already sets these to the fleet ports it
+    # attached to; keep them (the module OUR_PORT/OFF_PORT are legacy worker-shift
+    # values that no longer point at a live server).
+    ctx.setdefault("our_port", L.FLEET_OUR_PORT)
+    ctx.setdefault("off_port", L.FLEET_OFF_PORT)
     yield ctx
     L.stop_pair(procs)
 

@@ -105,14 +105,19 @@ def _ondisk(srv, side, rel):
 # ls — plain, file, dir, empty, nonexistent, -l, -R                           (10)
 # =========================================================================== #
 @pytest.mark.parametrize("path,expect", [
-    ("/", {"hello.txt", "data.bin", "sub", "many", "deep", "cksum.bin",
-           "empty.txt", "empty_dir", "big1m.bin", "with space.txt"}),
+    # '/' is SHARED — under -n8 a concurrent worker's files break the full
+    # our-vs-stock set equality, so this case enumerates a per-worker isolated
+    # listing dir instead (resolved in the body). Stable node id keeps xdist
+    # collection consistent across workers.
+    pytest.param(L.LISTING_ROOT_SENTINEL, L.LISTING_ROOT_ENTRIES, id="listing_root"),
     ("/sub", {"nested.txt"}),
     ("/many", {f"f{i:02d}.txt" for i in range(12)}),
     ("/deep", {"a"}),
     ("/deep/a/b/c", {"leaf.txt"}),
 ])
 def test_ls_plain_set_matches(srv, path, expect):
+    if path == L.LISTING_ROOT_SENTINEL:
+        path = L.ensure_listing_root(srv)
     orc, oout, _ = fs(srv["our"], "ls", path)
     frc, fout, _ = fs(srv["off"], "ls", path)
     assert orc == 0 and frc == 0, f"ls {path} failed (our={orc} stock={frc})"
@@ -471,6 +476,9 @@ def test_chmod_mode_parity(srv):
         rel = f"/x_chmod_{side}.txt"
         with open(_ondisk(srv, side, rel), "w") as f:
             f.write("c\n")
+        if side == "off":
+            # stock server (nobody) can only chmod files it owns (root cause #2)
+            L.chown_stock(_ondisk(srv, side, rel))
         rc, o, e = fs(srv[side], "chmod", rel, "rwxr-xr-x")
         assert rc == 0, f"{side} chmod failed: {o}{e}"
         mode = _stat.S_IMODE(os.stat(_ondisk(srv, side, rel)).st_mode)
@@ -649,10 +657,14 @@ def test_q2_our_chmod_on_stock(srv):
     ours = _ondisk(srv, "off", rel)
     with open(ours, "w") as f:
         f.write("c\n")
+    # chmod runs on the stock server (nobody), which can only chmod files it
+    # owns (root cause #2), so give it ownership of both off-tree targets.
+    L.chown_stock(ours)
     # Reference: the SAME chmod via the stock client on the SAME stock server.
     ref = _ondisk(srv, "off", "/q2x_chmod_ref.txt")
     with open(ref, "w") as f:
         f.write("c\n")
+    L.chown_stock(ref)
     fs(srv["off"], "chmod", "/q2x_chmod_ref.txt", "rwxr-xr-x")
     ref_mode = _stat.S_IMODE(os.stat(ref).st_mode)
 

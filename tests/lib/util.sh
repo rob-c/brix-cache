@@ -2,6 +2,27 @@
 # Sourced (not executed) by manage_test_servers.sh; uses its global
 # config vars.  Do not run directly.
 
+# render_cfg <template> <dest> KEY=VAL [KEY=VAL ...]
+#
+# Fill {KEY} placeholders in a committed template (tests/configs/) and write the
+# result to <dest>.  The xrootd/XrdHttp counterpart to substitute_config(): every
+# test-server config is an explicit, reviewable, committed file — NEVER generated
+# inline in shell.  Values are escaped for the |-delimited sed s/// command.
+render_cfg() {
+    local tpl="$1" dest="$2"; shift 2
+    if [[ ! -f "$tpl" ]]; then
+        echo "render_cfg: template not found: $tpl" >&2
+        return 1
+    fi
+    local sed_args=() kv k v
+    for kv in "$@"; do
+        k="${kv%%=*}"; v="${kv#*=}"
+        v="${v//\\/\\\\}"; v="${v//|/\\|}"; v="${v//&/\\&}"
+        sed_args+=(-e "s|{${k}}|${v}|g")
+    done
+    sed "${sed_args[@]}" "$tpl" > "$dest"
+}
+
 usage() {
     cat <<'EOF'
 Usage:

@@ -49,6 +49,7 @@ from cms_mesh_lib import (
     wait_port,
 )
 from settings import BIND_HOST
+from mesh_config import render
 
 # --------------------------------------------------------------------------- #
 # Scratch root + dedicated port band
@@ -141,38 +142,32 @@ def _xrd_cfg(role, data_port, cms_port, manager, run, export,
     manager     "host:port" of the cmsd this node registers WITH
     pss_origin  when set, this is a proxy: load libXrdPss and forward to origin
     """
-    lines = [
-        f"all.role {role}",
-        f"all.manager {manager}",
-        f"xrd.port {data_port}",
-        "if exec cmsd",
-        f"  xrd.port {cms_port}",
-        "fi",
-    ]
-    if localroot is not None:
-        lines.append(f"oss.localroot {localroot}")
+    # Optional blocks (each a run of complete, newline-terminated directive lines,
+    # or empty) substituted into mesh_hybrid_xrootd_node.cfg — keeps the node's
+    # config skeleton on disk while the role-dependent inserts stay explicit here.
+    localroot_blk = f"oss.localroot {localroot}\n" if localroot is not None else ""
+    # Clustered proxy server: byte I/O is satisfied by forwarding to the tier-2
+    # redirector, which in turn locates the holding data server.
+    pss_blk = ""
     if pss_origin is not None:
-        # Clustered proxy server: byte I/O is satisfied by forwarding to the
-        # tier-2 redirector, which in turn locates the holding data server.
-        lines.append("ofs.osslib libXrdPss-5.so")
-        lines.append(f"pss.origin {pss_origin}")
-        lines.append("pss.setopt DebugLevel 1")
-    lines.append(f"all.export {export} r/w")
-    lines.append(f"all.adminpath {run}")
-    lines.append(f"all.pidpath {run}")
-    if role in ("manager", "supervisor"):
-        lines.append("cms.delay startup 5 servers 1 lookup 2")
+        pss_blk = (f"ofs.osslib libXrdPss-5.so\n"
+                   f"pss.origin {pss_origin}\n"
+                   f"pss.setopt DebugLevel 1\n")
+    delay_blk = ("cms.delay startup 5 servers 1 lookup 2\n"
+                 if role in ("manager", "supervisor") else "")
+    http_blk = ""
     if http_port is not None:
-        lines += [
-            "if exec xrootd",
-            f"  xrd.protocol http:{http_port} libXrdHttp-5.so",
-            f"  http.cert {cert}",
-            f"  http.key {key}",
-            "  http.selfhttps2http no",
-            "fi",
-        ]
-    lines.append("cms.trace all")
-    return "\n".join(lines) + "\n"
+        http_blk = (f"if exec xrootd\n"
+                    f"  xrd.protocol http:{http_port} libXrdHttp-5.so\n"
+                    f"  http.cert {cert}\n"
+                    f"  http.key {key}\n"
+                    f"  http.selfhttps2http no\n"
+                    f"fi\n")
+    return render("mesh_hybrid_xrootd_node.cfg",
+                  ROLE=role, MANAGER=manager, DATA_PORT=data_port,
+                  CMS_PORT=cms_port, EXPORT=export, RUN=run,
+                  LOCALROOT=localroot_blk, PSS=pss_blk,
+                  DELAY=delay_blk, HTTP=http_blk)
 
 
 def launch_xrootd(m, label, cfg_text):
@@ -193,151 +188,28 @@ def launch_xrootd(m, label, cfg_text):
                    check=False, start_new_session=True, cwd=m.root)
 
 
-# --------------------------------------------------------------------------- #
-# nginx proxy-that-registers config builder (node b)
-# --------------------------------------------------------------------------- #
-
-
-def _http_temp(tmpbase):
-    """nginx http{} temp-path directives, pinned under the node's run tree so a
-    PUT body / proxied response never lands in the compiled-in prefix."""
-    return (
-        f"    client_body_temp_path {tmpbase}/cbt;\n"
-        f"    proxy_temp_path {tmpbase}/pt;\n"
-        f"    fastcgi_temp_path {tmpbase}/ft;\n"
-        f"    uwsgi_temp_path {tmpbase}/ut;\n"
-        f"    scgi_temp_path {tmpbase}/st;\n"
-        "    client_max_body_size 1g;\n"
-    )
-
-
-def _s3_forward_server(listen_port, upstream_port):
-    """An http server that transparently forwards S3 REST to an upstream nginx S3
-    handler (S3 is plain HTTP, so a reverse proxy carries it unchanged).  Request
-    buffering off so PUT bodies stream straight through the ingest chain."""
-    return (
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{listen_port};\n"
-        f"        location / {{\n"
-        f"            proxy_pass http://{BIND_HOST}:{upstream_port};\n"
-        f"            proxy_http_version 1.1;\n"
-        f"            proxy_request_buffering off;\n"
-        f"        }}\n"
-        f"    }}\n"
-    )
-
-
-def _s3_origin_server(listen_port, root, bucket):
-    """An http server that IS the S3 object store over `root`, bucket==`bucket`.
-    Objects land at <root>/<bucket>/<key>, which equals the root:// path
-    /<bucket>/<key> — the cross-protocol ingest hinge."""
-    return (
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{listen_port};\n"
-        f"        location / {{\n"
-        f"            brix_s3 on; brix_storage_backend posix:{root};\n"
-        f"            brix_s3_bucket {bucket}; brix_allow_write on;\n"
-        f"            brix_s3_max_keys 1000;\n"
-        f"        }}\n"
-        f"    }}\n"
-    )
-
-
-def _webdav_origin_server(listen_port, root, cert, key, tls=True):
-    """A server that IS the WebDAV store over `root` (davs GET /mesh/K ->
-    <root>/mesh/K).  tls=True -> https (direct davs); tls=False -> plain http
-    (the single-port handoff target, reached via the stock redirector's http://
-    data-port redirect)."""
-    ssl_kw = " ssl" if tls else ""
-    ssl_lines = (
-        f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
-        if tls else ""
-    )
-    return (
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{listen_port}{ssl_kw};\n"
-        f"        server_name localhost;\n"
-        f"{ssl_lines}"
-        f"        location / {{\n"
-        f"            brix_webdav on; brix_storage_backend posix:{root};\n"
-        f"            brix_webdav_auth none; brix_allow_write on;\n"
-        f"        }}\n"
-        f"    }}\n"
-    )
-
-
-def _webdav_proxy_server(listen_port, root, upstream_url, cert, key):
-    """A direct https WebDAV data server.
-
-    NOTE: the WebDAV reverse-proxy directives (brix_webdav_proxy /
-    _upstream) that once relayed the upstream's 307 to the holding data server
-    were retired in the legacy-proxy cleanup; only brix_webdav_proxy_certs
-    (GSI client auth) survives. This node now serves its own export directly
-    (no relay hop) — `upstream_url` is retained in the signature for callers
-    but is no longer wired into a proxy."""
-    _ = upstream_url  # relay hop retired — kept for call-site compatibility
-    return (
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{listen_port} ssl;\n"
-        f"        server_name localhost;\n"
-        f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
-        f"        location / {{\n"
-        f"            brix_webdav on; brix_storage_backend posix:{root};\n"
-        f"            brix_webdav_auth none; brix_allow_write on;\n"
-        f"        }}\n"
-        f"    }}\n"
-    )
-
-
 def cfg_node_a(data_port, cms_port, s3_front_upstream, tmpbase, cert, key,
                dav_upstream_port):
     """Tier-1 nginx redirector: root:// CMS manager (stream) + S3 front door that
-    forwards into the ingest chain (http)."""
-    return (
-        "worker_processes 1;\nerror_log {ERR} debug;\npid {PID};\n"
-        "events { worker_connections 128; }\n"
-        "stream {\n"
-        f"    server {{ listen {BIND_HOST}:{data_port}; brix_root on; brix_auth none;"
-        f" brix_manager_mode on; }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
-        "}\n"
-        "http {\n    access_log off;\n"
-        + _http_temp(tmpbase)
-        + _s3_forward_server(PORTS["a_s3"], s3_front_upstream)
-        + _webdav_proxy_server(PORTS["a_dav"], tmpbase,
-                               f"https://{BIND_HOST}:{dav_upstream_port}",
-                               cert, key)
-        + "}\n"
-    )
+    forwards into the ingest chain (http).  dav_upstream_port is accepted for
+    call-site compatibility but no longer wired in (WebDAV relay hop retired)."""
+    return render("mesh_hybrid_node_a.conf",
+                  BIND_HOST=BIND_HOST, DATA_PORT=data_port, CMS_PORT=cms_port,
+                  S3_FRONT_UPSTREAM=s3_front_upstream, TMPBASE=tmpbase,
+                  CERT=cert, KEY=key,
+                  PORT_A_S3=PORTS["a_s3"], PORT_A_DAV=PORTS["a_dav"])
 
 
 def cfg_node_b(data_port, cms_mgr, paths, upstream, s3_upstream, tmpbase,
                cert, key, dav_upstream_port):
     """Tier-1 nginx proxy: root:// read/write-through proxy that registers with a
-    (stream) + S3 relay forwarding to f's S3 origin (http)."""
-    return (
-        "worker_processes 1;\nerror_log {ERR} debug;\npid {PID};\n"
-        "events { worker_connections 128; }\n"
-        "stream {\n"
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{data_port};\n"
-        f"        brix_root on; brix_auth none;\n"
-        f"        brix_allow_write on;\n"
-        f"        brix_tap_proxy on;\n"
-        f"        brix_tap_proxy_upstream {BIND_HOST}:{upstream};\n"
-        f"        brix_tap_proxy_auth anonymous;\n"
-        f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
-        f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
-        f"    }}\n"
-        "}\n"
-        "http {\n    access_log off;\n"
-        + _http_temp(tmpbase)
-        + _s3_forward_server(PORTS["b_s3"], s3_upstream)
-        + _webdav_proxy_server(PORTS["b_dav"], tmpbase,
-                               f"https://{BIND_HOST}:{dav_upstream_port}",
-                               cert, key)
-        + "}\n"
-    )
+    (stream) + S3 relay forwarding to f's S3 origin (http).  dav_upstream_port is
+    accepted for call-site compatibility but no longer wired in."""
+    return render("mesh_hybrid_node_b.conf",
+                  BIND_HOST=BIND_HOST, DATA_PORT=data_port, CMS_MGR=cms_mgr,
+                  PATHS=paths, UPSTREAM=upstream, S3_UPSTREAM=s3_upstream,
+                  TMPBASE=tmpbase, CERT=cert, KEY=key,
+                  PORT_B_S3=PORTS["b_s3"], PORT_B_DAV=PORTS["b_dav"])
 
 
 def cfg_node_f(data_port, root, cms_mgr, paths, tmpbase, cert, key):
@@ -346,30 +218,16 @@ def cfg_node_f(data_port, root, cms_mgr, paths, tmpbase, cert, key):
 
     The S3 handler strips the (single) bucket name and writes keys directly under
     brix_export, so the S3 root is <store>/mesh (== the root:// export's
-    on-disk dir): an S3 PUT of key K -> <store>/mesh/K == root:// "/mesh/K"."""
-    s3_root = root + EXPORT       # EXPORT begins with '/', root has no trailing /
-    return (
-        "worker_processes 1;\nerror_log {ERR} debug;\npid {PID};\n"
-        "events { worker_connections 128; }\n"
-        "stream {\n"
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{data_port};\n"
-        f"        brix_root on; brix_storage_backend posix:{root}; brix_auth none;\n"
-        f"        brix_allow_write on;\n"
-        f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
-        f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
-        # Single-port mux: an HTTP client the stock redirector sent to this
-        # data port is spliced to the local plain-http WebDAV listener.
-        f"        brix_http_handoff {BIND_HOST}:{PORTS['f_dav_http']};\n"
-        f"    }}\n"
-        "}\n"
-        "http {\n    access_log off;\n"
-        + _http_temp(tmpbase)
-        + _s3_origin_server(PORTS["f_s3"], s3_root, S3_BUCKET)
-        + _webdav_origin_server(PORTS["f_dav"], root, cert, key, tls=True)
-        + _webdav_origin_server(PORTS["f_dav_http"], root, cert, key, tls=False)
-        + "}\n"
-    )
+    on-disk dir): an S3 PUT of key K -> <store>/mesh/K == root:// "/mesh/K".
+
+    The S3 origin's on-disk root is {ROOT}{EXPORT} in the template (== root +
+    EXPORT), so an S3 key lands under the same dir as the root:// export."""
+    return render("mesh_hybrid_node_f.conf",
+                  BIND_HOST=BIND_HOST, DATA_PORT=data_port, ROOT=root,
+                  CMS_MGR=cms_mgr, PATHS=paths, TMPBASE=tmpbase,
+                  CERT=cert, KEY=key, EXPORT=EXPORT, S3_BUCKET=S3_BUCKET,
+                  PORT_F_S3=PORTS["f_s3"], PORT_F_DAV=PORTS["f_dav"],
+                  PORT_F_DAV_HTTP=PORTS["f_dav_http"])
 
 
 # --------------------------------------------------------------------------- #

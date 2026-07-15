@@ -104,6 +104,24 @@ brix_proxy_up_mark_ok(brix_proxy_ctx_t *proxy)
     proxy_up_status[idx].checked = ngx_time();
 }
 
+/* brix_proxy_pool_evict — unlink a pooled connection from the queue, cancel its
+ * keepalive timer, close the socket, and free the wrapper.  Shared by the
+ * pool-safe read and write event handlers: any event on an idle pooled
+ * connection means the upstream spoke or hung up, so the entry is no longer
+ * reusable. */
+static void
+brix_proxy_pool_evict(brix_proxy_pooled_conn_t *pc, ngx_connection_t *c)
+{
+    if (pc->ping_ev.timer_set) {
+        ngx_del_timer(&pc->ping_ev);
+    }
+
+    ngx_queue_remove(&pc->queue);
+    proxy_pool_count--;
+    ngx_close_connection(c);
+    ngx_free(pc);
+}
+
 /* pooled connection read handler.
  *
  * Fires when the upstream sends data or closes while its connection is idle
@@ -113,20 +131,39 @@ brix_proxy_up_mark_ok(brix_proxy_ctx_t *proxy)
 static void
 brix_proxy_pool_read_handler(ngx_event_t *rev)
 {
-    ngx_connection_t           *c  = rev->data;
+    ngx_connection_t         *c  = rev->data;
     brix_proxy_pooled_conn_t *pc = c->data;
 
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd proxy: upstream closed while pooled — evicting");
 
-    if (pc->ping_ev.timer_set) {
-        ngx_del_timer(&pc->ping_ev);
-    }
+    brix_proxy_pool_evict(pc, c);
+}
 
-    ngx_queue_remove(&pc->queue);
-    proxy_pool_count--;
-    ngx_close_connection(c);
-    ngx_free(pc);
+/* pooled connection write handler.
+ *
+ * A pooled connection waits only for reads (upstream close/data) plus the
+ * keepalive timer — it never needs to write.  But its write event still carries
+ * the active-session handler (brix_proxy_write_handler) unless we replace it,
+ * and that handler reinterprets conn->data as a brix_proxy_ctx_t.  On a pooled
+ * connection conn->data is a brix_proxy_pooled_conn_t, so if epoll delivers a
+ * write event — an upstream hangup reports EPOLLOUT alongside EPOLLHUP — the
+ * stale handler would type-confuse pc as a proxy ctx and dereference a garbage
+ * client_conn (a real SIGSEGV, seen in the field).  pool_put installs this
+ * pool-safe handler instead; mirror the read path and evict cleanly.  If the
+ * same epoll batch also delivered the read event, the read handler already
+ * closed the connection and nginx's stale-event guard (c->fd == -1) skips this
+ * one, so there is no double free. */
+static void
+brix_proxy_pool_write_handler(ngx_event_t *wev)
+{
+    ngx_connection_t         *c  = wev->data;
+    brix_proxy_pooled_conn_t *pc = c->data;
+
+    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                   "xrootd proxy: write event on pooled connection — evicting");
+
+    brix_proxy_pool_evict(pc, c);
 }
 
 
@@ -288,11 +325,14 @@ brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
                         ngx_del_timer(&pc->ping_ev);
                     }
 
-                    /* Restore the upstream read handler before freeing pc.
-                     * pool_put installed brix_proxy_pool_read_handler and
+                    /* Restore the upstream event handlers before freeing pc.
+                     * pool_put installed the pool-safe read/write handlers and
                      * set c->data = pc; the caller (connect_upstream.c) will
-                     * set c->data = proxy immediately after we return. */
-                    c->read->handler = brix_proxy_read_handler;
+                     * set c->data = proxy immediately after we return.  The
+                     * reuse path does not re-install the write handler, so it
+                     * must be restored here alongside the read handler. */
+                    c->read->handler  = brix_proxy_read_handler;
+                    c->write->handler = brix_proxy_write_handler;
 
                     ngx_free(pc);
                     *idx_out = (int) idx;
@@ -331,13 +371,14 @@ brix_proxy_pool_put(brix_proxy_ctx_t *proxy)
     }
 
     if (proxy_pool_count >= BRIX_PROXY_POOL_SIZE) {
-        /* Pool full — eject oldest. */
+        /* Pool full — eject oldest.  Must go through brix_proxy_pool_evict so the
+         * evicted entry's keepalive ping timer is cancelled: freeing pc while its
+         * ping_ev is still armed leaves a stale timer that later fires on freed
+         * memory (use-after-free crash in brix_proxy_pool_ping_handler ->
+         * ngx_close_connection, seen under high pool churn). */
         ngx_queue_t *q = ngx_queue_last(&proxy_pool);
         pc = ngx_queue_data(q, brix_proxy_pooled_conn_t, queue);
-        ngx_queue_remove(q);
-        proxy_pool_count--;
-        ngx_close_connection(pc->conn);
-        ngx_free(pc);
+        brix_proxy_pool_evict(pc, pc->conn);
     }
 
     pc = ngx_alloc(sizeof(brix_proxy_pooled_conn_t), proxy->client_conn->log);
@@ -362,19 +403,42 @@ brix_proxy_pool_put(brix_proxy_ctx_t *proxy)
     /* Detach connection from the client session. */
     proxy->conn = NULL;
 
-    /* Transfer connection ownership to pc and install a pool-safe read
-     * handler.  brix_proxy_read_handler dereferences uconn->data as a
+    /* Transfer connection ownership to pc and install pool-safe event
+     * handlers.  brix_proxy_{read,write}_handler dereference uconn->data as a
      * proxy ctx; that ctx lives in the client pool and is freed when the
-     * session ends — so it must not be reached via a pooled connection.
-     * brix_proxy_pool_read_handler evicts the entry cleanly instead. */
-    pc->conn->data         = pc;
-    pc->conn->read->handler = brix_proxy_pool_read_handler;
+     * session ends — so neither may be reached via a pooled connection, whose
+     * conn->data is now a pooled_conn_t.  The pool-safe handlers evict the
+     * entry cleanly instead.  The write handler is easy to overlook: a pooled
+     * connection never writes, but an upstream hangup reports EPOLLOUT
+     * alongside EPOLLHUP, so leaving the stale write handler in place is a real
+     * crash path.  Also drop any armed write timer (the connect/write deadline)
+     * so it cannot fire the replaced handler and needlessly evict a healthy
+     * pooled connection. */
+    pc->conn->data           = pc;
+    pc->conn->read->handler  = brix_proxy_pool_read_handler;
+    pc->conn->write->handler = brix_proxy_pool_write_handler;
+    if (pc->conn->write->timer_set) {
+        ngx_del_timer(pc->conn->write);
+    }
+
+    /* Re-point the pooled connection's log at the stable worker-lifetime cycle
+     * log.  connect_upstream set conn->log (+ read/write ->log) to the CLIENT
+     * connection's log for good per-session diagnostics, but a POOLED connection
+     * OUTLIVES that client session: the client's log lives on the client pool and
+     * is freed when the client disconnects, leaving conn->log dangling.  The next
+     * keepalive ping then calls ngx_close_connection -> ngx_reusable_connection,
+     * which logs through conn->log and SIGSEGVs on the freed-and-reused memory
+     * (confirmed via core: *conn->log was overwritten with access-log bytes).
+     * pool_get/connect_upstream restore the per-session client log on reuse. */
+    pc->conn->log        = ngx_cycle->log;
+    pc->conn->read->log  = ngx_cycle->log;
+    pc->conn->write->log = ngx_cycle->log;
 
     /* Configure keepalive ping timer. */
     ngx_memzero(&pc->ping_ev, sizeof(ngx_event_t));
     pc->ping_ev.handler = brix_proxy_pool_ping_handler;
     pc->ping_ev.data    = pc;
-    pc->ping_ev.log     = pc->conn->log;
+    pc->ping_ev.log     = ngx_cycle->log;
     ngx_add_timer(&pc->ping_ev, pc->keepalive_interval);
 
     ngx_queue_insert_head(&proxy_pool, &pc->queue);

@@ -202,7 +202,15 @@ sd_posix_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
         return NULL;
     }
 
-    obj = ngx_pcalloc(inst->pool, sizeof(*obj));
+    /* Heap-allocate the obj shell (ngx_calloc), NOT from inst->pool. inst->pool is
+     * ngx_cycle->pool — thread-UNSAFE and also allocated from by the main event
+     * loop — but sd_posix_open runs in cache-fill worker threads too (a POSIX
+     * cache origin is opened per fill). A pool alloc there races the main thread
+     * and corrupts the pool -> SIGSEGV (confirmed via ThreadSanitizer). heap_shell
+     * makes the adopting layer free this shell: the VFS frees it after copying
+     * *obj by value (vfs_open.c adopt), and a pointer-holder (sd_cache/stage_engine
+     * source objects) frees it at close via brix_sd_obj_release(). */
+    obj = ngx_calloc(sizeof(*obj), inst->log);
     if (obj == NULL) {
         close(fd);
         if (err_out != NULL) { *err_out = ENOMEM; }
@@ -212,6 +220,7 @@ sd_posix_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     obj->driver = inst->driver;
     obj->inst = inst;
     obj->fd = fd;
+    obj->heap_shell = 1;
     return obj;
 }
 

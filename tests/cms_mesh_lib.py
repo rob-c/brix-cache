@@ -29,6 +29,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from settings import NGINX_BIN, HOST, BIND_HOST
+from mesh_config import render
 
 # --------------------------------------------------------------------------- #
 # Binaries / constants
@@ -263,15 +264,10 @@ class Mesh:
             )
         cfg = self.write(
             f"{label}.cfg",
-            f"all.role {role}\n"
-            f"all.manager {manager}\n"
-            f"xrd.port {data_port}\n"
-            f"if exec cmsd\n  xrd.port {cms_port}\nfi\n"
-            f"oss.localroot {data_dir_}\n"
-            f"all.export {export} r/w\n"
-            f"all.adminpath {run}\n"
-            f"all.pidpath {run}\n"
-            f"{delay}{http}cms.trace all\n",
+            render("mesh_cms_xrootd_node.cfg",
+                   ROLE=role, MANAGER=manager, DATA_PORT=data_port,
+                   CMS_PORT=cms_port, DATA_DIR=data_dir_, EXPORT=export,
+                   RUN=run, DELAY=delay, HTTP=http),
         )
         clog = os.path.join(self.root, "logs", f"{label}-cmsd.log")
         xlog = os.path.join(self.root, "logs", f"{label}-xrootd.log")
@@ -305,15 +301,8 @@ class Mesh:
 
 
 def cfg_manager(data_port, cms_port):
-    return (
-        "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
-        "events { worker_connections 128; }\n"
-        "stream {\n"
-        f"    server {{ listen {BIND_HOST}:{data_port}; brix_root on; brix_auth none;"
-        f" brix_manager_mode on; }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
-        "}\n"
-    )
+    return render("mesh_cms_manager.conf",
+                  BIND_HOST=BIND_HOST, DATA_PORT=data_port, CMS_PORT=cms_port)
 
 
 XRDSSSADMIN_BIN = shutil.which("xrdsssadmin-brix")
@@ -339,78 +328,28 @@ def gen_sss_keytab(path):
 def cfg_manager_sss(data_port, cms_port, keytab):
     """Manager that REQUIRES sss on the CMS port — a data node must complete
     the kYR_xauth sss handshake to be admitted (fail-closed)."""
-    return (
-        "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
-        "events { worker_connections 128; }\n"
-        "stream {\n"
-        f"    server {{ listen {BIND_HOST}:{data_port}; brix_root on; brix_auth none;"
-        f" brix_manager_mode on; }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on;"
-        f" brix_cms_server_sss_keytab {keytab}; }}\n"
-        "}\n"
-    )
+    return render("mesh_cms_manager_sss.conf",
+                  BIND_HOST=BIND_HOST, DATA_PORT=data_port, CMS_PORT=cms_port,
+                  KEYTAB=keytab)
 
 
 def cfg_datanode(data_port, root, cms_mgr, paths):
-    return (
-        "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
-        "events { worker_connections 128; }\n"
-        "stream {\n"
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{data_port};\n"
-        f"        brix_root on; brix_storage_backend posix:{root}; brix_auth none;\n"
-        f"        brix_allow_write on;\n"
-        f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
-        f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
-        f"    }}\n"
-        "}\n"
-    )
+    return render("mesh_cms_datanode.conf",
+                  BIND_HOST=BIND_HOST, DATA_PORT=data_port, ROOT=root,
+                  CMS_MGR=cms_mgr, PATHS=paths)
 
 
 def cfg_submanager(data_port, cms_port, root, parent_cms):
-    return (
-        "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
-        "events { worker_connections 128; }\n"
-        "stream {\n"
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{data_port};\n"
-        f"        brix_root on; brix_storage_backend posix:{root}; brix_auth none;\n"
-        f"        brix_manager_mode on;\n"
-        f"        brix_cms_manager {parent_cms}; brix_cms_paths /;\n"
-        f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
-        f"    }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
-        "}\n"
-    )
+    return render("mesh_cms_submanager.conf",
+                  BIND_HOST=BIND_HOST, DATA_PORT=data_port, CMS_PORT=cms_port,
+                  ROOT=root, PARENT_CMS=parent_cms)
 
 
 def cfg_dual(root_port, https_port, root, cms_mgr, paths, cert, key, tmpbase):
-    return (
-        "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
-        "events { worker_connections 128; }\n"
-        "stream {\n"
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{root_port};\n"
-        f"        brix_root on; brix_storage_backend posix:{root}; brix_auth none;\n"
-        f"        brix_allow_write on;\n"
-        f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
-        f"        brix_cms_interval 2; brix_listen_port {root_port};\n"
-        f"    }}\n"
-        "}\n"
-        "http {\n    access_log off;\n"
-        f"    client_body_temp_path {tmpbase}/cbt;\n"
-        f"    proxy_temp_path {tmpbase}/pt;\n"
-        f"    fastcgi_temp_path {tmpbase}/ft;\n"
-        f"    uwsgi_temp_path {tmpbase}/ut;\n"
-        f"    scgi_temp_path {tmpbase}/st;\n"
-        f"    server {{\n"
-        f"        listen {BIND_HOST}:{https_port} ssl;\n        server_name localhost;\n"
-        f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
-        f"        location / {{ brix_webdav on; brix_storage_backend posix:{root};"
-        f" brix_webdav_auth none; brix_allow_write on; }}\n"
-        f"    }}\n"
-        "}\n"
-    )
+    return render("mesh_cms_dual.conf",
+                  BIND_HOST=BIND_HOST, ROOT_PORT=root_port, HTTPS_PORT=https_port,
+                  ROOT=root, CMS_MGR=cms_mgr, PATHS=paths, CERT=cert, KEY=key,
+                  TMPBASE=tmpbase)
 
 
 # --------------------------------------------------------------------------- #

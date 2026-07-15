@@ -85,6 +85,14 @@ PKI_DIR = os.path.join(TEST_ROOT, "pki")
 DATA_ROOT = os.path.join(TEST_ROOT, "data")
 TOKENS_DIR = os.path.join(TEST_ROOT, "tokens")
 LOG_DIR = os.path.join(TEST_ROOT, "logs")
+
+# Fleet dedicated instances migrated off per-test self-start (started once by
+# start_all_dedicated; tests attach to these fixed ports and only seed data).
+COMPRESS_WEBDAV_PORT = int(os.environ.get("TEST_COMPRESS_WEBDAV_PORT", "12960"))
+COMPRESS_S3_PORT = int(os.environ.get("TEST_COMPRESS_S3_PORT", "12961"))
+COMPRESS_DATA_ROOT = os.path.join(TEST_ROOT, "data-compress")
+INTEROP_OUR_PORT = int(os.environ.get("TEST_INTEROP_OUR_PORT", "21200"))
+INTEROP_OFF_PORT = int(os.environ.get("TEST_INTEROP_OFF_PORT", "21201"))
 TMP_DIR = os.path.join(TEST_ROOT, "tmp")
 # Scratch working directory the whole test session chdir()s into, so any
 # cwd-relative artifact a spawned process makes (e.g. an xrootd `-n` instance

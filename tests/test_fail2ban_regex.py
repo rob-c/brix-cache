@@ -69,12 +69,26 @@ class TestFilterRegexPure:
 class TestFail2banRegexTool:
     @pytest.mark.parametrize("signal,host", CASES)
     def test_filter_extracts_host(self, signal, host):
-        """fail2ban-regex matches the sample line and extracts the IP."""
+        """fail2ban-regex matches the sample line and extracts the IP.
+
+        ``--print-all-matched`` is required: without it, fail2ban-regex only
+        echoes the *missed* lines, so a matched line's IP would appear in the
+        output only by coincidence (e.g. when two sample lines share an IP).
+        With the flag, the matched line — and hence its extracted host — is
+        printed under the "Matched line(s)" section, which is what we assert on.
+        """
         flt = FILTER_DIR / f"xrootd-guard-{signal}.conf"
-        out = subprocess.run(["fail2ban-regex", str(SAMPLE), str(flt)],
-                             capture_output=True, text=True).stdout
-        assert "matched 1" in out or host in out, out
-        assert host in out, f"IP not extracted:\n{out}"
+        out = subprocess.run(
+            ["fail2ban-regex", "--print-all-matched", str(SAMPLE), str(flt)],
+            capture_output=True, text=True).stdout
+
+        # Exactly one sample line must fire this filter.
+        assert "1 matched" in out, f"expected one match:\n{out}"
+
+        # The extracted host must appear on the matched line.
+        matched = out.partition("Matched line(s)")[2].partition(
+            "Missed line(s)")[0]
+        assert host in matched, f"IP not extracted from matched line:\n{out}"
 
 
 class TestCvmfsFilterRegex:

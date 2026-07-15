@@ -104,7 +104,11 @@ def gsi_nginx(tmp_path_factory):
 
     src_cfg = base / "src.conf"
     src_cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
+        # Run workers as root: the whole fixture is provisioned by root (0600
+        # GSI proxy/keys, root-owned export dirs). The default nobody worker
+        # cannot read the delegated cert PEM ("TPC GSI cannot read certificate
+        # or key PEM") nor create its checkpoint-recovery lock in the export root.
+        "daemon off;\nuser root;\nworker_processes 1;\n"
         f"error_log {base}/src-err.log info;\npid {base}/src.pid;\n"
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
@@ -117,7 +121,10 @@ def gsi_nginx(tmp_path_factory):
 
     dst_cfg = base / "dst.conf"
     dst_cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
+        # Run workers as root (see src.conf note): the dest worker must read the
+        # 0600 root-owned delegated proxy PEM for the outbound TPC GSI pull and
+        # create its checkpoint-recovery lock in the root-owned export root.
+        "daemon off;\nuser root;\nworker_processes 1;\n"
         f"error_log {base}/dst-err.log info;\npid {base}/dst.pid;\n"
         "thread_pool default threads=4 max_queue=65536;\n"
         "events { worker_connections 64; }\n"

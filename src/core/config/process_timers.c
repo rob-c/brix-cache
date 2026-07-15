@@ -28,6 +28,21 @@
 #include "fs/cache/cache_reap.h"             /* brix_cache_reap_dirty */
 #include "fs/xfer/stage_engine.h"            /* brix_stage_scheduler_tick */
 
+/*
+ * nginx's timer-expiry debug log (ngx_event_expire_timers, compiled in on a
+ * --with-debug nginx and active when a server sets `error_log ... debug`) reads
+ * ngx_event_ident(ev->data) == ((ngx_connection_t *) ev->data)->fd for EVERY
+ * timer it fires.  Our worker-init maintenance timers are connection-less, so a
+ * NULL ev->data made that log dereference NULL and SIGSEGV the worker — which
+ * nginx respawns, so it crash-loops (a flood of core dumps that spiked system
+ * load hard under the debug-logging test fleet).  Point such timers' ev->data at
+ * this dummy connection (fd = -1) so the debug log has a valid fd to read; the
+ * timer handlers themselves do not use ev->data.  Shared (non-static) so the
+ * other connection-less maintenance timers (uring-panic, accesslog flush) point
+ * at the same dummy — see extern declarations at their call sites.
+ */
+ngx_connection_t  brix_maint_timer_conn = { .fd = (ngx_socket_t) -1 };
+
 /* Timer callback: rebuild the GSI X509_STORE from the configured CRL file at the
  * reload interval, then re-arm the timer. */
 void
@@ -192,7 +207,7 @@ void
 brix_init_stage_sched_timer(ngx_cycle_t *cycle)
 {
     brix_stage_sched_timer.handler = brix_stage_sched_handler;
-    brix_stage_sched_timer.data    = NULL;
+    brix_stage_sched_timer.data    = &brix_maint_timer_conn;
     brix_stage_sched_timer.log     = cycle->log;
     /* cancelable: a background maintenance timer must NOT keep a gracefully
      * shutting-down worker alive until worker_shutdown_timeout — nginx's
@@ -224,7 +239,7 @@ brix_init_pending_reap_timer(ngx_cycle_t *cycle, ngx_uint_t manager_seen)
         return;
     }
     brix_pending_reap_timer.handler = brix_pending_reap_handler;
-    brix_pending_reap_timer.data    = NULL;
+    brix_pending_reap_timer.data    = &brix_maint_timer_conn;
     brix_pending_reap_timer.log      = cycle->log;
     brix_pending_reap_timer.cancelable = 1;  /* don't delay graceful shutdown */
     ngx_add_timer(&brix_pending_reap_timer,
@@ -254,7 +269,7 @@ brix_init_stage_reap_timer(ngx_cycle_t *cycle)
         return;
     }
     brix_stage_reap_timer.handler = brix_stage_reap_handler;
-    brix_stage_reap_timer.data    = NULL;
+    brix_stage_reap_timer.data    = &brix_maint_timer_conn;
     brix_stage_reap_timer.log     = cycle->log;
     brix_stage_reap_timer.cancelable = 1;  /* don't delay graceful shutdown */
     ngx_add_timer(&brix_stage_reap_timer, BRIX_STAGE_REAP_FIRST_MS);
