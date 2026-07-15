@@ -37,6 +37,7 @@ import pytest
 
 from guard_http_lib import NGINX_BIN, AuditLog, GuardServer, free_port
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
@@ -99,62 +100,20 @@ def fleet(tmp_path_factory):
     audits = {name: root / f"{name}-audit.log" for name in ("dav", "s3", "ops")}
 
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-error_log {root}/logs/error.log info;
-pid {root}/nginx.pid;
-events {{ worker_connections 128; }}
-http {{
-    access_log off;
-    client_body_temp_path {root}/tmp;
-    proxy_temp_path {root}/tmp;
-    fastcgi_temp_path {root}/tmp;
-    uwsgi_temp_path {root}/tmp;
-    scgi_temp_path {root}/tmp;
-    server {{
-        listen {BIND_HOST}:{ports['dav']};
-        location / {{
-            brix_guard on;
-            brix_guard_profile xrdhttp;
-            brix_guard_audit_log {audits['dav']};
-            brix_webdav on;
-            brix_storage_backend posix:{dav_root};
-            brix_webdav_auth none;
-            brix_allow_write on;
-        }}
-    }}
-    server {{
-        listen {BIND_HOST}:{ports['s3']};
-        location / {{
-            brix_guard on;
-            brix_guard_profile xrdhttp;
-            brix_guard_audit_log {audits['s3']};
-            brix_s3 on;
-            brix_storage_backend posix:{s3_root};
-            brix_s3_access_key GUARDTESTKEY;
-            brix_s3_secret_key guard-test-secret;
-        }}
-    }}
-    server {{
-        listen {BIND_HOST}:{ports['ops']};
-        brix_guard on;
-        brix_guard_audit_log {audits['ops']};
-        location = /metrics {{ brix_metrics on; }}
-    }}
-}}
-stream {{
-    server {{
-        listen {BIND_HOST}:{ports['xrd']};
-        brix_root on;
-        brix_export {xrd_root};
-        brix_auth none;
-    }}
-    server {{
-        listen {BIND_HOST}:{ports['cms']};
-        brix_cms_server on;
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_guard_endpoints.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  DAV_PORT=ports["dav"],
+                                  S3_PORT=ports["s3"],
+                                  OPS_PORT=ports["ops"],
+                                  XRD_PORT=ports["xrd"],
+                                  CMS_PORT=ports["cms"],
+                                  DAV_AUDIT=audits["dav"],
+                                  S3_AUDIT=audits["s3"],
+                                  OPS_AUDIT=audits["ops"],
+                                  DAV_ROOT=dav_root,
+                                  S3_ROOT=s3_root,
+                                  XRD_ROOT=xrd_root))
     rc = subprocess.run([NGINX_BIN, "-t", "-p", str(root), "-c", str(conf)],
                         capture_output=True, text=True)
     assert rc.returncode == 0, f"nginx -t failed: {rc.stderr}"

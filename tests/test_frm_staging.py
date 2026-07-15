@@ -25,6 +25,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
 PORT = int(os.environ.get("TEST_FRM_STAGING_PORT") or free_port())
@@ -125,35 +126,13 @@ def staging(tmp_path_factory):
     (data / "failfile.dat").write_bytes(b"")
     os.setxattr(str(data / "failfile.dat"), "user.frm.residency", b"nearline")
 
-    conf = f"""
-worker_processes 1;
-thread_pool frmpool threads=2;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-# nginx wipes the worker environment; pass the fake-MSS knobs through explicitly.
-env FRM_DATA_DIR;
-env FRM_TAPE_DIR;
-env FRM_LATENCY_MS;
-env FRM_AUDIT_LOG;
-env FRM_FAIL_MODE;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{PORT};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_thread_pool frmpool;
-        brix_frm on;
-        brix_frm_queue_path {queue};
-        brix_frm_copycmd {copycmd};
-        brix_frm_copymax 4;
-        brix_frm_stage_wait 1;
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_frm_staging.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         PORT=PORT,
+                         DATA_DIR=data,
+                         QUEUE_PATH=queue,
+                         COPY_CMD=copycmd)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     env = dict(os.environ)

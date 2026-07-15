@@ -13,6 +13,7 @@ import time
 import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from config_templates import render_config
 
 PORT = int(os.environ.get("TEST_XFER_SWEEP_PORT") or free_port())
 
@@ -40,25 +41,12 @@ def sweep_server(tmp_path_factory):
     keep.write_bytes(b"not a partial")
     os.utime(keep, (past, past))
 
-    conf = f"""
-worker_processes 1;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-env BRIX_UPLOAD_RESUME_TTL;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{PORT};
-        brix_root on;
-        brix_export {d}/data;
-        brix_auth none;
-        brix_allow_write on;
-        brix_stage_dir {stage};
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_xfer_resume_sweep.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         PORT=PORT,
+                         DATA_DIR=d / "data",
+                         STAGE_DIR=stage)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     env = dict(os.environ, BRIX_UPLOAD_RESUME_TTL="600")

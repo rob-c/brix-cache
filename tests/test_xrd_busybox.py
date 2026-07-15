@@ -30,6 +30,7 @@ import time
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -74,16 +75,10 @@ def rw(tmp_path_factory):
     (data / "small.txt").write_text("abcdefghij")
     port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 64; }}
-stream {{
-    server {{ listen {BIND_HOST}:{port}; brix_root on; brix_storage_backend posix:{data};
-             brix_auth none; brix_allow_write on; }}
-}}
-""")
+    conf.write_text(render_config("nginx_stream_posix_anon.conf",
+                                  BASE_DIR=root, BIND_HOST=BIND_HOST,
+                                  PORT=port, DATA_DIR=data,
+                                  WORKER_CONNECTIONS=64))
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                       capture_output=True, text=True).returncode != 0:
         pytest.skip("nginx -t failed")

@@ -24,6 +24,7 @@ import pytest
 from guard_http_lib import (NGINX_BIN, AuditLog, GuardServer, StubBackend,
                             free_port)
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -44,29 +45,12 @@ def _server(tmp_path_factory, stub_backend):
     audit_path = root / "guard-audit.log"
     guard_port = free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_body_temp_path {root}/tmp;
-    proxy_temp_path {root}/tmp;
-    fastcgi_temp_path {root}/tmp;
-    uwsgi_temp_path {root}/tmp;
-    scgi_temp_path {root}/tmp;
-    server {{
-        listen {BIND_HOST}:{guard_port};
-        location / {{
-            brix_guard on;
-            brix_guard_profile arc;
-            brix_guard_audit_log {audit_path};
-            proxy_pass http://{BIND_HOST}:{stub_backend.port};
-        }}
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_guard_arc.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  PORT=guard_port,
+                                  AUDIT_LOG=audit_path,
+                                  BACKEND_PORT=stub_backend.port))
     rc = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                         capture_output=True, text=True)
     if rc.returncode != 0:

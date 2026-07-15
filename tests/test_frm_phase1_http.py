@@ -4,13 +4,14 @@ tests/test_frm_phase1_http.py
 Phase 35 / Phase 1 remainder — HTTP residency reporting + Prometheus metrics.
 
 Self-contained nginx exposing, in one instance:
-  * a stream root:// server with FRM enabled (creates the brix_frm_* metrics),
+  * a stream root:// server on the same POSIX export,
   * an http /metrics endpoint,
   * an http WebDAV location (auth none) for PROPFIND <xrd:locality>,
   * an http S3 location for HEAD/GET storage-class behaviour.
 
 Asserts:
-  S  /metrics exposes the brix_frm_* families (exporter wired, SHM struct sane).
+  S  legacy brix_frm_* metric assertions skip when the retired directive surface
+     is not built.
   S  PROPFIND <xrd:locality/> of a nearline file → NEARLINE, of a resident → ONLINE.
   E  S3 GET of a nearline object → 403 InvalidObjectState; HEAD → GLACIER class.
 
@@ -28,6 +29,7 @@ import urllib.error
 import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from config_templates import render_config
 
 # This is a SELF-CONTAINED server (its own nginx on its own ports).  The fixed
 # 11217/11218 it used to hard-code fall INSIDE the managed fleet's port range
@@ -37,13 +39,15 @@ from settings import NGINX_BIN, HOST, BIND_HOST, free_port
 # instead (overridable via env for debugging).
 STREAM_PORT = int(os.environ.get("TEST_FRM_P1_STREAM") or free_port())
 HTTP_PORT = int(os.environ.get("TEST_FRM_P1_HTTP") or free_port())
+S3_PORT = int(os.environ.get("TEST_FRM_P1_S3") or free_port())
+WEBDAV_PORT = int(os.environ.get("TEST_FRM_P1_WEBDAV") or free_port())
 
 
 from frm_helpers import xattr_ok as _xattr_ok
 
 
-def _http(method, path, body=None, headers=None, timeout=5):
-    url = "http://%s:%d%s" % (HOST, HTTP_PORT, path)
+def _http(method, path, body=None, headers=None, timeout=5, port=None):
+    url = "http://%s:%d%s" % (HOST, port or HTTP_PORT, path)
     req = urllib.request.Request(url, data=body, method=method)
     for k, v in (headers or {}).items():
         req.add_header(k, v)
@@ -66,55 +70,19 @@ def srv(tmp_path_factory):
 
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
-    queue = d / "frm.queue"
-
     (data / "online.dat").write_bytes(b"resident-bytes\n")
     near = data / "near.dat"
     near.write_bytes(b"")
     os.setxattr(str(near), "user.frm.residency", b"nearline")
 
-    conf = f"""
-worker_processes 1;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{STREAM_PORT};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_frm on;
-        brix_frm_queue_path {queue};
-        brix_frm_stagecmd /bin/true;
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {d}/logs/cbt;
-    proxy_temp_path {d}/logs/pt;
-    fastcgi_temp_path {d}/logs/ft;
-    uwsgi_temp_path {d}/logs/ut;
-    scgi_temp_path {d}/logs/st;
-    server {{
-        listen {BIND_HOST}:{HTTP_PORT};
-        location = /metrics {{ brix_metrics on; }}
-        location /tapebucket/ {{
-            brix_s3 on;
-            brix_storage_backend posix:{data};
-            brix_s3_bucket tapebucket;
-            brix_s3_region us-east-1;
-        }}
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{data};
-            brix_webdav_auth none;
-        }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_frm_phase1_http.conf",
+                         BASE_DIR=d,
+                         DATA_DIR=data,
+                         BIND_HOST=BIND_HOST,
+                         STREAM_PORT=STREAM_PORT,
+                         HTTP_PORT=HTTP_PORT,
+                         S3_PORT=S3_PORT,
+                         WEBDAV_PORT=WEBDAV_PORT)
     cp = d / "nginx.conf"
     cp.write_text(conf)
 
@@ -130,6 +98,8 @@ master_process off;
     while time.time() < deadline:
         try:
             socket.create_connection((HOST, HTTP_PORT), timeout=0.5).close()
+            socket.create_connection((HOST, S3_PORT), timeout=0.5).close()
+            socket.create_connection((HOST, WEBDAV_PORT), timeout=0.5).close()
             up = True
             break
         except OSError:
@@ -152,6 +122,8 @@ master_process off;
 
 
 def test_metrics_exposes_frm_families(srv):
+    pytest.skip("legacy brix_frm metrics were retired with the directive surface; "
+                "tape:// backend residency is covered by tape backend tests")
     st, _h, body = _http("GET", "/metrics")
     assert st == 200, "metrics endpoint not serving (status %r)" % st
     text = body.decode(errors="replace")
@@ -171,7 +143,8 @@ def _propfind_locality(path):
             b'<D:prop><xrd:locality/></D:prop></D:propfind>')
     st, _h, resp = _http("PROPFIND", path, body=body,
                          headers={"Depth": "0",
-                                  "Content-Type": "application/xml"})
+                                  "Content-Type": "application/xml"},
+                         port=WEBDAV_PORT)
     return st, resp.decode(errors="replace")
 
 
@@ -207,18 +180,18 @@ def test_s3_residency_from_backend_not_frm_xattr(srv):
     The tape:// residency UX (HEAD→GLACIER, GET→403 InvalidObjectState) is covered
     against a real nearline backend in tests/run_s3_tape_residency.sh."""
     # Confirm anonymous S3 read works at all (else skip — signed-only build).
-    st, h, _b = _http("HEAD", "/tapebucket/online.dat")
+    st, h, _b = _http("HEAD", "/tapebucket/online.dat", port=S3_PORT)
     if st != 200:
         pytest.skip("anonymous S3 read not available (online HEAD %r)" % st)
 
     # near.dat carries the legacy FRM residency xattr but lives on a POSIX backend:
     # the seam reads the backend (no nearline tier ⇒ ONLINE), not the xattr.
-    st, h, _b = _http("HEAD", "/tapebucket/near.dat")
+    st, h, _b = _http("HEAD", "/tapebucket/near.dat", port=S3_PORT)
     assert st == 200, "HEAD of an xattr-marked object on a posix export: %r" % st
     sc = h.get("x-amz-storage-class") or h.get("X-Amz-Storage-Class")
     assert sc != "GLACIER", \
         "the FRM residency xattr must NOT drive s3 storage-class anymore: %r" % h
 
-    st, _h, _body = _http("GET", "/tapebucket/near.dat")
+    st, _h, _body = _http("GET", "/tapebucket/near.dat", port=S3_PORT)
     assert st == 200, \
         "an xattr-marked object on a posix export is ONLINE, served normally: %r" % st

@@ -1,7 +1,7 @@
 # s3fwd profile — MinIO S3 backend + a brix node forwarding SigV4 credentials
 # to it (brix_storage_backend s3://).  Verified end-to-end by
 # `./xrd-lab test s3fwd` (test-runner Job running
-# tests/test_minio_s3_forward.py in remote mode).
+# k8s-tests/remote-suite/tests/test_minio_s3_forward.py in remote mode).
 s3-forward:
   enabled: true
 smoke:

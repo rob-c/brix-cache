@@ -21,6 +21,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import free_port, HOST, BIND_HOST
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -71,24 +72,15 @@ def _write_conf(tmp_path, extra_loc):
     root.mkdir()
     (root / "file.txt").write_text("hello-scitags-payload\n")
     conf = tmp_path / "nginx.conf"
-    conf.write_text(
-        "events { worker_connections 64; }\n"
-        "http {\n"
-        "  access_log off;\n"
-        "  server {\n"
-        f"    listen {BIND_HOST}:{HTTP_PORT};\n"
-        "    location / {\n"
-        "      brix_webdav on;\n"
-        f"      brix_storage_backend posix:{root};\n"
-        "      brix_webdav_auth none;\n"
-        "      brix_pmark on;\n"
-        "      brix_pmark_http_plain on;\n"
-        f"      brix_pmark_firefly_dest {HOST}:{FF_PORT};\n"
-        f"{extra_loc}"
-        "    }\n"
-        "  }\n"
-        "}\n"
-    )
+    conf.write_text(render_config(
+        "nginx_pmark_self.conf",
+        BIND_HOST=BIND_HOST,
+        PORT=HTTP_PORT,
+        DATA_DIR=root,
+        FIREFLY_HOST=HOST,
+        FIREFLY_PORT=FF_PORT,
+        EXTRA_LOCATION=extra_loc,
+    ))
     (tmp_path / "logs").mkdir()
     return conf
 

@@ -32,6 +32,8 @@ import time
 
 import pytest
 
+from config_templates import render_config
+
 from settings import NGINX_BIN
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -152,36 +154,27 @@ def servers(tmp_path_factory):
         if not _free(p):
             pytest.skip(f"port {p} busy")
 
-    common = ("daemon off;\nworker_processes 1;\n"
-              f"pid {base}/PIDNAME.pid;\nerror_log {base}/ERRNAME.log info;\n"
-              "thread_pool default threads=2 max_queue=4096;\n"
-              "events { worker_connections 64; }\n")
     anon_cfg = base / "anon.conf"
-    anon_cfg.write_text(common.replace("PIDNAME", "anon").replace("ERRNAME", "anon") +
-                        "stream { server {\n"
-                        f"  listen {BIND}:{anon_port};\n"
-                        "  brix_root on;\n"
-                        f"  brix_storage_backend posix:{data};\n"
-                        "  brix_auth none;\n"
-                        "} }\n")
+    anon_cfg.write_text(render_config("nginx_gohep_anon.conf",
+                                      BASE_DIR=base,
+                                      ROLE="anon",
+                                      BIND_HOST=BIND,
+                                      PORT=anon_port,
+                                      DATA_DIR=data))
     # data server behind the redirector (separate root with the same files)
     ds_cfg = base / "ds.conf"
-    ds_cfg.write_text(common.replace("PIDNAME", "ds").replace("ERRNAME", "ds") +
-                      "stream { server {\n"
-                      f"  listen {BIND}:{ds_port};\n"
-                      "  brix_root on;\n"
-                      f"  brix_storage_backend posix:{data};\n"
-                      "  brix_auth none;\n"
-                      "} }\n")
+    ds_cfg.write_text(render_config("nginx_gohep_anon.conf",
+                                    BASE_DIR=base,
+                                    ROLE="ds",
+                                    BIND_HOST=BIND,
+                                    PORT=ds_port,
+                                    DATA_DIR=data))
     rdr_cfg = base / "rdr.conf"
-    rdr_cfg.write_text(common.replace("PIDNAME", "rdr").replace("ERRNAME", "rdr") +
-                       "stream { server {\n"
-                       f"  listen {BIND}:{rdr_port};\n"
-                       "  brix_root on;\n"
-                       "  brix_manager_mode on;\n"
-                       f"  brix_manager_map / {BIND}:{ds_port};\n"
-                       "  brix_auth none;\n"
-                       "} }\n")
+    rdr_cfg.write_text(render_config("nginx_gohep_redirector.conf",
+                                     BASE_DIR=base,
+                                     BIND_HOST=BIND,
+                                     PORT=rdr_port,
+                                     DATA_PORT=ds_port))
 
     procs = [_start(str(anon_cfg), str(base)),
              _start(str(ds_cfg), str(base)),

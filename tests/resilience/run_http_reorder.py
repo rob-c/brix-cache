@@ -31,6 +31,8 @@ import sys
 import tempfile
 import time
 
+from config_templates import render_config
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
 
@@ -76,19 +78,13 @@ def start_nginx_http(prefix, data):
     port = free_port()
     conf = os.path.join(prefix, "nginx.conf")
     with open(conf, "w") as fh:
-        fh.write(f"""worker_processes 1; daemon off;
-error_log {logs}/error.log error; pid {logs}/nginx.pid;
-events {{ worker_connections 512; }}
-http {{
-  access_log off;
-  client_body_temp_path {tmp}/cbt; proxy_temp_path {tmp}/pt;
-  fastcgi_temp_path {tmp}/ft; uwsgi_temp_path {tmp}/ut; scgi_temp_path {tmp}/st;
-  server {{
-    listen 127.0.0.1:{port};
-    location / {{ brix_webdav on; brix_storage_backend posix:{data};
-      brix_webdav_auth none; brix_allow_write on; }}
-  }}
-}}""")
+        fh.write(render_config(
+            "nginx_resilience_http_reorder.conf",
+            LOG_DIR=logs,
+            TMP_DIR=tmp,
+            PORT=port,
+            DATA_DIR=data,
+        ))
     env = dict(os.environ)
     env.pop("LD_LIBRARY_PATH", None)
     proc = subprocess.Popen([servers.NGINX_BIN, "-p", prefix, "-c", "nginx.conf"],

@@ -123,7 +123,7 @@ start_all_dedicated() {
     # Each replaces a test fixture that used to spawn+teardown its own nginx; the
     # consuming test now just connects + skips if unreachable. Data root is
     # ${TEST_ROOT}/data-<name> (served by start_dedicated_nginx).
-    start_dedicated_nginx "open-flags-lifecycle" "nginx_open_flags_lifecycle.conf" "${OPEN_FLAGS_LIFECYCLE_NGINX_PORT:-12980}"
+    start_dedicated_nginx "open-flags-lifecycle" "nginx_tpc_ssrf_default.conf" "${OPEN_FLAGS_LIFECYCLE_NGINX_PORT:-12980}"
     start_dedicated_nginx "webdav-dellock" "nginx_webdav-dellock.conf" "${WEBDAV_DELLOCK_PORT:-13210}"
     start_dedicated_nginx "webdav-unlock-ownership" "nginx_webdav-unlock-ownership.conf" "${WEBDAV_UNLOCK_OWNERSHIP_PORT:-22014}"
     start_dedicated_nginx "s3-mpu" "nginx_s3-mpu.conf" "${S3_MPU_PORT:-22017}"
@@ -171,12 +171,12 @@ start_all_dedicated() {
         TOKEN_AUDIENCE="${TOKEN_AUDIENCE:-nginx-xrootd}" \
         start_dedicated_nginx "jwks-refresh" "nginx_jwks_refresh.conf" "${NGINX_JWKS_REFRESH_PORT:-11115}"
 
-    start_dedicated_nginx "upstream-redirect" "nginx_upstream_redirect.conf" "${UPSTREAM_REDIRECT_NGINX_PORT:-11120}" "${UPSTREAM_REDIRECT_BACKEND_PORT:-12120}"
-    start_dedicated_nginx "upstream-waitresp" "nginx_upstream_waitresp.conf" "${UPSTREAM_WAITRESP_NGINX_PORT:-11122}" "${UPSTREAM_WAITRESP_BACKEND_PORT:-12122}"
-    start_dedicated_nginx "upstream-error" "nginx_upstream_error.conf" "${UPSTREAM_ERROR_NGINX_PORT:-11123}" "${UPSTREAM_ERROR_BACKEND_PORT:-12123}"
+    start_dedicated_nginx "upstream-redirect" "nginx_upstream_wait.conf" "${UPSTREAM_REDIRECT_NGINX_PORT:-11120}" "${UPSTREAM_REDIRECT_BACKEND_PORT:-12120}"
+    start_dedicated_nginx "upstream-waitresp" "nginx_upstream_wait.conf" "${UPSTREAM_WAITRESP_NGINX_PORT:-11122}" "${UPSTREAM_WAITRESP_BACKEND_PORT:-12122}"
+    start_dedicated_nginx "upstream-error" "nginx_upstream_auth.conf" "${UPSTREAM_ERROR_NGINX_PORT:-11123}" "${UPSTREAM_ERROR_BACKEND_PORT:-12123}"
     start_dedicated_nginx "upstream-auth" "nginx_upstream_auth.conf" "${UPSTREAM_AUTH_NGINX_PORT:-11124}" "${UPSTREAM_AUTH_BACKEND_PORT:-12124}"
-    start_dedicated_nginx "upstream-auth-nofile" "nginx_upstream_auth_nofile.conf" "${UPSTREAM_AUTH_NOFILE_NGINX_PORT:-11125}" "${UPSTREAM_AUTH_NOFILE_BACKEND_PORT:-12125}"
-    start_dedicated_nginx "upstream-gotorls-notls" "nginx_upstream_gotorls_notls.conf" "${UPSTREAM_GOTORLS_NOTLS_NGINX_PORT:-11126}" "${UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT:-12126}"
+    start_dedicated_nginx "upstream-auth-nofile" "nginx_upstream_wait.conf" "${UPSTREAM_AUTH_NOFILE_NGINX_PORT:-11125}" "${UPSTREAM_AUTH_NOFILE_BACKEND_PORT:-12125}"
+    start_dedicated_nginx "upstream-gotorls-notls" "nginx_upstream_wait.conf" "${UPSTREAM_GOTORLS_NOTLS_NGINX_PORT:-11126}" "${UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT:-12126}"
 
     # Pre-start protocol stub backends for test_a_upstream_redirect.py.
     # upstream_protocol_stubs.py binds 13121/13122/13124/13125/13126 and
@@ -192,32 +192,32 @@ start_all_dedicated() {
     # sequences (kXR_wait, kXR_waitresp, kXR_authmore, kXR_gotoTLS) that
     # real xrootd never produces, enabling deterministic protocol edge tests.
     UPSTREAM_PORT="${STUB_REDIRECT_BACKEND_PORT:-13120}" \
-        start_dedicated_nginx "stub-upstream-redirect" "nginx_upstream_redirect.conf" \
+        start_dedicated_nginx "stub-upstream-redirect" "nginx_upstream_wait.conf" \
         "${STUB_REDIRECT_NGINX_PORT:-11130}"
     UPSTREAM_PORT="${STUB_WAIT_BACKEND_PORT:-13121}" \
         start_dedicated_nginx "stub-upstream-wait" "nginx_upstream_wait.conf" \
         "${STUB_WAIT_NGINX_PORT:-11131}"
     UPSTREAM_PORT="${STUB_WAITRESP_BACKEND_PORT:-13122}" \
-        start_dedicated_nginx "stub-upstream-waitresp" "nginx_upstream_waitresp.conf" \
+        start_dedicated_nginx "stub-upstream-waitresp" "nginx_upstream_wait.conf" \
         "${STUB_WAITRESP_NGINX_PORT:-11132}"
     UPSTREAM_PORT="${STUB_ERROR_BACKEND_PORT:-13123}" \
-        start_dedicated_nginx "stub-upstream-error" "nginx_upstream_error.conf" \
+        start_dedicated_nginx "stub-upstream-error" "nginx_upstream_auth.conf" \
         "${STUB_ERROR_NGINX_PORT:-11133}"
     UPSTREAM_PORT="${STUB_AUTH_BACKEND_PORT:-13124}" \
         start_dedicated_nginx "stub-upstream-auth" "nginx_stub_upstream_auth.conf" \
         "${STUB_AUTH_NGINX_PORT:-11134}"
     UPSTREAM_PORT="${STUB_AUTH_NOFILE_BACKEND_PORT:-13125}" \
-        start_dedicated_nginx "stub-upstream-auth-nofile" "nginx_upstream_auth_nofile.conf" \
+        start_dedicated_nginx "stub-upstream-auth-nofile" "nginx_upstream_wait.conf" \
         "${STUB_AUTH_NOFILE_NGINX_PORT:-11135}"
     UPSTREAM_PORT="${STUB_GOTORLS_BACKEND_PORT:-13126}" \
-        start_dedicated_nginx "stub-upstream-gotorls" "nginx_upstream_gotorls_notls.conf" \
+        start_dedicated_nginx "stub-upstream-gotorls" "nginx_upstream_wait.conf" \
         "${STUB_GOTORLS_NGINX_PORT:-11136}"
 
     # Real-upstream-redirect: nginx at REAL_REDIRECT_NGINX_PORT proxies to the
     # cluster-redir to verify kXR_redirect forwarding against a real XRootD
     # redirector, complementing the stub-backed instances above.
     UPSTREAM_PORT="${CLUSTER_REDIR_PORT:-11160}" \
-        start_dedicated_nginx "real-upstream-redirect" "nginx_upstream_redirect.conf" \
+        start_dedicated_nginx "real-upstream-redirect" "nginx_upstream_wait.conf" \
         "${REAL_REDIRECT_NGINX_PORT:-11137}"
 
     start_dedicated_nginx "tpc-ssrf-default" "nginx_tpc_ssrf_default.conf" "${TPC_SSRF_DEFAULT_PORT:-11180}"
@@ -255,7 +255,7 @@ start_all_dedicated() {
     UPSTREAM_PORT="${CHAOS_TIER3_PORT:-11163}" \
         start_dedicated_nginx "chaos-tier2" "nginx_chaos_tier2_cache.conf" "${CHAOS_TIER2_PORT:-11164}"
     UPSTREAM_PORT="${CHAOS_TIER2_PORT:-11164}" \
-        start_dedicated_nginx "chaos-tier1" "nginx_proxy.conf" "${CHAOS_TIER1_PORT:-11165}"
+        start_dedicated_nginx "chaos-tier1" "nginx_proxy_mode.conf" "${CHAOS_TIER1_PORT:-11165}"
 
     # Chaos Mesh discovery cluster: separate redirector + DS for delayed-CMS tests.
     # Start the DATA SERVER first, while its CMS manager (the redirector) is still
@@ -281,14 +281,14 @@ start_all_dedicated() {
     UPSTREAM_PORT="${PROXY_UPSTREAM_PORT:-12501}" \
         start_dedicated_nginx "proxy-nginx" "nginx_proxy_mode.conf" "${PROXY_NGINX_PORT:-11193}"
     UPSTREAM_PORT="${PROXY_DEAD_UPSTREAM_PORT:-19999}" \
-        start_dedicated_nginx "proxy-dead" "nginx_proxy_dead.conf" "${PROXY_DEAD_NGINX_PORT:-11203}"
+        start_dedicated_nginx "proxy-dead" "nginx_proxy_mode.conf" "${PROXY_DEAD_NGINX_PORT:-11203}"
 
     # Proxy interoperability matrix — Scenarios 2 and 3 (test_e2e_proxy_matrix.py)
     # Scenario 2: xrootd PSS bridge → nginx proxy → xrootd data (PROXY_DATA_ROOT)
     start_pss_bridge_ref "${PROXY_BRIDGE_BRIX_PORT:-11214}" "${PROXY_NGINX_PORT:-11193}"
     # Scenario 3: pure nginx→nginx stack; proxy chains to the existing data nginx
     UPSTREAM_PORT="${PROXY_NGINX_PORT:-11193}" \
-        start_dedicated_nginx "pure-nginx-proxy" "nginx_pure_nginx_proxy.conf" \
+        start_dedicated_nginx "pure-nginx-proxy" "nginx_proxy_mode.conf" \
         "${PROXY_PURE_NGINX_PROXY_PORT:-11213}"
     # Credential Translation Bridge — Section 4C (test_credential_translation.py)
     # Accepts GSI proxy cert; injects Bearer token for the token-only backend.

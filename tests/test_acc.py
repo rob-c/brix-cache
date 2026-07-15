@@ -20,6 +20,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import BIND_HOST, HOST, free_port, url_host
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -69,24 +70,12 @@ def acc_server():
     with open(f"{ROOT}/authdb", "w") as f:
         f.write(AUTHDB)
     with open(f"{ROOT}/conf/nginx.conf", "w") as f:
-        f.write(f"""worker_processes 1;
-error_log {ROOT}/logs/error.log info;
-pid {ROOT}/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {url_host(BIND_HOST)}:{ACC_PORT};
-        brix_root on;
-        brix_storage_backend posix:{ROOT}/data;
-        brix_auth none;
-        brix_allow_write on;
-        brix_authdb_format xrdacc;
-        brix_authdb {ROOT}/authdb;
-        brix_authdb_audit all;
-        brix_access_log {ROOT}/logs/access.log;
-    }}
-}}
-""")
+        f.write(render_config(
+            "nginx_acc_stream.conf",
+            BASE_DIR=ROOT,
+            BIND_HOST=url_host(BIND_HOST),
+            PORT=ACC_PORT,
+        ))
 
     conf = f"{ROOT}/conf/nginx.conf"
     t = subprocess.run([NGINX_BIN, "-t", "-c", conf], capture_output=True, text=True)
@@ -177,28 +166,13 @@ def _start_http(location_block):
         f.write("u * /grant rl\n")
     conf = f"{HTTP_ROOT}/conf/nginx.conf"
     with open(conf, "w") as f:
-        f.write(f"""worker_processes 1;
-error_log {HTTP_ROOT}/logs/error.log info;
-pid {HTTP_ROOT}/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_body_temp_path {HTTP_ROOT}/tmp/cbt;
-    proxy_temp_path {HTTP_ROOT}/tmp/pt;
-    fastcgi_temp_path {HTTP_ROOT}/tmp/ft;
-    uwsgi_temp_path {HTTP_ROOT}/tmp/ut;
-    scgi_temp_path {HTTP_ROOT}/tmp/st;
-    server {{
-        listen {url_host(BIND_HOST)}:{HTTP_PORT};
-        location / {{
-{location_block}
-            brix_authdb_format xrdacc;
-            brix_authdb {HTTP_ROOT}/authdb;
-            brix_authdb_audit all;
-        }}
-    }}
-}}
-""")
+        f.write(render_config(
+            "nginx_acc_http_location.conf",
+            BASE_DIR=HTTP_ROOT,
+            BIND_HOST=url_host(BIND_HOST),
+            PORT=HTTP_PORT,
+            LOCATION_BLOCK=location_block,
+        ))
     t = subprocess.run([NGINX_BIN, "-t", "-c", conf], capture_output=True, text=True)
     assert t.returncode == 0, f"nginx -t failed: {t.stderr}"
     subprocess.run([NGINX_BIN, "-c", conf], capture_output=True)

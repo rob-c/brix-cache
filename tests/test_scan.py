@@ -70,6 +70,7 @@ def test_scan_core_suite(scan_core_bin):
 # test_dashboard_files.py's provisioning).                                     #
 # --------------------------------------------------------------------------- #
 from settings import HOST, BIND_HOST  # noqa: E402
+from config_templates import render_config  # noqa: E402
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 SCAN_PW = "scan_admin_pw_42"
@@ -112,30 +113,13 @@ def scan_server(tmp_path_factory):
     hp = _free_port()
     hp_off = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text("""
-worker_processes 1;
-pid %(root)s/nginx.pid;
-error_log %(root)s/error.log info;
-events { worker_connections 64; }
-http {
-    access_log off;
-    client_body_temp_path %(root)s/tmp;
-    proxy_temp_path %(root)s/tmp;
-    fastcgi_temp_path %(root)s/tmp;
-    uwsgi_temp_path %(root)s/tmp;
-    scgi_temp_path %(root)s/tmp;
-    server {
-        listen %(bind)s:%(hp)d;
-        location /brix { brix_dashboard on; brix_dashboard_password "%(pw)s";
-                           brix_scan_root %(data)s; }
-    }
-    server {
-        listen %(bind)s:%(hp_off)d;
-        location /brix { brix_dashboard on; brix_dashboard_password "%(pw)s"; }
-    }
-}
-""" % {"root": root, "bind": BIND_HOST, "hp": hp, "hp_off": hp_off,
-       "pw": SCAN_PW, "data": data})
+    conf.write_text(render_config("nginx_scan_dashboard.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  PORT=hp,
+                                  OFF_PORT=hp_off,
+                                  PASSWORD=SCAN_PW,
+                                  DATA_DIR=data))
 
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                       capture_output=True, text=True).returncode != 0:

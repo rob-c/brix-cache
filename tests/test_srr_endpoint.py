@@ -35,6 +35,7 @@ except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from config_templates import render_config
 
 PORT = int(os.environ.get("TEST_SRR_PORT") or free_port())
 SRR_PATH = "/.well-known/wlcg-storage-resource-reporting"
@@ -66,33 +67,12 @@ def srr_server(tmp_path_factory):
     data.mkdir()
     (data / "f.bin").write_bytes(b"x" * 4096)
 
-    conf = f"""
-error_log {d}/logs/error.log error;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
-    uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
-    server {{
-        listen {BIND_HOST}:{PORT};
-        location = {SRR_PATH} {{
-            brix_srr on;
-            brix_srr_name "TEST-SE";
-            brix_srr_quality production;
-            brix_srr_version "3.5";
-            brix_srr_share atlasdata {data} atlas,cms;
-            brix_srr_endpoint webdav davs https://{HOST}:8443/;
-            brix_srr_endpoint root xroot root://{HOST}:1094/;
-        }}
-        # A location with no brix_srr — must NOT serve the document.
-        location = /not-srr {{
-            return 204;
-        }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_srr_endpoint.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         PORT=PORT,
+                         DATA_DIR=data,
+                         HOST=HOST)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],

@@ -24,6 +24,7 @@ import time
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -72,16 +73,12 @@ def rw_root(tmp_path_factory):
     data.mkdir()
     port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 64; }}
-stream {{
-    server {{ listen {BIND_HOST}:{port}; brix_root on; brix_storage_backend posix:{data};
-             brix_auth none; brix_allow_write on; }}
-}}
-""")
+    conf.write_text(render_config("nginx_stream_posix_anon.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  PORT=port,
+                                  DATA_DIR=data,
+                                  WORKER_CONNECTIONS=64))
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                       capture_output=True, text=True).returncode != 0:
         pytest.skip("nginx -t failed")
@@ -176,30 +173,11 @@ def srr_server(tmp_path_factory):
     data.mkdir()
     port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_body_temp_path {root}/cbt;
-    proxy_temp_path {root}/pt;
-    fastcgi_temp_path {root}/ft;
-    uwsgi_temp_path {root}/ut;
-    scgi_temp_path {root}/sct;
-    server {{
-        listen {BIND_HOST}:{port};
-        location = /.well-known/wlcg-storage-resource-reporting {{
-            brix_srr on;
-            brix_srr_name "TEST-SE";
-            brix_srr_quality production;
-            brix_srr_version "3.5";
-            brix_srr_share atlasdata {data} atlas,cms;
-        }}
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_srr_self.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  PORT=port,
+                                  DATA_DIR=data))
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                       capture_output=True, text=True).returncode != 0:
         pytest.skip("nginx -t failed (srr)")

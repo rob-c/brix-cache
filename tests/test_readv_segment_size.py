@@ -29,25 +29,9 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import QueryCode
 
-NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+from config_templates import render_config
 
-_CONF = """\
-worker_processes 1;
-daemon off;
-{user_directive}
-error_log {logs}/error.log error;
-pid {logs}/nginx.pid;
-events {{ worker_connections 1024; }}
-stream {{
-    server {{
-        listen 127.0.0.1:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_readv_segment_size 16m;
-        brix_access_log {logs}/access.log;
-    }}
-}}
-"""
+NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 FILE_BYTES = 20 * 1024 * 1024
 SEG_CAP = 16 * 1024 * 1024          # the configured brix_readv_segment_size
@@ -85,8 +69,13 @@ def server16m():
     # directive; this self-started instance must keep workers as root too.
     user_directive = "user root;" if os.geteuid() == 0 else ""
     with open(os.path.join(confd, "nginx.conf"), "w") as fh:
-        fh.write(_CONF.format(port=port, data=data, logs=logs,
-                              user_directive=user_directive))
+        fh.write(render_config(
+            "nginx_readv_segment_size.conf",
+            PORT=port,
+            DATA_DIR=data,
+            LOG_DIR=logs,
+            USER_DIRECTIVE=user_directive,
+        ))
     env = dict(os.environ)
     env.pop("LD_LIBRARY_PATH", None)   # conda prefix breaks system XRootD libs
     proc = subprocess.Popen([NGINX_BIN, "-p", prefix, "-c", "conf/nginx.conf"], env=env)

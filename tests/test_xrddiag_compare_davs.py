@@ -22,6 +22,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import HOST, BIND_HOST
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -64,36 +65,16 @@ def fixture(tmp_path_factory):
     ok_port = _free_port()
     bad_port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{rport};
-        brix_root on;
-        brix_storage_backend posix:{dataR};
-        brix_auth none;
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {root}/tmp;
-    proxy_temp_path {root}/tmp;
-    fastcgi_temp_path {root}/tmp;
-    uwsgi_temp_path {root}/tmp;
-    scgi_temp_path {root}/tmp;
-    server {{
-        listen {BIND_HOST}:{ok_port};
-        location / {{ root {dataR}; brix_webdav on; brix_storage_backend posix:{dataR}; brix_webdav_auth none; }}
-    }}
-    server {{
-        listen {BIND_HOST}:{bad_port};
-        location / {{ root {dataB}; brix_webdav on; brix_storage_backend posix:{dataB}; brix_webdav_auth none; }}
-    }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_xrddiag_compare_davs.conf",
+        BASE_DIR=root,
+        BIND_HOST=BIND_HOST,
+        ROOT_PORT=rport,
+        OK_PORT=ok_port,
+        BAD_PORT=bad_port,
+        DATA_R=dataR,
+        DATA_B=dataB,
+    ))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
     if t.returncode != 0:
         pytest.skip("nginx -t failed:\n" + t.stderr)

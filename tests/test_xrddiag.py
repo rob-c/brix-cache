@@ -35,6 +35,7 @@ from settings import (
     SERVER_HOST,
     url_host,
 )
+from config_templates import render_config
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -237,20 +238,12 @@ def netdiag_server(tmp_path_factory):
     (data / "big.bin").write_bytes(os.urandom(1024 * 1024))
     port = _free_port_local()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_stream_posix_anon.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  PORT=port,
+                                  DATA_DIR=data,
+                                  WORKER_CONNECTIONS=256))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
     if t.returncode != 0:
         pytest.skip("nginx -t failed:\n" + t.stderr)
@@ -325,21 +318,12 @@ def doctor_server(tmp_path_factory):
     (data / "obj.bin").write_bytes(os.urandom(800000))
     port = _free_port_local()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_allow_write on;
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_stream_posix_anon.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  PORT=port,
+                                  DATA_DIR=data,
+                                  WORKER_CONNECTIONS=256))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
     if t.returncode != 0:
         pytest.skip("nginx -t failed:\n" + t.stderr)

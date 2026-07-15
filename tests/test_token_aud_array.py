@@ -34,6 +34,7 @@ except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST         # noqa: E402
+from config_templates import render_config                         # noqa: E402
 
 PORT = int(os.environ.get("TEST_TOKEN_AUD_PORT") or free_port())
 AUDIENCE = "nginx-xrootd"
@@ -68,30 +69,14 @@ def aud_server(tmp_path_factory):
     issuer = TokenIssuer(str(d), audience=AUDIENCE)
     issuer.init_keys()                    # writes signing_key.pem + jwks.json
 
-    conf = f"""
-error_log {d}/logs/error.log error;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
-    uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
-    server {{
-        listen {BIND_HOST}:{PORT};
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{data};
-            brix_webdav_auth required;
-            brix_webdav_cadir {d}/cadir;
-            brix_allow_write on;
-            brix_webdav_token_jwks {issuer.jwks_path};
-            brix_webdav_token_issuer "{issuer.issuer}";
-            brix_webdav_token_audience "{AUDIENCE}";
-        }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_webdav_token_aud.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         PORT=PORT,
+                         DATA_DIR=data,
+                         JWKS_PATH=issuer.jwks_path,
+                         ISSUER=issuer.issuer,
+                         AUDIENCE=AUDIENCE)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],

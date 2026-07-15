@@ -29,6 +29,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import free_port, HOST, BIND_HOST, url_host
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -153,26 +154,14 @@ class _Stream:
         self.write_authdb(authdb)
         self.conf = f"{self.root}/conf/nginx.conf"
         with open(self.conf, "w") as f:
-            f.write(f"""worker_processes 1;
-error_log {self.root}/logs/error.log info;
-pid {self.root}/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    brix_kv_zone authz 1m key=32 val=8;
-    server {{
-        listen {BIND_HOST}:{self.port};
-        brix_root on;
-        brix_storage_backend posix:{self.root}/data;
-        brix_auth none;
-        brix_allow_write on;
-        brix_authdb_format xrdacc;
-        brix_authdb {self.authdb_path};
-        brix_authdb_audit all;
-{extra}
-        brix_access_log {self.root}/logs/access.log;
-    }}
-}}
-""")
+            f.write(render_config(
+                "nginx_acc_residual_stream.conf",
+                BASE_DIR=self.root,
+                BIND_HOST=BIND_HOST,
+                PORT=self.port,
+                AUTHDB_PATH=self.authdb_path,
+                EXTRA_DIRECTIVES=extra,
+            ))
 
     def write_authdb(self, contents):
         with open(self.authdb_path, "w") as f:
@@ -416,32 +405,13 @@ class _Webdav:
         self.write_authdb("u * /grant rl\n")
         self.conf = f"{self.root}/conf/nginx.conf"
         with open(self.conf, "w") as f:
-            f.write(f"""worker_processes 1;
-error_log {self.root}/logs/error.log info;
-pid {self.root}/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_body_temp_path {self.root}/tmp/cbt;
-    proxy_temp_path {self.root}/tmp/pt;
-    fastcgi_temp_path {self.root}/tmp/ft;
-    uwsgi_temp_path {self.root}/tmp/ut;
-    scgi_temp_path {self.root}/tmp/st;
-    server {{
-        listen {BIND_HOST}:{self.port};
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{self.root}/data;
-            brix_webdav_auth none;
-            brix_allow_write on;
-            brix_authdb_format xrdacc;
-            brix_authdb {self.authdb_path};
-            brix_authdb_audit all;
-            brix_authdb_refresh 1;
-        }}
-    }}
-}}
-""")
+            f.write(render_config(
+                "nginx_acc_residual_webdav.conf",
+                BASE_DIR=self.root,
+                BIND_HOST=BIND_HOST,
+                PORT=self.port,
+                AUTHDB_PATH=self.authdb_path,
+            ))
 
     def write_authdb(self, contents, mtime=None):
         with open(self.authdb_path, "w") as f:

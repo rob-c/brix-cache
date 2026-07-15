@@ -3,6 +3,22 @@
 The suite is ~8,700 tests. **Never run bare `pytest tests/`** for a full check — with
 no `-n` it runs *serially* and takes 20min+. Use the runner below.
 
+## Scope: native only
+
+`tests/` is for native (non-container) deployments — tests run directly against a
+locally built/managed fleet (`manage_test_servers.sh`), optionally pointed at a
+remote host via env vars (`TEST_SERVER_HOST` etc.), but never requiring a
+container runtime or orchestrator themselves. `tests/ceph/` is the one exception
+(it builds/runs some CephFS pieces in-container via `Dockerfile.build`).
+
+The S3/MinIO forwarding tests live in `k8s-tests/remote-suite/tests/` instead
+of here: `test_minio_s3_forward.py` (local docker-MinIO fallback + in-cluster
+`s3-forward` mode, via `minio_harness.sh`) and `test_s3gsi_multiuser.py`
+(in-cluster `s3-gsi` scenario only, no local mode).
+
+Anything that needs Docker, Kubernetes, Helm, or a cluster to run belongs in
+`k8s-tests/` instead, not here.
+
 ## Quick reference
 
 | Command | What it runs | Time | Use when |

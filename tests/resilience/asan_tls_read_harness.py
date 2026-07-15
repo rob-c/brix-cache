@@ -25,6 +25,8 @@ import sys
 import tempfile
 import time
 
+from config_templates import render_config
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
 
@@ -98,14 +100,16 @@ def main():
     port = free_port()
     conf = os.path.join(prefix, "nginx.conf")
     with open(conf, "w") as fh:
-        fh.write(f"""worker_processes 1; daemon off;
-error_log {errlog} info; pid {logs}/nginx.pid;
-events {{ worker_connections 2048; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_storage_backend posix:{data};
-  brix_auth none; brix_allow_write on;
-  brix_tls on; brix_certificate {servers.SERVER_CERT};
-  brix_certificate_key {servers.SERVER_KEY};
-  brix_pipeline_depth {args.depth}; }} }}""")
+        fh.write(render_config(
+            "nginx_resilience_asan_tls_read.conf",
+            ERROR_LOG=errlog,
+            LOG_DIR=logs,
+            PORT=port,
+            DATA_DIR=data,
+            CERT_FILE=servers.SERVER_CERT,
+            KEY_FILE=servers.SERVER_KEY,
+            PIPELINE_DEPTH=args.depth,
+        ))
 
     name = "/r.bin"
     src = os.path.join(data, "r.bin")

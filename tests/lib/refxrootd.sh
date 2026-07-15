@@ -95,7 +95,7 @@ write_anon_ref_cfg() {
     local admin_dir="$4"
     local run_dir="$5"
 
-    render_cfg "${CONFIGS_DIR}/xrootd_anon.conf" "$cfg" \
+    render_cfg "${CONFIGS_DIR}/xrootd_ref.conf" "$cfg" \
         PORT="${port}" \
         DATA_DIR="${data_dir}" \
         ADMIN_DIR="${admin_dir}" \

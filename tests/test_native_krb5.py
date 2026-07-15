@@ -25,6 +25,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 import kdc_helpers
 from settings import (
     BIND_HOST,
@@ -89,23 +90,15 @@ def krb5_server(tmp_path_factory):
 
     port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {url_host(BIND_HOST)}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth krb5;
-        brix_krb5_principal {KRB5_SERVICE_PRINCIPAL};
-        brix_krb5_keytab {KRB5_KEYTAB};
-        brix_allow_write on;
-    }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_native_krb5.conf",
+        BASE_DIR=root,
+        BIND_HOST=url_host(BIND_HOST),
+        PORT=port,
+        DATA_DIR=data,
+        PRINCIPAL=KRB5_SERVICE_PRINCIPAL,
+        KEYTAB=KRB5_KEYTAB,
+    ))
     # The acceptor needs the realm config (auth_to_local + default_realm).
     srv_env = {k: v for k, v in os.environ.items()}
     srv_env["KRB5_CONFIG"] = KRB5_CONF

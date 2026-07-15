@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from config_templates import render_config
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 HOST = "127.0.0.1"
@@ -188,15 +190,13 @@ def redirector(tmp_path):
     # passes) but no worker answers, and the client handshake times out.
     data.chmod(0o777)
     cfg = tmp_path / "redir.conf"
-    cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
-        f"error_log {tmp_path}/err.log info;\npid {tmp_path}/nginx.pid;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {HOST}:{NGINX_PORT};\n    brix_root on;\n"
-        f"    brix_storage_backend posix:{data};\n"
-        f"    brix_upstream {HOST}:{origin.port};\n"
-        f"    brix_upstream_token_file {token};\n  }}\n}}\n")
+    cfg.write_text(render_config("nginx_upstream_auth_multiround.conf",
+                                 BASE_DIR=tmp_path,
+                                 HOST=HOST,
+                                 PORT=NGINX_PORT,
+                                 DATA_DIR=data,
+                                 UPSTREAM_PORT=origin.port,
+                                 TOKEN_FILE=token))
     subprocess.run(["bash", "-c", f"fuser -k {NGINX_PORT}/tcp 2>/dev/null"])
     proc = subprocess.Popen([NGINX, "-c", str(cfg), "-p", str(tmp_path)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

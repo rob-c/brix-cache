@@ -21,6 +21,8 @@ import time
 
 import pytest
 
+from config_templates import render_config
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 STOCK_XRDFS = "/usr/bin/xrdfs"
@@ -193,25 +195,15 @@ def _spawn_nginx_gsi(gsi_server, port, signed_dh=None, tag="nginx_gsi"):
     cfg = os.path.join(base, f"{tag}.conf")
     sdh = f"    brix_gsi_signed_dh {signed_dh};\n" if signed_dh else ""
     with open(cfg, "w") as f:
-        f.write(
-            # daemon off keeps the master in the foreground so `proc` IS the
-            # master: terminate() reaps it cleanly (no leaked listener that a
-            # later run would mistake for its own) and proc.poll() detects a
-            # failed bind.
-            "daemon off;\n"
-            f"error_log {base}/logs/{tag}.error.log info;\n"
-            "events { worker_connections 64; }\n"
-            "stream {\n"
-            "  server {\n"
-            f"    listen {port};\n"
-            "    brix_root on;\n"
-            f"    brix_storage_backend posix:{gsi_server['data']};\n"
-            "    brix_auth gsi;\n"
-            + sdh +
-            f"    brix_certificate     {gsi_server['hostcert']};\n"
-            f"    brix_certificate_key {gsi_server['hostkey']};\n"
-            f"    brix_trusted_ca      {gsi_server['ca']};\n"
-            "  }\n}\n")
+        f.write(render_config("nginx_native_gsi_interop.conf",
+                              BASE_DIR=base,
+                              TAG=tag,
+                              PORT=port,
+                              DATA_DIR=gsi_server["data"],
+                              SIGNED_DH_DIRECTIVE=sdh,
+                              CERT_FILE=gsi_server["hostcert"],
+                              KEY_FILE=gsi_server["hostkey"],
+                              CA_DIR=gsi_server["ca"]))
     env = dict(os.environ)
     env["LD_LIBRARY_PATH"] = "/tmp/rt_libshim:/usr/lib64:" + env.get("LD_LIBRARY_PATH", "")
     _free_port(port)

@@ -27,6 +27,7 @@ import urllib.request
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
@@ -61,47 +62,17 @@ def server(tmp_path_factory):
     http_port = _free_port()
     root_port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-# planted URL credential (must be cred-stripped): https://creduser:{URL_CRED}@ex.com/p
-stream {{
-    server {{
-        listen {BIND_HOST}:{root_port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_allow_write on;
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {root}/tmp;
-    proxy_temp_path {root}/tmp;
-    fastcgi_temp_path {root}/tmp;
-    uwsgi_temp_path {root}/tmp;
-    scgi_temp_path {root}/tmp;
-    server {{
-        listen {BIND_HOST}:{http_port};
-        location /brix/ {{
-            brix_dashboard on;
-            brix_dashboard_password "{DASH_PW}";
-            brix_dashboard_anonymous on;
-        }}
-        location / {{
-            root {data};
-            brix_webdav on;
-            brix_storage_backend posix:{data};
-            brix_webdav_auth none;
-            brix_webdav_macaroon_secret {MACAROON_HEX};
-            set $planted_leak "{SET_SECRET}";
-            proxy_set_header X-Api-Key "{HEADER_SECRET}";
-        }}
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_dashboard_config_anon.conf",
+                                  BASE_DIR=root,
+                                  DATA_DIR=data,
+                                  BIND_HOST=BIND_HOST,
+                                  ROOT_PORT=root_port,
+                                  HTTP_PORT=http_port,
+                                  URL_CRED=URL_CRED,
+                                  PASSWORD=DASH_PW,
+                                  MACAROON_HEX=MACAROON_HEX,
+                                  SET_SECRET=SET_SECRET,
+                                  HEADER_SECRET=HEADER_SECRET))
     proc = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                           capture_output=True, text=True)
     if proc.returncode != 0:

@@ -21,6 +21,7 @@ import socket
 import subprocess
 import time
 
+from config_templates import render_config
 from settings import NGINX_BIN, TEST_ROOT
 
 BIND = "127.0.0.1"
@@ -537,18 +538,12 @@ def err_code(stderr_or_out):
 
 def start_our_server(base, data, port=OUR_PORT):
     cfg = os.path.join(base, "our.conf")
-    body = (
-        "daemon off;\nworker_processes 1;\n"
-        "pid {b}/our.pid;\nerror_log {b}/our-err.log info;\n"
-        "thread_pool default threads=2 max_queue=4096;\n"
-        "events {{ worker_connections 64; }}\n"
-        "stream {{ server {{\n"
-        "  listen {bind}:{port};\n  brix_root on;\n  brix_storage_backend posix:{data};\n"
-        "  brix_auth none;\n  brix_allow_write on;\n"
-        "  brix_access_log {b}/our-access.log;\n}} }}\n"
-    ).format(b=base, bind=BIND, port=port, data=data)
     with open(cfg, "w") as f:
-        f.write(body)
+        f.write(render_config("nginx_official_interop_anon.conf",
+                              BASE_DIR=base,
+                              BIND_HOST=BIND,
+                              PORT=port,
+                              DATA_DIR=data))
     p = subprocess.Popen([NGINX_BIN, "-c", cfg, "-p", base],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=True)

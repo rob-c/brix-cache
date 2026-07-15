@@ -21,6 +21,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import HOST, NGINX_BIN, free_port
 
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_ssi_wire")
@@ -149,20 +150,12 @@ def ssi_server():
     os.makedirs(data, exist_ok=True)
     conf = os.path.join(base, "nginx.conf")
     with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 128; }}\n"
-            f"stream {{\n"
-            f"    server {{\n"
-            f"        listen 0.0.0.0:{SSI_PORT};\n"
-            f"        brix_root on; brix_storage_backend posix:{data}; brix_auth none;\n"
-            f"        brix_allow_write on;\n"
-            f"        brix_ssi on;\n"
-            f"        brix_ssi_service cta;\n"
-            f"    }}\n"
-            f"}}\n")
+        f.write(render_config(
+            "nginx_ssi_wire.conf",
+            BASE_DIR=base,
+            PORT=SSI_PORT,
+            DATA_DIR=data,
+        ))
     subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
     time.sleep(0.3)
     chk = subprocess.run([NGINX_BIN, "-t", "-c", conf], capture_output=True, text=True)

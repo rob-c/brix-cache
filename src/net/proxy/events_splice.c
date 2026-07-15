@@ -56,17 +56,21 @@ brix_proxy_splice_done(brix_proxy_ctx_t *proxy)
         /*
          * nginx uses edge-triggered epoll.  The upstream socket may already
          * have the trailing kXR_ok(0) frame buffered, but no new edge event
-         * will fire for it.  Ensure the read handler is posted so it runs
-         * again regardless of whether new data has arrived.
+         * will fire for it.  Re-arm even when nginx still marks the event
+         * active: after a splice pump the event can be active-but-stale, which
+         * otherwise leaves the next oksofar/ok frame buffered forever.
+         * Then post the handler so it runs again regardless of whether new data
+         * has arrived.
          */
         {
             ngx_event_t *urev = proxy->conn->read;
-            if (!urev->active && !urev->ready) {
-                if (ngx_handle_read_event(urev, 0) != NGX_OK) {
-                    brix_proxy_abort(proxy,
-                        "proxy: read arm failed after splice oksofar");
-                    return;
-                }
+            if (ngx_handle_read_event(urev, 0) != NGX_OK) {
+                brix_proxy_abort(proxy,
+                    "proxy: read arm failed after splice oksofar");
+                return;
+            }
+            if (proxy->conf != NULL && proxy->conf->proxy.read_timeout > 0) {
+                ngx_add_timer(urev, proxy->conf->proxy.read_timeout);
             }
             if (!urev->posted) {
                 ngx_post_event(urev, &ngx_posted_events);
@@ -376,11 +380,11 @@ brix_proxy_splice_fallback_finish(brix_proxy_ctx_t *proxy)
 
 /*
  * brix_proxy_splice_eligible — WHAT: gate the zero-copy splice fast-path for
- * the current response.  WHY: splice bypasses TLS and only makes sense for a
- * fully-buffered read/pgread OK(sofar) body — splicing a still-streaming body
- * causes a fragile mid-transfer EAGAIN handoff with rare lost-wakeup stalls.
- * HOW: reject TLS, wrong state/opcode/status, empty body, and (via FIONREAD) a
- * body not yet fully in the upstream socket buffer.  Returns 1 if eligible.
+ * the current response.  WHY: splice bypasses TLS and is safe only for a final
+ * fully-buffered read/pgread body; multi-frame oksofar streams need the buffered
+ * relay's ordinary read-loop/event ordering.  HOW: reject TLS, wrong
+ * state/opcode/status, empty body, and (via FIONREAD) a body not yet fully in
+ * the upstream socket buffer.  Returns 1 if eligible.
  */
 static int
 brix_proxy_splice_eligible(brix_proxy_ctx_t *proxy)
@@ -400,7 +404,7 @@ brix_proxy_splice_eligible(brix_proxy_ctx_t *proxy)
     if (proxy->fwd_reqid != kXR_read && proxy->fwd_reqid != kXR_pgread) {
         return 0;
     }
-    if (proxy->resp_status != kXR_ok && proxy->resp_status != kXR_oksofar) {
+    if (proxy->resp_status != kXR_ok) {
         return 0;
     }
     if (proxy->resp_dlen == 0) {
@@ -554,4 +558,3 @@ brix_proxy_try_splice(brix_proxy_ctx_t *proxy)
 }
 
 #endif /* __linux__ */
-

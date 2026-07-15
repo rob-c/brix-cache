@@ -61,6 +61,7 @@ import time
 import pytest
 
 from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
+from config_templates import render_config
 
 BIGFILE_MB = 32
 SHIM_DELAY_US = int(os.environ.get("XRD_RACE_DELAY_US", "15000"))
@@ -594,52 +595,18 @@ def srv(tmp_path_factory):
             shutil.rmtree(prefix, ignore_errors=True)
             pytest.skip("port %d in use" % p)
 
-    conf = ("""
-worker_processes %d;
-daemon on;
-master_process on;
-pid %s/logs/nginx.pid;
-error_log %s/logs/error.log info;
-thread_pool aiopool threads=4 max_queue=8192;
-env FRM_DATA_DIR; env FRM_TAPE_DIR; env FRM_LATENCY_MS; env FRM_AUDIT_LOG; env FRM_FAIL_MODE;
-events { worker_connections 1024; }
-stream {
-    server {
-        listen %s:%d reuseport;
-        brix_root on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
-        brix_thread_pool aiopool; brix_memory_budget 6m;
-%s    }
-    server {
-        listen %s:%d reuseport;
-        brix_root on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
-        brix_thread_pool aiopool; brix_memory_budget 6m;
-        brix_tls on; brix_certificate %s; brix_certificate_key %s;
-    }
-}
-http {
-    access_log off;
-    client_body_temp_path %s/logs/cbt; proxy_temp_path %s/logs/pt;
-    fastcgi_temp_path %s/logs/ft; uwsgi_temp_path %s/logs/ut; scgi_temp_path %s/logs/st;
-    server {
-        listen %s:%d ssl;
-        ssl_certificate %s; ssl_certificate_key %s;
-        location = /metrics { brix_metrics on; }
-        location /s3b/ { brix_s3 on; brix_storage_backend posix:%s; brix_s3_bucket s3b;
-                         brix_s3_region us-east-1; }
-        location / { brix_webdav on; brix_storage_backend posix:%s; brix_webdav_auth none;
-                     brix_allow_write on; }
-    }
-    server {
-        listen %s:%d;
-        location = /metrics { brix_metrics on; }
-    }
-}
-""" % (WORKERS, prefix, prefix,
-       BIND_HOST, root_port, datadir, frm_block,
-       BIND_HOST, root_tls_port, datadir, cert, key,
-       prefix, prefix, prefix, prefix, prefix,
-       BIND_HOST, https_port, cert, key, datadir, datadir,
-       BIND_HOST, metrics_port))
+    conf = render_config("nginx_evil_actor_v3.conf",
+                         WORKERS=WORKERS,
+                         PREFIX=prefix,
+                         BIND_HOST=BIND_HOST,
+                         ROOT_PORT=root_port,
+                         ROOT_TLS_PORT=root_tls_port,
+                         HTTPS_PORT=https_port,
+                         METRICS_PORT=metrics_port,
+                         DATA_DIR=datadir,
+                         CERT=cert,
+                         KEY=key,
+                         FRM_BLOCK=frm_block)
     conf_path = os.path.join(prefix, "nginx.conf")
     open(conf_path, "w").write(conf)
     pidfile = os.path.join(prefix, "logs", "nginx.pid")

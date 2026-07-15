@@ -3,7 +3,7 @@ tests/test_dropin_byte_for_byte.py — drop-in byte-for-byte parity vs the
 OFFICIAL xrootd server.
 
 This suite proves the nginx-xrootd module is a *drop-in* replacement for the
-official /usr/bin/brix at the wire level: it provisions BOTH servers on the
+official /usr/bin/xrootd at the wire level: it provisions BOTH servers on the
 SAME data root (a dedicated official xrootd and a dedicated nginx, on isolated
 high ports) and then issues the identical raw `root://` request to each and
 compares the responses.  Because both daemons read the same files, the
@@ -16,7 +16,7 @@ contract.  All raw framing is built with `struct.pack` exactly as in
 tests/test_readv_security.py, and every hostile / edge request is followed by a
 sanity op proving the connection survived.
 
-The whole module skips cleanly if the nginx binary or /usr/bin/brix is
+The whole module skips cleanly if the nginx binary or /usr/bin/xrootd is
 absent, or if either server fails to come up.
 
 Run:
@@ -33,7 +33,10 @@ import pytest
 
 from settings import NGINX_BIN, SERVER_HOST, free_ports
 
-BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "/usr/bin/brix")
+REF_XROOTD_BIN = os.environ.get(
+    "TEST_REF_BIN",
+    os.environ.get("TEST_BRIX_BIN", "/usr/bin/xrootd"),
+)
 H = SERVER_HOST
 
 # Dedicated workspace for this file.
@@ -42,9 +45,11 @@ _DIR = os.path.join(os.environ["TMPDIR"], "xrd_dropin_bfb")
 # distinct free OS ports so they never collide with the managed fleet or with
 # another self-contained test running in the same pytest invocation.  Any
 # explicit env override is still honoured.
-_NGINX_FREE, _BRIX_FREE = free_ports(2)
+_NGINX_FREE, _REF_XROOTD_FREE = free_ports(2)
 NGINX_PORT  = int(os.environ.get("TEST_DROPIN_NGINX_PORT") or _NGINX_FREE)
-BRIX_PORT = int(os.environ.get("TEST_DROPIN_BRIX_PORT") or _BRIX_FREE)
+REF_XROOTD_PORT = int(os.environ.get("TEST_DROPIN_XROOTD_PORT")
+                      or os.environ.get("TEST_DROPIN_BRIX_PORT")
+                      or _REF_XROOTD_FREE)
 
 
 # ---------------------------------------------------------------------------
@@ -432,14 +437,14 @@ def _start_xrootd(data_dir):
     cfg = os.path.join(base, "xrootd.cfg")
     with open(cfg, "w") as f:
         f.write(
-            f"xrd.port {BRIX_PORT}\n"
+            f"xrd.port {REF_XROOTD_PORT}\n"
             f"oss.localroot {data_dir}\n"
             f"all.export /\n"
             f"xrootd.chksum max 2 adler32\n"
             f"all.adminpath {os.path.join(base, 'admin')}\n"
             f"all.pidpath {os.path.join(base, 'run')}\n"
             f"xrd.trace off\n")
-    subprocess.run([BRIX_BIN, "-b", "-c", cfg,
+    subprocess.run([REF_XROOTD_BIN, "-b", "-c", cfg,
                     "-l", os.path.join(base, "xrootd.log")],
                    capture_output=True)
     return cfg
@@ -488,8 +493,8 @@ def _stop_nginx(conf):
 def stack():
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not os.path.exists(BRIX_BIN):
-        pytest.skip(f"official xrootd binary not found at {BRIX_BIN}")
+    if not os.path.exists(REF_XROOTD_BIN):
+        pytest.skip(f"official xrootd binary not found at {REF_XROOTD_BIN}")
 
     data_dir = os.path.join(_DIR, "data")
     _seed_data(data_dir)
@@ -498,13 +503,13 @@ def stack():
     nx_cfg = _nginx_conf(data_dir)
     started = {"xr": xr_cfg, "nx": nx_cfg}
     try:
-        if not _wait_port(BRIX_PORT):
+        if not _wait_port(REF_XROOTD_PORT):
             pytest.skip("official xrootd did not come up")
         # Robustness: a TIME-WAIT/orphaned listener on the port can make a bare
         # connect succeed even though THIS xrootd failed to bind and is serving
         # the wrong (or no) data.  Prove the official server actually serves the
         # seed file before trusting it; skip otherwise rather than hard-fail.
-        if not _serves_seed(BRIX_PORT):
+        if not _serves_seed(REF_XROOTD_PORT):
             pytest.skip("official xrootd is up but not serving the seed data "
                         "(stale listener / bind race) — skipping parity run")
         _start_nginx(nx_cfg)
@@ -515,7 +520,7 @@ def stack():
         yield {
             "data_dir": data_dir,
             "nginx": (H, NGINX_PORT),
-            "xrootd": (H, BRIX_PORT),
+            "xrootd": (H, REF_XROOTD_PORT),
         }
     finally:
         _stop_nginx(started["nx"])

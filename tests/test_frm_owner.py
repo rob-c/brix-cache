@@ -29,6 +29,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import NGINX_BIN, HOST, BIND_HOST
 
 try:
@@ -103,45 +104,16 @@ def srv(tmp_path_factory):
     jwks_path = d / "jwks.json"
     jwks_path.write_text(json.dumps(jwks))
 
-    conf = f"""
-worker_processes 1;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{STREAM_PORT};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_allow_write on;
-        brix_frm on;
-        brix_frm_queue_path {queue};
-        brix_frm_stagecmd /bin/true;
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
-    uwsgi_temp_path {d}/t; scgi_temp_path {d}/t;
-    server {{
-        listen {BIND_HOST}:{HTTP_PORT};
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{data};
-            brix_webdav_auth required;
-            brix_webdav_cadir {d}/cadir;
-            brix_allow_write on;
-            brix_webdav_tape_rest on;
-            brix_webdav_token_jwks {jwks_path};
-            brix_webdav_token_issuer "{ISSUER}";
-            brix_webdav_token_audience "{AUDIENCE}";
-        }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_frm_owner.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         STREAM_PORT=STREAM_PORT,
+                         HTTP_PORT=HTTP_PORT,
+                         DATA_DIR=data,
+                         QUEUE_PATH=queue,
+                         JWKS_PATH=jwks_path,
+                         ISSUER=ISSUER,
+                         AUDIENCE=AUDIENCE)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],

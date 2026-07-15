@@ -21,6 +21,7 @@ import time
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -53,20 +54,10 @@ def anon(tmp_path_factory):
     (data / "probe.txt").write_bytes(b"hello capture\n")
     port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_stream_posix_anon.conf",
+                                  BASE_DIR=root, BIND_HOST=BIND_HOST,
+                                  PORT=port, DATA_DIR=data,
+                                  WORKER_CONNECTIONS=256))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
     if t.returncode != 0:
         pytest.skip("nginx -t failed:\n" + t.stderr)

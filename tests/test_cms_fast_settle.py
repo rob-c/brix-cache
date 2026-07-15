@@ -33,6 +33,8 @@ import time
 
 import pytest
 
+from config_templates import render_config
+
 NGINX_BIN = os.environ.get("LIFECYCLE_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 pytestmark = pytest.mark.skipif(
@@ -109,22 +111,14 @@ class Node:
         # register with the CMS manager.
         os.chmod(os.path.join(prefix, "data"), 0o777)
         with open(self.conf, "w") as fh:
-            fh.write(f"""\
-worker_processes 1;
-daemon on;
-pid {prefix}/logs/nginx.pid;
-error_log {self.elog} {log_level};
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {self.listen};
-        brix_root on;
-        brix_storage_backend posix:{prefix}/data;
-        brix_auth none;
-        brix_cms_manager 127.0.0.1:{mgr_port};
-{extra}    }}
-}}
-""")
+            fh.write(render_config(
+                "nginx_cms_fast_settle_node.conf",
+                BASE_DIR=prefix,
+                LOG_LEVEL=log_level,
+                PORT=self.listen,
+                MANAGER_PORT=mgr_port,
+                EXTRA_DIRECTIVES=extra,
+            ))
 
     def start(self):
         import subprocess

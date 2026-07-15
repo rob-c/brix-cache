@@ -24,6 +24,7 @@ import time
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
+from config_templates import render_config  # noqa: E402
 from settings import NGINX_BIN, free_port, BIND_HOST  # noqa: E402
 
 kXR_login, kXR_open, kXR_write, kXR_close, kXR_stat = 3007, 3010, 3019, 3003, 3017
@@ -85,13 +86,6 @@ def _stat(port, path):
     return st, body
 
 
-def _render(tmpl, **kw):
-    out = tmpl
-    for k, v in kw.items():
-        out = out.replace("{" + k + "}", str(v))
-    return out
-
-
 @pytest.fixture(scope="module")
 def cluster(tmp_path_factory):
     if not os.path.exists(NGINX_BIN):
@@ -104,27 +98,17 @@ def cluster(tmp_path_factory):
     cms_port = free_port()
     ds_port = free_port()
 
-    mgr_conf = f"""
-worker_processes 1; daemon off; master_process off;
-error_log {mgr_log}/error.log info; pid {mgr_log}/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-  server {{ listen {BIND_HOST}:{mgr_port}; brix_root on; brix_auth none;
-           brix_manager_mode on; brix_cns collect; }}
-  server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}
-}}
-"""
-    ds_conf = f"""
-worker_processes 1; daemon off; master_process off;
-error_log {ds_log}/error.log info; pid {ds_log}/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-  server {{ listen {BIND_HOST}:{ds_port}; brix_root on; brix_storage_backend posix:{data};
-           brix_auth none; brix_allow_write on; brix_cns emit;
-           brix_cms_manager {BIND_HOST}:{cms_port}; brix_cms_paths /;
-           brix_cms_interval 1; brix_listen_port {ds_port}; }}
-}}
-"""
+    mgr_conf = render_config("nginx_cns_manager.conf",
+                             LOG_DIR=mgr_log,
+                             BIND_HOST=BIND_HOST,
+                             MANAGER_PORT=mgr_port,
+                             CMS_PORT=cms_port)
+    ds_conf = render_config("nginx_cns_data.conf",
+                            LOG_DIR=ds_log,
+                            BIND_HOST=BIND_HOST,
+                            DATA_PORT=ds_port,
+                            DATA_DIR=data,
+                            CMS_PORT=cms_port)
     (base / "mgr.conf").write_text(mgr_conf)
     (base / "ds.conf").write_text(ds_conf)
 

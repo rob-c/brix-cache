@@ -16,6 +16,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import NGINX_BIN, BIND_HOST, free_port
 from test_ssi_wire import (
     _handshake_login, _read_response, _rrinfo, _write_request,
@@ -29,16 +30,12 @@ def _write_config(base, extra_ssi):
     port = free_port()
     cfg = os.path.join(base, "ssi.conf")
     with open(cfg, "w") as f:
-        f.write(
-            "daemon off;\nworker_processes 1;\n"
-            f"pid {base}/ssi.pid;\nerror_log {base}/err.log info;\n"
-            "events { worker_connections 64; }\n"
-            "stream { server {\n"
-            f"  listen {BIND_HOST}:{port};\n  brix_root on;\n"
-            f"  brix_storage_backend posix:{data};\n"
-            "  brix_auth none;\n  brix_allow_write on;\n  brix_ssi on;\n"
-            f"{extra_ssi}"
-            "} }\n")
+        f.write(render_config("nginx_ssi_config_extra.conf",
+                              BASE_DIR=base,
+                              BIND_HOST=BIND_HOST,
+                              PORT=port,
+                              DATA_DIR=data,
+                              EXTRA_SSI=extra_ssi))
     return cfg, port
 
 

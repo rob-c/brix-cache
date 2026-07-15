@@ -21,11 +21,11 @@ import signal
 import socket
 import struct
 import subprocess
-import textwrap
 import time
 
 import pytest
 
+from config_templates import render_config
 from settings import HOST, NGINX_BIN, free_ports
 
 _HERE = os.path.dirname(__file__)
@@ -67,24 +67,12 @@ class TestSliceConfig:
         cache.mkdir()
         (tmp_path / "logs").mkdir()
         conf = tmp_path / "nginx.conf"
-        conf.write_text(textwrap.dedent(f"""\
-            error_log {tmp_path}/logs/error.log;
-            pid {tmp_path}/logs/nginx.pid;
-            events {{}}
-            thread_pool default threads=2 max_queue=128;
-            stream {{
-                server {{
-                    listen 21794;
-                    brix_root on;
-                    brix_export {origin};
-                    brix_auth none;
-                    brix_storage_backend root://{HOST}:1095;
-                    brix_cache_store posix:{cache};
-                    brix_cache_export /;
-                    brix_cache_slice_size {slice_value};
-                }}
-            }}
-            """))
+        conf.write_text(render_config("nginx_slice_cache_validate.conf",
+                                      BASE_DIR=tmp_path,
+                                      ORIGIN_DIR=origin,
+                                      HOST=HOST,
+                                      CACHE_DIR=cache,
+                                      SLICE_SIZE=slice_value))
         return subprocess.run(
             [_NGINX, "-t", "-p", str(tmp_path), "-c", "nginx.conf"],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30,
@@ -292,29 +280,16 @@ def xcache(tmp_path_factory):
         os.makedirs(d, exist_ok=True)
 
     origin_port, cache_port = free_ports(2)
-    head = ("daemon off;\nworker_processes 1;\n"
-            "events { worker_connections 64; }\n")
-    origin_cfg = head + (
-        f"pid {base}/logs/origin.pid;\n"
-        f"error_log {base}/logs/origin.log info;\n"
-        "stream {\n  server {\n"
-        f"    listen 127.0.0.1:{origin_port};\n"
-        "    brix_root on;\n"
-        f"    brix_export {origin_data};\n"
-        "    brix_auth none;\n  }\n}\n")
-    cache_cfg = head + (
-        f"pid {base}/logs/cache.pid;\n"
-        f"error_log {base}/logs/cache.log info;\n"
-        "thread_pool default threads=4 max_queue=4096;\n"
-        "stream {\n  server {\n"
-        f"    listen 127.0.0.1:{cache_port};\n"
-        "    brix_root on;\n"
-        f"    brix_export {export};\n"
-        "    brix_auth none;\n"
-        f"    brix_storage_backend root://127.0.0.1:{origin_port};\n"
-        f"    brix_cache_store posix:{cache_root};\n"
-        "    brix_cache_export /;\n"
-        "    brix_cache_slice_size 1m;\n  }\n}\n")
+    origin_cfg = render_config("nginx_slice_cache_origin.conf",
+                               BASE_DIR=base,
+                               PORT=origin_port,
+                               DATA_DIR=origin_data)
+    cache_cfg = render_config("nginx_slice_cache_cache.conf",
+                              BASE_DIR=base,
+                              PORT=cache_port,
+                              EXPORT_DIR=export,
+                              ORIGIN_PORT=origin_port,
+                              CACHE_DIR=cache_root)
 
     origin = _start(base, "origin.conf", origin_cfg, origin_port)
     cache = _start(base, "cache.conf", cache_cfg, cache_port)

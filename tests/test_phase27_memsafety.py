@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST
+from config_templates import render_config
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -183,13 +184,11 @@ def _spawn_stream(tmp_path, port):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_bytes(b"A" * 4096)
     (tmp_path / "logs").mkdir(exist_ok=True)
-    conf = (f"error_log {tmp_path}/logs/error.log info;\n"
-            f"pid {tmp_path}/logs/nginx.pid;\n"
-            "events { worker_connections 64; }\n"
-            "stream {\n"
-            f"  server {{ listen {BIND_HOST}:{port}; brix_root on;"
-            f" brix_storage_backend posix:{data}; brix_auth none; }}\n"
-            "}\ndaemon off;\nmaster_process off;\n")
+    conf = render_config("nginx_memsafety_stream.conf",
+                         BASE_DIR=tmp_path,
+                         BIND_HOST=BIND_HOST,
+                         PORT=port,
+                         DATA_DIR=data)
     cp = tmp_path / "nginx.conf"
     cp.write_text(conf)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(cp)],

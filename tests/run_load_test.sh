@@ -31,7 +31,7 @@
 #
 # Requires:
 #   • nginx built with nginx-xrootd module (./nginx -v should show the module)
-#   • xrootd 5.x installed (/usr/bin/brix)
+#   • xrootd 5.x installed (/usr/bin/xrootd)
 #   • Test PKI already generated under /tmp/xrd-load/pki/
 #   • Python 3 with XRootD python bindings (from xrootd package)
 #
@@ -157,7 +157,7 @@ shift || true
 EXTRA_ARGS=("$@")
 
 NGINX_BIN="${NGINX_BIN:-/tmp/nginx-1.28.3/objs/nginx}"
-BRIX_BIN="${BRIX_BIN:-/usr/bin/brix}"
+BRIX_BIN="${REF_BIN:-${BRIX_BIN:-/usr/bin/xrootd}}"
 AUTHDB_FILE="/tmp/xrd-perf-xrd/authdb"
 
 NGINX_PERF_DIR="/tmp/xrd-perf-test"

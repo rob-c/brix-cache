@@ -19,6 +19,7 @@ import time
 import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from config_templates import render_config
 
 PORT = int(os.environ.get("TEST_XFER_WTR_PORT") or free_port())
 import shutil
@@ -56,30 +57,12 @@ def _scan_wt(queue_path, name):
 def _write_conf(d):
     data = d / "data"
     queue = d / "wt.queue"
-    conf = f"""
-worker_processes 1;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-thread_pool wtpool threads=2 max_queue=4096;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{PORT};
-        brix_root on;
-        brix_export {data};
-        brix_auth none;
-        brix_allow_write on;
-        brix_thread_pool wtpool;
-        brix_write_through on;
-        brix_wt_mode async;
-        brix_wt_origin 127.0.0.1:1;        # dead origin → flush always fails
-        brix_frm on;
-        brix_frm_queue_path {queue};
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_xfer_wt_dead_origin.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         PORT=PORT,
+                         DATA_DIR=data,
+                         QUEUE_PATH=queue)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     return cp, str(queue)

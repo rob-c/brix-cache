@@ -34,6 +34,7 @@ import time
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -92,30 +93,16 @@ def servers(tmp_path_factory):
 
     pr, ph, ps, p3 = _free_port(), _free_port(), _free_port(), _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{ listen {BIND_HOST}:{pr}; brix_root on; brix_storage_backend posix:{data}; brix_auth none; }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {root}/cbt;
-    proxy_temp_path {root}/pt;
-    fastcgi_temp_path {root}/ft;
-    uwsgi_temp_path {root}/ut;
-    scgi_temp_path {root}/sct;
-    server {{ listen {BIND_HOST}:{ph};
-             location / {{ brix_webdav on; brix_storage_backend posix:{data}; brix_webdav_auth none; }} }}
-    server {{ listen {BIND_HOST}:{ps} ssl;
-             ssl_certificate {cert}; ssl_certificate_key {key};
-             location / {{ brix_webdav on; brix_storage_backend posix:{data}; brix_webdav_auth none; }} }}
-    server {{ listen {BIND_HOST}:{p3};
-             location / {{ brix_s3 on; brix_storage_backend posix:{data}; }} }}
-}}
-""")
+    conf.write_text(render_config("nginx_xrddiag_multiproto.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  ROOT_PORT=pr,
+                                  HTTP_PORT=ph,
+                                  HTTPS_PORT=ps,
+                                  S3_PORT=p3,
+                                  DATA_DIR=data,
+                                  CERT=cert,
+                                  KEY=key))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
     if t.returncode != 0:
         pytest.skip("nginx -t failed:\n" + t.stderr)

@@ -30,6 +30,8 @@ from pathlib import Path
 
 import pytest
 
+from config_templates import render_config
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = "/usr/bin/xrdcp"          # STOCK client (knows GSI delegation)
@@ -163,28 +165,13 @@ def gate(tmp_path_factory):
 
     # ---- OUR nginx destination: GSI inbound + (reserved) delegation ----
     dst_cfg = base / "dst.conf"
-    dst_cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
-        f"error_log {base}/dst-err.log info;\npid {base}/dst.pid;\n"
-        "thread_pool default threads=4 max_queue=65536;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {DST_PORT};\n    brix_root on;\n"
-        f"    brix_storage_backend posix:{base / 'dstdata'};\n    brix_auth gsi;\n"
-        "    brix_allow_write on;\n"
-        "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"
-        "    brix_tpc_delegate on;\n"
-        # X.509 proxy delegation requires signed-DH: a stock client disables
-        # delegation if the server's DH params aren't RSA-signed.
-        "    brix_gsi_signed_dh require;\n"
-        # Server cert CN = fqdn so the client (connecting by fqdn) verifies it
-        # without reverse-DNS — delegation is forbidden when the client "used DNS".
-        f"    brix_certificate {srv / 'hostcert.pem'};\n"
-        f"    brix_certificate_key {srv / 'hostkey.pem'};\n"
-        # CA *file* (not the dir) so gsi_ca_hash computes — stock clients verify
-        # the server cert via the advertised ca: hash (config.c fopen+PEM_read).
-        f"    brix_trusted_ca {ca / 'ca.pem'};\n"
-        f"    brix_access_log {base}/dst-acc.log;\n  }}\n}}\n")
+    dst_cfg.write_text(render_config("nginx_tpc_delegation_dest.conf",
+                                     BASE_DIR=base,
+                                     PORT=DST_PORT,
+                                     DATA_DIR=base / "dstdata",
+                                     CERT_FILE=srv / "hostcert.pem",
+                                     KEY_FILE=srv / "hostkey.pem",
+                                     CA_FILE=ca / "ca.pem"))
     (base / "dstdata").mkdir(exist_ok=True)
     _run(["bash", "-c", f"fuser -k {DST_PORT}/tcp 2>/dev/null"])
     dst = subprocess.Popen([NGINX, "-c", str(dst_cfg), "-p", str(base)],

@@ -66,7 +66,7 @@ cd k8s-tests
 ./xrd-lab test s3gsi          # deploy ns brix-s3gsi (release sg) + run suite
 ```
 
-The suite (`tests/test_s3gsi_multiuser.py`, remote mode) asserts the desired
+The suite (`k8s-tests/remote-suite/tests/test_s3gsi_multiuser.py`, remote mode) asserts the desired
 "normal gateway" behaviour; predicted machinery gaps (dirlist/mkdir/mv
 unsupported on `sd_remote`, writes riding the service credential, deny-lane
 writes refused) are `xfail` so the outcome map reads directly from the

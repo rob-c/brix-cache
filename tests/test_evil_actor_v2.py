@@ -50,12 +50,12 @@ import time
 import pytest
 
 from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
+from config_templates import render_config
 
 BIGFILE_MB = 32
 SHIM_DELAY_US = int(os.environ.get("XRD_RACE_DELAY_US", "15000"))
 SHIM_SAN = os.environ.get("TEST_EVIL_SHIM_SAN", "")          # ""|address|thread
 ROUNDS = int(os.environ.get("TEST_EVIL_V2_ROUNDS", "120"))
-
 # opcodes
 kXR_close=3003; kXR_sync=3016; kXR_login=3007; kXR_open=3010; kXR_ping=3011
 kXR_read=3013; kXR_stat=3017; kXR_write=3019; kXR_fattr=3020; kXR_truncate=3028
@@ -232,7 +232,8 @@ def _ping_ok(port):
 class _Srv:
     def __init__(self, prefix, conf, pidfile, ports, datadir, tsandir):
         self.prefix = prefix; self.conf = conf; self.pidfile = pidfile
-        self.root_port, self.http_port = ports
+        self.root_port, self.metrics_port, self.s3_port, self.webdav_port = ports
+        self.http_port = self.webdav_port
         self.datadir = datadir; self.tsandir = tsandir
         self.master: "int | None" = None
         self._mark = 0
@@ -299,6 +300,17 @@ def _build_shim(workdir):
     return so, ""
 
 
+def _render_config(prefix, datadir, root_port, metrics_port, s3_port, webdav_port):
+    return render_config("nginx_evil_actor_v2.conf",
+                         PREFIX=prefix,
+                         DATA_DIR=datadir,
+                         BIND_HOST=BIND_HOST,
+                         ROOT_PORT=root_port,
+                         METRICS_PORT=metrics_port,
+                         S3_PORT=s3_port,
+                         WEBDAV_PORT=webdav_port)
+
+
 @pytest.fixture(scope="module")
 def srv(tmp_path_factory):
     if REMOTE_SERVER:
@@ -328,43 +340,14 @@ def srv(tmp_path_factory):
         with open(os.path.join(datadir, nm), "wb") as f:
             f.write(chunk * 8)
 
-    root_port, http_port = _free_ports(2)
-    for p in (root_port, http_port):
+    root_port, metrics_port, s3_port, webdav_port = _free_ports(4)
+    for p in (root_port, metrics_port, s3_port, webdav_port):
         if _reachable(p):
             shutil.rmtree(prefix, ignore_errors=True)
             pytest.skip("port %d in use" % p)
 
-    conf = ("""
-worker_processes 3;
-daemon on;
-master_process on;
-pid %s/logs/nginx.pid;
-error_log %s/logs/error.log info;
-thread_pool aiopool threads=4 max_queue=8192;
-events { worker_connections 1024; }
-stream {
-    server {
-        listen %s:%d;
-        brix_root on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
-        brix_thread_pool aiopool; brix_memory_budget 6m;
-    }
-}
-http {
-    access_log off;
-    client_body_temp_path %s/logs/cbt; proxy_temp_path %s/logs/pt;
-    fastcgi_temp_path %s/logs/ft; uwsgi_temp_path %s/logs/ut; scgi_temp_path %s/logs/st;
-    server {
-        listen %s:%d;
-        location = /metrics { brix_metrics on; }
-        location /s3b/ { brix_s3 on; brix_storage_backend posix:%s; brix_s3_bucket s3b;
-                         brix_s3_region us-east-1; }
-        location / { brix_webdav on; brix_storage_backend posix:%s; brix_webdav_auth none;
-                     brix_allow_write on; }
-    }
-}
-""" % (prefix, prefix, BIND_HOST, root_port, datadir,
-       prefix, prefix, prefix, prefix, prefix,
-       BIND_HOST, http_port, datadir, datadir))
+    conf = _render_config(prefix, datadir, root_port, metrics_port,
+                          s3_port, webdav_port)
     conf_path = os.path.join(prefix, "nginx.conf")
     open(conf_path, "w").write(conf)
     pidfile = os.path.join(prefix, "logs", "nginx.pid")
@@ -417,15 +400,17 @@ http {
         shutil.rmtree(prefix, ignore_errors=True)
         pytest.skip("nginx did not start: %s" % tail)
 
-    s = _Srv(prefix, conf_path, pidfile, (root_port, http_port), datadir, tsandir)
+    s = _Srv(prefix, conf_path, pidfile,
+             (root_port, metrics_port, s3_port, webdav_port), datadir, tsandir)
     s.master = _master_pid(pidfile)
     if not s.master or not _alive(s.master):
         subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
                        capture_output=True, env=env)
         shutil.rmtree(prefix, ignore_errors=True)
         pytest.skip("master pid never appeared")
-    print("\n[evil2] master=%d root=%d http=%d shim=%s delay=%dus workers=%s"
-          % (s.master, root_port, http_port, SHIM_SAN or "plain", SHIM_DELAY_US,
+    print("\n[evil2] master=%d root=%d metrics=%d s3=%d webdav=%d shim=%s delay=%dus workers=%s"
+          % (s.master, root_port, metrics_port, s3_port, webdav_port,
+             SHIM_SAN or "plain", SHIM_DELAY_US,
              _workers(s.master)))
     try:
         yield s
@@ -685,9 +670,9 @@ def test_p5_stateful_opcode_fuzz(srv):
 
 # --------------------------- P6: cross-protocol simultaneous assault ---------
 
-def _http(method, path, body=None, timeout=4):
+def _http(method, path, body=None, timeout=4, port=None):
     import urllib.request, urllib.error
-    url = "http://%s:%d%s" % (HOST, _XP_HTTP[0], path)
+    url = "http://%s:%d%s" % (HOST, port or _XP_HTTP[0], path)
     req = urllib.request.Request(url, data=body, method=method)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -699,11 +684,13 @@ def _http(method, path, body=None, timeout=4):
 
 
 _XP_HTTP = [0]
+_XP_S3 = [0]
 
 
 def test_p6_cross_protocol_assault(srv):
     srv.mark()
-    _XP_HTTP[0] = srv.http_port
+    _XP_HTTP[0] = srv.webdav_port
+    _XP_S3[0] = srv.s3_port
     shared = os.path.join(srv.datadir, "xp.bin")
     orig = open(shared, "rb").read()
     stop = time.time() + 25
@@ -728,8 +715,8 @@ def test_p6_cross_protocol_assault(srv):
 
     def s3_ops():
         while time.time() < stop:
-            _http("GET", "/s3b/xp.bin")
-            _http("HEAD", "/s3b/xp.bin")
+            _http("GET", "/s3b/xp.bin", port=_XP_S3[0])
+            _http("HEAD", "/s3b/xp.bin", port=_XP_S3[0])
 
     def swapper():
         while time.time() < stop:

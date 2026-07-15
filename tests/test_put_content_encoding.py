@@ -36,6 +36,7 @@ except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from config_templates import render_config
 
 WEBDAV_PORT = int(os.environ.get("TEST_CE_WEBDAV_PORT") or free_port())
 S3_PORT = int(os.environ.get("TEST_CE_S3_PORT") or free_port())
@@ -70,36 +71,14 @@ def ce_server(tmp_path_factory):
     sroot = d / "sdata"
     sroot.mkdir()
 
-    conf = f"""
-error_log {d}/logs/error.log error;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
-    uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
-    client_max_body_size 64m;
-    server {{
-        listen {BIND_HOST}:{WEBDAV_PORT};
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{wroot};
-            brix_webdav_auth none;
-            brix_allow_write on;
-        }}
-    }}
-    server {{
-        listen {BIND_HOST}:{S3_PORT};
-        location / {{
-            brix_s3 on;
-            brix_storage_backend posix:{sroot};
-            brix_s3_bucket {BUCKET};
-            brix_allow_write on;
-        }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_put_content_encoding.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         WEBDAV_PORT=WEBDAV_PORT,
+                         S3_PORT=S3_PORT,
+                         WEBDAV_DIR=wroot,
+                         S3_DIR=sroot,
+                         BUCKET=BUCKET)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
