@@ -17,39 +17,9 @@ import urllib.request
 
 import pytest
 
+from config_templates import render_config
 from settings import NGINX_BIN, BIND_HOST, free_port
 from test_ssi_wire import _handshake_login, _open_ssi, _write_request, _query_wait
-
-_CONF = """\
-daemon on;
-worker_processes 1;
-error_log {prefix}/error.log info;
-pid {prefix}/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen 127.0.0.1:{sport};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_allow_write on;
-        brix_ssi on;
-        brix_ssi_service cta;
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {prefix}/cbt;
-    proxy_temp_path {prefix}/pt;
-    fastcgi_temp_path {prefix}/ft;
-    uwsgi_temp_path {prefix}/ut;
-    scgi_temp_path {prefix}/st;
-    server {{
-        listen 127.0.0.1:{mport};
-        location /metrics {{ brix_metrics on; }}
-    }}
-}}
-"""
 
 
 @pytest.fixture(scope="module")
@@ -62,7 +32,13 @@ def ssi_metrics_server(tmp_path_factory):
     sport, mport = free_port(), free_port()
     cfg = os.path.join(prefix, "nginx.conf")
     with open(cfg, "w") as f:
-        f.write(_CONF.format(prefix=prefix, data=data, sport=sport, mport=mport))
+        f.write(render_config(
+            "nginx_ssi_metrics.conf",
+            BASE_DIR=prefix,
+            DATA_DIR=data,
+            STREAM_PORT=sport,
+            METRICS_PORT=mport,
+        ))
     chk = subprocess.run([NGINX_BIN, "-t", "-c", cfg], capture_output=True, text=True)
     if chk.returncode != 0:
         pytest.skip(f"config rejected: {chk.stderr[-300:]}")

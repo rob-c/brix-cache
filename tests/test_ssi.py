@@ -25,6 +25,7 @@ import time
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
+from config_templates import render_config  # noqa: E402
 from settings import NGINX_BIN, free_port, BIND_HOST  # noqa: E402
 
 kXR_login, kXR_open, kXR_read, kXR_write, kXR_close = 3007, 3010, 3013, 3019, 3003
@@ -95,20 +96,14 @@ def _start(tmp_path_factory, ssi_on):
     os.makedirs(data)
     port = free_port()
     ssi = "  brix_ssi on;\n" if ssi_on else ""
-    body = (
-        "daemon off;\nworker_processes 1;\n"
-        f"pid {base}/ssi.pid;\nerror_log {base}/ssi-err.log info;\n"
-        "thread_pool default threads=2 max_queue=4096;\n"
-        "events { worker_connections 64; }\n"
-        "stream { server {\n"
-        f"  listen {BIND_HOST}:{port};\n  brix_root on;\n  brix_storage_backend posix:{data};\n"
-        "  brix_auth none;\n  brix_allow_write on;\n"
-        f"{ssi}"
-        f"  brix_access_log {base}/ssi-access.log;\n}} }}\n"
-    )
     cfg = os.path.join(base, "ssi.conf")
     with open(cfg, "w") as f:
-        f.write(body)
+        f.write(render_config("nginx_ssi_toggle.conf",
+                              BASE_DIR=base,
+                              BIND_HOST=BIND_HOST,
+                              PORT=port,
+                              DATA_DIR=data,
+                              SSI_DIRECTIVE=ssi))
     p = subprocess.Popen([NGINX_BIN, "-c", cfg, "-p", base],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     deadline = time.time() + 10

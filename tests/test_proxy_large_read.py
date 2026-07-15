@@ -22,6 +22,8 @@ import time
 
 import pytest
 
+from config_templates import render_config
+
 NGINX_BIN = os.environ.get("LIFECYCLE_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 pytestmark = [
@@ -53,17 +55,18 @@ def proxy_stack(tmp_path):
 
     be_port, px_port = _free_port(), _free_port()
     confs = {
-        "be": f"""\
-worker_processes 1; daemon on; pid {tmp_path}/be.pid; error_log {tmp_path}/be.log info;
-events {{ worker_connections 256; }}
-stream {{ server {{ listen {be_port}; brix_root on; brix_storage_backend posix:{root}; brix_auth none; }} }}
-""",
-        "px": f"""\
-worker_processes 1; daemon on; pid {tmp_path}/px.pid; error_log {tmp_path}/px.log info;
-events {{ worker_connections 256; }}
-stream {{ server {{ listen {px_port}; brix_root on; brix_auth none;
-    brix_tap_proxy on; brix_tap_proxy_upstream 127.0.0.1:{be_port}; brix_tap_proxy_auth anonymous; }} }}
-""",
+        "be": render_config(
+            "nginx_proxy_large_read_backend.conf",
+            BASE_DIR=tmp_path,
+            PORT=be_port,
+            DATA_DIR=root,
+        ),
+        "px": render_config(
+            "nginx_proxy_large_read_proxy.conf",
+            BASE_DIR=tmp_path,
+            PORT=px_port,
+            BACKEND_PORT=be_port,
+        ),
     }
     paths = {}
     for name, text in confs.items():

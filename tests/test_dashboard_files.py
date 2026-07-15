@@ -26,6 +26,7 @@ import urllib.request
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 DASH_PW = "files_admin_pw_42"
@@ -57,29 +58,13 @@ def server(tmp_path_factory):
     hp = _free_port()
     hp_off = _free_port()   # second server: dashboard WITHOUT browse_root
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_body_temp_path {root}/tmp;
-    proxy_temp_path {root}/tmp;
-    fastcgi_temp_path {root}/tmp;
-    uwsgi_temp_path {root}/tmp;
-    scgi_temp_path {root}/tmp;
-    server {{
-        listen {BIND_HOST}:{hp};
-        location /brix {{ brix_dashboard on; brix_dashboard_password "{DASH_PW}";
-                           brix_dashboard_browse_root {data}; }}
-    }}
-    server {{
-        listen {BIND_HOST}:{hp_off};
-        location /brix {{ brix_dashboard on; brix_dashboard_password "{DASH_PW}"; }}
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_dashboard_files.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  PORT=hp,
+                                  OFF_PORT=hp_off,
+                                  PASSWORD=DASH_PW,
+                                  DATA_DIR=data))
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                       capture_output=True, text=True).returncode != 0:
         pytest.skip("nginx -t failed")

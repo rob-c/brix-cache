@@ -1,7 +1,7 @@
 # s3gsi profile — root://+GSI multi-user gateway backed by MinIO S3 with
 # per-VO backend credentials + per-user authdb isolation.  Verified end-to-end
 # by `./xrd-lab test s3gsi` (test-runner Job running
-# tests/test_s3gsi_multiuser.py in remote mode).
+# k8s-tests/remote-suite/tests/test_s3gsi_multiuser.py in remote mode).
 s3-gsi:
   enabled: true
 smoke:

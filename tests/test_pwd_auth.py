@@ -18,6 +18,7 @@ import time
 import pytest
 
 from settings import NGINX_BIN  # noqa: E402
+from config_templates import render_config
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -74,22 +75,12 @@ def pwd_server(tmp_path_factory):
         f"{USER}:{salt.hex()}:{_pwd_hash(PW, salt).hex()}\n")
 
     cfg = base / "nginx.conf"
-    cfg.write_text(
-        "daemon off;\n"
-        "worker_processes 1;\n"
-        f"error_log {logs}/error.log info;\n"
-        f"pid {base}/nginx.pid;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n"
-        "    server {\n"
-        f"        listen 127.0.0.1:{P_PWD};\n"
-        "        brix_root on;\n"
-        f"        brix_storage_backend posix:{data};\n"
-        "        brix_auth pwd;\n"
-        f"        brix_pwd_file {pwdfile};\n"
-        "        brix_allow_write on;\n"
-        "    }\n"
-        "}\n")
+    cfg.write_text(render_config("nginx_pwd_auth.conf",
+                                 LOG_DIR=logs,
+                                 PID_FILE=base / "nginx.pid",
+                                 PORT=P_PWD,
+                                 DATA_DIR=data,
+                                 PWD_FILE=pwdfile))
 
     _free_port(P_PWD)
     proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg)],

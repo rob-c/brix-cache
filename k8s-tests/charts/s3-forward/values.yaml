@@ -1,6 +1,6 @@
 # s3-forward — a known-working MinIO S3 backend plus a brix node whose storage
 # plane is that MinIO (brix_storage_backend s3:// + brix_storage_credential).
-# The remote test (tests/test_minio_s3_forward.py) proves upload/download
+# The remote test (k8s-tests/remote-suite/tests/test_minio_s3_forward.py) proves upload/download
 # through the brix node and attributes any failure to [backend] vs
 # [brix-machinery] by re-checking MinIO directly.
 minio:

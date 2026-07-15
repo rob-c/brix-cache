@@ -21,6 +21,7 @@ import subprocess
 import time
 
 import pytest
+from config_templates import render_config
 
 from test_a_robustness import (
     HANDSHAKE,
@@ -78,25 +79,14 @@ def nf_server(tmp_path_factory):
     (dataroot / "big.bin").write_bytes(os.urandom(4 * 1024 * 1024))
 
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-daemon off;
-master_process off;
-error_log {logdir}/error.log info;
-pid {logdir}/nginx.pid;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {HOST}:{PORT};
-        brix_root on;
-        brix_storage_backend posix:{dataroot};
-        brix_handshake_timeout {HANDSHAKE_TIMEOUT_MS}ms;
-        brix_read_timeout {READ_TIMEOUT_MS}ms;
-        brix_send_timeout {SEND_TIMEOUT_MS}ms;
-        brix_tcp_keepalive on;
-        brix_tcp_user_timeout 30s;
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_netfault_stream.conf",
+                                  LOG_DIR=logdir,
+                                  HOST=HOST,
+                                  PORT=PORT,
+                                  DATA_DIR=dataroot,
+                                  HANDSHAKE_TIMEOUT_MS=HANDSHAKE_TIMEOUT_MS,
+                                  READ_TIMEOUT_MS=READ_TIMEOUT_MS,
+                                  SEND_TIMEOUT_MS=SEND_TIMEOUT_MS))
 
     proc = subprocess.Popen([nginx, "-p", str(root), "-c", str(conf)],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

@@ -22,6 +22,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import NGINX_BIN
 
 BIND = "127.0.0.1"
@@ -160,14 +161,11 @@ def server(tmp_path_factory):
     (data / "sub").mkdir(parents=True)
     (data / "known.bin").write_bytes(bytes((i * 31 + 7) & 0xff for i in range(KNOWN_SIZE)))
     cfg = base / "n.conf"
-    cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
-        f"pid {base}/n.pid;\nerror_log {base}/e.log info;\n"
-        "thread_pool default threads=2 max_queue=4096;\n"
-        "events { worker_connections 64; }\n"
-        "stream { server {\n"
-        f"  listen {BIND}:{PORT};\n  brix_root on;\n  brix_storage_backend posix:{data};\n"
-        "  brix_auth none;\n  brix_allow_write on;\n} }\n")
+    cfg.write_text(render_config("nginx_xrootd_conformance_self.conf",
+                                 BASE_DIR=base,
+                                 BIND_HOST=BIND,
+                                 PORT=PORT,
+                                 DATA_DIR=data))
     # nginx sets SO_REUSEADDR on its listener, so a precheck bind (which would
     # trip on TIME_WAIT after a prior run) is counter-productive; just start and
     # wait for readiness.

@@ -118,7 +118,10 @@ def _s3fwd(sel):
     _helm("upgrade", "--install", "fwd", str(_CHARTS / "s3-forward"), "-n", ns,
           "--wait", "--timeout", "3m")
     _helm("upgrade", "--install", "run", str(_CHARTS / "test-runner"), "-n", ns,
-          "--set", "image.repository=brix-test-runner,image.tag=dev",
+          # brix-client (sourced from k8s-tests/remote-suite/), not
+          # brix-test-runner (sourced from top-level tests/) — this test
+          # lives only in remote-suite now.
+          "--set", "image.repository=brix-client,image.tag=dev",
           "--set", "testRunner.tier=custom", "--set", f"testRunner.selection={sel}",
           "--set", "testRunner.extraArgs=-p no:xdist -v",
           "--set", "testRunner.env.TEST_MINIO_HOST=fwd-minio",

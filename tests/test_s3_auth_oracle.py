@@ -32,6 +32,7 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
+from config_templates import render_config
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
 PORT = int(os.environ.get("TEST_S3_ORACLE_PORT") or free_port())
@@ -67,29 +68,15 @@ def s3_server(tmp_path_factory):
     data.mkdir()
     (data / KEYOBJ).write_text("s3-oracle-object\n")
 
-    conf = f"""
-error_log {d}/logs/error.log error;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
-    uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
-    server {{
-        listen {BIND_HOST}:{PORT};
-        location / {{
-            brix_s3 on;
-            brix_storage_backend posix:{data};
-            brix_s3_bucket {BUCKET};
-            brix_s3_access_key {ACCESS_KEY};
-            brix_s3_secret_key {SECRET_KEY};
-            brix_s3_region {REGION};
-            brix_allow_write on;
-        }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_s3_auth_oracle.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         PORT=PORT,
+                         DATA_DIR=data,
+                         BUCKET=BUCKET,
+                         ACCESS_KEY=ACCESS_KEY,
+                         SECRET_KEY=SECRET_KEY,
+                         REGION=REGION)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],

@@ -16,6 +16,7 @@ import time
 import pytest
 
 from settings import NGINX_BIN  # noqa: E402
+from config_templates import render_config
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -59,21 +60,12 @@ def _spawn(base, port, allow):
     logs.mkdir()
     (data / "h.txt").write_text("hello-host-auth\n")
     cfg = base / f"nginx{port}.conf"
-    cfg.write_text(
-        "daemon off;\n"
-        "worker_processes 1;\n"
-        f"error_log {logs}/error.log info;\n"
-        f"pid {base}/nginx{port}.pid;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n"
-        "    server {\n"
-        f"        listen 127.0.0.1:{port};\n"
-        "        brix_root on;\n"
-        f"        brix_storage_backend posix:{data};\n"
-        "        brix_auth host;\n"
-        f"        brix_host_allow {allow};\n"
-        "    }\n"
-        "}\n")
+    cfg.write_text(render_config("nginx_host_auth.conf",
+                                 LOG_DIR=logs,
+                                 PID_FILE=base / f"nginx{port}.pid",
+                                 PORT=port,
+                                 DATA_DIR=data,
+                                 ALLOWLIST=allow))
     _free_port(port)
     proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

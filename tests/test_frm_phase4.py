@@ -23,6 +23,7 @@ import urllib.request
 
 import pytest
 
+from config_templates import render_config
 from settings import NGINX_BIN, HOST, BIND_HOST
 
 PORT = int(os.environ.get("TEST_FRM_P4_STREAM", "11247"))
@@ -38,37 +39,13 @@ def srv(tmp_path_factory):
     data = d / "data"; data.mkdir()
     queue = d / "frm.queue"
 
-    conf = f"""
-worker_processes 1;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{PORT};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_frm on;
-        brix_frm_queue_path {queue};
-        brix_frm_stagecmd /bin/true;
-        brix_frm_max_per_source 2;
-        brix_frm_residency_cmd /bin/true;
-        brix_frm_migrate_copycmd /bin/true;
-        brix_frm_purge_watermark 0.90 0.80;
-        brix_frm_purge_interval 1s;
-    }}
-}}
-http {{
-    access_log off;
-    server {{
-        listen {BIND_HOST}:{METRICS_PORT};
-        location = /metrics {{ brix_metrics on; }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_frm_phase4.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         PORT=PORT,
+                         METRICS_PORT=METRICS_PORT,
+                         DATA_DIR=data,
+                         QUEUE_PATH=queue)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],

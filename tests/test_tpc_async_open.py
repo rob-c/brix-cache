@@ -37,6 +37,8 @@ from pathlib import Path
 
 import pytest
 
+from config_templates import render_config
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -189,17 +191,12 @@ def dest(tmp_path):
     # EACCES and exits fatally, and the dest never comes up.
     ddata.chmod(0o777)
     cfg = tmp_path / "dst.conf"
-    cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
-        f"error_log {tmp_path}/dst-err.log info;\npid {tmp_path}/dst.pid;\n"
-        "thread_pool default threads=4 max_queue=65536;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen 127.0.0.1:{DST};\n    brix_root on;\n"
-        f"    brix_storage_backend posix:{ddata};\n    brix_auth none;\n"
-        "    brix_allow_write on;\n"
-        "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"
-        f"    brix_access_log {tmp_path}/dst-acc.log;\n  }}\n}}\n")
+    cfg.write_text(render_config(
+        "nginx_tpc_async_dest.conf",
+        BASE_DIR=tmp_path,
+        PORT=DST,
+        DATA_DIR=ddata,
+    ))
     subprocess.run(["bash", "-c", f"fuser -k {DST}/tcp 2>/dev/null"])
     proc = subprocess.Popen([NGINX, "-c", str(cfg), "-p", str(tmp_path)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

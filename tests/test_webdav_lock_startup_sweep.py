@@ -23,6 +23,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import NGINX_BIN, free_port
 
 LOCK_KEY = "user.nginx_xrootd.lock"
@@ -65,24 +66,13 @@ def _write_conf(base, root, sweep):
     os.makedirs(os.path.join(base, "logs"), exist_ok=True)
     conf = os.path.join(base, f"nginx_{sweep}.conf")
     with open(conf, "w") as fh:
-        fh.write(f"""
-worker_processes 1;
-error_log {base}/logs/error_{sweep}.log info;
-pid {base}/nginx_{sweep}.pid;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    server {{
-        listen {SWEEP_PORT};
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{root};
-            brix_webdav_auth none;
-            brix_webdav_lock_startup_sweep {sweep};
-        }}
-    }}
-}}
-""")
+        fh.write(render_config(
+            "nginx_webdav_lock_startup_sweep.conf",
+            BASE_DIR=base,
+            SWEEP=sweep,
+            PORT=SWEEP_PORT,
+            DATA_DIR=root,
+        ))
     return conf
 
 

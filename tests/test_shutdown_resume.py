@@ -27,6 +27,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import HOST, BIND_HOST
 
 pytestmark = pytest.mark.timeout(180)
@@ -91,33 +92,14 @@ def srv(tmp_path_factory):
     rport = _free_port()
     hport = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-thread_pool default threads=4 max_queue=65536;
-stream {{
-    server {{ listen {BIND_HOST}:{rport}; brix_root on; brix_export {data};
-             brix_auth none; brix_allow_write on;
-             brix_upload_resume on; }}
-}}
-http {{
-    access_log off;
-    client_max_body_size 64m;
-    client_body_temp_path {root}/body_tmp;
-    proxy_temp_path {root}/proxy_tmp;
-    fastcgi_temp_path {root}/fcgi_tmp;
-    uwsgi_temp_path {root}/uwsgi_tmp;
-    scgi_temp_path {root}/scgi_tmp;
-    server {{
-        listen {BIND_HOST}:{hport};
-        location / {{ brix_webdav on; brix_export {data};
-                     brix_webdav_auth none; brix_allow_write on;
-                     brix_webdav_upload_resume on; }}
-    }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_shutdown_resume_dual.conf",
+        BASE_DIR=root,
+        BIND_HOST=BIND_HOST,
+        ROOT_PORT=rport,
+        HTTP_PORT=hport,
+        DATA_DIR=data,
+    ))
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                       capture_output=True, text=True).returncode != 0:
         pytest.skip("nginx -t failed")
@@ -307,18 +289,14 @@ def test_upload_resume_stage_dir(tmp_path_factory):
     os.makedirs(stage, exist_ok=True)
     rport = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-thread_pool default threads=4 max_queue=65536;
-stream {{
-    server {{ listen {BIND_HOST}:{rport}; brix_root on; brix_export {data};
-             brix_auth none; brix_allow_write on;
-             brix_stage_dir {stage}; }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_shutdown_resume_stage.conf",
+        BASE_DIR=root,
+        BIND_HOST=BIND_HOST,
+        PORT=rport,
+        DATA_DIR=data,
+        STAGE_DIR=stage,
+    ))
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                       capture_output=True, text=True).returncode != 0:
         pytest.skip("nginx -t failed")
@@ -378,16 +356,14 @@ def test_stage_reaper_recovers_stranded_upload(tmp_path_factory):
 
     rport = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 64; }}
-stream {{
-    server {{ listen {BIND_HOST}:{rport}; brix_root on; brix_export {data};
-             brix_auth none; brix_allow_write on; brix_stage_dir {stage}; }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_shutdown_resume_reaper.conf",
+        BASE_DIR=root,
+        BIND_HOST=BIND_HOST,
+        PORT=rport,
+        DATA_DIR=data,
+        STAGE_DIR=stage,
+    ))
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                       capture_output=True, text=True).returncode != 0:
         shutil.rmtree(stage, ignore_errors=True)

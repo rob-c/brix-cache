@@ -19,6 +19,7 @@ import zipfile
 import pytest
 
 from settings import NGINX_BIN, free_port
+from config_templates import render_config
 from test_zip_member import _session, _open, _read, kXR_ok, STORED
 
 
@@ -46,13 +47,12 @@ def _start(tmp_path, force_scratch):
         zip_dirs = (f"brix_zip_stage_dir {stage}; "
                     "brix_zip_force_scratch on; ")
     cfg = base / "nginx.conf"
-    cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
-        f"error_log {logs}/err.log info;\npid {base}/nginx.pid;\n"
-        "events { worker_connections 64; }\n"
-        f"stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; "
-        f"brix_storage_backend posix:{data}; brix_auth none; brix_zip_access on; "
-        f"{zip_dirs}}} }}\n")
+    cfg.write_text(render_config("nginx_zip_scratch.conf",
+                                 BASE_DIR=base,
+                                 LOG_DIR=logs,
+                                 PORT=port,
+                                 DATA_DIR=data,
+                                 ZIP_DIRECTIVES=zip_dirs))
     proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg), "-p", str(base)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if not _wait_listen(port):

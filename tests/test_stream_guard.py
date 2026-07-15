@@ -25,6 +25,7 @@ import pytest
 
 from guard_http_lib import NGINX_BIN, free_port
 from settings import BIND_HOST
+from config_templates import render_config
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
@@ -34,16 +35,9 @@ pytestmark = pytest.mark.timeout(180)
 
 def _write_conf(prefix, body):
     conf = prefix / "nginx.conf"
-    conf.write_text(f"""
-daemon on;
-worker_processes 1;
-error_log {prefix}/error.log info;
-pid {prefix}/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-{body}
-}}
-""")
+    conf.write_text(render_config("nginx_stream_guard.conf",
+                                  BASE_DIR=prefix,
+                                  SERVER_BLOCKS=body))
     return conf
 
 
@@ -97,26 +91,23 @@ def relays(tmp_path_factory):
     guarded_port = free_port()
     unguarded_port = free_port()
 
-    origin_conf = _write_conf(origin, f"""
-    server {{
-        listen {BIND_HOST}:{origin_port};
-        brix_root on;
-        brix_export {export};
-        brix_auth none;
-    }}""")
-    guarded_conf = _write_conf(guarded, f"""
-    server {{
-        listen {BIND_HOST}:{guarded_port};
-        brix_root on;
-        brix_transparent_proxy {BIND_HOST}:{origin_port};
-        brix_guard_stream on;
-    }}""")
-    unguarded_conf = _write_conf(unguarded, f"""
-    server {{
-        listen {BIND_HOST}:{unguarded_port};
-        brix_root on;
-        brix_transparent_proxy {BIND_HOST}:{origin_port};
-    }}""")
+    origin_conf = _write_conf(origin, render_config(
+        "nginx_stream_guard_origin_server.conf",
+        BIND_HOST=BIND_HOST,
+        PORT=origin_port,
+        EXPORT_DIR=export))
+    guarded_conf = _write_conf(guarded, render_config(
+        "nginx_stream_guard_relay_server.conf",
+        BIND_HOST=BIND_HOST,
+        PORT=guarded_port,
+        ORIGIN_PORT=origin_port,
+        GUARD_DIRECTIVE="brix_guard_stream on;"))
+    unguarded_conf = _write_conf(unguarded, render_config(
+        "nginx_stream_guard_relay_server.conf",
+        BIND_HOST=BIND_HOST,
+        PORT=unguarded_port,
+        ORIGIN_PORT=origin_port,
+        GUARD_DIRECTIVE=""))
 
     _start_nginx(origin, origin_conf)
     _start_nginx(guarded, guarded_conf)

@@ -25,6 +25,8 @@ import shutil
 
 import pytest
 
+from config_templates import render_config
+
 # Reuse the proven static-link probes from the libbrix test.
 from test_libbrix import _codec_link_libs, _krb5_link_libs, _uring_link_libs
 
@@ -40,23 +42,6 @@ CC = os.environ.get("CC", "cc")
 
 FILE_BYTES = 5 * 1024 * 1024
 CAP = 1024 * 1024                 # brix_readv_segment_size 1m
-
-_CONF = """\
-worker_processes 1;
-daemon off;
-error_log {logs}/error.log error;
-pid {logs}/nginx.pid;
-events {{ worker_connections 1024; }}
-stream {{
-    server {{
-        listen 127.0.0.1:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_readv_segment_size 1m;
-        brix_access_log {logs}/access.log;
-    }}
-}}
-"""
 
 
 def _free_port():
@@ -100,7 +85,12 @@ def server1m():
         fh.write(payload)
     port = _free_port()
     with open(os.path.join(confd, "nginx.conf"), "w") as fh:
-        fh.write(_CONF.format(port=port, data=data, logs=logs))
+        fh.write(render_config(
+            "nginx_readv_variable_blocks.conf",
+            PORT=port,
+            DATA_DIR=data,
+            LOG_DIR=logs,
+        ))
     env = dict(os.environ)
     env.pop("LD_LIBRARY_PATH", None)
     proc = subprocess.Popen([NGINX_BIN, "-p", prefix, "-c", "conf/nginx.conf"], env=env)

@@ -31,6 +31,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import HOST, BIND_HOST, HOST6, BIND_HOST6, url_host
 
 pytestmark = pytest.mark.timeout(120)
@@ -77,22 +78,14 @@ def _have_ipv6_loopback():
 def _start_nginx(root, data, listens):
     """Write+start an anon-stream nginx listening on each "addr:port" in *listens*
     (all sharing one data root). Returns the conf path; raises pytest.skip on -t."""
-    blocks = "\n".join(f"        listen {a};" for a in listens)
+    listen_lines = "\n".join(f"        listen {a};" for a in listens)
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-{blocks}
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-    }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_xrddiag_remote_doctor_anon.conf",
+        BASE_DIR=root,
+        LISTEN_LINES=listen_lines,
+        DATA_DIR=data,
+    ))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                        capture_output=True, text=True)
     if t.returncode != 0:
@@ -271,21 +264,14 @@ def test_remote_doctor_pii_free(anon):
 def _start_server(root, data, port, writable):
     """Start an anon stream server on a free port; writable adds allow_write."""
     conf = root / "nginx.conf"
-    extra = "        brix_allow_write on;\n" if writable else ""
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-{extra}    }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_xrddiag_remote_doctor_stream.conf",
+        BASE_DIR=root,
+        BIND_HOST=BIND_HOST,
+        PORT=port,
+        DATA_DIR=data,
+        ALLOW_WRITE_LINE="        brix_allow_write on;\n" if writable else "",
+    ))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                        capture_output=True, text=True)
     if t.returncode != 0:
@@ -446,21 +432,14 @@ def sss_server(doctor, tmp_path_factory):
         pytest.skip(f"xrdsssadmin add failed: {r.stdout}{r.stderr}")
     port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth sss;
-        brix_sss_keytab {kt};
-    }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_xrddiag_remote_doctor_sss.conf",
+        BASE_DIR=root,
+        BIND_HOST=BIND_HOST,
+        PORT=port,
+        DATA_DIR=data,
+        KEYTAB=kt,
+    ))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
     if t.returncode != 0:
         pytest.skip("nginx -t failed (sss):\n" + t.stderr)
@@ -497,24 +476,16 @@ def token_server(doctor, token_issuer, tmp_path_factory):
     (data / "probe.txt").write_bytes(b"hi\n")
     port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_allow_write on;
-        brix_auth token;
-        brix_token_jwks {token_issuer.jwks_path};
-        brix_token_issuer "{token_issuer.issuer}";
-        brix_token_audience "{token_issuer.audience}";
-    }}
-}}
-""")
+    conf.write_text(render_config(
+        "nginx_xrddiag_remote_doctor_token.conf",
+        BASE_DIR=root,
+        BIND_HOST=BIND_HOST,
+        PORT=port,
+        DATA_DIR=data,
+        JWKS_PATH=token_issuer.jwks_path,
+        ISSUER=token_issuer.issuer,
+        AUDIENCE=token_issuer.audience,
+    ))
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
     if t.returncode != 0:
         pytest.skip("nginx -t failed (token):\n" + t.stderr)

@@ -28,6 +28,7 @@ import pytest
 import requests
 
 from settings import NGINX_BIN
+from config_templates import render_config
 
 PORT = 19733
 TTL_SECONDS = 2
@@ -49,28 +50,13 @@ def cache_server(tmp_path_factory):
     data.mkdir()
     logs.mkdir()
     conf = base / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-daemon off;
-pid {base}/nginx.pid;
-error_log {logs}/error.log warn;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    server {{
-        listen {PORT};
-        location / {{
-            brix_s3                on;
-            brix_storage_backend           posix:{data};
-            brix_s3_bucket         {BUCKET};
-            brix_allow_write    on;
-            brix_s3_max_keys       1000;
-            brix_s3_list_cache     on;
-            brix_s3_list_cache_ttl {TTL_SECONDS}s;
-        }}
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_s3_list_cache_self.conf",
+                                  BASE_DIR=base,
+                                  LOG_DIR=logs,
+                                  PORT=PORT,
+                                  DATA_DIR=data,
+                                  BUCKET=BUCKET,
+                                  TTL_SECONDS=TTL_SECONDS))
     env = dict(os.environ)
     env["LD_LIBRARY_PATH"] = "/tmp/rt_libshim:/usr/lib64:" + env.get("LD_LIBRARY_PATH", "")
     proc = subprocess.Popen([NGINX_BIN, "-p", str(base), "-c", str(conf)],

@@ -30,6 +30,7 @@ import urllib.request
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
@@ -59,42 +60,13 @@ def server(tmp_path_factory):
 
     http_port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-http {{
-    access_log off;
-    client_max_body_size 16m;
-    client_body_temp_path {root}/tmp/cbt;
-    proxy_temp_path {root}/tmp/pt;
-    fastcgi_temp_path {root}/tmp/ft;
-    uwsgi_temp_path {root}/tmp/ut;
-    scgi_temp_path {root}/tmp/st;
-    server {{
-        listen {BIND_HOST}:{http_port};
-        location /brix/ {{
-            brix_dashboard on;
-            brix_dashboard_password "{DASH_PW}";
-            brix_dashboard_anonymous on;
-        }}
-        location /metrics {{ brix_metrics on; }}
-        location / {{
-            brix_webdav on;
-            brix_export {data};
-            brix_webdav_auth none;
-            brix_allow_write on;
-        }}
-        location /remote/ {{
-            brix_webdav on;
-            brix_export {remote_ns};
-            brix_storage_backend root://127.0.0.1:1;
-            brix_webdav_auth none;
-        }}
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_storage_backend_panel.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  PORT=http_port,
+                                  PASSWORD=DASH_PW,
+                                  DATA_DIR=data,
+                                  REMOTE_NS=remote_ns))
 
     proc = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                           capture_output=True, text=True)

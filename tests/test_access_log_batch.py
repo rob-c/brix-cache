@@ -20,6 +20,7 @@ import time
 
 import pytest
 
+from config_templates import render_config
 from settings import NGINX_BIN, HOST, BIND_HOST
 from test_phase25_ratelimit import (
     HEADER, _spawn, _stop, _xrd_login, _xrd_open, _xrd_read, KXR_OK,
@@ -33,17 +34,14 @@ def _require_binary():
 
 
 def _alog_conf(tmp_path, port, data, logfile):
-    return HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_storage_backend posix:{data};
-            brix_auth none;
-            brix_access_log {logfile};
-        }}
-    }}
-    """
+    return render_config(
+        "nginx_access_log_batch.conf",
+        LOG_DIR=tmp_path / "logs",
+        BIND_HOST=BIND_HOST,
+        PORT=port,
+        DATA_DIR=data,
+        ACCESS_LOG=logfile,
+    )
 
 
 def _read_log(path, pred, timeout=5.0):

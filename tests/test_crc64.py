@@ -28,6 +28,7 @@ import urllib.request
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -99,44 +100,13 @@ def srv(tmp_path_factory):
     root_port = _free_port()
     # S3 and WebDAV each occupy a whole server at location / (the bucket / path is
     # the first URL segment — an /s3/-style prefix would not be stripped).
-    conf = f"""
-worker_processes 1;
-pid {d}/logs/nginx.pid;
-error_log {d}/logs/error.log error;
-events {{ worker_connections 128; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{root_port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_allow_write on;
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
-    uwsgi_temp_path {d}/t; scgi_temp_path {d}/t;
-    server {{
-        listen {BIND_HOST}:{s3_port};
-        location / {{
-            brix_s3 on;
-            brix_storage_backend posix:{data};
-            brix_s3_bucket testbucket;
-            brix_allow_write on;
-        }}
-    }}
-    server {{
-        listen {BIND_HOST}:{dav_port};
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{data};
-            brix_webdav_auth none;
-            brix_allow_write on;
-        }}
-    }}
-}}
-"""
+    conf = render_config("nginx_crc64.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         ROOT_PORT=root_port,
+                         S3_PORT=s3_port,
+                         WEBDAV_PORT=dav_port,
+                         DATA_DIR=data)
     cp = d / "nginx.conf"
     cp.write_text(conf)
 

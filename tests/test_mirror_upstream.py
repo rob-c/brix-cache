@@ -3,7 +3,7 @@ tests/test_mirror_upstream.py — nginx+xrootd traffic mirror in front of a
 PROPERLY CONFIGURED official xrootd file server.
 
 This stands up its own dedicated, cleanly-configured official xrootd
-(/usr/bin/brix) — not the shared harness reference daemon, whose dirlist was
+(/usr/bin/xrootd) — not the shared harness reference daemon, whose dirlist was
 observed to intermittently return "Invalid response" after repeated restarts
 under host load — and an nginx mirror front in front of it.  It then proves:
 
@@ -35,6 +35,7 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, QueryCode
 
+from config_templates import render_config
 from settings import SERVER_HOST, HOST, free_port
 
 # Self-provisions a stateful mirror front/sink + upstream mesh. Parallel
@@ -44,7 +45,10 @@ from settings import SERVER_HOST, HOST, free_port
 pytestmark = [pytest.mark.serial]
 
 NGINX_BIN  = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "/usr/bin/brix")
+REF_XROOTD_BIN = os.environ.get(
+    "TEST_REF_BIN",
+    os.environ.get("TEST_BRIX_BIN", "/usr/bin/xrootd"),
+)
 H = SERVER_HOST
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_mirror_upstream")
 
@@ -102,7 +106,7 @@ def _start_xrootd(name, port, data_dir, checksum):
             f"all.adminpath {os.path.join(base, 'admin')}\n"
             f"all.pidpath {os.path.join(base, 'run')}\n"
             f"xrd.trace off\n")
-    subprocess.run([BRIX_BIN, "-b", "-c", cfg,
+    subprocess.run([REF_XROOTD_BIN, "-b", "-c", cfg,
                     "-l", os.path.join(base, "xrootd.log")],
                    capture_output=True)
     return cfg
@@ -122,21 +126,15 @@ def _front_conf(name, port, data_dir, upstream_port, opcode_line=""):
     extra = f"        {opcode_line}\n" if opcode_line else ""
     conf = os.path.join(base, f"{name}.conf")
     with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 128; }}\n"
-            f"stream {{\n"
-            f"    server {{\n"
-            f"        listen 0.0.0.0:{port};\n"
-            f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
-            f"        brix_allow_write on;\n"
-            f"        brix_stream_mirror_url {HOST}:{upstream_port};\n"
-            f"{extra}"
-            f"        brix_mirror_log_diverge on;\n"
-            f"    }}\n"
-            f"}}\n")
+        f.write(render_config(
+            "nginx_mirror_upstream_front.conf",
+            BASE_DIR=base,
+            PORT=port,
+            DATA_DIR=data_dir,
+            UPSTREAM_HOST=HOST,
+            UPSTREAM_PORT=upstream_port,
+            EXTRA_DIRECTIVE=extra,
+        ))
     return conf
 
 
@@ -174,8 +172,8 @@ def _divergences_since(log_path, offset):
 def stack():
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not os.path.exists(BRIX_BIN):
-        pytest.skip(f"official xrootd binary not found at {BRIX_BIN}")
+    if not os.path.exists(REF_XROOTD_BIN):
+        pytest.skip(f"official xrootd binary not found at {REF_XROOTD_BIN}")
 
     front_data = os.path.join(_DIR, "front_data")
     up_data    = os.path.join(_DIR, "up_data")
@@ -327,7 +325,7 @@ class TestMirrorGracefulUnsupported:
         """Mirroring Qcksum to an upstream xrootd with NO checksum configured
         must NOT be flagged as a divergence — the mirror 'just works' even when
         the official server supports fewer features than nginx."""
-        if not os.path.exists(NGINX_BIN) or not os.path.exists(BRIX_BIN):
+        if not os.path.exists(NGINX_BIN) or not os.path.exists(REF_XROOTD_BIN):
             pytest.skip("nginx or xrootd binary missing")
 
         front_data = os.path.join(_DIR, "front_bare_data")

@@ -23,6 +23,7 @@ import time
 import pytest
 
 from settings import HOST, BIND_HOST
+from config_templates import render_config
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -89,43 +90,15 @@ def web_servers(tmp_path_factory):
     dav_port = _free_port()
     s3_port = _free_port()
     conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_body_temp_path {root}/cbt;
-    proxy_temp_path {root}/pt;
-    fastcgi_temp_path {root}/ft;
-    uwsgi_temp_path {root}/ut;
-    scgi_temp_path {root}/sct;
-    server {{
-        listen {BIND_HOST}:{dav_port};
-        client_max_body_size 64m;
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{dav_data};
-            brix_webdav_auth none;
-            brix_allow_write on;
-        }}
-    }}
-    server {{
-        listen {BIND_HOST}:{s3_port};
-        client_max_body_size 64m;
-        location / {{
-            brix_s3 on;
-            brix_storage_backend posix:{s3_data};
-            brix_s3_bucket testbucket;
-            brix_s3_access_key {S3_AK};
-            brix_s3_secret_key {S3_SK};
-            brix_s3_region us-east-1;
-            brix_allow_write on;
-        }}
-    }}
-}}
-""")
+    conf.write_text(render_config("nginx_client_web_transfer.conf",
+                                  BASE_DIR=root,
+                                  BIND_HOST=BIND_HOST,
+                                  WEBDAV_PORT=dav_port,
+                                  S3_PORT=s3_port,
+                                  WEBDAV_DIR=dav_data,
+                                  S3_DIR=s3_data,
+                                  S3_ACCESS_KEY=S3_AK,
+                                  S3_SECRET_KEY=S3_SK))
     chk = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                          capture_output=True, text=True)
     if chk.returncode != 0:

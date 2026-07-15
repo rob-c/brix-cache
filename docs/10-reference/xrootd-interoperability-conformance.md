@@ -249,7 +249,7 @@ TEST_TOKEN_DIFF=1 tests/run_token_differential.sh
 TEST_X509_DIFF=1  tests/run_x509_differential.sh
 
 # Throughput parity
-BRIX_BIN=/usr/bin/brix ./tests/run_load_test.sh both --suite root-anon --data-tls off
+REF_BIN=/usr/bin/xrootd ./tests/run_load_test.sh both --suite root-anon --data-tls off
 ```
 
 Reference-server binary is selected via `REF_BIN`/`BRIX_BIN` (default `xrootd`);

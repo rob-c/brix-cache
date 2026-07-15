@@ -34,6 +34,7 @@ except Exception:  # pragma: no cover
 
 from utils.make_token import TokenIssuer  # noqa: E402
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST, TOKENS_DIR  # noqa: E402
+from config_templates import render_config  # noqa: E402
 
 
 def _wait_port(port, timeout=10):
@@ -79,31 +80,15 @@ def _start(tmp_path_factory, dig_on):
     dig = (f"brix_webdav_dig on;\n"
            f"            brix_webdav_dig_export conf {exp};\n"
            f"            brix_webdav_dig_auth {allow};") if dig_on else ""
-    conf = f"""
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
-    uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
-    server {{
-        listen {BIND_HOST}:{port};
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{d}/data;
-            brix_webdav_auth optional;
-            brix_webdav_cadir {d}/cadir;
-            brix_allow_write on;
-            brix_webdav_token_jwks {iss.jwks_path};
-            brix_webdav_token_issuer {iss.issuer};
-            brix_webdav_token_audience {iss.audience};
-            {dig}
-        }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
+    conf = render_config("nginx_dig.conf",
+                         BASE_DIR=d,
+                         BIND_HOST=BIND_HOST,
+                         PORT=port,
+                         DATA_DIR=d / "data",
+                         JWKS_PATH=iss.jwks_path,
+                         ISSUER=iss.issuer,
+                         AUDIENCE=iss.audience,
+                         DIG_DIRECTIVES=dig)
     cp = d / "nginx.conf"
     cp.write_text(conf)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],

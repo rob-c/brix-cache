@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from config_templates import render_config
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -78,33 +80,20 @@ def tls_nginx(tmp_path_factory):
     (sdata / "hello.txt").write_text("tpc-over-TLS gotoTLS pull works\n")
 
     src_cfg = base / "src.conf"
-    src_cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
-        f"error_log {base}/src-err.log info;\npid {base}/src.pid;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {SRC};\n    brix_root on;\n"
-        f"    brix_storage_backend posix:{sdata};\n    brix_auth none;\n"
-        "    brix_tls on;\n"
-        f"    brix_certificate {srv / 'hostcert.pem'};\n"
-        f"    brix_certificate_key {srv / 'hostkey.pem'};\n"
-        f"    brix_trusted_ca {certs};\n"
-        f"    brix_access_log {base}/src-acc.log;\n  }}\n}}\n")
+    src_cfg.write_text(render_config("nginx_tpc_tls_source.conf",
+                                     BASE_DIR=base,
+                                     PORT=SRC,
+                                     DATA_DIR=sdata,
+                                     CERT_FILE=srv / "hostcert.pem",
+                                     KEY_FILE=srv / "hostkey.pem",
+                                     CA_DIR=certs))
 
     dst_cfg = base / "dst.conf"
-    dst_cfg.write_text(
-        "daemon off;\nworker_processes 1;\n"
-        f"error_log {base}/dst-err.log info;\npid {base}/dst.pid;\n"
-        "thread_pool default threads=4 max_queue=65536;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen 127.0.0.1:{DST};\n    brix_root on;\n"
-        f"    brix_storage_backend posix:{ddata};\n    brix_auth none;\n"
-        "    brix_allow_write on;\n"
-        "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"
-        "    brix_tpc_outbound_tls on;\n"
-        f"    brix_trusted_ca {certs};\n"
-        f"    brix_access_log {base}/dst-acc.log;\n  }}\n}}\n")
+    dst_cfg.write_text(render_config("nginx_tpc_tls_dest.conf",
+                                     BASE_DIR=base,
+                                     PORT=DST,
+                                     DATA_DIR=ddata,
+                                     CA_DIR=certs))
 
     for port in (SRC, DST):
         _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])

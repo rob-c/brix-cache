@@ -31,6 +31,8 @@ import time
 
 import pytest
 
+from config_templates import render_config
+
 try:
     from settings import NGINX_BIN
 except Exception:  # noqa: BLE001 — settings import optional outside the harness
@@ -82,37 +84,6 @@ int main(int argc, char **argv) {
     return 2;
 }
 """
-
-_CONF = """\
-daemon on;
-worker_processes 1;
-error_log {logs}/error.log info;
-pid {prefix}/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen 127.0.0.1:{sport};
-        brix_root on;
-        brix_export {root};
-        brix_auth none;
-        brix_cache_state_root {state};
-        brix_cache_dirty_max_age 1;
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {prefix}/cbt;
-    proxy_temp_path {prefix}/pt;
-    fastcgi_temp_path {prefix}/ft;
-    uwsgi_temp_path {prefix}/ut;
-    scgi_temp_path {prefix}/st;
-    server {{
-        listen 127.0.0.1:{mport};
-        location /metrics {{ brix_metrics on; }}
-    }}
-}}
-"""
-
 
 def _free_port():
     s = socket.socket()
@@ -208,9 +179,15 @@ def test_cache_reap_reason_metrics(tmp_path):
     sport = _free_port()
     mport = _free_port()
     conf = tmp_path / "nginx.conf"
-    conf.write_text(_CONF.format(prefix=str(tmp_path), logs=str(logs),
-                                 root=str(root), state=str(state),
-                                 sport=sport, mport=mport))
+    conf.write_text(render_config(
+        "nginx_cache_reap_metrics.conf",
+        BASE_DIR=tmp_path,
+        LOG_DIR=logs,
+        ROOT_DIR=root,
+        STATE_DIR=state,
+        STREAM_PORT=sport,
+        METRICS_PORT=mport,
+    ))
     subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf)],
                    check=True)
     pidfile = tmp_path / "nginx.pid"

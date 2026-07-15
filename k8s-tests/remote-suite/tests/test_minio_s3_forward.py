@@ -18,8 +18,8 @@ re-verifies the backend directly, so a failure is reported as either
 fault).  Brix code is never touched by this test.
 
 Modes:
-  * local (default): MinIO via ``tests/minio_harness.sh`` (docker) + a private
-    nginx instance; skipped when docker is unavailable.
+  * local (default): MinIO via ``minio_harness.sh`` (docker, same directory) +
+    a private nginx instance; skipped when docker is unavailable.
   * remote (k8s): set TEST_MINIO_HOST/TEST_MINIO_PORT and
     TEST_S3FWD_HOST/TEST_S3FWD_PORT to use the in-cluster ``s3-forward``
     profile (charts/s3-forward) instead of launching anything.

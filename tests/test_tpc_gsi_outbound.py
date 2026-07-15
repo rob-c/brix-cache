@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pytest
 
+from config_templates import render_config
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX_BIN = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -153,28 +155,16 @@ def gsi_tpc(tmp_path_factory):
     # ---- TPC destination: nginx-xrootd, native TPC + outbound GSI cert ----
     dst_port = 21195
     dst_cfg = base / "nginx.conf"
-    dst_cfg.write_text(
-        "daemon off;\n"
-        "worker_processes 1;\n"
-        f"error_log {logs}/nginx-err.log debug;\n"
-        "pid " + str(base / "nginx.pid") + ";\n"
-        "thread_pool default threads=4 max_queue=65536;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n"
-        "  server {\n"
-        f"    listen 127.0.0.1:{dst_port};\n"
-        "    brix_root on;\n"
-        f"    brix_storage_backend posix:{dst_data};\n"
-        "    brix_auth none;\n"
-        "    brix_allow_write on;\n"
-        "    brix_tpc_allow_local on;\n"
-        "    brix_tpc_allow_private on;\n"
-        f"    brix_certificate {srv / 'destproxy.pem'};\n"
-        f"    brix_certificate_key {srv / 'destproxy.pem'};\n"
-        f"    brix_trusted_ca {certs};\n"
-        f"    brix_access_log {logs}/dst-access.log;\n"
-        "  }\n"
-        "}\n")
+    dst_cfg.write_text(render_config(
+        "nginx_tpc_gsi_outbound_dest.conf",
+        BASE_DIR=base,
+        LOG_DIR=logs,
+        PORT=dst_port,
+        DATA_DIR=dst_data,
+        CERT_FILE=srv / "destproxy.pem",
+        KEY_FILE=srv / "destproxy.pem",
+        CA_DIR=certs,
+    ))
     _free_port(dst_port)
     dst = subprocess.Popen([NGINX_BIN, "-c", str(dst_cfg), "-p", str(base)],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
