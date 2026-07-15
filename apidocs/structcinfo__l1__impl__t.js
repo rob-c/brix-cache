@@ -7,5 +7,6 @@ var structcinfo__l1__impl__t =
     [ "lru_tail", "structcinfo__l1__impl__t.html#ab86e6f472cfbf54f93e7b20faf2aa31c", null ],
     [ "mask", "structcinfo__l1__impl__t.html#a2fa852e7ac83d8e4deebde716c0973e5", null ],
     [ "max", "structcinfo__l1__impl__t.html#ac1b8db5c39963ebd7b20cdc3fde75453", null ],
+    [ "mtx", "structcinfo__l1__impl__t.html#a0b059ef26570f53e96ac9bedf4b3085b", null ],
     [ "nbuckets", "structcinfo__l1__impl__t.html#a6ff8d201684519e669652ac23b2b2af6", null ]
 ];

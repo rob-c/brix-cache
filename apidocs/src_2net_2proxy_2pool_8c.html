@@ -117,8 +117,12 @@ Functions</h2></td></tr>
 <tr class="separator:a89b01c78b7bb899d4bca435563dcff68"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a42a26413299107af07894d0d493e4a70" id="r_a42a26413299107af07894d0d493e4a70"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2net_2proxy_2pool_8c.html#a42a26413299107af07894d0d493e4a70">brix_proxy_up_mark_ok</a> (brix_proxy_ctx_t *proxy)</td></tr>
 <tr class="separator:a42a26413299107af07894d0d493e4a70"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6a72a5eec150315d40890fc4bb7d7331" id="r_a6a72a5eec150315d40890fc4bb7d7331"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2net_2proxy_2pool_8c.html#a6a72a5eec150315d40890fc4bb7d7331">brix_proxy_pool_evict</a> (<a class="el" href="structbrix__proxy__pooled__conn__t.html">brix_proxy_pooled_conn_t</a> *pc, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
+<tr class="separator:a6a72a5eec150315d40890fc4bb7d7331"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3ffb8f62ba4eac483d26492582e32186" id="r_a3ffb8f62ba4eac483d26492582e32186"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2net_2proxy_2pool_8c.html#a3ffb8f62ba4eac483d26492582e32186">brix_proxy_pool_read_handler</a> (ngx_event_t *rev)</td></tr>
 <tr class="separator:a3ffb8f62ba4eac483d26492582e32186"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a615b8cfd766caecae483d860fd1ecbb6" id="r_a615b8cfd766caecae483d860fd1ecbb6"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2net_2proxy_2pool_8c.html#a615b8cfd766caecae483d860fd1ecbb6">brix_proxy_pool_write_handler</a> (ngx_event_t *wev)</td></tr>
+<tr class="separator:a615b8cfd766caecae483d860fd1ecbb6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1c3d789b67d024a8ecdb676712a1cbcb" id="r_a1c3d789b67d024a8ecdb676712a1cbcb"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2net_2proxy_2pool_8c.html#a1c3d789b67d024a8ecdb676712a1cbcb">brix_proxy_pool_ping_handler</a> (ngx_event_t *ev)</td></tr>
 <tr class="separator:a1c3d789b67d024a8ecdb676712a1cbcb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9dbc50308fa3a82cb28386e5cd8e99c0" id="r_a9dbc50308fa3a82cb28386e5cd8e99c0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2net_2proxy_2pool_8c.html#a9dbc50308fa3a82cb28386e5cd8e99c0">brix_proxy_pool_shutdown</a> (void)</td></tr>
@@ -142,6 +146,48 @@ Variables</h2></td></tr>
 <tr class="separator:a0b10da0ecf2dd1c808970cbab4ea953e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a6a72a5eec150315d40890fc4bb7d7331" name="a6a72a5eec150315d40890fc4bb7d7331"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6a72a5eec150315d40890fc4bb7d7331">&#9670;&#160;</a></span>brix_proxy_pool_evict()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_proxy_pool_evict </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__proxy__pooled__conn__t.html">brix_proxy_pooled_conn_t</a> *&#160;</td>
+          <td class="paramname"><em>pc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00113">113</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
+
+<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00098">brix_proxy_pooled_conn_t::ping_ev</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00091">brix_proxy_pooled_conn_t::queue</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00352">brix_proxy_pool_put()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00132">brix_proxy_pool_read_handler()</a>, and <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00158">brix_proxy_pool_write_handler()</a>.</p>
+
+</div>
+</div>
 <a id="a7034114436642250e7050c54d9988d25" name="a7034114436642250e7050c54d9988d25"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a7034114436642250e7050c54d9988d25">&#9670;&#160;</a></span>brix_proxy_pool_get()</h2>
 
@@ -174,9 +220,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00226">226</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00263">263</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00149">brix_proxy_conf_t::auth</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00094">brix_proxy_pooled_conn_t::auth_type</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00050">BRIX_PROXY_FAIL_TIMEOUT</a>, <a class="el" href="events__read_8c_source.html#l00018">brix_proxy_read_handler()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00041">brix_proxy_up_status_init()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00105">brix_proxy_up_status_t::checked</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00092">brix_proxy_pooled_conn_t::conn</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00098">brix_proxy_pooled_conn_t::ping_ev</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00029">proxy_pool</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00033">proxy_up_status</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00095">brix_proxy_pooled_conn_t::token_hash</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00093">brix_proxy_pooled_conn_t::upstream_idx</a>, and <a class="el" href="conf__structs_8h_source.html#l00158">brix_proxy_conf_t::upstreams</a>.</p>
+<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00149">brix_proxy_conf_t::auth</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00094">brix_proxy_pooled_conn_t::auth_type</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00050">BRIX_PROXY_FAIL_TIMEOUT</a>, <a class="el" href="events__read_8c_source.html#l00018">brix_proxy_read_handler()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00041">brix_proxy_up_status_init()</a>, <a class="el" href="events__write_8c_source.html#l00019">brix_proxy_write_handler()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00105">brix_proxy_up_status_t::checked</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00092">brix_proxy_pooled_conn_t::conn</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00098">brix_proxy_pooled_conn_t::ping_ev</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00029">proxy_pool</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00033">proxy_up_status</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00095">brix_proxy_pooled_conn_t::token_hash</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00093">brix_proxy_pooled_conn_t::upstream_idx</a>, and <a class="el" href="conf__structs_8h_source.html#l00158">brix_proxy_conf_t::upstreams</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00186">brix_proxy_connect()</a>.</p>
 
@@ -198,7 +244,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00213">213</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00250">250</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
 <p class="reference">References <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00029">proxy_pool</a>, and <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>.</p>
 
@@ -230,11 +276,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00135">135</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00172">172</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
 <p class="reference">References <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00046">BRIX_PROXY_POOL_KEEPALIVE</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00092">brix_proxy_pooled_conn_t::conn</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00096">brix_proxy_pooled_conn_t::idle_since</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00097">brix_proxy_pooled_conn_t::keepalive_interval</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00091">brix_proxy_pooled_conn_t::queue</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00312">brix_proxy_pool_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00352">brix_proxy_pool_put()</a>.</p>
 
 </div>
 </div>
@@ -254,9 +300,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00312">312</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00352">352</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00149">brix_proxy_conf_t::auth</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00094">brix_proxy_pooled_conn_t::auth_type</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00135">brix_proxy_pool_ping_handler()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00114">brix_proxy_pool_read_handler()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00044">BRIX_PROXY_POOL_SIZE</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00092">brix_proxy_pooled_conn_t::conn</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00096">brix_proxy_pooled_conn_t::idle_since</a>, <a class="el" href="conf__structs_8h_source.html#l00164">brix_proxy_conf_t::keepalive_interval</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00097">brix_proxy_pooled_conn_t::keepalive_interval</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00098">brix_proxy_pooled_conn_t::ping_ev</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00029">proxy_pool</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00091">brix_proxy_pooled_conn_t::queue</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00095">brix_proxy_pooled_conn_t::token_hash</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00093">brix_proxy_pooled_conn_t::upstream_idx</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00076">XRD_PX_IDLE</a>.</p>
+<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00149">brix_proxy_conf_t::auth</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00094">brix_proxy_pooled_conn_t::auth_type</a>, <a class="el" href="conf__structs_8h_source.html#l00135">BRIX_PROXY_AUTH_FORWARD</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00113">brix_proxy_pool_evict()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00172">brix_proxy_pool_ping_handler()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00132">brix_proxy_pool_read_handler()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00044">BRIX_PROXY_POOL_SIZE</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00158">brix_proxy_pool_write_handler()</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00092">brix_proxy_pooled_conn_t::conn</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00096">brix_proxy_pooled_conn_t::idle_since</a>, <a class="el" href="conf__structs_8h_source.html#l00164">brix_proxy_conf_t::keepalive_interval</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00097">brix_proxy_pooled_conn_t::keepalive_interval</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00098">brix_proxy_pooled_conn_t::ping_ev</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00029">proxy_pool</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00091">brix_proxy_pooled_conn_t::queue</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00095">brix_proxy_pooled_conn_t::token_hash</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00093">brix_proxy_pooled_conn_t::upstream_idx</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00076">XRD_PX_IDLE</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="connect__lifecycle_8c_source.html#l00146">brix_proxy_cleanup()</a>.</p>
 
@@ -286,11 +332,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00114">114</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00132">132</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
-<p class="reference">References <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00098">brix_proxy_pooled_conn_t::ping_ev</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00091">brix_proxy_pooled_conn_t::queue</a>.</p>
+<p class="reference">References <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00113">brix_proxy_pool_evict()</a>, and <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00312">brix_proxy_pool_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00352">brix_proxy_pool_put()</a>.</p>
 
 </div>
 </div>
@@ -310,11 +356,43 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00172">172</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00209">209</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
 <p class="reference">References <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00092">brix_proxy_pooled_conn_t::conn</a>, <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00098">brix_proxy_pooled_conn_t::ping_ev</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00029">proxy_pool</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">proxy_pool_count</a>, and <a class="el" href="net_2proxy_2proxy__internal_8h_source.html#l00091">brix_proxy_pooled_conn_t::queue</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00501">brix_exit_process()</a>.</p>
+
+</div>
+</div>
+<a id="a615b8cfd766caecae483d860fd1ecbb6" name="a615b8cfd766caecae483d860fd1ecbb6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a615b8cfd766caecae483d860fd1ecbb6">&#9670;&#160;</a></span>brix_proxy_pool_write_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_proxy_pool_write_handler </td>
+          <td>(</td>
+          <td class="paramtype">ngx_event_t *&#160;</td>
+          <td class="paramname"><em>wev</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00158">158</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
+
+<p class="reference">References <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00113">brix_proxy_pool_evict()</a>, and <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00352">brix_proxy_pool_put()</a>.</p>
 
 </div>
 </div>
@@ -386,7 +464,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="safe__size_8h_source.html#l00127">brix_alloc_array()</a>, <a class="el" href="types_2config_8h_source.html#l00668">ngx_stream_brix_srv_conf_t::proxy</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00033">proxy_up_status</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00034">proxy_up_status_count</a>, and <a class="el" href="conf__structs_8h_source.html#l00158">brix_proxy_conf_t::upstreams</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00226">brix_proxy_pool_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00263">brix_proxy_pool_get()</a>.</p>
 
 </div>
 </div>
@@ -413,7 +491,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00029">29</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00226">brix_proxy_pool_get()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00213">brix_proxy_pool_init()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00312">brix_proxy_pool_put()</a>, and <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00172">brix_proxy_pool_shutdown()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00263">brix_proxy_pool_get()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00250">brix_proxy_pool_init()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00352">brix_proxy_pool_put()</a>, and <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00209">brix_proxy_pool_shutdown()</a>.</p>
 
 </div>
 </div>
@@ -439,7 +517,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00030">30</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00226">brix_proxy_pool_get()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00213">brix_proxy_pool_init()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00135">brix_proxy_pool_ping_handler()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00312">brix_proxy_pool_put()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00114">brix_proxy_pool_read_handler()</a>, and <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00172">brix_proxy_pool_shutdown()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00113">brix_proxy_pool_evict()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00263">brix_proxy_pool_get()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00250">brix_proxy_pool_init()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00172">brix_proxy_pool_ping_handler()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00352">brix_proxy_pool_put()</a>, and <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00209">brix_proxy_pool_shutdown()</a>.</p>
 
 </div>
 </div>
@@ -457,7 +535,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00033">33</a> of file <a class="el" href="src_2net_2proxy_2pool_8c_source.html">pool.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00186">brix_proxy_connect()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00226">brix_proxy_pool_get()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00064">brix_proxy_up_mark_failed()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00088">brix_proxy_up_mark_ok()</a>, and <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00041">brix_proxy_up_status_init()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00186">brix_proxy_connect()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00263">brix_proxy_pool_get()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00064">brix_proxy_up_mark_failed()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00088">brix_proxy_up_mark_ok()</a>, and <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00041">brix_proxy_up_status_init()</a>.</p>
 
 </div>
 </div>

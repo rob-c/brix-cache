@@ -10,6 +10,7 @@ var tpc__internal_8h =
     [ "TPC_OPEN_RESOLVE_MAX_ITERS", "tpc__internal_8h.html#a7d3072d604febd3ea005ca672a3870c1", null ],
     [ "TPC_OPEN_RESOLVE_MAX_SEC", "tpc__internal_8h.html#a87e42dfa9271f9699ea5f6725246e9c7", null ],
     [ "TPC_OPEN_WAIT_CAP_SEC", "tpc__internal_8h.html#a33b7a18f47dac31f8b995de29280aa58", null ],
+    [ "TPC_OPEN_WAIT_RETRY_SEC", "tpc__internal_8h.html#a6fe08a770d75923c4475317e28a00a1b", null ],
     [ "TPC_RESP_MAX_BODY", "tpc__internal_8h.html#a7f01fc117a2d1a60bd783a581170829f", null ],
     [ "brix_tpc_check_src_policy", "tpc__internal_8h.html#a0c20618f095109492001a4b05fd2a76f", null ],
     [ "brix_tpc_launch_pull", "tpc__internal_8h.html#a3b96b6bfb2e51f54d700a2fd36fd34dc", null ],

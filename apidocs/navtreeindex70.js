@@ -1,5 +1,9 @@
 var NAVTREEINDEX70 =
 {
+"structweb__upload__ctx.html#ad62f781bc1556227171150be3e3cb610":[88,0,615,3],
+"structweb__upload__ctx.html#ae50cb15e0407f59865bf2de546860d22":[88,0,615,2],
+"structweb__upload__ctx.html#af8e997d94c95884be3ea112670ac283b":[88,0,615,8],
+"structwebdav__copy__collection__task__t.html":[88,0,616],
 "structwebdav__copy__collection__task__t.html#a13d9d912e8a693a9c8d8d8945d4fcba4":[88,0,616,0],
 "structwebdav__copy__collection__task__t.html#a2d794ac5e3ec76ce91d43c194ea80b2f":[88,0,616,4],
 "structwebdav__copy__collection__task__t.html#a815fd80770025e78e425c5bced99b117":[88,0,616,7],
@@ -245,9 +249,5 @@ var NAVTREEINDEX70 =
 "structxrdw__prepare__req__t.html#ade2d78e4fa7ca826499d59f1a59fb7ef":[88,0,657,2],
 "structxrdw__protocol__req__t.html":[88,0,658],
 "structxrdw__protocol__req__t.html#a382e59278a93df6d6b3fe2684e8443e1":[88,0,658,0],
-"structxrdw__protocol__req__t.html#a3eab3f94c4bd5612613554b57f5ced4c":[88,0,658,1],
-"structxrdw__protocol__req__t.html#a8051b4f1614f3f8492b0c0ce62016a31":[88,0,658,2],
-"structxrdw__query__req__t.html":[88,0,659],
-"structxrdw__query__req__t.html#a049c57e74f372c877846d4d6b0b1fead":[88,0,659,0],
-"structxrdw__query__req__t.html#aa0cfb411736f9c7f3c727166679eb2a3":[88,0,659,1]
+"structxrdw__protocol__req__t.html#a3eab3f94c4bd5612613554b57f5ced4c":[88,0,658,1]
 };

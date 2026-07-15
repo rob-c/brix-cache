@@ -1,5 +1,8 @@
 var NAVTREEINDEX49 =
 {
+"structClientSetRequest.html#ac62583da3cc0068c9ab6e54626604d09":[88,0,408,0],
+"structClientSetRequest.html#ad87aecc3fba8912fbc70442ffc86fdd9":[88,0,408,1],
+"structClientSetRequest.html#afb5f7c7a0b8c6da266967cfbce3df5c8":[88,0,408,3],
 "structClientSetattrRequest.html":[88,0,407],
 "structClientSetattrRequest.html#a0d4ea212dfdb0bd69c6a9a99c06d810a":[88,0,407,1],
 "structClientSetattrRequest.html#a97f39e3e28e7df7e3d0233509eac397c":[88,0,407,0],
@@ -246,8 +249,5 @@ var NAVTREEINDEX49 =
 "structbrix__acc__tables__t.html#a359c66d4bd2b02e115b6d7b18c3858f9":[88,0,15,8],
 "structbrix__acc__tables__t.html#a389975a7edef4a291f72de326070b9b3":[88,0,15,11],
 "structbrix__acc__tables__t.html#a3a3dccb9995f468b23d6b93812706f03":[88,0,15,13],
-"structbrix__acc__tables__t.html#a3aca6abb9d9d6807d3ac84449988de2b":[88,0,15,3],
-"structbrix__acc__tables__t.html#a6de9f9400c91e5fd133b31387ac8d41c":[88,0,15,16],
-"structbrix__acc__tables__t.html#a7c6f57978d26227ea777207229657cb3":[88,0,15,0],
-"structbrix__acc__tables__t.html#a820d7e72d7c9e1a270b2f8b778e60060":[88,0,15,1]
+"structbrix__acc__tables__t.html#a3aca6abb9d9d6807d3ac84449988de2b":[88,0,15,3]
 };

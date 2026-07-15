@@ -17,10 +17,11 @@ var searchData=
   ['tpc_5fopen_5fresolve_5fmax_5fiters_14',['TPC_OPEN_RESOLVE_MAX_ITERS',['../tpc__internal_8h.html#a7d3072d604febd3ea005ca672a3870c1',1,'tpc_internal.h']]],
   ['tpc_5fopen_5fresolve_5fmax_5fsec_15',['TPC_OPEN_RESOLVE_MAX_SEC',['../tpc__internal_8h.html#a87e42dfa9271f9699ea5f6725246e9c7',1,'tpc_internal.h']]],
   ['tpc_5fopen_5fwait_5fcap_5fsec_16',['TPC_OPEN_WAIT_CAP_SEC',['../tpc__internal_8h.html#a33b7a18f47dac31f8b995de29280aa58',1,'tpc_internal.h']]],
-  ['tpc_5fregistry_5fjson_5flimit_17',['TPC_REGISTRY_JSON_LIMIT',['../dashboard__api__internal_8h.html#ac0bf85023e974a2620c880a28f49981b',1,'dashboard_api_internal.h']]],
-  ['tpc_5fresp_5fmax_5fbody_18',['TPC_RESP_MAX_BODY',['../tpc__internal_8h.html#a7f01fc117a2d1a60bd783a581170829f',1,'tpc_internal.h']]],
-  ['tpc_5ftoken_5fhelper_5fpath_19',['TPC_TOKEN_HELPER_PATH',['../tpc__token_8c.html#a4f9f5387135f5de1228af05f6d5ae130',1,'tpc_token.c']]],
-  ['tpc_5ftoken_5fmax_5flen_20',['TPC_TOKEN_MAX_LEN',['../tpc__token_8c.html#a64b40ab16bdebfd389751461fe37ef2f',1,'tpc_token.c']]],
-  ['tree_5fhex_5fmax_21',['TREE_HEX_MAX',['../xrdcktree_8c.html#aed9838a8352c5188b9fea4bbcfdfe813',1,'xrdcktree.c']]],
-  ['tree_5fline_5fmax_22',['TREE_LINE_MAX',['../xrdcktree_8c.html#a60c8d95f6e249860ff2b1f4e8fea11a8',1,'xrdcktree.c']]]
+  ['tpc_5fopen_5fwait_5fretry_5fsec_17',['TPC_OPEN_WAIT_RETRY_SEC',['../tpc__internal_8h.html#a6fe08a770d75923c4475317e28a00a1b',1,'tpc_internal.h']]],
+  ['tpc_5fregistry_5fjson_5flimit_18',['TPC_REGISTRY_JSON_LIMIT',['../dashboard__api__internal_8h.html#ac0bf85023e974a2620c880a28f49981b',1,'dashboard_api_internal.h']]],
+  ['tpc_5fresp_5fmax_5fbody_19',['TPC_RESP_MAX_BODY',['../tpc__internal_8h.html#a7f01fc117a2d1a60bd783a581170829f',1,'tpc_internal.h']]],
+  ['tpc_5ftoken_5fhelper_5fpath_20',['TPC_TOKEN_HELPER_PATH',['../tpc__token_8c.html#a4f9f5387135f5de1228af05f6d5ae130',1,'tpc_token.c']]],
+  ['tpc_5ftoken_5fmax_5flen_21',['TPC_TOKEN_MAX_LEN',['../tpc__token_8c.html#a64b40ab16bdebfd389751461fe37ef2f',1,'tpc_token.c']]],
+  ['tree_5fhex_5fmax_22',['TREE_HEX_MAX',['../xrdcktree_8c.html#aed9838a8352c5188b9fea4bbcfdfe813',1,'xrdcktree.c']]],
+  ['tree_5fline_5fmax_23',['TREE_LINE_MAX',['../xrdcktree_8c.html#a60c8d95f6e249860ff2b1f4e8fea11a8',1,'xrdcktree.c']]]
 ];

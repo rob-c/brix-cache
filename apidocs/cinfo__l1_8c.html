@@ -99,6 +99,7 @@ $(document).ready(function(){initNavTree('cinfo__l1_8c.html',''); initResizable(
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="cinfo__l1_8h_source.html">cinfo_l1.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
+<code>#include &lt;pthread.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
@@ -106,7 +107,7 @@ $(document).ready(function(){initNavTree('cinfo__l1_8c.html',''); initResizable(
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="cinfo__l1_8c__incl.svg" width="536" height="330"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><iframe scrolling="no" frameborder="0" src="cinfo__l1_8c__incl.svg" width="571" height="330"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div>
 <p><a href="cinfo__l1_8c_source.html">Go to the source code of this file.</a></p>
@@ -165,7 +166,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00015">15</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00016">16</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
 </div>
 </div>
@@ -196,9 +197,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00158">158</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00165">165</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00026">cinfo_l1_impl_t::buckets</a>, <a class="el" href="cinfo__l1_8c_source.html#l00015">CINFO_L1_DEFAULT_ENTRIES</a>, <a class="el" href="cinfo__l1_8c_source.html#l00040">cinfo_l1_pow2_ceil()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cinfo__l1_8c_source.html#l00033">cinfo_l1_impl_t::log</a>, <a class="el" href="cinfo__l1_8c_source.html#l00028">cinfo_l1_impl_t::mask</a>, <a class="el" href="cinfo__l1_8c_source.html#l00032">cinfo_l1_impl_t::max</a>, <a class="el" href="cinfo__l1_8c_source.html#l00027">cinfo_l1_impl_t::nbuckets</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00027">cinfo_l1_impl_t::buckets</a>, <a class="el" href="cinfo__l1_8c_source.html#l00016">CINFO_L1_DEFAULT_ENTRIES</a>, <a class="el" href="cinfo__l1_8c_source.html#l00047">cinfo_l1_pow2_ceil()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cinfo__l1_8c_source.html#l00034">cinfo_l1_impl_t::log</a>, <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::mask</a>, <a class="el" href="cinfo__l1_8c_source.html#l00033">cinfo_l1_impl_t::max</a>, <a class="el" href="cinfo__l1_8c_source.html#l00040">cinfo_l1_impl_t::mtx</a>, <a class="el" href="cinfo__l1_8c_source.html#l00028">cinfo_l1_impl_t::nbuckets</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00045">brix_cstore_init()</a>.</p>
 
@@ -220,9 +221,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00190">190</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00204">204</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00026">cinfo_l1_impl_t::buckets</a>, <a class="el" href="cinfo__l1_8c_source.html#l00018">cinfo_l1_entry_t::key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::lru_head</a>, <a class="el" href="cinfo__l1_8c_source.html#l00022">cinfo_l1_entry_t::lru_next</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00027">cinfo_l1_impl_t::buckets</a>, <a class="el" href="cinfo__l1_8c_source.html#l00019">cinfo_l1_entry_t::key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00030">cinfo_l1_impl_t::lru_head</a>, <a class="el" href="cinfo__l1_8c_source.html#l00023">cinfo_l1_entry_t::lru_next</a>, <a class="el" href="cinfo__l1_8c_source.html#l00040">cinfo_l1_impl_t::mtx</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00091">brix_cstore_cleanup()</a>.</p>
 
@@ -254,9 +255,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00277">277</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00300">300</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00125">cinfo_l1_bucket_remove()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00111">cinfo_l1_find()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00052">cinfo_l1_hash()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00067">cinfo_l1_lru_unlink()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00031">cinfo_l1_impl_t::count</a>, <a class="el" href="cinfo__l1_8c_source.html#l00018">cinfo_l1_entry_t::key</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00028">cinfo_l1_impl_t::mask</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00132">cinfo_l1_bucket_remove()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00118">cinfo_l1_find()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00059">cinfo_l1_hash()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00074">cinfo_l1_lru_unlink()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00032">cinfo_l1_impl_t::count</a>, <a class="el" href="cinfo__l1_8c_source.html#l00019">cinfo_l1_entry_t::key</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::mask</a>, <a class="el" href="cinfo__l1_8c_source.html#l00040">cinfo_l1_impl_t::mtx</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00266">brix_cstore_evict()</a>.</p>
 
@@ -294,9 +295,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00214">214</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00229">229</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00111">cinfo_l1_find()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00052">cinfo_l1_hash()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00099">cinfo_l1_touch()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00019">cinfo_l1_entry_t::hdr</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00028">cinfo_l1_impl_t::mask</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00118">cinfo_l1_find()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00059">cinfo_l1_hash()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00106">cinfo_l1_touch()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00020">cinfo_l1_entry_t::hdr</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::mask</a>, <a class="el" href="cinfo__l1_8c_source.html#l00040">cinfo_l1_impl_t::mtx</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00299">brix_cstore_cinfo_load()</a>.</p>
 
@@ -334,9 +335,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00236">236</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00254">254</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00026">cinfo_l1_impl_t::buckets</a>, <a class="el" href="cinfo__l1_8c_source.html#l00139">cinfo_l1_evict_tail()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00111">cinfo_l1_find()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00052">cinfo_l1_hash()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00084">cinfo_l1_lru_push_front()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00099">cinfo_l1_touch()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00031">cinfo_l1_impl_t::count</a>, <a class="el" href="cinfo__l1_8c_source.html#l00019">cinfo_l1_entry_t::hdr</a>, <a class="el" href="cinfo__l1_8c_source.html#l00020">cinfo_l1_entry_t::hnext</a>, <a class="el" href="cinfo__l1_8c_source.html#l00018">cinfo_l1_entry_t::key</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00028">cinfo_l1_impl_t::mask</a>, <a class="el" href="cinfo__l1_8c_source.html#l00032">cinfo_l1_impl_t::max</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00027">cinfo_l1_impl_t::buckets</a>, <a class="el" href="cinfo__l1_8c_source.html#l00146">cinfo_l1_evict_tail()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00118">cinfo_l1_find()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00059">cinfo_l1_hash()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00091">cinfo_l1_lru_push_front()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00106">cinfo_l1_touch()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00032">cinfo_l1_impl_t::count</a>, <a class="el" href="cinfo__l1_8c_source.html#l00020">cinfo_l1_entry_t::hdr</a>, <a class="el" href="cinfo__l1_8c_source.html#l00021">cinfo_l1_entry_t::hnext</a>, <a class="el" href="cinfo__l1_8c_source.html#l00019">cinfo_l1_entry_t::key</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::mask</a>, <a class="el" href="cinfo__l1_8c_source.html#l00033">cinfo_l1_impl_t::max</a>, <a class="el" href="cinfo__l1_8c_source.html#l00040">cinfo_l1_impl_t::mtx</a>, and <a class="el" href="cinfo__l1_8h_source.html#l00035">brix_cinfo_l1_t::opaque</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00299">brix_cstore_cinfo_load()</a>, and <a class="el" href="cstore_8c_source.html#l00343">brix_cstore_cinfo_store()</a>.</p>
 
@@ -382,11 +383,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00125">125</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00132">132</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00026">cinfo_l1_impl_t::buckets</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00020">cinfo_l1_entry_t::hnext</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00027">cinfo_l1_impl_t::buckets</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00021">cinfo_l1_entry_t::hnext</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00277">brix_cinfo_l1_drop()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00139">cinfo_l1_evict_tail()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00300">brix_cinfo_l1_drop()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00146">cinfo_l1_evict_tail()</a>.</p>
 
 </div>
 </div>
@@ -414,11 +415,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00139">139</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00146">146</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00125">cinfo_l1_bucket_remove()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00052">cinfo_l1_hash()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00067">cinfo_l1_lru_unlink()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00031">cinfo_l1_impl_t::count</a>, <a class="el" href="cinfo__l1_8c_source.html#l00018">cinfo_l1_entry_t::key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00030">cinfo_l1_impl_t::lru_tail</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00028">cinfo_l1_impl_t::mask</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00132">cinfo_l1_bucket_remove()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00059">cinfo_l1_hash()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00074">cinfo_l1_lru_unlink()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00032">cinfo_l1_impl_t::count</a>, <a class="el" href="cinfo__l1_8c_source.html#l00019">cinfo_l1_entry_t::key</a>, <a class="el" href="cinfo__l1_8c_source.html#l00031">cinfo_l1_impl_t::lru_tail</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::mask</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00236">brix_cinfo_l1_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00254">brix_cinfo_l1_put()</a>.</p>
 
 </div>
 </div>
@@ -462,11 +463,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00111">111</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00118">118</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00026">cinfo_l1_impl_t::buckets</a>, <a class="el" href="cinfo__l1_8c_source.html#l00020">cinfo_l1_entry_t::hnext</a>, <a class="el" href="cinfo__l1_8c_source.html#l00018">cinfo_l1_entry_t::key</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00027">cinfo_l1_impl_t::buckets</a>, <a class="el" href="cinfo__l1_8c_source.html#l00021">cinfo_l1_entry_t::hnext</a>, <a class="el" href="cinfo__l1_8c_source.html#l00019">cinfo_l1_entry_t::key</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00277">brix_cinfo_l1_drop()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00214">brix_cinfo_l1_get()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00236">brix_cinfo_l1_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00300">brix_cinfo_l1_drop()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00229">brix_cinfo_l1_get()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00254">brix_cinfo_l1_put()</a>.</p>
 
 </div>
 </div>
@@ -494,11 +495,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00052">52</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00059">59</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
 <p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00277">brix_cinfo_l1_drop()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00214">brix_cinfo_l1_get()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00236">brix_cinfo_l1_put()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00139">cinfo_l1_evict_tail()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00300">brix_cinfo_l1_drop()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00229">brix_cinfo_l1_get()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00254">brix_cinfo_l1_put()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00146">cinfo_l1_evict_tail()</a>.</p>
 
 </div>
 </div>
@@ -536,11 +537,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00084">84</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00091">91</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::lru_head</a>, <a class="el" href="cinfo__l1_8c_source.html#l00022">cinfo_l1_entry_t::lru_next</a>, <a class="el" href="cinfo__l1_8c_source.html#l00021">cinfo_l1_entry_t::lru_prev</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00030">cinfo_l1_impl_t::lru_tail</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00030">cinfo_l1_impl_t::lru_head</a>, <a class="el" href="cinfo__l1_8c_source.html#l00023">cinfo_l1_entry_t::lru_next</a>, <a class="el" href="cinfo__l1_8c_source.html#l00022">cinfo_l1_entry_t::lru_prev</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00031">cinfo_l1_impl_t::lru_tail</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00236">brix_cinfo_l1_put()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00099">cinfo_l1_touch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00254">brix_cinfo_l1_put()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00106">cinfo_l1_touch()</a>.</p>
 
 </div>
 </div>
@@ -578,11 +579,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00067">67</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00074">74</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::lru_head</a>, <a class="el" href="cinfo__l1_8c_source.html#l00022">cinfo_l1_entry_t::lru_next</a>, <a class="el" href="cinfo__l1_8c_source.html#l00021">cinfo_l1_entry_t::lru_prev</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00030">cinfo_l1_impl_t::lru_tail</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00030">cinfo_l1_impl_t::lru_head</a>, <a class="el" href="cinfo__l1_8c_source.html#l00023">cinfo_l1_entry_t::lru_next</a>, <a class="el" href="cinfo__l1_8c_source.html#l00022">cinfo_l1_entry_t::lru_prev</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00031">cinfo_l1_impl_t::lru_tail</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00277">brix_cinfo_l1_drop()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00139">cinfo_l1_evict_tail()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00099">cinfo_l1_touch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00300">brix_cinfo_l1_drop()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00146">cinfo_l1_evict_tail()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00106">cinfo_l1_touch()</a>.</p>
 
 </div>
 </div>
@@ -610,9 +611,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00040">40</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00047">47</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00158">brix_cinfo_l1_create()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00165">brix_cinfo_l1_create()</a>.</p>
 
 </div>
 </div>
@@ -650,11 +651,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00099">99</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cinfo__l1_8c_source.html#l00106">106</a> of file <a class="el" href="cinfo__l1_8c_source.html">cinfo_l1.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00084">cinfo_l1_lru_push_front()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00067">cinfo_l1_lru_unlink()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00029">cinfo_l1_impl_t::lru_head</a>.</p>
+<p class="reference">References <a class="el" href="cinfo__l1_8c_source.html#l00091">cinfo_l1_lru_push_front()</a>, <a class="el" href="cinfo__l1_8c_source.html#l00074">cinfo_l1_lru_unlink()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00030">cinfo_l1_impl_t::lru_head</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00214">brix_cinfo_l1_get()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00236">brix_cinfo_l1_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cinfo__l1_8c_source.html#l00229">brix_cinfo_l1_get()</a>, and <a class="el" href="cinfo__l1_8c_source.html#l00254">brix_cinfo_l1_put()</a>.</p>
 
 </div>
 </div>

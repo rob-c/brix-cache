@@ -1,5 +1,10 @@
 var NAVTREEINDEX82 =
 {
+"xrootdfs__legacy_8c.html#a7feb256f07d7b3cba9fd019684024e54":[89,0,0,0,5,16,11],
+"xrootdfs__legacy_8c.html#a8247f7ac757181efc4dc64662c2d9ef8":[89,0,0,0,5,16,19],
+"xrootdfs__legacy_8c.html#a9267b402fdc3f786e9df1e41aa676d08":[89,0,0,0,5,16,21],
+"xrootdfs__legacy_8c.html#a92ed95e6a6fa296221932310eb46c0e4":[89,0,0,0,5,16,33],
+"xrootdfs__legacy_8c.html#aa961815f7e2ddb422915bd2d6700f016":[89,0,0,0,5,16,24],
 "xrootdfs__legacy_8c.html#aab571e5cc00816fd9c27637a2015f826":[89,0,0,0,5,16,30],
 "xrootdfs__legacy_8c.html#aad6be08d5db34de7343fec21e2bf67fd":[89,0,0,0,5,16,13],
 "xrootdfs__legacy_8c.html#aafc6a8535368f1327eb9efdff764830e":[89,0,0,0,5,16,43],

@@ -50,6 +50,7 @@ var sd_8h =
     [ "brix_sd_fd", "sd_8h.html#af8a058ea090c61cc140ca177e21572a4", null ],
     [ "brix_sd_instance_create", "sd_8h.html#ac547435a2019fe08fa09cd1a78db4fc4", null ],
     [ "brix_sd_instance_destroy", "sd_8h.html#aa2505c51ae311a1c3af3dd144feed399", null ],
+    [ "brix_sd_obj_release", "sd_8h.html#aaaf8275711dbb922c9eb84802b20575d", null ],
     [ "brix_sd_posix_borrow_instance", "sd_8h.html#ada4f4b6c600ca1d727e710e903af9c86", null ],
     [ "brix_sd_posix_open_unconfined", "sd_8h.html#a529a5189f1b8ce2a5d1c828313a89a61", null ],
     [ "brix_sd_posix_wrap", "sd_8h.html#a7e5da1d786888ae8aac242c4901e0efd", null ],

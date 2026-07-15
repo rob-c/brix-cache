@@ -1,5 +1,9 @@
 var NAVTREEINDEX71 =
 {
+"structxrdw__protocol__req__t.html#a8051b4f1614f3f8492b0c0ce62016a31":[88,0,658,2],
+"structxrdw__query__req__t.html":[88,0,659],
+"structxrdw__query__req__t.html#a049c57e74f372c877846d4d6b0b1fead":[88,0,659,0],
+"structxrdw__query__req__t.html#aa0cfb411736f9c7f3c727166679eb2a3":[88,0,659,1],
 "structxrdw__read__req__t.html":[88,0,660],
 "structxrdw__read__req__t.html#a34ada07f17ca50ce938de29cf05a8a0c":[88,0,660,1],
 "structxrdw__read__req__t.html#a3fd75680da466312314512b9e52044e0":[88,0,660,2],
@@ -245,9 +249,5 @@ var NAVTREEINDEX71 =
 "tier__config_8c.html#aa88bc578811d7d66e434b91b9d7f3a48":[89,0,2,2,6,2,10],
 "tier__config_8c.html#ac852850bcbf67adbe33890659139346a":[89,0,2,2,6,2,2],
 "tier__config_8c.html#ae825b79dce23a802e8a91f2f47fb7c82":[89,0,2,2,6,2,0],
-"tier__config_8c.html#af2f3f6f80196421a71367dcfd5ecb446":[89,0,2,2,6,2,1],
-"tier__config_8c_source.html":[89,0,2,2,6,2],
-"tier__directives_8h.html":[89,0,2,1,2,22],
-"tier__directives_8h.html#a7cb9bbb567d1c3df0335db9ec4d989e3":[89,0,2,1,2,22,0],
-"tier__directives_8h.html#abfbfadc2e19a64d03f3f510dfa5c8ab5":[89,0,2,1,2,22,1]
+"tier__config_8c.html#af2f3f6f80196421a71367dcfd5ecb446":[89,0,2,2,6,2,1]
 };
