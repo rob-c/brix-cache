@@ -193,7 +193,9 @@ brix_pgread_read_encode_inplace(brix_sd_obj_t *obj, off_t offset,
         } else
 #endif
         {
-            n = obj->driver->preadv(obj, batch.iov, batch.k, batch_off);
+            /* Compat seam: drivers without a native preadv slot (remote/object
+             * backends) fall back to per-iovec pread inside the helper. */
+            n = brix_sd_obj_preadv(obj, batch.iov, batch.k, batch_off);
             if (n < 0) {
                 io->nread = -1;
                 io->io_errno = errno;
@@ -400,6 +402,14 @@ brix_pgread_try_warm(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *rconf,
 
     warm_obj = brix_vfs_effective_obj(&ctx->files[run->idx].sd_obj, run->fd,
                                         &warm_scratch);
+
+    /* The RWF_NOWAIT probe needs the driver's native preadv2; drivers without
+     * one (remote/object backends) have no page cache to probe — treat as a
+     * miss so the read offloads to the blocking path. */
+    if (warm_obj->driver->preadv2 == NULL) {
+        return 0;
+    }
+
     warm_osz = brix_pgread_read_encode_inplace(warm_obj, (off_t) run->offset,
                                                  run->rlen, run->scratch,
                                                  &warm_io);

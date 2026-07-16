@@ -1,10 +1,11 @@
 """
 test_lifecycle_speed.py — guards the startup/shutdown speed work.
 
-Self-contained: each test provisions its OWN minimal nginx-xrootd instance (own
-prefix, own self-signed cert, high ports) and drives the freshly-built objs/nginx
-directly, so it does not depend on the shared test fleet (and never collides with
-it). It validates by parsing the module's permanent per-phase summary lines:
+Registry-backed: each test provisions its OWN minimal nginx-xrootd instance
+through the `lifecycle` harness (template `nginx_lifecycle_speed.conf`, own
+self-signed cert, OS-assigned ports), so it does not depend on the shared test
+fleet (and never collides with it). It validates by parsing the module's
+permanent per-phase summary lines:
 
     xrootd postconfig: prepare=... total=...
     xrootd init_process[wN]: uring=... servers=... keypool=... total=...
@@ -23,38 +24,19 @@ covered by test_gsi_handshake.py / test_gsi_concurrency.py against the fleet.
 
 import os
 import re
-import shutil
-import socket
 import subprocess
 import time
 
 import pytest
 
-NGINX_BIN = os.environ.get("LIFECYCLE_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+import settings
+from server_registry import NginxInstanceSpec
+from settings import NGINX_BIN
 
 pytestmark = pytest.mark.skipif(
     not os.path.isfile(NGINX_BIN),
     reason=f"nginx binary not built at {NGINX_BIN}",
 )
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _wait_accept(port, timeout=15.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.02)
-    return False
 
 
 def _wait_for(elog, pattern, timeout=15.0):
@@ -75,94 +57,71 @@ def _wait_for(elog, pattern, timeout=15.0):
 
 
 class Instance:
-    """A throwaway nginx-xrootd instance built from a template."""
+    """A throwaway registry-backed nginx-xrootd instance."""
 
-    def __init__(self, prefix, with_thread_pool=True, keypool_size=None,
-                 keypool_seed=None, workers=1):
-        self.prefix = prefix
-        self.conf = os.path.join(prefix, "conf", "nginx.conf")
-        self.elog = os.path.join(prefix, "logs", "error.log")
-        self.port_anon = _free_port()
-        self.port_gsi = _free_port()
-        self._build(with_thread_pool, keypool_size, keypool_seed, workers)
-
-    def _build(self, with_pool, size, seed, workers):
-        for sub in ("conf", "logs", "data"):
-            os.makedirs(os.path.join(self.prefix, sub), exist_ok=True)
-        # nginx master runs as root here, so the worker drops to the built-in
-        # 'nobody' user. The worker's checkpoint-recovery writes a lock INSIDE
-        # the export, so the export must be writable by that worker (the fleet
-        # exports are 0777 for the same reason). Without this the worker fails
-        # the recovery lock with EACCES and exits before it can log the
-        # init_process/keypool phase lines these tests assert on (the master
-        # still holds the listen socket, so _wait_accept succeeds regardless).
-        os.chmod(os.path.join(self.prefix, "data"), 0o777)
-        crt = os.path.join(self.prefix, "conf", "host.crt")
-        key = os.path.join(self.prefix, "conf", "host.key")
+    def __init__(self, harness, base, name, with_thread_pool=True,
+                 keypool_size=None, keypool_seed=None, workers=1):
+        data = base / "data"
+        data.mkdir(parents=True, exist_ok=True)
+        # nginx master may run as root here, so the worker drops to the
+        # built-in 'nobody' user. The worker's checkpoint-recovery writes a
+        # lock INSIDE the export, so the export must be writable by that
+        # worker (the fleet exports are 0777 for the same reason). Without
+        # this the worker fails the recovery lock with EACCES and exits before
+        # it can log the init_process/keypool phase lines these tests assert
+        # on (the master still holds the listen socket, so TCP readiness
+        # succeeds regardless).
+        os.chmod(data, 0o777)
+        crt = base / "host.crt"
+        key = base / "host.key"
         subprocess.run(
             ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
-             "-days", "1", "-keyout", key, "-out", crt,
+             "-days", "1", "-keyout", str(key), "-out", str(crt),
              "-subj", "/CN=lifecycle-test"],
             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
-        pool_line = ("thread_pool default threads=4 max_queue=512;"
-                     if with_pool else "")
         knobs = ""
-        if size is not None:
-            knobs += f"        brix_gsi_keypool_size {size};\n"
-        if seed is not None:
-            knobs += f"        brix_gsi_keypool_seed {seed};\n"
-        with open(self.conf, "w") as fh:
-            fh.write(f"""\
-worker_processes {workers};
-daemon on;
-pid {self.prefix}/logs/nginx.pid;
-error_log {self.elog} notice;
-{pool_line}
-events {{ worker_connections 1024; }}
-stream {{
-    server {{
-        listen {self.port_anon};
-        brix_root on;
-        brix_storage_backend posix:{self.prefix}/data;
-        brix_auth none;
-    }}
-    server {{
-        listen {self.port_gsi};
-        brix_root on;
-        brix_storage_backend posix:{self.prefix}/data;
-        brix_auth gsi;
-        brix_certificate     {self.prefix}/conf/host.crt;
-        brix_certificate_key {self.prefix}/conf/host.key;
-        brix_trusted_ca      {self.prefix}/conf/host.crt;
-{knobs}    }}
-}}
-""")
+        if keypool_size is not None:
+            knobs += f"        brix_gsi_keypool_size {keypool_size};\n"
+        if keypool_seed is not None:
+            knobs += f"        brix_gsi_keypool_seed {keypool_seed};\n"
+        (gsi_port,) = settings.free_ports(1)
+        endpoint = harness.start(
+            NginxInstanceSpec(
+                name=name,
+                template="nginx_lifecycle_speed.conf",
+                data_root=str(data),
+                extra_ports={"GSI_PORT": gsi_port},
+                template_values={
+                    "WORKERS": workers,
+                    "THREAD_POOL_LINE": (
+                        "thread_pool default threads=4 max_queue=512;"
+                        if with_thread_pool else ""
+                    ),
+                    "CERT": str(crt),
+                    "KEY": str(key),
+                    "GSI_KNOBS": knobs,
+                },
+                reason="startup/shutdown speed instrumentation coverage",
+            )
+        )
+        self.elog = os.path.join(endpoint.prefix, "logs", "error.log")
 
-    def start(self):
-        subprocess.run([NGINX_BIN, "-p", self.prefix, "-c", self.conf],
-                       check=True)
-        assert _wait_accept(self.port_anon), "server never accepted connections"
 
-    def stop(self):
-        subprocess.run([NGINX_BIN, "-p", self.prefix, "-c", self.conf,
-                        "-s", "stop"], stderr=subprocess.DEVNULL)
+# Module-wide counter: registry prefixes live under a per-name directory whose
+# error.log appends across starts, so every instance in this module needs a
+# distinct name or a later test would match phase lines from an earlier one.
+_SEQ = iter(range(10_000))
 
 
 @pytest.fixture
-def instance(tmp_path):
-    insts = []
-
+def instance(lifecycle, tmp_path):
     def _make(**kw):
-        inst = Instance(str(tmp_path / f"inst{len(insts)}"), **kw)
-        inst.start()
-        insts.append(inst)
-        return inst
+        name = f"lc-speed-{next(_SEQ)}"
+        return Instance(lifecycle, tmp_path / name, name, **kw)
 
     yield _make
-    for inst in insts:
-        inst.stop()
-    shutil.rmtree(str(tmp_path), ignore_errors=True)
+    # Teardown (stop + unregister) is owned by the lifecycle fixture.
 
 
 def test_phase_instrumentation_emitted(instance):

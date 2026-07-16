@@ -3,7 +3,7 @@ tests/test_frm_staging.py
 
 Phase 35 / Phase 1 — the usable synchronous tape gateway (stream face).
 
-End-to-end against a self-contained nginx + a fake tape MSS (frm_fake_mss.sh):
+End-to-end against a self-contained nginx + a fake tape MSS (cmdscripts/frm_fake_mss.py):
 
   * a resident file is NOT reported offline
   * a nearline file (disk stub + user.frm.residency=nearline xattr, real bytes on
@@ -102,8 +102,8 @@ def staging(tmp_path_factory):
     tape = d / "tape"; tape.mkdir()
     queue = d / "frm.queue"
     audit = d / "audit.log"
-    copycmd = str(d / "copycmd.sh")
-    shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"),
+    copycmd = str(d / "copycmd.py")
+    shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"),
                 copycmd)
     os.chmod(copycmd, 0o755)
 

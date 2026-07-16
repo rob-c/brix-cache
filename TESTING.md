@@ -42,7 +42,8 @@ A single file, for a quick check: `python -m pytest tests/test_readv.py -q`.
 
 > **Parallelism vs load:** `-n` is the main load lever. On this **4-core** box use
 > `-n 3` to keep the load average under 8. `-n 8` oversubscribes 4 cores ~2× and
-> destabilises the box. `tests/run_suite.sh --fast` auto-computes `nproc-2` (= 2
+> destabilises the box. The suite runner (`PYTHONPATH=tests python3 -m
+> cmdscripts.operator_runtime suite --fast`) auto-computes `nproc-2` (= 2
 > here), which is also safe.
 
 ---
@@ -61,7 +62,7 @@ sudo dnf install -y \
     python3-requests \
     python3-urllib3 \
     python3-xrootd \
-    python-unversioned-command        # provides /usr/bin/python (run_suite.sh calls `python`)
+    python-unversioned-command        # provides /usr/bin/python (some helpers call `python`)
 ```
 
 Verify they import:
@@ -71,8 +72,8 @@ python3 -c "import pytest, pytest_timeout, xdist, cryptography, requests, urllib
 ```
 
 **Gotchas discovered here:**
-- **`python-unversioned-command` is required** — `run_suite.sh` and some helpers
-  call `python`, which EL9 does not provide by default (only `python3`).
+- **`python-unversioned-command` is required** — some helpers call `python`,
+  which EL9 does not provide by default (only `python3`).
 - **`python3-cryptography` on EL9 is 36.0.1** (the only RPM). The suite's
   `utils/make_proxy.py` used the cryptography-≥42 `not_valid_before_utc` API; it
   now falls back to the naive accessor so PKI/proxy generation works on 36 (fix
@@ -183,17 +184,45 @@ run pytest **without** `TEST_OWN_FLEET`; `conftest` detects the listener on
 `127.0.0.1:11094` and *attaches* (no wipe / start-all / stop-all). It prints
 `A fleet is already listening … attaching …` when it engages.
 
-`tests/run_suite.sh --fast` is the "own-fleet" runner (it sets `TEST_OWN_FLEET=1`
+`PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast` is the
+"own-fleet" runner (it sets `TEST_OWN_FLEET=1`
 and wipes+starts each run). It works now that the crash and reference-xrootd
 issues (§6) are fixed, but on 4 cores the full-suite fleet takes ~15 min to bring
 up; attach mode reuses one fleet across runs.
 
-Full suite / lanes (see the header of `tests/run_suite.sh`):
+### Registry lifecycle mode
+
+Pytest now routes local lifecycle through the server registry
+(`tests/server_registry.py` + `tests/server_launcher.py`). The current registry
+contains a compatibility fleet entry for the existing fixed-port topology while
+individual tests migrate away from ad hoc nginx starts. The controller writes
+`$TEST_ROOT/registry/manifest.json`; xdist workers read that manifest and never
+start or stop servers themselves.
+
+Remote mode (`TEST_SERVER_HOST=...`), attach mode, and
+`TEST_SKIP_SERVER_SETUP=1` remain no-local-lifecycle modes. New tests should use
+registry primitives for nginx lifecycle work and keep configs under
+`tests/configs/`; command-line client coverage still belongs in Python tests via
+real subprocess calls.
+
+Registry-backed tests should mark their server needs with
+`@pytest.mark.registry_server("name")` or `registry_servers(...)`, then use the
+`registry_server` fixture for endpoint metadata. Command-line tests should use
+the `command_runner` fixture or importable helpers from `tests/cmdscripts/`;
+new shell wrappers under `tests/` are not the target shape and should only be
+removed as their Python replacements land.
+
+Registry metadata is written to `$TEST_ROOT/registry/manifest.json`. Per-server
+configs and logs live under `$TEST_ROOT/registry/<server>/conf` and
+`$TEST_ROOT/registry/<server>/logs`. Existing unmigrated tests still route
+through the compatibility fleet while the registry migration continues.
+
+Full suite / lanes (see `tests/cmdscripts/operator_runtime.py`):
 ```bash
-tests/run_suite.sh --fast     # <5min quick lane, -m "not slow and not serial"
-tests/run_suite.sh --pr       # the PR gate (not slow, bulk + serial)
-tests/run_suite.sh --nightly  # the deferred slow set
-tests/run_suite.sh            # everything (4 lanes)
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast     # <5min quick lane, -m "not slow and not serial"
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --pr       # the PR gate (not slow, bulk + serial)
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --nightly  # the deferred slow set
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite            # everything (4 lanes)
 ```
 
 **Launching the fleet from a script/agent:** launch `start-all` truly detached

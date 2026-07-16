@@ -34,6 +34,12 @@ ngx_int_t webdav_verify_proxy_cert(ngx_http_request_t *r,
  * 401 invalid; 500. */
 ngx_int_t webdav_verify_bearer_token(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf);
+/* Auth gate (see HELPERS): verify an `Authorization: Basic` credential
+ * against conf->pwd_file (the stream pwd db) and stamp the request identity
+ * (dn = username, BRIX_AUTHN_PWD, VOs from the entry's 4th field).  NGX_OK;
+ * NGX_DECLINED if unconfigured/absent/invalid (try other auth / policy); 500. */
+ngx_int_t webdav_verify_basic_pwd(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf);
 /* For token-authed data-access methods (read AND write), require a scope
  * covering r->uri (matched against the decoded URI path, not the filesystem
  * path).  Op class (read vs write) is derived from the HTTP method.  NGX_OK

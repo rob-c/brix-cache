@@ -139,7 +139,7 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
                   brix_vfs_export_relative(ctx,
                       (const char *) dst->resolved.data),
                   0, use_cred ? &cred : NULL)
-            : (errno = ENOSYS, NGX_ERROR);
+            : (errno = ENOTSUP, NGX_ERROR);
 
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,

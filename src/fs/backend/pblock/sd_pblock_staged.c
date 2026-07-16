@@ -51,13 +51,18 @@ typedef struct {
     int64_t         block_size;
     int64_t         size;                 /* high-water mark of staged writes  */
     mode_t          mode;
+    uint32_t        uid;                  /* owner recorded on the committed   */
+    uint32_t        gid;                  /* row (0/0 = the service itself)    */
 } pblock_staged_t;
 
 /* ---- staged atomic publish ------------------------------------------------ */
 
+/* sd_pblock_staged_open_as — staged open whose eventual committed row is owned
+ * by (uid, gid). The plain slot passes 0/0 (service); staged_open_cred
+ * (sd_pblock_cred.c) passes the requester's resolved catalog ids. */
 brix_sd_staged_t *
-sd_pblock_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+sd_pblock_staged_open_as(brix_sd_instance_t *inst, const char *final_path,
+    mode_t mode, uint32_t uid, uint32_t gid, int *err_out)
 {
     pblock_state_t     *st = inst->state;
     brix_sd_staged_t *handle;
@@ -93,10 +98,19 @@ sd_pblock_staged_open(brix_sd_instance_t *inst, const char *final_path,
     ps->block_size = st->block_size;
     ps->size       = 0;
     ps->mode       = mode;
+    ps->uid        = uid;
+    ps->gid        = gid;
     snprintf(ps->final_path, sizeof(ps->final_path), "%s", final_path);
     handle->inst  = inst;
     handle->state = ps;
     return handle;
+}
+
+brix_sd_staged_t *
+sd_pblock_staged_open(brix_sd_instance_t *inst, const char *final_path,
+    mode_t mode, int *err_out)
+{
+    return sd_pblock_staged_open_as(inst, final_path, mode, 0, 0, err_out);
 }
 
 ssize_t
@@ -147,6 +161,8 @@ sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace)
     meta.block_size = ps->block_size;
     meta.mtime      = meta.ctime = pblock_now();
     meta.mode       = S_IFREG | (ps->mode & 0777);
+    meta.uid        = ps->uid;
+    meta.gid        = ps->gid;
 
     if (pblock_catalog_put(pst->cat, ps->final_path, &meta) != 0) {
         return NGX_ERROR;

@@ -7,26 +7,26 @@ Coverage:
   2. Config validation: the 6 directives parse; the feature is off by default.
   3. Functional: a manager nginx with health checks enabled probes a live
      registered data server and records passing probes in the cluster metrics.
+
+Registry-backed: every nginx here is a throwaway instance provisioned through
+the `lifecycle` harness (templates nginx_hc_parse.conf / nginx_hc_toggle.conf /
+nginx_hc_cluster.conf) — no direct NGINX_BIN subprocess management.
 """
 
 import os
 import socket
-import subprocess
 import time
 from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN, free_port, free_ports, HOST, BIND_HOST
+import settings
+from server_registry import NginxInstanceSpec
+from settings import NGINX_BIN, HOST, BIND_HOST
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 ROOT = Path(__file__).resolve().parents[1]
-
-# All ports below are bound by this file's own nginx instances, so allocate
-# free OS ports to avoid colliding with the managed fleet or other tests.
-_P_DIRECTIVES = free_port()   # test_all_directives_parse listener
-_P_BADTYPE = free_port()      # test_bad_type_rejected listener
-_P_DISABLED = free_port()     # test_disabled_by_default_no_timer_log listen+connect
-_P_ENABLED = free_port()      # test_enabled_starts_manager listen+connect
 
 
 @pytest.fixture(autouse=True)
@@ -82,158 +82,77 @@ def test_metrics_present():
 # 2. Config validation                                                         #
 # --------------------------------------------------------------------------- #
 
-HEADER = (
-    "error_log {logs}/error.log info;\n"
-    "pid       {logs}/nginx.pid;\n"
-    "events {{ worker_connections 64; }}\n"
-)
+def test_all_directives_parse(lifecycle):
+    lifecycle.register(NginxInstanceSpec(
+        name="lc-hc-parse",
+        template="nginx_hc_parse.conf",
+        template_values={"BIND_HOST": BIND_HOST, "HC_TYPE": "stat"},
+        reason="health-check directive parse coverage",
+    ))
+    lifecycle.reconfigure("lc-hc-parse")
+    lifecycle.nginx_test("lc-hc-parse")  # raises on parse failure
 
 
-def _nginx_check(conf_text, tmp_path):
-    (tmp_path / "logs").mkdir(exist_ok=True)
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(conf_text)
-    proc = subprocess.run(
-        [NGINX_BIN, "-t", "-p", str(tmp_path), "-c", str(conf)],
-        capture_output=True, text=True,
-    )
-    return proc.returncode, proc.stdout + proc.stderr
-
-
-def test_all_directives_parse(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:{_P_DIRECTIVES};
-            brix_root on;
-            brix_storage_backend posix:/tmp/xrd-test/data;
-            brix_auth none;
-            brix_health_check on;
-            brix_health_check_interval 15s;
-            brix_health_check_timeout 4s;
-            brix_health_check_threshold 2;
-            brix_health_check_blacklist 45s;
-            brix_health_check_type stat;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc == 0, out
-
-
-def test_bad_type_rejected(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:{_P_BADTYPE};
-            brix_root on;
-            brix_storage_backend posix:/tmp/xrd-test/data;
-            brix_auth none;
-            brix_health_check_type bogus;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc != 0
+def test_bad_type_rejected(lifecycle, tmp_path):
+    # expect_config_failure renders from template_values only, so all
+    # placeholders (including the launcher-provided ones) are passed here.
+    (port,) = settings.free_ports(1)
+    result = lifecycle.expect_config_failure(NginxInstanceSpec(
+        name="lc-hc-badtype",
+        template="nginx_hc_parse.conf",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "HC_TYPE": "bogus",
+            "PORT": port,
+            "DATA_ROOT": str(tmp_path / "data"),
+            "LOG_DIR": str(tmp_path),
+        },
+        reason="health-check bad-type rejection coverage",
+    ))
+    out = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode != 0
     assert "brix_health_check_type" in out or "invalid" in out.lower()
 
 
-def test_disabled_by_default_no_timer_log(tmp_path):
+def _toggle_instance(lifecycle, name, hc_knobs):
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_hc_toggle.conf",
+        template_values={"BIND_HOST": BIND_HOST, "HC_KNOBS": hc_knobs},
+        reason="health-check manager init_process wiring coverage",
+    ))
+    return os.path.join(endpoint.prefix, "logs", "error.log")
+
+
+def test_disabled_by_default_no_timer_log(lifecycle):
     # Without `brix_health_check on`, no health-check manager is started, so
     # the "health check manager started" notice must not appear.
-    logs = tmp_path / "logs"
-    logs.mkdir()
-    (tmp_path / "tmp").mkdir()
-    conf = HEADER.format(logs=logs) + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:{_P_DISABLED};
-            brix_root on;
-            brix_storage_backend posix:/tmp/xrd-test/data;
-            brix_auth none;
-        }}
-    }}
-    """
-    conf_path = tmp_path / "nginx.conf"
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    try:
-        # Wait for the listener, then a moment for any (absent) timer to log.
-        deadline = time.time() + 8
-        up = False
-        while time.time() < deadline:
-            try:
-                with socket.create_connection((HOST, _P_DISABLED), timeout=0.5):
-                    up = True
-                    break
-            except OSError:
-                time.sleep(0.1)
-        if not up:
-            err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-            pytest.skip(f"server did not start: {err}")
-        time.sleep(1.0)
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-    log = (logs / "error.log").read_text(errors="replace")
+    elog = _toggle_instance(lifecycle, "lc-hc-off", "")
+    time.sleep(1.0)  # a moment for any (absent) timer to log
+    log = Path(elog).read_text(errors="replace")
     assert "health check manager started" not in log, log
 
 
-def test_enabled_starts_manager(tmp_path):
+def test_enabled_starts_manager(lifecycle):
     # With health checks enabled the per-worker manager timer is started and
     # logs a startup notice — proving the init_process wiring fires.
-    logs = tmp_path / "logs"
-    logs.mkdir()
-    conf = HEADER.format(logs=logs) + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:{_P_ENABLED};
-            brix_root on;
-            brix_storage_backend posix:/tmp/xrd-test/data;
-            brix_auth none;
-            brix_health_check on;
-            brix_health_check_interval 5s;
-        }}
-    }}
-    """
-    conf_path = tmp_path / "nginx.conf"
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    try:
-        deadline = time.time() + 8
-        up = False
-        while time.time() < deadline:
-            try:
-                with socket.create_connection((HOST, _P_ENABLED), timeout=0.5):
-                    up = True
-                    break
-            except OSError:
-                time.sleep(0.1)
-        if not up:
-            err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-            pytest.skip(f"server did not start: {err}")
-        time.sleep(0.5)
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-    log = (logs / "error.log").read_text(errors="replace")
+    elog = _toggle_instance(
+        lifecycle, "lc-hc-on",
+        "        brix_health_check on;\n"
+        "        brix_health_check_interval 5s;\n",
+    )
+    deadline = time.time() + 8
+    while time.time() < deadline:
+        log = Path(elog).read_text(errors="replace")
+        if "health check manager started" in log:
+            return
+        time.sleep(0.2)
     assert "health check manager started" in log, log
 
 
 # --------------------------------------------------------------------------- #
 # 3. Functional: manager health-probes a live registered data server          #
 # --------------------------------------------------------------------------- #
-
-MGR_PORT, CMS_PORT, DS_PORT, METRICS_PORT = free_ports(4)
-
 
 def _wait_port(port, timeout=10):
     deadline = time.time() + timeout
@@ -269,79 +188,34 @@ def _counter(body, name):
 
 
 @pytest.fixture
-def hc_cluster(tmp_path):
+def hc_cluster(lifecycle, tmp_path):
     data = tmp_path / "data"
     data.mkdir()
     (data / "f.txt").write_text("x\n")
-    logs = tmp_path / "logs"
-    logs.mkdir()
-    (tmp_path / "t").mkdir()
-    conf = HEADER.format(logs=logs) + f"""
-    stream {{
-        # Manager (redirector) with active health checks enabled.
-        server {{
-            listen {BIND_HOST}:{MGR_PORT};
-            brix_root on;
-            brix_auth none;
-            brix_manager_mode on;
-            brix_health_check on;
-            brix_health_check_interval 2s;
-            brix_health_check_timeout 3s;
-        }}
-        # CMS server endpoint data servers register with.
-        server {{
-            listen {BIND_HOST}:{CMS_PORT};
-            brix_cms_server on;
-        }}
-        # Live data server that registers itself via loopback CMS.
-        server {{
-            listen {BIND_HOST}:{DS_PORT};
-            brix_root on;
-            brix_auth none;
-            brix_storage_backend posix:{data};
-            brix_cms_manager {HOST}:{CMS_PORT};
-            brix_cms_paths /data;
-            brix_cms_interval 2;
-            brix_listen_port {DS_PORT};
-        }}
-    }}
-    http {{
-        client_body_temp_path {tmp_path}/t; proxy_temp_path {tmp_path}/t;
-        fastcgi_temp_path {tmp_path}/t; uwsgi_temp_path {tmp_path}/t;
-        scgi_temp_path {tmp_path}/t; access_log off;
-        server {{
-            listen {BIND_HOST}:{METRICS_PORT};
-            location /metrics {{ brix_metrics on; }}
-        }}
-    }}
-    """
-    conf_path = tmp_path / "nginx.conf"
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    try:
-        if not (_wait_port(MGR_PORT) and _wait_port(DS_PORT)
-                and _wait_port(METRICS_PORT)):
-            err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-            proc.terminate()
-            pytest.skip(f"hc cluster did not start: {err}")
-        yield
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+    cms_port, ds_port, metrics_port = settings.free_ports(3)
+    lifecycle.start(NginxInstanceSpec(
+        name="lc-hc-cluster",
+        template="nginx_hc_cluster.conf",
+        data_root=str(data),
+        extra_ports={"CMS_PORT": cms_port, "DS_PORT": ds_port,
+                     "METRICS_PORT": metrics_port},
+        template_values={"BIND_HOST": BIND_HOST, "HOST": HOST},
+        reason="manager + CMS + data server health-probe cluster",
+    ))
+    if not (_wait_port(ds_port) and _wait_port(metrics_port)):
+        pytest.skip("hc cluster did not become fully ready")
+    yield metrics_port
 
 
 def test_probe_passes_live_server(hc_cluster):
     # The data server registers (cms_interval 2s); the manager then probes it
     # (hc_interval 2s after a 2s settle).  Within ~15s a passing probe must be
     # recorded in the cluster health-check metrics.
+    metrics_port = hc_cluster
     deadline = time.time() + 18
     passed = 0
     while time.time() < deadline:
-        body = _metrics(METRICS_PORT)
+        body = _metrics(metrics_port)
         passed = _counter(body, "brix_cluster_hc_pass_total")
         if passed >= 1:
             break

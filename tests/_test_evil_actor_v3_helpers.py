@@ -558,8 +558,8 @@ def srv(tmp_path_factory):
             f.write(chunk * 8)
 
     # FRM nearline files (file=stub, real bytes on "tape")
-    copycmd = os.path.join(prefix, "copycmd.sh")
-    shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"), copycmd)
+    copycmd = os.path.join(prefix, "copycmd.py")
+    shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
     os.chmod(copycmd, 0o755)
     audit = os.path.join(prefix, "audit.log")
     near_names = []

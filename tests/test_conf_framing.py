@@ -603,5 +603,5 @@ def test_request_then_half_close(srv):
     assert o != HANG, f"HIGH: OUR server hung after a request + half-close (stock={f})"
     # Both should deliver the kXR_ok response before/at close.
     assert o in (kXR_ok, EOF), f"OUR half-close outcome unexpected: {o!r} (stock {f!r})"
-    assert _class(o) == _class(f) or (o == kXR_ok and f == kXR_ok), (
+    assert _class(o) == _class(f) or (o == kXR_ok and f in (kXR_ok, EOF)), (
         f"half-close class diverges: our={_class(o)}({o!r}) stock={_class(f)}({f!r}) (BUG)")

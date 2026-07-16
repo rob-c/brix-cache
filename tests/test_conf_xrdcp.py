@@ -380,6 +380,7 @@ def test_recursive_download_whole_tree(srv, tmp_path):
     on BOTH servers (confirmed: same "Invalid arguments"), so we use the form
     the stock toolchain accepts.
     """
+    L.reset_to_seeded_tree(srv["our_data"], srv["off_data"])
     dst = str(tmp_path / "rec_root")
     os.makedirs(dst)
     rc, out, err = _download(L.OFF_XRDCP, srv["our"], ".", dst, "-r", "-f",

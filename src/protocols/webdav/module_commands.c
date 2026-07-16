@@ -247,6 +247,13 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
 #include "directives_tpc.inc"
 
+    { ngx_string("brix_webdav_pwd_file"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, pwd_file),
+      NULL },
+
     { ngx_string("brix_webdav_token_jwks"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,

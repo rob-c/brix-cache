@@ -65,8 +65,8 @@ def srv(tmp_path_factory):
     tape = d / "tape"; tape.mkdir()
     queue = d / "frm.queue"
     audit = d / "audit.log"
-    copycmd = str(d / "copycmd.sh")
-    shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"), copycmd)
+    copycmd = str(d / "copycmd.py")
+    shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
     os.chmod(copycmd, 0o755)
 
     tape_content = b"ASYNC-TAPE-CONTENT-" + b"y" * 256 + b"\n"

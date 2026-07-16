@@ -20,7 +20,6 @@ a real EC P-256 public key, then:
 import base64
 import json
 import os
-import socket
 import subprocess
 import time
 
@@ -38,44 +37,34 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
-from config_templates import render_config
+from settings import NGINX_BIN, HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
 
-PORT = int(os.environ.get("TEST_ES256_PORT") or free_port())
+pytestmark = [pytest.mark.uses_lifecycle_harness]
+
 KID = "ec-key-1"
 ISSUER = "https://test.example.com"
 AUDIENCE = "nginx-xrootd"
+
+PORT = None
 
 
 def _b64u(b):
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
 
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def es256_server(tmp_path_factory):
+@pytest.fixture()
+def es256_server(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     if not _HAVE_REQUESTS:
         pytest.skip("requests not available")
 
-    d = tmp_path_factory.mktemp("es256")
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    (d / "cadir").mkdir()
-    data = d / "data"
+    data = tmp_path / "data"
     data.mkdir()
     (data / "test.txt").write_text("hello-es256\n")
+    cadir = tmp_path / "cadir"
+    cadir.mkdir()
 
     key = ec.generate_private_key(ec.SECP256R1())
     nums = key.public_key().public_numbers()
@@ -84,31 +73,20 @@ def es256_server(tmp_path_factory):
         "x": _b64u(nums.x.to_bytes(32, "big")),
         "y": _b64u(nums.y.to_bytes(32, "big")),
     }]}
-    jwks_path = d / "jwks.json"
+    jwks_path = tmp_path / "jwks.json"
     jwks_path.write_text(json.dumps(jwks))
 
-    conf = render_config("nginx_webdav_token_aud.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=PORT,
-                         DATA_DIR=data,
-                         JWKS_PATH=jwks_path,
-                         ISSUER=ISSUER,
-                         AUDIENCE=AUDIENCE)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(PORT):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"es256 webdav server did not start: {err}")
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-token-es256",
+        template="nginx_lc_webdav_token_aud.conf",
+        protocol="webdav",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "CADIR": str(cadir), "JWKS_PATH": str(jwks_path),
+                         "ISSUER": ISSUER, "AUDIENCE": AUDIENCE},
+        reason="webdav ES256 JWT auth"))
+    global PORT
+    PORT = ep.port
     yield key
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _signing_input(extra_payload=None):

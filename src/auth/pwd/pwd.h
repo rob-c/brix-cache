@@ -48,13 +48,18 @@
 
 /*
  * Look up `user` in the brix_pwd_file at `path` and, on a match, return the
- * stored salt and PBKDF2 hash.  Lines are "user:salthex:hashhex" (see
- * docs/refactor/phase-52-pwd-wire-spec.md); '#'/blank lines are ignored.
- * Returns NGX_OK (salt+hash filled) or NGX_DECLINED (no such user, parse error,
- * or unreadable file).  All buffers caller-provided; saltlen,hashlen are set out.
+ * stored salt and PBKDF2 hash.  Lines are "user:salthex:hashhex[:vo1,vo2]"
+ * (see docs/refactor/phase-52-pwd-wire-spec.md); '#'/blank lines are ignored.
+ * The optional 4th field is a comma-separated VO/group list copied into `vos`
+ * (set to "" for the legacy 3-field form; pass NULL/0 to skip).  An entry whose
+ * VO list does not fit `voscap` is rejected — group membership must never be
+ * silently truncated.  Returns NGX_OK (salt+hash+vos filled) or NGX_DECLINED
+ * (no such user, parse error, or unreadable file).  All buffers caller-provided;
+ * saltlen,hashlen are set out.
  */
 ngx_int_t brix_pwd_file_lookup(const char *path, const char *user,
-    uint8_t *salt, size_t *saltlen, uint8_t *hash, size_t *hashlen);
+    uint8_t *salt, size_t *saltlen, uint8_t *hash, size_t *hashlen,
+    char *vos, size_t voscap);
 
 /*
  * Verify a plaintext password against a stored (salt, hash) pair using

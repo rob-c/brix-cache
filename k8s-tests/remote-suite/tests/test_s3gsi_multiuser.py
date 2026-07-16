@@ -78,10 +78,9 @@ pytestmark = pytest.mark.skipif(
     S3GSI_HOST is None,
     reason="s3gsi scenario env not set (TEST_S3GSI_HOST) — k8s remote-only suite")
 
-XFAIL_WRITE_CRED = ("predicted gap: sd_remote has no staged_open_cred — "
-                    "writes are signed with the static service credential")
-XFAIL_DENY_WRITE = ("predicted gap: fallback deny refuses writes even with a "
-                    "valid .s3 (no staged_open_cred slot to dispatch to)")
+# P80.3 closed the write-credential gaps: sd_remote now registers
+# staged_open_cred/stat_cred/unlink_cred, so per-user signing of writes and
+# fallback-deny writes with a valid .s3 are HARD requirements (were xfail).
 XFAIL_NO_DIRLIST = "predicted gap: sd_remote has no opendir/readdir (dirlist)"
 XFAIL_NO_MKDIR = "predicted gap: sd_remote has no mkdir slot"
 XFAIL_NO_RENAME = "predicted gap: sd_remote has no rename slot"
@@ -222,6 +221,20 @@ def _fail_blob(r):
     return f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}"
 
 
+def _assert_honest_unsupported(op, r):
+    """P80.4 honesty pin: while the namespace op stays unimplemented on
+    sd_remote, its failure mode must be kXR_Unsupported (3013, 'Operation
+    not supported'), never a dishonest generic I/O error. The xfail on the
+    caller stays; this turns a wrong ERROR KIND into a hard failure."""
+    if r.returncode == 0:
+        return
+    blob = _fail_blob(r)
+    low = blob.lower()
+    assert "3013" in blob or "not supported" in low or "unsupported" in low, \
+        _attr(f"[brix-machinery] {op} failed with a dishonest error kind "
+              f"(want kXR_Unsupported/3013): {blob}")
+
+
 # ==========================================================================
 # 0. Attribution mechanism sanity — prove the backend-side scoping works
 #    before any conclusion is drawn from it.  Pure [backend] tests.
@@ -302,12 +315,14 @@ class TestUserRoundtrip:
     def test_dirlist_own_tree(self, gsi):
         assert _obj_put("/atlas/bob/lsdir/a.dat", b"a").status_code == 200
         r = _xrdfs(gsi("bob"), None, "ls", "/atlas/bob/lsdir")
+        _assert_honest_unsupported("ls", r)
         assert r.returncode == 0 and "a.dat" in r.stdout, \
             _attr(f"ls failed: {_fail_blob(r)}")
 
     @pytest.mark.xfail(reason=XFAIL_NO_MKDIR, strict=False)
     def test_mkdir_own_tree(self, gsi):
         r = _xrdfs(gsi("bob"), None, "mkdir", "/atlas/bob/newdir")
+        _assert_honest_unsupported("mkdir", r)
         assert r.returncode == 0, _attr(f"mkdir failed: {_fail_blob(r)}")
 
     @pytest.mark.xfail(reason=XFAIL_NO_RENAME, strict=False)
@@ -315,6 +330,7 @@ class TestUserRoundtrip:
         assert _obj_put("/atlas/bob/mvsrc.dat", b"mv").status_code == 200
         r = _xrdfs(gsi("bob"), None, "mv", "/atlas/bob/mvsrc.dat",
                    "/atlas/bob/mvdst.dat")
+        _assert_honest_unsupported("mv", r)
         assert r.returncode == 0, _attr(f"mv failed: {_fail_blob(r)}")
         assert _obj_get("/atlas/bob/mvdst.dat").status_code == 200, \
             _attr("mv reported ok but destination object missing in MinIO")
@@ -391,12 +407,11 @@ class TestCredentialAttribution:
             _attr(f"jane could not read the cms canary: {_fail_blob(r)}")
         assert dst.read_bytes() == CANARY_BODY, _attr("canary bytes differ")
 
-    @pytest.mark.xfail(reason=XFAIL_WRITE_CRED, strict=False)
     def test_write_uses_users_vo_credential(self, gsi, tmp_path):
         """MinIO denies PutObject on atlas/wprobe/* for ATLAS keys but allows
         it for the service credential.  If bob's write there SUCCEEDS, brix
-        signed it with the service credential (the predicted gap); the
-        desired behaviour is a rejected write."""
+        signed it with the service credential; P80.3 (staged_open_cred) makes
+        the rejected write a hard requirement."""
         src = tmp_path / "probe"
         src.write_bytes(b"probe")
         r = _xrdcp_up(gsi("bob"), str(src), "/atlas/wprobe/probe.dat")
@@ -441,8 +456,9 @@ class TestFallbackLanes:
         assert r.returncode == 0 and dst.read_bytes() == b"deny-read", \
             _attr(f"deny-lane read with a VALID .s3 failed: {_fail_blob(r)}")
 
-    @pytest.mark.xfail(reason=XFAIL_DENY_WRITE, strict=False)
     def test_deny_lane_write_with_cred(self, gsi, tmp_path):
+        """P80.3: a valid .s3 must be honored for writes under fallback=deny
+        (staged_open_cred dispatch) — hard requirement, was xfail."""
         src = tmp_path / "w.src"
         src.write_bytes(b"deny-write")
         r = _xrdcp_up(gsi("bob"), str(src), "/atlas/bob/denywrite.dat",

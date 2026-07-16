@@ -15,7 +15,6 @@ GET (200); an invalid/mismatched audience is rejected (403).
 """
 
 import os
-import socket
 import subprocess
 import sys
 import time
@@ -33,64 +32,48 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST         # noqa: E402
-from config_templates import render_config                         # noqa: E402
+from settings import NGINX_BIN, HOST, BIND_HOST                    # noqa: E402
+from server_registry import NginxInstanceSpec                      # noqa: E402
 
-PORT = int(os.environ.get("TEST_TOKEN_AUD_PORT") or free_port())
+pytestmark = [pytest.mark.uses_lifecycle_harness]
+
 AUDIENCE = "nginx-xrootd"
+PORT = None                              # bound by the aud_server fixture
 
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def aud_server(tmp_path_factory):
+@pytest.fixture()
+def aud_server(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     if not _HAVE_REQUESTS:
         pytest.skip("requests not available")
 
-    d = tmp_path_factory.mktemp("aud")
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    (d / "cadir").mkdir()                 # auth!=none requires a cadir (token-only is fine)
-    data = d / "data"
+    data = tmp_path / "data"
     data.mkdir()
     (data / "test.txt").write_text("hello-aud\n")
+    cadir = tmp_path / "cadir"
+    cadir.mkdir()                        # auth!=none requires a cadir (token-only is fine)
 
-    issuer = TokenIssuer(str(d), audience=AUDIENCE)
-    issuer.init_keys()                    # writes signing_key.pem + jwks.json
+    issuer = TokenIssuer(str(tmp_path), audience=AUDIENCE)
+    issuer.init_keys()                   # writes signing_key.pem + jwks.json
 
-    conf = render_config("nginx_webdav_token_aud.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=PORT,
-                         DATA_DIR=data,
-                         JWKS_PATH=issuer.jwks_path,
-                         ISSUER=issuer.issuer,
-                         AUDIENCE=AUDIENCE)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(PORT):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"token-auth webdav server did not start: {err}")
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-token-aud-array",
+        template="nginx_lc_webdav_token_aud.conf",
+        protocol="webdav",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "DATA_DIR": str(data),
+            "CADIR": str(cadir),
+            "JWKS_PATH": issuer.jwks_path,
+            "ISSUER": issuer.issuer,
+            "AUDIENCE": AUDIENCE,
+        },
+        reason="webdav JWT audience-array auth"))
+
+    global PORT
+    PORT = ep.port
     yield issuer
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _sign(issuer, aud):

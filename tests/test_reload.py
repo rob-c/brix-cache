@@ -17,16 +17,13 @@ security-neg" rule, applied to the reload feature as a whole):
     reload`, and the already-running instance keeps serving the OLD config (no
     partial apply, generation unchanged).
 
-Self-contained: builds its own minimal nginx config (one stream `xrootd` server
-+ an http server exposing /healthz and /metrics) on OS-assigned free ports and
-drives nginx directly.  Needs only the built module binary (settings.NGINX_BIN)
-— no stock xrootd toolchain and no shared test instances.
+Registry-backed: the throwaway instance is driven entirely through the
+`lifecycle` harness (config template `nginx_lifecycle_reload.conf`, OS-assigned
+free ports) — no hand-rolled nginx subprocess calls.
 """
 
 import json
 import os
-import signal
-import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -34,10 +31,9 @@ import urllib.request
 import pytest
 
 import settings
+from server_registry import NginxInstanceSpec
 
 pytestmark = pytest.mark.timeout(120)
-
-NGINX = settings.NGINX_BIN
 
 
 # --------------------------------------------------------------------------- #
@@ -75,116 +71,51 @@ def _wait(predicate, timeout=10.0, interval=0.1):
 
 
 # --------------------------------------------------------------------------- #
-# A throwaway nginx instance driven entirely from this test.
+# A throwaway instance driven entirely through the registry lifecycle harness.
 # --------------------------------------------------------------------------- #
+NAME = "lc-reload"
+DEFAULTS = {"SESSION_SLOTS": 256, "ALLOW_WRITE": "off", "METRICS": "on"}
+
+
 class Instance:
-    def __init__(self, base):
-        self.base = base
-        self.prefix = os.path.join(base, "prefix")
-        self.conf = os.path.join(self.prefix, "nginx.conf")
-        self.data = os.path.join(base, "data")
-        self.logs = os.path.join(self.prefix, "logs")
+    def __init__(self, harness, tmp_path):
+        self.harness = harness
+        (stream_port,) = settings.free_ports(1)
+        self.endpoint = harness.start(
+            NginxInstanceSpec(
+                name=NAME,
+                template="nginx_lifecycle_reload.conf",
+                protocol="http",
+                data_root=str(tmp_path / "data"),
+                extra_ports={"STREAM_PORT": stream_port},
+                template_values=dict(DEFAULTS),
+                reason="reload-semantics lifecycle coverage",
+            )
+        )
+        self.http_port = self.endpoint.port
+        self.logs = os.path.join(self.endpoint.prefix, "logs")
         self.access_log = os.path.join(self.logs, "brix_access.log")
-        for d in (self.prefix, self.data, self.logs,
-                  os.path.join(self.prefix, "tmp")):
-            os.makedirs(d, exist_ok=True)
-        self.stream_port, self.http_port = settings.free_ports(2)
-
-    # -- config rendering --------------------------------------------------- #
-    def render(self, *, session_slots=256, allow_write="off",
-               metrics="on", broken=False):
-        if broken:
-            # Unparseable: a directive with no terminating ';'.
-            return "this is not valid nginx config\n"
-        tmp = os.path.join(self.prefix, "tmp")
-        return f"""\
-worker_processes 2;
-daemon on;
-master_process on;
-error_log {self.logs}/error.log notice;
-pid {self.prefix}/nginx.pid;
-# Bound the drain window: old workers serve new connections with the OLD
-# per-worker config until they exit, so a low shutdown timeout keeps the
-# "new connection honours new directive" convergence fast and deterministic.
-worker_shutdown_timeout 3s;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {self.stream_port};
-        brix_root on;
-        brix_storage_backend posix:{self.data};
-        brix_auth none;
-        brix_allow_write {allow_write};
-        brix_session_slots {session_slots};
-        brix_access_log {self.access_log};
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {tmp}/client;
-    proxy_temp_path {tmp}/proxy;
-    fastcgi_temp_path {tmp}/fastcgi;
-    uwsgi_temp_path {tmp}/uwsgi;
-    scgi_temp_path {tmp}/scgi;
-    server {{
-        listen {self.http_port};
-        location = /healthz {{ brix_health on; }}
-        location /metrics  {{ brix_metrics {metrics}; }}
-    }}
-}}
-"""
-
-    def write(self, **opts):
-        with open(self.conf, "w") as fh:
-            fh.write(self.render(**opts))
-
-    # -- lifecycle ---------------------------------------------------------- #
-    def _run(self, *args, check=True):
-        return subprocess.run(
-            [NGINX, "-p", self.prefix, "-c", self.conf, *args],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, check=check)
-
-    def configtest_text(self, text):
-        """Run `nginx -t` on arbitrary config text; return the CompletedProcess."""
-        path = os.path.join(self.prefix, "candidate.conf")
-        with open(path, "w") as fh:
-            fh.write(text)
-        return subprocess.run(
-            [NGINX, "-p", self.prefix, "-t", "-c", path],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, check=False)
-
-    def start(self, **opts):
-        self.write(**opts)
-        self._run()  # daemonizes; returns once the master is up
         _wait(lambda: _http_get(self.http_port, "/healthz")[0] == 200)
 
+    # -- lifecycle ---------------------------------------------------------- #
     def reload(self, **opts):
-        """Rewrite the config and send SIGHUP; wait for generation to advance."""
+        """Re-render the config and reload; wait for generation to advance."""
         before = _healthz(self.http_port)["config_generation"]
-        self.write(**opts)
-        self._run("-s", "reload")
+        self.harness.reconfigure(NAME, **{k.upper(): v for k, v in opts.items()})
+        self.harness.reload(NAME)
         _wait(lambda: _healthz(self.http_port)["config_generation"] > before)
         return _healthz(self.http_port)
 
-    def reload_expect_fail(self, text):
-        """Send a reload with a known-broken config; return CompletedProcess."""
-        with open(self.conf, "w") as fh:
-            fh.write(text)
-        return self._run("-s", "reload", check=False)
+    def reload_expect_fail_with_broken_config(self):
+        """Swap in a known-broken config; return the failed reload result."""
+        self.harness.reconfigure(NAME, template="nginx_lifecycle_broken.conf")
+        return self.harness.reload(NAME, check=False)
 
-    def stop(self):
-        try:
-            self._run("-s", "quit", check=False)
-        finally:
-            # Belt-and-suspenders: kill the master by pidfile if quit didn't.
-            pidf = os.path.join(self.prefix, "nginx.pid")
-            try:
-                with open(pidf) as fh:
-                    os.kill(int(fh.read().strip()), signal.SIGKILL)
-            except (OSError, ValueError):
-                pass
+    def restore_valid_config(self):
+        self.harness.reconfigure(NAME, template="nginx_lifecycle_reload.conf")
+
+    def reopen(self):
+        self.harness.reopen(NAME)
 
     def error_log(self):
         try:
@@ -195,15 +126,9 @@ http {{
 
 
 @pytest.fixture()
-def inst(tmp_path):
-    server = Instance(str(tmp_path))
-    try:
-        server.start()
-    except Exception:  # noqa: BLE001
-        # Surface the error log to make a start failure debuggable.
-        raise
-    yield server
-    server.stop()
+def inst(lifecycle, tmp_path):
+    yield Instance(lifecycle, tmp_path)
+    # Teardown (stop + unregister) is owned by the lifecycle fixture.
 
 
 # --------------------------------------------------------------------------- #
@@ -268,22 +193,24 @@ def test_managed_access_log_reopens_after_rotation(inst):
     # proving rotation works and the fd is not a leaked raw descriptor.
     assert os.path.exists(inst.access_log)
     os.rename(inst.access_log, inst.access_log + ".rotated")
-    inst._run("-s", "reopen")
+    inst.reopen()
     _wait(lambda: os.path.exists(inst.access_log))
 
 
 # --------------------------------------------------------------------------- #
 # SECURITY-NEG
 # --------------------------------------------------------------------------- #
-def test_invalid_config_is_rejected_and_old_config_keeps_serving(inst):
+def test_invalid_config_is_rejected_and_old_config_keeps_serving(inst, lifecycle):
     before = _healthz(inst.http_port)["config_generation"]
 
-    # `nginx -t` rejects the broken config.
-    cp = inst.configtest_text(inst.render(broken=True))
+    # `nginx -t` rejects the broken config (fresh throwaway spec, never started).
+    cp = lifecycle.expect_config_failure(
+        NginxInstanceSpec(name="lc-reload-broken", template="nginx_lifecycle_broken.conf")
+    )
     assert cp.returncode != 0, "nginx -t should fail on broken config:\n%s" % cp.stdout
 
     # `-s reload` with the broken config fails and does NOT swap the live config.
-    rc = inst.reload_expect_fail(inst.render(broken=True))
+    rc = inst.reload_expect_fail_with_broken_config()
     assert rc.returncode != 0
 
     # The running instance still serves and the generation never advanced.
@@ -293,4 +220,4 @@ def test_invalid_config_is_rejected_and_old_config_keeps_serving(inst):
             before, after["config_generation"])
 
     # Restore a valid config so the fixture teardown is clean.
-    inst.write()
+    inst.restore_valid_config()

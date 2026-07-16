@@ -110,4 +110,77 @@ ssize_t sd_pblock_staged_write(brix_sd_staged_t *st, const void *buf,
 ngx_int_t sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace);
 void sd_pblock_staged_abort(brix_sd_staged_t *st);
 
+/* ---- owner-parameterized create internals --------------------------------- *
+ * Each is the real implementation of its plain vtable slot, extended with the
+ * catalog-internal synthetic (uid, gid) recorded as the owner of any row the
+ * op creates. The plain slots call these with 0/0 (the service); the identity
+ * slots (sd_pblock_cred.c) call them with the requester's resolved ids. */
+brix_sd_obj_t *sd_pblock_open_as(brix_sd_instance_t *inst, const char *path,
+    int sd_flags, mode_t mode, uint32_t uid, uint32_t gid, int *err_out);
+ngx_int_t sd_pblock_mkdir_as(brix_sd_instance_t *inst, const char *path,
+    mode_t mode, uint32_t uid, uint32_t gid);
+ngx_int_t sd_pblock_server_copy_as(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, uint32_t uid, uint32_t gid);
+brix_sd_staged_t *sd_pblock_staged_open_as(brix_sd_instance_t *inst,
+    const char *final_path, mode_t mode, uint32_t uid, uint32_t gid,
+    int *err_out);
+
+/* ---- identity resolution + POSIX access checks (sd_pblock_ident.c) ------- *
+ * A request identity resolved to catalog-internal synthetic ids: the
+ * principal's uid plus one gid per VO the credential lists (group = VO).
+ * `service` set (NULL/empty principal) means "no identity" — every check
+ * passes, preserving service (root-like) semantics for identity-less callers. */
+#define PBLOCK_MAX_GIDS 16
+
+typedef struct {
+    int      service;              /* 1 = bypass all checks               */
+    uint32_t uid;                  /* principal's synthetic uid           */
+    uint32_t gid;                  /* primary gid (first VO, or uid — a
+                                    * user-private group — when VO-less)  */
+    uint32_t gids[PBLOCK_MAX_GIDS];/* every VO gid, gids[0] == gid        */
+    int      ngids;
+} pblock_ids_t;
+
+ngx_int_t pblock_ident_resolve(pblock_state_t *st, const brix_sd_cred_t *cred,
+    pblock_ids_t *out);
+ngx_int_t pblock_ident_access(const pblock_meta *meta, const pblock_ids_t *ids,
+    int want);
+ngx_int_t pblock_ident_check(pblock_state_t *st, const char *path,
+    const pblock_ids_t *ids, int want, pblock_meta *meta_out);
+ngx_int_t pblock_ident_check_parent(pblock_state_t *st, const char *path,
+    const pblock_ids_t *ids, int want, pblock_meta *parent_out);
+ngx_int_t pblock_ident_sticky_gate(const pblock_meta *parent,
+    const pblock_meta *entry, const pblock_ids_t *ids);
+
+/* ---- identity-enforcing *_cred vtable slots (sd_pblock_cred.c) ------------ */
+brix_sd_obj_t *sd_pblock_open_cred(brix_sd_instance_t *inst, const char *path,
+    int sd_flags, mode_t mode, const brix_sd_cred_t *cred, int *err_out);
+brix_sd_staged_t *sd_pblock_staged_open_cred(brix_sd_instance_t *inst,
+    const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
+    int *err_out);
+ngx_int_t sd_pblock_stat_cred(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out, const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_unlink_cred(brix_sd_instance_t *inst, const char *path,
+    int is_dir, const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_mkdir_cred(brix_sd_instance_t *inst, const char *path,
+    mode_t mode, const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_rename_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, int noreplace, const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_setattr_cred(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred);
+ssize_t sd_pblock_getxattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred);
+ssize_t sd_pblock_listxattr_cred(brix_sd_instance_t *inst, const char *path,
+    void *buf, size_t cap, const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_setxattr_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, const void *val, size_t len, int flags,
+    const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_removexattr_cred(brix_sd_instance_t *inst,
+    const char *path, const char *name, const brix_sd_cred_t *cred);
+ngx_int_t sd_pblock_server_copy_cred(brix_sd_instance_t *inst,
+    const char *src, const char *dst, off_t *bytes_out,
+    const brix_sd_cred_t *cred);
+brix_sd_dir_t *sd_pblock_opendir_cred(brix_sd_instance_t *inst,
+    const char *path, int *err_out, const brix_sd_cred_t *cred);
+
 #endif /* BRIX_SD_PBLOCK_INTERNAL_H */

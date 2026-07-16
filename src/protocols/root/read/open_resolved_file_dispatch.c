@@ -158,8 +158,10 @@ brix_open_build_cred_ctx(brix_open_args_t *a, brix_sd_instance_t *sd_inst,
  *       time PUT) cannot satisfy the root:// block-oriented write model; the
  *       plain/cred open slot would refuse with EROFS.
  * HOW:  True only for a WRITE whose ns leaf lacks random-write capability and has
- *       no .pwrite; the caller then routes through brix_open_dispatch_staged. */
-static int
+ *       no .pwrite; the caller then routes through brix_open_dispatch_staged.
+ *       Non-static: the orchestrator's resume divert (P80.2) shares the exact
+ *       same eligibility so the divert and the staged route can never disagree. */
+int
 brix_open_write_needs_staged(brix_open_args_t *a, brix_sd_instance_t *sd_inst)
 {
 	brix_sd_instance_t *leaf;

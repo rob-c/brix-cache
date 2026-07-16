@@ -3,6 +3,9 @@
  * precondition / open phases; behavior-identical.
  */
 #include "s3_put_internal.h"
+#include "fs/vfs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
+#include "fs/vfs/vfs_internal.h"          /* brix_vfs_ns_leaf */
+#include "fs/backend/sd.h"                /* BRIX_SD_CAP_DIRS_WRITE */
 
 /* Directory-sentinel fast path: if fs_path names an S3 directory sentinel
  * (S3_DIR_SENTINEL), create the parent directory plus the zero-byte sentinel,
@@ -105,6 +108,21 @@ s3put_ensure_parent_dirs(s3put_state_t *st)
     }
 
     *last_slash = '\0';
+
+    {
+        /* Object-store leaf (phase-71 caps / P80.2): a namespace without
+         * CAP_DIRS_WRITE has no physical catalog to mutate — parent prefixes
+         * are virtual, so there is nothing to create here (and the VFS mkdir
+         * caps gate would reject with EPERM, turning every first PUT into a
+         * 403). Capability-driven, never scheme-driven. */
+        brix_sd_instance_t *leaf = brix_vfs_ns_leaf(
+            brix_vfs_backend_resolve(st->cf->common.root_canon,
+                                     st->r->connection->log));
+
+        if (leaf != NULL && !(leaf->driver->caps & BRIX_SD_CAP_DIRS_WRITE)) {
+            return NGX_OK;
+        }
+    }
 
     {
         brix_vfs_ctx_t  pctx;

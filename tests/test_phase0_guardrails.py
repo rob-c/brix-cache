@@ -202,9 +202,10 @@ def test_phase0_dependency_matrix_hooks_present():
         ],
     )
     _assert_markers(
-        "tests/unit/run_tests.sh",
+        "tests/cmdscripts/unit_tests.py",
         [
-            "pkg-config --exists libxml-2.0",
+            "pkg-config",
+            "libxml-2.0",
             "test_xml_compat.c",
             "test_crc32c.c",
         ],
@@ -238,6 +239,6 @@ def test_phase0_roadmap_documents_the_guardrail_contract():
             "tests/test_xrdhttp.py",
             "tests/test_cache_write_through.py",
             "tests/test_webdav_tpc.py",
-            "tests/unit/run_tests.sh",
+            "tests/cmdscripts/unit_tests.py",
         ],
     )

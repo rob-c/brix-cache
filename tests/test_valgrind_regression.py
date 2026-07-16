@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -88,7 +89,7 @@ def test_finding2_jwks_cleanup_called_at_both_sites():
 def test_valgrind_harness_committed():
     for f in (
         "tests/valgrind/nginx.conf.in",
-        "tests/valgrind/run_valgrind.sh",
+        "tests/cmdscripts/operator_runtime.py",
         "tests/valgrind/valgrind.supp",
         "tests/valgrind/README.md",
     ):
@@ -129,10 +130,12 @@ def test_harness_reports_module_clean(tmp_path):
         pytest.skip("test PKI fixtures missing; run manage_test_servers.sh start-all")
 
     work = tmp_path / "vg"
-    env = dict(os.environ, VG_WORK=str(work))
+    env = dict(os.environ, VG_WORK=str(work),
+               PYTHONPATH=os.pathsep.join(
+                   p for p in (str(ROOT / "tests"), os.environ.get("PYTHONPATH")) if p))
     subprocess.run(
-        ["bash", str(ROOT / "tests" / "valgrind" / "run_valgrind.sh")],
-        env=env, timeout=600, check=False,
+        [sys.executable, "-m", "cmdscripts.operator_runtime", "valgrind"],
+        env=env, cwd=str(ROOT), timeout=600, check=False,
     )
 
     results_path = work / "results.txt"

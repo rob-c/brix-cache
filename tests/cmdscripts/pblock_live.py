@@ -1,0 +1,518 @@
+"""Direct Python ports for the pblock storage-driver live shell scenarios.
+
+Ports ``run_pblock_root.sh``, ``run_pblock_webdav.sh``,
+``run_pblock_writethrough.sh``, and ``run_pblock_meta_gsi.sh``.  Each public
+scenario keeps its shell test's own acceptance sequence and assertions; ports
+are allocated dynamically instead of the scripts' fixed literals.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import threading
+import time
+
+from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
+from lib_py.pki import regenerate_pki
+from settings import TEST_ROOT, free_ports
+
+XRDCP = REPO_ROOT / "client/bin/xrdcp"
+XRDFS = REPO_ROOT / "client/bin/xrdfs"
+XRDDIAG = REPO_ROOT / "client/bin/xrddiag"
+XRDADLER32 = REPO_ROOT / "client/bin/xrdadler32"
+XRDCRC32C = REPO_ROOT / "client/bin/xrdcrc32c"
+LIBXRDC = REPO_ROOT / "client/libbrix.a"
+PROTOLIB = REPO_ROOT / "shared/xrdproto/libxrdproto.a"
+META_BENCH_SRC = REPO_ROOT / "tests/tools/pblock_meta_bench.c"
+
+PKI_DIR = Path(TEST_ROOT) / "pki"
+CA_CERT = PKI_DIR / "ca/ca.pem"
+CA_DIR = PKI_DIR / "ca"
+SERVER_CERT = PKI_DIR / "server/hostcert.pem"
+SERVER_KEY = PKI_DIR / "server/hostkey.pem"
+PROXY_STD = PKI_DIR / "user/proxy_std.pem"
+
+CLIENT_REQUIREMENTS = {
+    "pblock-root": (XRDCP, XRDFS, XRDADLER32, XRDCRC32C),
+    "pblock-webdav": (),
+    "pblock-writethrough": (XRDCP,),
+    "pblock-meta-gsi": (XRDFS, XRDDIAG),
+}
+
+
+def _checks(values: list[tuple[bool, str]]) -> int:
+    for passed, text in values:
+        print(f"  {'ok  ' if passed else 'FAIL'} {text}")
+    return 0 if all(passed for passed, _ in values) else 1
+
+
+def pblock_root(nginx: Path | None = None) -> int:
+    """End-to-end root:// on the pblock storage driver: data movement,
+    metadata, checksum-at-rest, and namespace mutation, all landing in the
+    block catalog + data dir."""
+    (port,) = free_ports(1)
+    with LiveRun("pblock_root", nginx) as run:
+        run.mkdir("root")
+        run.mkdir("logs")
+        config = run.write(run.root / "nginx.conf", f"""daemon on;
+error_log {run.root}/logs/error.log info;
+pid {run.root}/nginx.pid;
+events {{ worker_connections 64; }}
+stream {{
+    server {{
+        listen 127.0.0.1:{port};
+        brix_root on;
+        brix_export {run.root}/root;
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
+        brix_storage_backend  pblock;
+        brix_pblock_block_size 1m;
+        brix_access_log {run.root}/logs/access.log;
+    }}
+}}
+""")
+        run.start_nginx(run.root, config, port)
+        time.sleep(1)
+        host = f"root://127.0.0.1:{port}"
+        hub = f"{host}/"
+
+        small, multi = run.root / "small.bin", run.root / "multi.bin"
+        random_file(small, 700000)    # < 1 block
+        random_file(multi, 2621440)   # 2.5 blocks
+        checks: list[tuple[bool, str]] = []
+
+        checks.append((run.call([XRDCP, "-f", small, f"{hub}s.bin"], check=False).returncode == 0, "PUT small (1 block)"))
+        checks.append((run.call([XRDCP, "-f", multi, f"{hub}m.bin"], check=False).returncode == 0, "PUT multi (3 blocks)"))
+        small_got, multi_got = run.root / "s.got", run.root / "m.got"
+        checks.append((run.call([XRDCP, "-f", f"{hub}s.bin", small_got], check=False).returncode == 0, "GET small"))
+        checks.append((run.call([XRDCP, "-f", f"{hub}m.bin", multi_got], check=False).returncode == 0, "GET multi"))
+        checks.append((small_got.exists() and sha256(small_got) == sha256(small), "GET small byte-exact"))
+        checks.append((multi_got.exists() and sha256(multi_got) == sha256(multi), "GET multi byte-exact"))
+
+        stat_out = run.call([XRDFS, host, "stat", "/m.bin"], check=False).stdout
+        size = next((line.split()[1] for line in stat_out.splitlines() if line.strip().startswith("Size:")), "")
+        checks.append((size == "2621440", f"stat size (multi) ({size})"))
+
+        ref_adler = run.call([XRDADLER32, multi], check=False).stdout.split()
+        srv_query = run.call([XRDFS, host, "query", "checksum", "/m.bin"], check=False).stdout
+        srv_adler = next((line.split()[1] for line in srv_query.splitlines() if "adler32" in line and len(line.split()) > 1), "")
+        checks.append((bool(ref_adler) and srv_adler == ref_adler[0], f"adler32 whole-file ({srv_adler})"))
+        ref_crc = run.call([XRDCRC32C, multi], check=False).stdout.split()
+        crc_query = run.call([XRDFS, host, "query", "checksum", "/m.bin?cks.type=crc32c"], check=False).stdout
+        srv_crc = next((line.split()[1] for line in crc_query.splitlines() if "crc32c" in line and len(line.split()) > 1), "")
+        checks.append((bool(ref_crc) and srv_crc == ref_crc[0], f"crc32c whole-file ({srv_crc})"))
+
+        checks.append((run.call([XRDFS, host, "mkdir", "/d"], check=False).returncode == 0, "mkdir /d"))
+        checks.append((run.call([XRDCP, "-f", small, f"{hub}d/x.bin"], check=False).returncode == 0, "PUT /d/x.bin"))
+        listing = run.call([XRDFS, host, "ls", "/"], check=False).stdout
+        checks.append(("s.bin" in listing, "ls shows s.bin"))
+        checks.append(("/d" in listing, "ls shows /d"))
+        checks.append((run.call([XRDFS, host, "rm", "/s.bin"], check=False).returncode == 0, "rm /s.bin"))
+        checks.append((run.call([XRDFS, host, "stat", "/s.bin"], check=False).returncode != 0, "stat removed (gone)"))
+
+        checks.append(((run.root / "root/catalog.db").is_file(), "catalog.db present"))
+        checks.append(((run.root / "root/data").is_dir(), "data/ block dir present"))
+        return _checks(checks)
+
+
+def pblock_webdav(nginx: Path | None = None) -> int:
+    """End-to-end WebDAV-on-pblock matrix: data movement, metadata, namespace
+    mutation, the phase-68 orphan-parent regression, and the on-disk catalog."""
+    (port,) = free_ports(1)
+    with LiveRun("pblock_webdav", nginx) as run:
+        for name in ("root", "tmp", "logs"):
+            run.mkdir(name)
+        config = run.write(run.root / "nginx.conf", f"""daemon on;
+error_log {run.root}/logs/error.log info;
+pid {run.root}/nginx.pid;
+events {{ worker_connections 64; }}
+http {{
+    client_body_temp_path {run.root}/tmp;
+    client_max_body_size 200m;
+    server {{
+        listen 127.0.0.1:{port};
+        location / {{
+            dav_methods PUT DELETE MKCOL MOVE COPY;
+            brix_webdav on;
+            brix_export {run.root}/root;
+            brix_webdav_auth none;
+            brix_allow_write on;
+            brix_storage_backend  pblock;
+            brix_webdav_pblock_block_size 1m;
+        }}
+    }}
+}}
+""")
+        run.start_nginx(run.root, config, port)
+        time.sleep(1)
+        url = f"http://127.0.0.1:{port}"
+
+        small, multi = run.root / "small.bin", run.root / "multi.bin"
+        random_file(small, 700000)    # < 1 block
+        random_file(multi, 2621440)   # 2.5 blocks
+        checks: list[tuple[bool, str]] = []
+
+        checks.append((run.curl_status(f"{url}/s.bin", "-T", str(small)) == 201, "PUT small (1 block) 201"))
+        checks.append((run.curl_status(f"{url}/m.bin", "-T", str(multi)) == 201, "PUT multi (3 blocks) 201"))
+        checks.append((run.curl_bytes(f"{url}/s.bin") == small.read_bytes(), "GET small byte-exact"))
+        checks.append((run.curl_bytes(f"{url}/m.bin") == multi.read_bytes(), "GET multi byte-exact"))
+        ranged = run.curl_bytes(f"{url}/m.bin", "-r", "1048570-1048580")
+        checks.append((ranged == multi.read_bytes()[1048570:1048581], "Range GET across block boundary"))
+
+        checks.append((run.curl_status(f"{url}/s.bin", "-I") == 200, "HEAD existing 200"))
+        checks.append((run.curl_status(f"{url}/none", "-I") == 404, "HEAD missing 404"))
+        checks.append((run.curl_status(f"{url}/", "-X", "PROPFIND", "-H", "Depth: 1") == 207, "PROPFIND root depth1 207"))
+
+        checks.append((run.curl_status(f"{url}/d", "-X", "MKCOL") == 201, "MKCOL /d 201"))
+        checks.append((run.curl_status(f"{url}/d/x.bin", "-T", str(small)) == 201, "PUT /d/x.bin 201"))
+        checks.append((run.curl_status(f"{url}/s.bin", "-X", "MOVE", "-H", f"Destination: {url}/s2.bin") == 201, "MOVE /s.bin -> /s2.bin 201"))
+        checks.append((run.curl_status(f"{url}/s.bin", "-I") == 404, "HEAD moved-from (gone) 404"))
+        checks.append((run.curl_status(f"{url}/s2.bin", "-I") == 200, "HEAD moved-to 200"))
+        checks.append((run.curl_status(f"{url}/s2.bin", "-X", "COPY", "-H", f"Destination: {url}/cp.bin") == 201, "COPY /s2.bin -> /cp.bin 201"))
+        checks.append((run.curl_bytes(f"{url}/cp.bin") == small.read_bytes(), "GET copy byte-exact"))
+        checks.append((run.curl_status(f"{url}/d", "-X", "DELETE") == 409, "DELETE /d (non-empty) 409"))
+        checks.append((run.curl_status(f"{url}/d/x.bin", "-X", "DELETE") == 204, "DELETE /d/x.bin (file) 204"))
+        checks.append((run.curl_status(f"{url}/d", "-X", "DELETE") == 204, "DELETE /d (now empty) 204"))
+        checks.append((run.curl_status(f"{url}/d", "-I") == 404, "HEAD deleted dir 404"))
+
+        # Orphan-parent regression (phase-68 fix): a PUT whose parent
+        # collection does not exist must 409 (RFC 4918 9.7.1, posix parity).
+        checks.append((run.curl_status(f"{url}/nodir/orphan.bin", "-T", str(small)) == 409, "PUT into missing collection 409"))
+        checks.append((run.curl_status(f"{url}/nodir", "-X", "MKCOL") == 201, "MKCOL /nodir 201"))
+        checks.append((run.curl_status(f"{url}/nodir/orphan.bin", "-T", str(small)) == 201, "PUT after MKCOL 201"))
+        propfind = run.call(["curl", "-sS", "--max-time", "25", "-X", "PROPFIND", "-H", "Depth: 1", f"{url}/nodir/"], check=False).stdout
+        checks.append(("orphan.bin" in propfind, "parent collection lists the new file"))
+
+        checks.append(((run.root / "root/catalog.db").is_file(), "catalog.db present"))
+        checks.append(((run.root / "root/data").is_dir(), "data/ block dir present"))
+        return _checks(checks)
+
+
+def pblock_writethrough(nginx: Path | None = None) -> int:
+    """The cache fronts a driver-backed PRIMARY: a pblock-backed export with
+    sync write-through mirrors a multi-block file to a separate root://
+    origin by reading it back THROUGH the pblock driver."""
+    origin_port, primary_port = free_ports(2)
+    with LiveRun("pblock_wt", nginx) as run:
+        origin, primary = run.mkdir("o"), run.mkdir("p")
+        for directory, names in ((origin, ("root", "logs")), (primary, ("root", "cache", "logs"))):
+            for name in names:
+                (directory / name).mkdir(exist_ok=True)
+        origin_conf = run.write(origin / "nginx.conf", f"""daemon on;
+error_log {origin}/logs/error.log info;
+pid {origin}/nginx.pid;
+events {{ worker_connections 64; }}
+stream {{
+    server {{
+        listen 127.0.0.1:{origin_port};
+        brix_root on;
+        brix_storage_backend posix:{origin}/root;
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
+    }}
+}}
+""")
+        primary_conf = run.write(primary / "nginx.conf", f"""daemon on;
+error_log {primary}/logs/error.log info;
+pid {primary}/nginx.pid;
+events {{ worker_connections 64; }}
+thread_pool default threads=2;
+stream {{
+    server {{
+        listen 127.0.0.1:{primary_port};
+        brix_root on;
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
+        brix_storage_backend  pblock://{primary}/root/;
+        brix_pblock_block_size 1m;
+        brix_write_through on;
+        brix_wt_mode sync;
+        brix_wt_origin 127.0.0.1:{origin_port};
+    }}
+}}
+""")
+        run.start_nginx(origin, origin_conf, origin_port)
+        run.start_nginx(primary, primary_conf, primary_port)
+        time.sleep(1)
+
+        source = run.root / "src.bin"
+        random_file(source, 2621440)  # 2.5 pblock blocks
+        put = run.call([XRDCP, "-f", source, f"root://127.0.0.1:{primary_port}//m.bin"], check=False).returncode == 0
+        time.sleep(1)  # sync-mode flush completes during close; let the origin settle
+
+        mirror = origin / "root/m.bin"
+        checks = [(put, "PUT to pblock primary")]
+        if mirror.exists():
+            checks.append((True, "origin file present"))
+            checks.append((sha256(mirror) == sha256(source), "origin bytes match (multi-block, driver read-back)"))
+            checks.append((mirror.stat().st_size == 2621440, f"origin size {mirror.stat().st_size} == 2621440"))
+        else:
+            checks.append((False, "origin file missing — write-through did not mirror"))
+            log = (primary / "logs/error.log").read_text(errors="replace")
+            for line in [l for l in log.splitlines() if re.search(r"wt: flush", l, re.I)][-2:]:
+                print(f"    {line}")
+        checks.append(((primary / "root/data").is_dir(), "pblock data/ dir present"))
+        checks.append((not (primary / "root/m.bin").is_file(), "no raw POSIX file at primary path"))
+        return _checks(checks)
+
+
+# --------------------------------------------------------------------------- #
+# pblock-meta-gsi — concurrent GSI metadata-storm reliability + perf proof    #
+# --------------------------------------------------------------------------- #
+
+def _ensure_pki(run: LiveRun) -> bool:
+    """Provision the fleet CA-signed PKI on demand; refresh an expired proxy."""
+    if not (CA_CERT.is_file() and SERVER_CERT.is_file() and PROXY_STD.is_file()):
+        print("== provisioning PKI (blitz_test_pki) ==")
+        try:
+            regenerate_pki(PKI_DIR)
+        except Exception as exc:  # provisioning failure is a clean skip
+            print(f"SKIP: PKI provisioning failed: {exc}")
+            return False
+    fresh = run.call(
+        ["openssl", "x509", "-in", PROXY_STD, "-noout", "-checkend", "300"], check=False
+    ).returncode == 0
+    if not fresh:
+        try:
+            regenerate_pki(PKI_DIR)
+        except Exception:
+            pass
+    return True
+
+
+def _build_meta_bench(run: LiveRun) -> Path:
+    bench = run.root / "pblock_meta_bench"
+    build = run.call(
+        [
+            "cc", "-O2", "-Wall", "-I", REPO_ROOT / "client/lib", "-I", REPO_ROOT / "src",
+            "-DXRDPROTO_NO_NGX", META_BENCH_SRC, LIBXRDC, PROTOLIB,
+            "-lssl", "-lcrypto", "-lz", "-lkrb5", "-lk5crypto", "-lcom_err", "-lzstd",
+            "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2", "-l:liblz4.so.1",
+            "-luring", "-lpthread", "-o", bench,
+        ],
+        check=False,
+    )
+    if build.returncode:
+        raise LiveFailure(f"harness build failed: {build.stderr}")
+    return bench
+
+
+def pblock_meta_gsi(nginx: Path | None = None, *,
+                    workers: int | None = None,
+                    ops_per_worker: int | None = None,
+                    p99_ceil_ms: int | None = None,
+                    proxy_override: str | None = None) -> int:
+    """Concurrent GSI metadata storm on the pblock backend in three layers
+    (libbrix harness, xrdfs CLI chain, xrddiag client validation) asserting
+    zero op failures, catalog integrity, server health, and a p99 ceiling."""
+    workers = int(os.environ.get("WORKERS", "8")) if workers is None else workers
+    ops_per_worker = int(os.environ.get("OPS_PER_WORKER", "125")) if ops_per_worker is None else ops_per_worker
+    p99_ceil_ms = int(os.environ.get("P99_CEIL_MS", "50")) if p99_ceil_ms is None else p99_ceil_ms
+    block_size = os.environ.get("PBLOCK_BLOCK_SIZE", "1m")
+    proxy_override = os.environ.get("MB_PROXY_OVERRIDE") if proxy_override is None else proxy_override
+
+    nginx_bin = Path(nginx or os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
+    for need in (nginx_bin, XRDFS, XRDDIAG, LIBXRDC, PROTOLIB):
+        if not Path(need).exists():
+            print(f"SKIP: missing {need}")
+            return 0
+
+    (port,) = free_ports(1)
+    with LiveRun("pblock_meta_gsi", nginx) as run:
+        run.mkdir("root")
+        run.mkdir("logs")
+        if not _ensure_pki(run):
+            return 0
+        env = {
+            "X509_USER_PROXY": proxy_override or str(PROXY_STD),
+            "X509_CERT_DIR": str(CA_DIR),
+        }
+        host = f"root://127.0.0.1:{port}/"
+        config = run.write(run.root / "nginx.conf", f"""daemon on;
+error_log {run.root}/logs/error.log info;
+pid {run.root}/nginx.pid;
+events {{ worker_connections 256; }}
+thread_pool default threads=8 max_queue=512;
+stream {{
+    server {{
+        listen 127.0.0.1:{port};
+        brix_root on;
+        brix_export            {run.root}/root;
+        brix_auth            gsi;
+        brix_certificate     {SERVER_CERT};
+        brix_certificate_key {SERVER_KEY};
+        brix_trusted_ca      {CA_CERT};
+        brix_allow_write     on;
+        brix_upload_resume   off;
+        brix_storage_backend pblock;
+        brix_pblock_block_size {block_size};
+        brix_access_log {run.root}/logs/access.log;
+    }}
+}}
+""")
+        run.start_nginx(run.root, config, port)
+        time.sleep(1)
+
+        bench = _build_meta_bench(run)
+        plan = ["--workers", str(workers), "--ops-per-worker", str(ops_per_worker), "--p99-ceil-ms", str(p99_ceil_ms)]
+        checks: list[tuple[bool, str]] = []
+        data_dir = run.root / "root/data"
+
+        print("== Layer (a): libbrix direct code ==")
+        create = run.call([bench, *plan, "--phase", "create", "--json", host], env=env, check=False)
+        print(create.stdout)
+        checks.append((create.returncode == 0, f"layer-a create: zero failures + p99<={p99_ceil_ms}ms (rc={create.returncode})"))
+
+        print("== verify: catalog integrity ==")
+        expected = sorted(run.call([bench, *plan, "--print-expected", host], env=env, check=False).stdout.splitlines())
+        lsr = run.call([XRDFS, host, "ls", "-R", "/"], env=env, check=False).stdout
+        missing = 0
+        for line in expected:
+            fields = line.split()
+            if len(fields) >= 3 and fields[2] not in lsr:
+                missing += 1
+        checks.append((missing == 0, f"namespace readback: {missing} expected path(s) missing" if missing else "namespace readback: all expected paths present"))
+        want_files = sum(1 for line in expected if len(line.split()) >= 2 and line.split()[1] == "0")
+        got_blocks = sum(1 for path in data_dir.rglob("*") if path.is_file()) if data_dir.exists() else 0
+        checks.append((got_blocks == want_files, f"block catalog integrity: {got_blocks} blocks == {want_files} files"))
+
+        # chmod must PERSIST through the driver setattr slot (regression guard:
+        # pblock chmod was previously a silent no-op).
+        def perm_column() -> str:
+            listing = run.call([XRDFS, host, "ls", "-l", "/w0/d0"], env=env, check=False).stdout
+            for line in listing.splitlines():
+                if line.rstrip().endswith("/f0"):
+                    return line.split()[0]
+            return ""
+
+        run.call([XRDFS, host, "chmod", "/w0/d0/f0", "0644"], env=env, check=False)
+        mode_a = perm_column()
+        run.call([XRDFS, host, "chmod", "/w0/d0/f0", "0600"], env=env, check=False)
+        mode_b = perm_column()
+        checks.append((bool(mode_a) and mode_a != mode_b,
+                       f"chmod persists through driver (0644 '{mode_a}' != 0600 '{mode_b}')"))
+
+        print("== Layer (a): remove phase + leak check ==")
+        remove = run.call([bench, *plan, "--phase", "remove", "--json", host], env=env, check=False)
+        print(remove.stdout)
+        checks.append((remove.returncode == 0, f"layer-a remove: zero failures (rc={remove.returncode})"))
+        root_listing = run.call([XRDFS, host, "ls", "/"], env=env, check=False).stdout
+        checks.append(("/w0" not in root_listing, "store empty after remove (no namespace leak)"))
+        left_blocks = sum(1 for path in data_dir.rglob("*") if path.is_file()) if data_dir.exists() else 0
+        checks.append((left_blocks == 0, f"no leftover blocks after remove ({left_blocks} left)"))
+
+        print("== verify: server health after storm ==")
+        checks.append((run.call([XRDFS, host, "stat", "/"], env=env, check=False).returncode == 0,
+                       "fresh GSI login + stat OK after storm"))
+
+        print("== Layer (b): full xrdfs CLI chain (concurrent GSI sessions) ==")
+        results: dict[int, int] = {}
+
+        def worker_chain(index: int) -> None:
+            rc = 0
+            base = f"/wb{index}"
+            for argv in (
+                ["mkdir", base],                       # top-level
+                ["mkdir", f"{base}/d0"],               # NESTED non-recursive (the fix)
+                ["chmod", f"{base}/d0", "700"],
+                ["touch", f"{base}/d0/f0"],            # create + setattr/utimes (the fix)
+                ["chmod", f"{base}/d0/f0", "640"],
+                ["stat", f"{base}/d0/f0"],
+            ):
+                proc = subprocess.run(
+                    [str(XRDFS), host, *argv],
+                    env={**os.environ, **env},
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                if proc.returncode:
+                    rc = 1
+            results[index] = rc
+
+        threads = [threading.Thread(target=worker_chain, args=(w,)) for w in range(workers)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        b_fail = sum(1 for w in range(workers) if results.get(w) != 0)
+        checks.append((b_fail == 0, f"xrdfs chain: {workers - b_fail}/{workers} concurrent sessions clean (incl. nested mkdir)"))
+        lsr_b = run.call([XRDFS, host, "ls", "-R", "/"], env=env, check=False).stdout
+        b_missing = sum(1 for w in range(workers) if f"/wb{w}/d0/f0" not in lsr_b)
+        checks.append((b_missing == 0, f"xrdfs chain: namespace readback complete ({b_missing} missing)"))
+        for w in range(workers):
+            for argv in (["rm", f"/wb{w}/d0/f0"], ["rmdir", f"/wb{w}/d0"], ["rmdir", f"/wb{w}"]):
+                run.call([XRDFS, host, *argv], env=env, check=False)
+
+        print("== Layer (c): xrddiag client validation ==")
+        check_out = run.call([XRDDIAG, "check", host], env=env, check=False)
+        checks.append(("Result: 0 failure" in (check_out.stdout + check_out.stderr),
+                       "xrddiag check: client conformance all-green"))
+        bench_out = run.call([XRDDIAG, "metabench", "-S", str(workers), "--count", str(ops_per_worker), host], env=env, check=False)
+        for line in (bench_out.stdout + bench_out.stderr).splitlines():
+            print(f"  {line}")
+        checks.append((bench_out.returncode == 0,
+                       f"xrddiag metabench: client performs (0 fail, p99 within ceiling) (rc={bench_out.returncode})"))
+        return _checks(checks)
+
+
+def selftest(nginx: Path | None = None) -> int:
+    """Port of the shell's --selftest mode: drives the umbrella three ways
+    (success / fault-injection / security-negative)."""
+    rc = 0
+    print("[selftest] 1/3 success: a healthy run must PASS")
+    if pblock_meta_gsi(nginx) == 0:
+        print("  ok   success")
+    else:
+        print("  FAIL success")
+        rc = 1
+    print("[selftest] 2/3 fault: an unsatisfiable p99 ceiling (1ms) must FAIL")
+    if pblock_meta_gsi(nginx, p99_ceil_ms=1) == 0:
+        print("  FAIL fault-not-detected")
+        rc = 1
+    else:
+        print("  ok   fault detected")
+    print("[selftest] 3/3 security-neg: an invalid GSI proxy must be rejected")
+    if pblock_meta_gsi(nginx, proxy_override="/dev/null") == 0:
+        print("  FAIL gsi-bypass")
+        rc = 1
+    else:
+        print("  ok   GSI gate enforced")
+    print("selftest PASS" if rc == 0 else "selftest FAIL")
+    return rc
+
+
+SCENARIOS = {
+    "pblock-root": pblock_root,
+    "pblock-webdav": pblock_webdav,
+    "pblock-writethrough": pblock_writethrough,
+    "pblock-meta-gsi": pblock_meta_gsi,
+}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--selftest", action="store_true", help="three-way selftest of pblock-meta-gsi")
+    parser.add_argument("scenario", nargs="?", choices=SCENARIOS)
+    parser.add_argument("nginx", nargs="?", type=Path)
+    ns = parser.parse_args(argv)
+    try:
+        if ns.selftest:
+            return selftest(ns.nginx)
+        if not ns.scenario:
+            parser.error("scenario required unless --selftest")
+        return SCENARIOS[ns.scenario](ns.nginx)
+    except LiveFailure as exc:
+        print(f"pblock scenario failed: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

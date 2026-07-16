@@ -16,6 +16,10 @@ Coverage:
   6. Stream concurrency (W7): brix_concurrency_limit caps concurrent root://
      connections per principal — over-cap connections get kXR_wait, and a slot
      freed by a disconnect is reusable (release wired in brix_on_disconnect).
+
+Registry-backed: every nginx here is a throwaway instance provisioned through
+the `lifecycle` harness (templates nginx_rl_http.conf + nginx_rl_stream.conf);
+curl runs through the harness command runner.
 """
 
 import json
@@ -23,15 +27,15 @@ import os
 import re
 import socket
 import struct
-import subprocess
-import threading
 import time
-import http.server
 from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
+from settings import NGINX_BIN, free_ports, HOST, BIND_HOST
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -123,150 +127,101 @@ def test_metrics_and_dashboard_wired():
 # 2. Config validation                                                         #
 # --------------------------------------------------------------------------- #
 
-HEADER = (
-    "error_log {logs}/error.log info;\n"
-    "pid       {logs}/nginx.pid;\n"
-    "events {{ worker_connections 64; }}\n"
-)
+def _http_values(rl_knobs, http_extra="", extra_locations=""):
+    return {"BIND_HOST": BIND_HOST, "RL_KNOBS": rl_knobs,
+            "HTTP_EXTRA": http_extra, "EXTRA_LOCATIONS": extra_locations}
 
 
-def _nginx_check(conf_text, tmp_path):
-    (tmp_path / "logs").mkdir(exist_ok=True)
-    (tmp_path / "t").mkdir(exist_ok=True)
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(conf_text)
-    proc = subprocess.run([NGINX_BIN, "-t", "-p", str(tmp_path), "-c", str(conf)],
-                          capture_output=True, text=True)
-    return proc.returncode, proc.stdout + proc.stderr
+def _stream_values(rl_knobs, stream_extra):
+    return {"BIND_HOST": BIND_HOST, "RL_KNOBS": rl_knobs,
+            "STREAM_EXTRA": stream_extra}
 
 
-def _http_block(body, tmp_path, http_extra=""):
-    return HEADER.format(logs=tmp_path / "logs") + f"""
-    http {{
-        client_body_temp_path {tmp_path}/t; proxy_temp_path {tmp_path}/t;
-        fastcgi_temp_path {tmp_path}/t; uwsgi_temp_path {tmp_path}/t;
-        scgi_temp_path {tmp_path}/t; access_log off;
-        {http_extra}
-        {body}
-    }}
-    """
+def _parse_ok(lifecycle, name, template, values):
+    lifecycle.register(NginxInstanceSpec(
+        name=name, template=template, template_values=values,
+        reason="phase-25 rate-limit directive parse coverage"))
+    lifecycle.reconfigure(name)
+    lifecycle.nginx_test(name)  # raises on parse failure
 
 
-def test_http_directives_parse(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    port = free_port()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_rate_limit_rule zone=rl key=vo rate=500r/s burst=800;
-                brix_rate_limit_rule zone=rl key=ip rate=10r/s burst=10 nodelay;
-                brix_rate_limit_rule zone=rl key=volume:/store/tape rate=50r/s burst=80;
-                brix_bandwidth_limit zone=rl key=vo rate=100m/s burst=500m;
-            }}
-        }}
-    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:4m;")
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc == 0, out
+def _parse_fail(lifecycle, tmp_path, name, template, values):
+    # expect_config_failure renders from template_values only, so all
+    # launcher-provided placeholders are passed explicitly here.
+    (port,) = free_ports(1)
+    data = tmp_path / "data"; data.mkdir(exist_ok=True)
+    values = dict(values, PORT=port, DATA_ROOT=str(data),
+                  LOG_DIR=str(tmp_path), TMP_DIR=str(tmp_path))
+    result = lifecycle.expect_config_failure(NginxInstanceSpec(
+        name=name, template=template, template_values=values,
+        reason="phase-25 rate-limit directive rejection coverage"))
+    return result.returncode, (result.stdout or "") + (result.stderr or "")
 
 
-def test_bad_rate_rejected(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    port = free_port()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_rate_limit_rule zone=rl key=ip rate=500 burst=10;
-            }}
-        }}
-    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
-    rc, out = _nginx_check(conf, tmp_path)
+def test_http_directives_parse(lifecycle):
+    _parse_ok(lifecycle, "lc-rl-hparse", "nginx_rl_http.conf", _http_values(
+        "            brix_rate_limit_rule zone=rl key=vo rate=500r/s burst=800;\n"
+        "            brix_rate_limit_rule zone=rl key=ip rate=10r/s burst=10 nodelay;\n"
+        "            brix_rate_limit_rule zone=rl key=volume:/store/tape rate=50r/s burst=80;\n"
+        "            brix_bandwidth_limit zone=rl key=vo rate=100m/s burst=500m;\n",
+        http_extra="    brix_rate_limit_zone zone=rl:4m;\n"))
+
+
+def test_bad_rate_rejected(lifecycle, tmp_path):
+    rc, out = _parse_fail(lifecycle, tmp_path, "lc-rl-badrate",
+                          "nginx_rl_http.conf", _http_values(
+        "            brix_rate_limit_rule zone=rl key=ip rate=500 burst=10;\n",
+        http_extra="    brix_rate_limit_zone zone=rl:1m;\n"))
     assert rc != 0
     assert "rate" in out.lower()
 
 
-def test_unknown_zone_rejected(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    port = free_port()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_rate_limit_rule zone=missing key=ip rate=5r/s burst=5;
-            }}
-        }}
-    """, tmp_path)
-    rc, out = _nginx_check(conf, tmp_path)
+def test_unknown_zone_rejected(lifecycle, tmp_path):
+    rc, out = _parse_fail(lifecycle, tmp_path, "lc-rl-nozone",
+                          "nginx_rl_http.conf", _http_values(
+        "            brix_rate_limit_rule zone=missing key=ip rate=5r/s burst=5;\n"))
     assert rc != 0
     assert "zone" in out.lower()
 
 
-def test_coexists_with_phase20_rate_limit(tmp_path):
+def test_coexists_with_phase20_rate_limit(lifecycle):
     # The new directives and the Phase 20 brix_rate_limit must not collide.
-    data = tmp_path / "data"; data.mkdir()
-    port = free_port()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_rate_limit_rule zone=rl key=ip rate=10r/s burst=10;
-            }}
-        }}
-    """, tmp_path,
-        http_extra="brix_kv_zone kv 1m key=64 val=64;\n"
-                   "        brix_rate_limit_zone zone=rl:1m;")
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc == 0, out
+    _parse_ok(lifecycle, "lc-rl-coexist", "nginx_rl_http.conf", _http_values(
+        "            brix_rate_limit_rule zone=rl key=ip rate=10r/s burst=10;\n",
+        http_extra="    brix_kv_zone kv 1m key=64 val=64;\n"
+                   "    brix_rate_limit_zone zone=rl:1m;\n"))
 
 
 # --------------------------------------------------------------------------- #
 # Functional helpers                                                           #
 # --------------------------------------------------------------------------- #
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
+def _start_http(lifecycle, tmp_path, name, rl_knobs, http_extra="",
+                extra_locations="", seed_files=()):
+    data = tmp_path / "data"; data.mkdir(exist_ok=True)
+    for n, payload in seed_files:
+        if isinstance(payload, bytes):
+            (data / n).write_bytes(payload)
+        else:
+            (data / n).write_text(payload)
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_rl_http.conf",
+        protocol="http",
+        data_root=str(data),
+        template_values=_http_values(rl_knobs, http_extra, extra_locations),
+        reason="phase-25 HTTP rate-limit functional coverage"))
+    return endpoint.port
 
 
-def _spawn(conf_text, tmp_path, port):
-    (tmp_path / "logs").mkdir(exist_ok=True)
-    (tmp_path / "t").mkdir(exist_ok=True)
-    cp = tmp_path / "nginx.conf"
-    cp.write_text(conf_text + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(port):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"server did not start: {err}")
-    return proc
-
-
-def _stop(proc):
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+def _start_stream(lifecycle, data, name, rl_knobs, stream_extra):
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_rl_stream.conf",
+        data_root=str(data),
+        template_values=_stream_values(rl_knobs, stream_extra),
+        reason="phase-25 stream rate-limit functional coverage"))
+    return endpoint.port
 
 
 def _get(port, path, headers=""):
@@ -294,143 +249,90 @@ def _get(port, path, headers=""):
 # 3. HTTP functional                                                           #
 # --------------------------------------------------------------------------- #
 
-def test_http_429_after_burst(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    (data / "f.txt").write_text("hello\n")
-    port = free_port()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
-            }}
-        }}
-    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
-    proc = _spawn(conf, tmp_path, port)
-    try:
-        codes = [_get(port, "/f.txt")[0] for _ in range(6)]
-        assert codes[:2] == [200, 200], codes
-        assert 429 in codes, codes
-        # The throttled (non-nodelay) response carries Retry-After.
+def test_http_429_after_burst(lifecycle, tmp_path):
+    port = _start_http(
+        lifecycle, tmp_path, "lc-rl-429",
+        "            brix_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;\n",
+        http_extra="    brix_rate_limit_zone zone=rl:1m;\n",
+        seed_files=[("f.txt", "hello\n")])
+    codes = [_get(port, "/f.txt")[0] for _ in range(6)]
+    assert codes[:2] == [200, 200], codes
+    assert 429 in codes, codes
+    # The throttled (non-nodelay) response carries Retry-After.
+    st, hdrs = _get(port, "/f.txt")
+    if st == 429:
+        assert "retry-after" in hdrs, hdrs
+
+
+def test_http_nodelay_immediate(lifecycle, tmp_path):
+    port = _start_http(
+        lifecycle, tmp_path, "lc-rl-nodelay",
+        "            brix_rate_limit_rule zone=rl key=ip rate=1r/s burst=1 nodelay;\n",
+        http_extra="    brix_rate_limit_zone zone=rl:1m;\n",
+        seed_files=[("f.txt", "hello\n")])
+    codes = [_get(port, "/f.txt")[0] for _ in range(4)]
+    assert codes[0] == 200
+    assert 429 in codes[1:], codes
+    # nodelay → no Retry-After header.
+    for _ in range(4):
         st, hdrs = _get(port, "/f.txt")
         if st == 429:
-            assert "retry-after" in hdrs, hdrs
-    finally:
-        _stop(proc)
+            assert "retry-after" not in hdrs, hdrs
+            break
 
 
-def test_http_nodelay_immediate(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    (data / "f.txt").write_text("hello\n")
-    port = free_port()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_rate_limit_rule zone=rl key=ip rate=1r/s burst=1 nodelay;
-            }}
-        }}
-    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
-    proc = _spawn(conf, tmp_path, port)
-    try:
-        codes = [_get(port, "/f.txt")[0] for _ in range(4)]
-        assert codes[0] == 200
-        assert 429 in codes[1:], codes
-        # nodelay → no Retry-After header.
-        for _ in range(4):
-            st, hdrs = _get(port, "/f.txt")
-            if st == 429:
-                assert "retry-after" not in hdrs, hdrs
-                break
-    finally:
-        _stop(proc)
-
-
-def test_http_bandwidth_throttled(tmp_path):
+def test_http_bandwidth_throttled(lifecycle, tmp_path):
     # A tiny bandwidth cap: the first large GET is allowed, then the bucket
     # overflows and subsequent GETs are throttled (429).
-    data = tmp_path / "data"; data.mkdir()
-    (data / "big.bin").write_bytes(b"x" * 100000)
-    port = free_port()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_bandwidth_limit zone=rl key=ip rate=10k/s burst=120k;
-            }}
-        }}
-    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
-    proc = _spawn(conf, tmp_path, port)
-    try:
-        codes = [_get(port, "/big.bin")[0] for _ in range(5)]
-        assert codes[0] == 200, codes          # first within burst
-        assert 429 in codes, codes             # bucket overflows after charge
-    finally:
-        _stop(proc)
+    port = _start_http(
+        lifecycle, tmp_path, "lc-rl-bw",
+        "            brix_bandwidth_limit zone=rl key=ip rate=10k/s burst=120k;\n",
+        http_extra="    brix_rate_limit_zone zone=rl:1m;\n",
+        seed_files=[("big.bin", b"x" * 100000)])
+    codes = [_get(port, "/big.bin")[0] for _ in range(5)]
+    assert codes[0] == 200, codes          # first within burst
+    assert 429 in codes, codes             # bucket overflows after charge
 
 
-def _curl_cookie(port):
-    out = subprocess.run(
+def _curl_cookie(lifecycle, port):
+    rc = lifecycle.run_cmd(
         ["curl", "-si", "-X", "POST", "--data", "password=pw",
-         f"http://{HOST}:{port}/brix/login"],
-        capture_output=True, text=True, timeout=8).stdout
-    m = re.search(r"(?im)^Set-Cookie:\s*(xrd_dashboard=[^;]+)", out)
+         f"http://{HOST}:{port}/brix/login"], timeout=8)
+    m = re.search(r"(?im)^Set-Cookie:\s*(xrd_dashboard=[^;]+)", rc.stdout)
     return m.group(1) if m else None
 
 
-def _curl_ratelimit(port, cookie):
-    out = subprocess.run(
+def _curl_ratelimit(lifecycle, port, cookie):
+    rc = lifecycle.run_cmd(
         ["curl", "-s", "-H", f"Cookie: {cookie}",
-         f"http://{HOST}:{port}/brix/api/v1/ratelimit"],
-        capture_output=True, text=True, timeout=8).stdout
-    return json.loads(out)
+         f"http://{HOST}:{port}/brix/api/v1/ratelimit"], timeout=8)
+    return json.loads(rc.stdout)
 
 
-def test_dashboard_shows_throttle_count(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    (data / "f.txt").write_text("hello\n")
-    port = free_port()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
-            }}
-            location /brix/ {{
-                brix_dashboard on;
-                brix_dashboard_password "pw";
-            }}
-        }}
-    """, tmp_path, http_extra="brix_rate_limit_zone zone=rl:1m;")
-    proc = _spawn(conf, tmp_path, port)
-    try:
-        # Drive throttling on the ip:127.0.0.1 principal.
-        for _ in range(8):
-            _get(port, "/f.txt")
-        cookie = _curl_cookie(port)
-        assert cookie, "dashboard login did not set a cookie"
-        doc = _curl_ratelimit(port, cookie)
-        principals = [p for z in doc.get("zones", []) for p in z["principals"]]
-        assert principals, doc
-        throttled = [p for p in principals if p["throttle_count"] > 0]
-        assert throttled, principals
-        # Sorted most-throttled first.
-        counts = [p["throttle_count"] for p in principals]
-        assert counts == sorted(counts, reverse=True), counts
-    finally:
-        _stop(proc)
+def test_dashboard_shows_throttle_count(lifecycle, tmp_path):
+    port = _start_http(
+        lifecycle, tmp_path, "lc-rl-dash",
+        "            brix_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;\n",
+        http_extra="    brix_rate_limit_zone zone=rl:1m;\n",
+        extra_locations=(
+            "        location /brix/ {\n"
+            "            brix_dashboard on;\n"
+            "            brix_dashboard_password \"pw\";\n"
+            "        }\n"),
+        seed_files=[("f.txt", "hello\n")])
+    # Drive throttling on the ip:127.0.0.1 principal.
+    for _ in range(8):
+        _get(port, "/f.txt")
+    cookie = _curl_cookie(lifecycle, port)
+    assert cookie, "dashboard login did not set a cookie"
+    doc = _curl_ratelimit(lifecycle, port, cookie)
+    principals = [p for z in doc.get("zones", []) for p in z["principals"]]
+    assert principals, doc
+    throttled = [p for p in principals if p["throttle_count"] > 0]
+    assert throttled, principals
+    # Sorted most-throttled first.
+    counts = [p["throttle_count"] for p in principals]
+    assert counts == sorted(counts, reverse=True), counts
 
 
 # --------------------------------------------------------------------------- #
@@ -499,62 +401,36 @@ KXR_WAIT = 4005
 KXR_OK = 0
 
 
-def test_stream_kxr_wait_after_burst(tmp_path):
+def test_stream_kxr_wait_after_burst(lifecycle, tmp_path):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
-    port = free_port()
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        brix_rate_limit_zone zone=rls:1m;
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_storage_backend posix:{data};
-            brix_auth none;
-            brix_rate_limit_rule zone=rls key=ip rate=2r/s burst=2;
-        }}
-    }}
-    """
-    proc = _spawn(conf, tmp_path, port)
-    try:
-        s = _xrd_login(HOST, port)
-        # kXR_open is rate-limited; burst=2 then kXR_wait.
-        statuses = []
-        for _ in range(6):
-            st, _b = _xrd_open(s, "/f.txt")
-            statuses.append(st)
-        s.close()
-        assert KXR_WAIT in statuses, statuses
-    finally:
-        _stop(proc)
+    port = _start_stream(
+        lifecycle, data, "lc-rl-swait",
+        "        brix_rate_limit_rule zone=rls key=ip rate=2r/s burst=2;\n",
+        "    brix_rate_limit_zone zone=rls:1m;\n")
+    s = _xrd_login(HOST, port)
+    # kXR_open is rate-limited; burst=2 then kXR_wait.
+    statuses = []
+    for _ in range(6):
+        st, _b = _xrd_open(s, "/f.txt")
+        statuses.append(st)
+    s.close()
+    assert KXR_WAIT in statuses, statuses
 
 
-def test_stream_stat_never_throttled(tmp_path):
+def test_stream_stat_never_throttled(lifecycle, tmp_path):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
-    port = free_port()
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        brix_rate_limit_zone zone=rls:1m;
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_storage_backend posix:{data};
-            brix_auth none;
-            brix_rate_limit_rule zone=rls key=ip rate=1r/s burst=1;
-        }}
-    }}
-    """
-    proc = _spawn(conf, tmp_path, port)
-    try:
-        s = _xrd_login(HOST, port)
-        # Many stats in a row — never kXR_wait (stat is exempt).
-        for _ in range(8):
-            st, _b = _xrd_stat(s, "/f.txt")
-            assert st != KXR_WAIT, st
-        s.close()
-    finally:
-        _stop(proc)
+    port = _start_stream(
+        lifecycle, data, "lc-rl-sstat",
+        "        brix_rate_limit_rule zone=rls key=ip rate=1r/s burst=1;\n",
+        "    brix_rate_limit_zone zone=rls:1m;\n")
+    s = _xrd_login(HOST, port)
+    # Many stats in a row — never kXR_wait (stat is exempt).
+    for _ in range(8):
+        st, _b = _xrd_stat(s, "/f.txt")
+        assert st != KXR_WAIT, st
+    s.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -585,59 +461,38 @@ def test_stream_concurrency_wiring():
     assert "brix_rl_release_ctx" in dc
 
 
-def _conc_stream_conf(tmp_path, port, data, limit):
-    return HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        brix_rate_limit_zone zone=rlc:1m;
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_storage_backend posix:{data};
-            brix_auth none;
-            brix_concurrency_limit zone=rlc key=ip limit={limit};
-        }}
-    }}
-    """
+def _conc_knobs(limit):
+    return f"        brix_concurrency_limit zone=rlc key=ip limit={limit};\n"
 
 
-def test_stream_concurrency_directive_parses(tmp_path):
+_CONC_ZONE = "    brix_rate_limit_zone zone=rlc:1m;\n"
+
+
+def test_stream_concurrency_directive_parses(lifecycle):
     # Regression: brix_concurrency_limit used to be HTTP-only and would be
     # rejected in a stream{} server block. It must now parse there.
-    data = tmp_path / "data"; data.mkdir()
-    rc, out = _nginx_check(_conc_stream_conf(tmp_path, free_port(), data, 4), tmp_path)
-    assert rc == 0, out
+    _parse_ok(lifecycle, "lc-rl-cparse", "nginx_rl_stream.conf",
+              _stream_values(_conc_knobs(4), _CONC_ZONE))
 
 
-def test_stream_concurrency_bad_limit_rejected(tmp_path):
+def test_stream_concurrency_bad_limit_rejected(lifecycle, tmp_path):
     # limit= must be a positive integer (security/neg: a 0 or garbage cap is a
     # silent no-cap footgun, so the parser must reject it).
-    data = tmp_path / "data"; data.mkdir()
-    port = free_port()
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        brix_rate_limit_zone zone=rlc:1m;
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_storage_backend posix:{data};
-            brix_auth none;
-            brix_concurrency_limit zone=rlc key=ip limit=0;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
+    rc, out = _parse_fail(lifecycle, tmp_path, "lc-rl-cbad",
+                          "nginx_rl_stream.conf",
+                          _stream_values(_conc_knobs(0), _CONC_ZONE))
     assert rc != 0
     assert "limit" in out.lower()
 
 
-def test_stream_concurrency_cap_and_release(tmp_path):
+def test_stream_concurrency_cap_and_release(lifecycle, tmp_path):
     # limit=2: two concurrent connections each hold an in-flight slot; the third
     # concurrent connection's first rate-limited op (kXR_open) gets kXR_wait.
     # Closing a holder frees its slot for a fresh connection (release path).
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
-    port = free_port()
-    proc = _spawn(_conc_stream_conf(tmp_path, port, data, 2), tmp_path, port)
+    port = _start_stream(lifecycle, data, "lc-rl-conc",
+                         _conc_knobs(2), _CONC_ZONE)
     holders = []
     try:
         # Two concurrent connections each acquire a slot — neither waits.
@@ -676,17 +531,16 @@ def test_stream_concurrency_cap_and_release(tmp_path):
                 s.close()
             except OSError:
                 pass
-        _stop(proc)
 
 
-def test_stream_concurrency_high_limit_no_throttle(tmp_path):
+def test_stream_concurrency_high_limit_no_throttle(lifecycle, tmp_path):
     # Control: with a cap well above the offered load, concurrent connections all
     # proceed — proving the kXR_wait above is the cap, not an artifact of opening
     # several connections at once.
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
-    port = free_port()
-    proc = _spawn(_conc_stream_conf(tmp_path, port, data, 16), tmp_path, port)
+    port = _start_stream(lifecycle, data, "lc-rl-conc-hi",
+                         _conc_knobs(16), _CONC_ZONE)
     holders = []
     try:
         for _ in range(4):
@@ -700,7 +554,6 @@ def test_stream_concurrency_high_limit_no_throttle(tmp_path):
                 s.close()
             except OSError:
                 pass
-        _stop(proc)
 
 
 # --------------------------------------------------------------------------- #
@@ -723,69 +576,43 @@ def test_keycache_wiring():
     assert "BRIX_RL_KEY_VOLUME" in gate
 
 
-def test_keycache_read_path_still_throttles(tmp_path):
+def test_keycache_read_path_still_throttles(lifecycle, tmp_path):
     # The read path is non-path-bearing, so it uses the CACHED identity key.
     # Throttling must still fire there: open once, then reads exhaust the burst
     # and return kXR_wait.
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello world\n")
-    port = free_port()
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        brix_rate_limit_zone zone=rlk:1m;
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_storage_backend posix:{data};
-            brix_auth none;
-            brix_rate_limit_rule zone=rlk key=ip rate=2r/s burst=2;
-        }}
-    }}
-    """
-    proc = _spawn(conf, tmp_path, port)
-    try:
-        s = _xrd_login(HOST, port)
-        st, body = _xrd_open(s, "/f.txt")          # op 1 (within burst)
-        assert st == KXR_OK, ("open should succeed within burst", st)
-        fh = body[:4]
-        # Hammer reads on the cached ip key; the burst is spent → kXR_wait.
-        read_status = [_xrd_read(s, fh, 0, 5)[0] for _ in range(6)]
-        s.close()
-        assert KXR_WAIT in read_status, ("cached-key read path must throttle",
-                                         read_status)
-    finally:
-        _stop(proc)
+    port = _start_stream(
+        lifecycle, data, "lc-rl-keycache",
+        "        brix_rate_limit_rule zone=rlk key=ip rate=2r/s burst=2;\n",
+        "    brix_rate_limit_zone zone=rlk:1m;\n")
+    s = _xrd_login(HOST, port)
+    st, body = _xrd_open(s, "/f.txt")          # op 1 (within burst)
+    assert st == KXR_OK, ("open should succeed within burst", st)
+    fh = body[:4]
+    # Hammer reads on the cached ip key; the burst is spent → kXR_wait.
+    read_status = [_xrd_read(s, fh, 0, 5)[0] for _ in range(6)]
+    s.close()
+    assert KXR_WAIT in read_status, ("cached-key read path must throttle",
+                                     read_status)
 
 
-def test_keycache_volume_not_collapsed(tmp_path):
+def test_keycache_volume_not_collapsed(lifecycle, tmp_path):
     # VOLUME rules are path-dependent and must NOT be cached: a per-prefix bucket
     # must still throttle its own prefix while leaving non-matching paths free.
     data = tmp_path / "data"; data.mkdir()
     (data / "hot").mkdir(); (data / "cold").mkdir()
     (data / "hot" / "a.txt").write_text("hot\n")
     (data / "cold" / "b.txt").write_text("cold\n")
-    port = free_port()
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        brix_rate_limit_zone zone=rlv:1m;
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_storage_backend posix:{data};
-            brix_auth none;
-            brix_rate_limit_rule zone=rlv key=volume:/hot rate=1r/s burst=1;
-        }}
-    }}
-    """
-    proc = _spawn(conf, tmp_path, port)
-    try:
-        s = _xrd_login(HOST, port)
-        st1, _ = _xrd_open(s, "/hot/a.txt")        # matches /hot, burst spent
-        assert st1 == KXR_OK, ("first /hot open within burst", st1)
-        st2, _ = _xrd_open(s, "/hot/a.txt")        # /hot bucket overflow → wait
-        assert st2 == KXR_WAIT, ("second /hot open must throttle", st2)
-        st3, _ = _xrd_open(s, "/cold/b.txt")       # no /hot match → never throttled
-        assert st3 != KXR_WAIT, ("non-matching prefix must not be collapsed", st3)
-        s.close()
-    finally:
-        _stop(proc)
+    port = _start_stream(
+        lifecycle, data, "lc-rl-volume",
+        "        brix_rate_limit_rule zone=rlv key=volume:/hot rate=1r/s burst=1;\n",
+        "    brix_rate_limit_zone zone=rlv:1m;\n")
+    s = _xrd_login(HOST, port)
+    st1, _ = _xrd_open(s, "/hot/a.txt")        # matches /hot, burst spent
+    assert st1 == KXR_OK, ("first /hot open within burst", st1)
+    st2, _ = _xrd_open(s, "/hot/a.txt")        # /hot bucket overflow → wait
+    assert st2 == KXR_WAIT, ("second /hot open must throttle", st2)
+    st3, _ = _xrd_open(s, "/cold/b.txt")       # no /hot match → never throttled
+    assert st3 != KXR_WAIT, ("non-matching prefix must not be collapsed", st3)
+    s.close()

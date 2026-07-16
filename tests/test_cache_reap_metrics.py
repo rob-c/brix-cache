@@ -31,12 +31,13 @@ import time
 
 import pytest
 
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 
 try:
-    from settings import NGINX_BIN
+    from settings import NGINX_BIN, BIND_HOST
 except Exception:  # noqa: BLE001 — settings import optional outside the harness
     NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+    BIND_HOST = "127.0.0.1"
 
 _OBJS = os.path.dirname(NGINX_BIN)
 _CINFO_O = os.path.join(_OBJS, "addon", "cache", "cinfo.o")
@@ -55,10 +56,13 @@ _CINFO_DEPS = [
 ]
 _CC = os.environ.get("CC", "cc")
 
-pytestmark = pytest.mark.skipif(
-    not (NGINX_BIN and os.path.exists(NGINX_BIN) and os.path.exists(_CINFO_O)),
-    reason="nginx binary or built cinfo.o not present",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not (NGINX_BIN and os.path.exists(NGINX_BIN) and os.path.exists(_CINFO_O)),
+        reason="nginx binary or built cinfo.o not present",
+    ),
+    pytest.mark.uses_lifecycle_harness,
+]
 
 # A tiny C helper that drives the real cinfo write-back API against a cache path.
 # Compiled once against the module's own cinfo.o so the on-disk record is exactly
@@ -123,7 +127,7 @@ def _scrape(port):
         return resp.read().decode("utf-8", "replace")
 
 
-def test_cache_reap_reason_metrics(tmp_path):
+def test_cache_reap_reason_metrics(lifecycle, tmp_path):
     # 1. Build the cinfo planter against the module's own cinfo.o.
     src = tmp_path / "planter.c"
     src.write_text(_PLANTER_SRC)
@@ -133,8 +137,7 @@ def test_cache_reap_reason_metrics(tmp_path):
 
     state = tmp_path / "state"
     root = tmp_path / "root"
-    logs = tmp_path / "logs"
-    for d in (state, root, logs):
+    for d in (state, root):
         d.mkdir()
 
     def data_file(name):
@@ -176,51 +179,39 @@ def test_cache_reap_reason_metrics(tmp_path):
         assert _has_cinfo_record(f), "planted cinfo record missing for " + f
 
     # 3. Stand up nginx (stream cache reaper + HTTP /metrics).
-    sport = _free_port()
     mport = _free_port()
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_cache_reap_metrics.conf",
-        BASE_DIR=tmp_path,
-        LOG_DIR=logs,
-        ROOT_DIR=root,
-        STATE_DIR=state,
-        STREAM_PORT=sport,
-        METRICS_PORT=mport,
-    ))
-    subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf)],
-                   check=True)
-    pidfile = tmp_path / "nginx.pid"
-    try:
-        # Mark the stream server's metrics slot in_use so the rows export.
-        time.sleep(0.3)
-        _brix_handshake(sport)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-cache-reap-metrics",
+        template="nginx_lc_cache_reap_metrics.conf",
+        protocol="root",
+        extra_ports={"METRICS_PORT": mport},
+        template_values={"BIND_HOST": BIND_HOST,
+                         "ROOT_DIR": str(root), "STATE_DIR": str(state)},
+        reason="cache stale-dirty reaper per-reason metrics"))
+    sport = ep.port
 
-        # 4. Wait for the reaper's first tick (5s) to remove the aged files
-        #    (the data file AND its sidecar — the reaper unlinks them back to
-        #    back, so wait for both to avoid observing the in-between state).
-        deadline = time.time() + 25
-        while time.time() < deadline and (os.path.exists(abandoned)
-                                          or _has_cinfo_record(abandoned)):
-            time.sleep(0.5)
+    # Mark the stream server's metrics slot in_use so the rows export.
+    time.sleep(0.3)
+    _brix_handshake(sport)
 
-        # 5. The three classified files (+ their cinfo records) are gone; the
-        #    clean no-record control survives.
-        assert not os.path.exists(abandoned), "abandoned file not reaped"
-        assert not os.path.exists(incomplete), "incomplete file not reaped"
-        assert not os.path.exists(completed), "completed file not reaped"
-        assert not _has_cinfo_record(abandoned), "cinfo record not reaped"
-        assert os.path.exists(keepme), "clean no-record file wrongly reaped"
+    # 4. Wait for the reaper's first tick (5s) to remove the aged files
+    #    (the data file AND its sidecar — the reaper unlinks them back to
+    #    back, so wait for both to avoid observing the in-between state).
+    deadline = time.time() + 25
+    while time.time() < deadline and (os.path.exists(abandoned)
+                                      or _has_cinfo_record(abandoned)):
+        time.sleep(0.5)
 
-        # 6. /metrics reports exactly one reap per reason.
-        reaped = _reaped_by_reason(_scrape(mport))
-        assert reaped.get("abandoned") == 1, reaped
-        assert reaped.get("incomplete") == 1, reaped
-        assert reaped.get("completed") == 1, reaped
-    finally:
-        if pidfile.exists():
-            try:
-                os.kill(int(pidfile.read_text().strip()), 15)
-            except (OSError, ValueError):
-                pass
-            time.sleep(0.5)
+    # 5. The three classified files (+ their cinfo records) are gone; the
+    #    clean no-record control survives.
+    assert not os.path.exists(abandoned), "abandoned file not reaped"
+    assert not os.path.exists(incomplete), "incomplete file not reaped"
+    assert not os.path.exists(completed), "completed file not reaped"
+    assert not _has_cinfo_record(abandoned), "cinfo record not reaped"
+    assert os.path.exists(keepme), "clean no-record file wrongly reaped"
+
+    # 6. /metrics reports exactly one reap per reason.
+    reaped = _reaped_by_reason(_scrape(mport))
+    assert reaped.get("abandoned") == 1, reaped
+    assert reaped.get("incomplete") == 1, reaped
+    assert reaped.get("completed") == 1, reaped

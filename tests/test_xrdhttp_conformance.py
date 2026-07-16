@@ -275,8 +275,9 @@ class TestHeaderConformance:
 def _get_xrdhttp_test_files():
     """Return the list of XrdHttp conformance test files.
 
-    This function is called by run_cross_compatible_tests.sh to discover
-    and execute XrdHttp-specific tests against both backends.
+    This function is called by the cross-compatible interop runner
+    (cmdscripts/official_interop.py) to discover and execute
+    XrdHttp-specific tests against both backends.
     """
     return [
         "tests/test_xrdhttp_webdav.py",
@@ -287,8 +288,8 @@ def _get_xrdhttp_test_files():
 def _run_xrdhttp_test(backend: str, test_file: str, extra_args=None):
     """Run a single XrdHttp test against a specific backend.
 
-    This helper is used by run_cross_compatible_tests.sh to execute tests
-    with the appropriate TEST_CROSS_BACKEND setting.
+    This helper is used by the cross-compatible interop runner to execute
+    tests with the appropriate TEST_CROSS_BACKEND setting.
     """
     env = os.environ.copy()
     if backend == "xrootd":

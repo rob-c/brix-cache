@@ -15,6 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # lint_loc.sh uses `git ls-files`
-      - name: file-size ratchet (lint_loc.sh --strict)
-        run: tests/lint_loc.sh --strict
+          fetch-depth: 0          # lint_loc uses `git ls-files`
+      - name: file-size ratchet (lint_loc --strict)
+        run: PYTHONPATH=tests python3 -m cmdscripts.lint_loc --strict

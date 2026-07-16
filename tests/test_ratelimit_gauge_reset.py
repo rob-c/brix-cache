@@ -22,27 +22,22 @@ RUN
 """
 
 import os
-import subprocess
+from pathlib import Path
 
 import pytest
 
-_HERE = os.path.dirname(__file__)
-_RUNNER = os.path.join(_HERE, "c", "run_ratelimit_gauge_reset_tests.sh")
+from cmdscripts.c_regression_units import ratelimit_gauge_reset
+
 _OBJS = os.environ.get("TEST_NGINX_OBJS", "/tmp/nginx-1.28.3/objs")
 _NGX_SRC = os.path.dirname(_OBJS)
 
 
-def test_reload_clears_leaked_inuse_gauges():
+def test_reload_clears_leaked_inuse_gauges(tmp_path):
     zone_o = os.path.join(_OBJS, "addon", "ratelimit", "ratelimit_zone.o")
     if not os.path.exists(zone_o):
         pytest.skip(f"{zone_o} not built; build the module first (./configure && make)")
 
-    proc = subprocess.run(
-        [_RUNNER, _NGX_SRC],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=60,
-    )
-    out = proc.stdout.decode(errors="replace")
-    assert proc.returncode == 0, f"rate-limit gauge-reset test failed:\n{out}"
-    assert "all rate-limit gauge-reset checks passed" in out, f"unexpected output:\n{out}"
+    ok, message = ratelimit_gauge_reset(tmp_path, Path(_NGX_SRC))
+    if message.startswith("SKIP"):
+        pytest.skip(message)
+    assert ok, f"rate-limit gauge-reset test failed:\n{message}"

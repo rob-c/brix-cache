@@ -49,12 +49,13 @@ void brix_vfs_backend_config_xroot(const char *root_canon, const char *host,
 void brix_vfs_backend_config_http(const char *root_canon, const char *host,
     int port, int tls, const char *base_path);
 
-/* Record (at config time) that the export rooted at `root_canon` is backed by a
- * read-only S3 source (`host`:`port`, TLS iff `tls`, path-style `bucket`), served
+/* Record (at config time) that the export rooted at `root_canon` is backed by
+ * an S3 source (`host`:`port`, TLS iff `tls`, path-style `bucket`), served
  * through the sd_remote driver over the shared libcurl S3 transport. The driver
- * advertises CAP_RANGE_READ (+CAP_MEMFILE) — no CAP_RANDOM_WRITE — so an S3
- * primary is honestly read-only at the cap layer, like an http:// primary;
- * writes are whole-object staged PUTs via the .staged_* slots (phase-71). */
+ * advertises CAP_RANGE_READ (+CAP_MEMFILE) — no CAP_RANDOM_WRITE — so in-place
+ * partial writes are rejected at the cap layer, while sequential uploads go
+ * through the whole-object staged path (.staged_* → single PUT or MPU) and
+ * deletes through .unlink (phase-71/phase-80). */
 void brix_vfs_backend_config_s3(const char *root_canon, const char *host,
     int port, int tls, const char *bucket);
 
@@ -73,7 +74,7 @@ ngx_int_t brix_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
  * Each backend build reads only the fields its scheme needs: bearer→ztn (sd_http/
  * sd_xroot); x509_proxy/ca_dir→GSI (sd_xroot); s3_*→SigV4 (sd_remote/sd_s3);
  * sss_keytab→SSS (sd_xroot origin). */
-typedef struct {
+typedef struct brix_vfs_backend_cred_s {
     const char *bearer;
     const char *x509_proxy;
     const char *x509_key;   /* separate GSI key PEM; NULL ⇒ key is in x509_proxy */

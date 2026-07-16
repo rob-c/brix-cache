@@ -267,6 +267,22 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	a.st         = &st;
 	a.use_posc   = (is_write && (options & kXR_posc)) ? 1 : 0;
 	a.use_resume = (is_write && conf->upload_resume) ? 1 : 0;
+
+	/* P80.2 resume divert: a staged-only primary (ns leaf without
+	 * CAP_RANDOM_WRITE or .pwrite) can never publish a local resume skeleton —
+	 * the dispatch gate (!use_resume) would route this write to the POSIX
+	 * skeleton file and the bytes would silently strand there instead of
+	 * reaching the backend. Drop resume for this open so the dispatch takes
+	 * the whole-object staged seam; the eligibility predicate is shared with
+	 * the dispatch so the two can never disagree. Capability-driven
+	 * (phase-71): decided by caps bits, never by backend scheme. */
+	if (a.use_resume
+	    && brix_open_write_needs_staged(&a,
+	           brix_vfs_backend_resolve(conf->common.root_canon, c->log)))
+	{
+		a.use_resume = 0;
+	}
+
 	a.stage      = a.use_posc || a.use_resume;
 	a.want_stat  = (options & kXR_retstat) ? 1 : 0;
 	a.from_cache = brix_open_is_from_cache(conf, resolved);

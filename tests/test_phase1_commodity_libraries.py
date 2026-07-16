@@ -37,10 +37,11 @@ def test_phase1_dependency_detection_hooks_present():
         ],
     )
     _assert_markers(
-        "tests/unit/run_tests.sh",
+        "tests/cmdscripts/unit_tests.py",
         [
-            "pkg-config --exists libxml-2.0",
-            "pkg-config --exists jansson",
+            "pkg-config",
+            "libxml-2.0",
+            "jansson",
             "test_json.c",
             "test_xml_compat.c",
         ],

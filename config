@@ -744,6 +744,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_io.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_namespace.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_staged.c \
+    $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_ident.c \
+    $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_cred.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_store.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog_objects.c \
@@ -1341,6 +1343,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/io.c \
                  $ngx_addon_dir/src/protocols/webdav/resource.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_store.c \
+                 $ngx_addon_dir/src/protocols/webdav/auth_basic.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_cert.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_token.c \
                  $ngx_addon_dir/src/protocols/webdav/delegation.c \

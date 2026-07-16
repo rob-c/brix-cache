@@ -26,13 +26,14 @@ from settings import (
     CA_DIR,
     HOST,
     NGINX_ANON_PORT,
+    NGINX_BIN,
     NGINX_GSI_TLS_PORT,
     PROXY_STD,
     SERVER_HOST,
 )
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
@@ -141,7 +142,6 @@ def test_explain_tls_reports_cipher(native_xrdfs):
 # Self-contained anon server so the token-claim tests run without the fleet.
 # ==========================================================================
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 NATIVE_XRDGSITEST = os.path.join(REPO, "client", "bin", "xrdgsitest")
 
 
@@ -159,38 +159,22 @@ def _jwt(exp):
     return f"{hdr}.{pay}.sig"
 
 
-@pytest.fixture(scope="module")
-def anon_self(native_xrdfs, tmp_path_factory):
+@pytest.fixture()
+def anon_self(lifecycle, native_xrdfs, tmp_path):
     """A throwaway anon nginx so `explain` (and its credential introspection) can
     run without depending on the shared fleet."""
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    root = tmp_path_factory.mktemp("diagcred")
-    data = root / "data"
+    data = tmp_path / "data"
     data.mkdir()
     (data / "probe.txt").write_bytes(b"hi\n")
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    port = s.getsockname()[1]
-    s.close()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_stream_posix_anon.conf",
-                                  BASE_DIR=root, BIND_HOST=BIND_HOST,
-                                  PORT=port, DATA_DIR=data,
-                                  WORKER_CONNECTIONS=256))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        try:
-            with socket.create_connection((HOST, port), timeout=1):
-                break
-        except OSError:
-            time.sleep(0.1)
-    yield port
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-native-client-diag",
+        template="nginx_lc_stream_posix_anon.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+        reason="credential introspection explain against a self-hosted anon root server"))
+    yield ep.port
 
 
 def _explain_with_token(port, token):

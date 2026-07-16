@@ -176,9 +176,9 @@ s3_merge_token(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev,
  *   deny/error diagnostics.
  *
  * HOW: Copies the credential name into a bounded buffer, looks it up
- *   (missing → NGX_LOG_EMERG + NGX_CONF_ERROR), derives the bearer, zero-inits
- *   the backend-cred struct and sets each field only when the source secret is
- *   non-empty, then calls brix_vfs_backend_set_credential().
+ *   (missing → NGX_LOG_EMERG + NGX_CONF_ERROR), maps it through the shared
+ *   brix_credential_to_backend_cred() (P80.1 — the ONE mapper), then calls
+ *   brix_vfs_backend_set_credential().
  */
 static char *
 s3_export_attach_credential(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
@@ -198,26 +198,11 @@ s3_export_attach_credential(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
             &conf->common.storage_credential);
         return NGX_CONF_ERROR;
     }
-    if (brix_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
-        != NGX_OK)
+    if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
+                                          &bcred, cf->log) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }
-
-    ngx_memzero(&bcred, sizeof(bcred));
-    bcred.bearer = (bearer[0] != '\0') ? bearer : NULL;
-    bcred.x509_proxy = (cred->x509_proxy.len > 0)
-        ? (const char *) cred->x509_proxy.data : NULL;
-    bcred.ca_dir = (cred->ca_dir.len > 0)
-        ? (const char *) cred->ca_dir.data : NULL;
-    bcred.s3_access_key = (cred->s3_access_key.len > 0)
-        ? (const char *) cred->s3_access_key.data : NULL;
-    bcred.s3_secret_key = (cred->s3_secret_key.len > 0)
-        ? (const char *) cred->s3_secret_key.data : NULL;
-    bcred.s3_region = (cred->s3_region.len > 0)
-        ? (const char *) cred->s3_region.data : NULL;
-    bcred.sss_keytab = (cred->sss_keytab.len > 0)
-        ? (const char *) cred->sss_keytab.data : NULL;
     brix_vfs_backend_set_credential(conf->common.root_canon, &bcred);
 
     return NGX_CONF_OK;

@@ -67,6 +67,16 @@ brix_kxr_from_errno(int err)
     case EINVAL:
         return kXR_ArgInvalid;
 
+    case ENOTSUP:      /* backend has no such op (VFS NULL-slot, object stores) */
+    case ENOSYS:
+#if defined(EOPNOTSUPP) && (EOPNOTSUPP != ENOTSUP)
+    case EOPNOTSUPP:
+#endif
+        /* Honest "this server cannot do that" instead of a generic I/O error —
+         * the reverse table (kXR_Unsupported → ENOSYS) already existed, this
+         * makes the pair symmetric. */
+        return kXR_Unsupported;
+
     default:
         return kXR_IOError;
     }

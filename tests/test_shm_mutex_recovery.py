@@ -27,29 +27,24 @@ RUN
 """
 
 import os
-import subprocess
+from pathlib import Path
 
 import pytest
 
-_HERE = os.path.dirname(__file__)
-_RUNNER = os.path.join(_HERE, "c", "run_shm_mutex_recovery_tests.sh")
+from cmdscripts.c_regression_units import shm_mutex_recovery
+
 _OBJS = os.environ.get("TEST_NGINX_OBJS", "/tmp/nginx-1.28.3/objs")
 _NGX_SRC = os.path.dirname(_OBJS)
 
 
-def test_dead_worker_table_mutex_is_recovered():
+def test_dead_worker_table_mutex_is_recovered(tmp_path):
     shm_o = os.path.join(_OBJS, "addon", "compat", "shm_slots.o")
     shmtx_o = os.path.join(_OBJS, "src", "core", "ngx_shmtx.o")
     for obj in (shm_o, shmtx_o):
         if not os.path.exists(obj):
             pytest.skip(f"{obj} not built; build the module first (./configure && make)")
 
-    proc = subprocess.run(
-        [_RUNNER, _NGX_SRC],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=60,
-    )
-    out = proc.stdout.decode(errors="replace")
-    assert proc.returncode == 0, f"SHM mutex recovery test failed:\n{out}"
-    assert "PASS" in out, f"unexpected SHM mutex recovery output:\n{out}"
+    ok, message = shm_mutex_recovery(tmp_path, Path(_NGX_SRC))
+    if message.startswith("SKIP"):
+        pytest.skip(message)
+    assert ok, f"SHM mutex recovery test failed:\n{message}"

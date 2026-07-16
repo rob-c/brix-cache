@@ -21,7 +21,7 @@ without the engine.
 """
 
 import os
-import shutil
+import pathlib
 import socket
 import struct
 import subprocess
@@ -29,10 +29,10 @@ import time
 
 import pytest
 
-from config_templates import render_config
-from settings import free_port, HOST, BIND_HOST, url_host
+from settings import HOST, BIND_HOST, NGINX_BIN, url_host
+from server_registry import NginxInstanceSpec
 
-NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 # Wire constants (XProtocol.hh).
 kXR_login = 3007
@@ -54,17 +54,6 @@ def _have_nginx():
         return "brix_acc_access" in syms.stdout
     except Exception:
         return True
-
-
-def _port_up(port, timeout=5.0):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.3):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
 
 
 # --------------------------------------------------------------------------- #
@@ -142,56 +131,61 @@ def _prepare(port, path):
 # --------------------------------------------------------------------------- #
 
 class _Stream:
-    """A throwaway xrdacc root:// server: writes conf+authdb+data, starts nginx."""
+    """A throwaway xrdacc root:// server driven by the registry lifecycle harness.
 
-    def __init__(self, authdb, extra="", tree=("d",)):
-        self.port = free_port()
-        self.root = os.path.join(os.environ["TMPDIR"], f"xrdacc-res-{self.port}")
-        self.authdb_path = f"{self.root}/authdb"
-        shutil.rmtree(self.root, ignore_errors=True)
-        for d in ("logs", "conf") + tuple(f"data/{t}" for t in tree):
-            os.makedirs(os.path.join(self.root, d), exist_ok=True)
+    Seeds authdb+data under ``tmp_path`` and delegates config-render / launch /
+    teardown to the ``lifecycle`` handle; the harness stops and unregisters the
+    instance when the test ends.
+    """
+
+    def __init__(self, lifecycle, tmp_path, authdb, extra="", tree=("d",)):
+        self._lifecycle = lifecycle
+        self._extra = extra
+        self.root = pathlib.Path(tmp_path) / "srv"
+        self.data = self.root / "data"
+        self.authdb_path = str(self.root / "authdb")
+        for t in tree:
+            (self.data / t).mkdir(parents=True, exist_ok=True)
         self.write_authdb(authdb)
-        self.conf = f"{self.root}/conf/nginx.conf"
-        with open(self.conf, "w") as f:
-            f.write(render_config(
-                "nginx_acc_residual_stream.conf",
-                BASE_DIR=self.root,
-                BIND_HOST=BIND_HOST,
-                PORT=self.port,
-                AUTHDB_PATH=self.authdb_path,
-                EXTRA_DIRECTIVES=extra,
-            ))
+        self.port = None
+        self.access_log = None
 
     def write_authdb(self, contents):
         with open(self.authdb_path, "w") as f:
             f.write(contents)
 
     def file(self, relpath, data=b"x\n"):
-        full = os.path.join(self.root, "data", relpath.lstrip("/"))
-        os.makedirs(os.path.dirname(full), exist_ok=True)
-        with open(full, "wb") as f:
-            f.write(data)
+        full = self.data / relpath.lstrip("/")
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_bytes(data)
 
     def start(self):
-        t = subprocess.run([NGINX_BIN, "-t", "-c", self.conf],
-                           capture_output=True, text=True)
-        assert t.returncode == 0, f"nginx -t failed: {t.stderr}"
-        subprocess.run([NGINX_BIN, "-c", self.conf], capture_output=True)
-        if not _port_up(self.port):
-            pytest.skip("xrdacc nginx did not start")
+        ep = self._lifecycle.start(NginxInstanceSpec(
+            name="lc-acc-residual-stream",
+            template="nginx_lc_acc_residual_stream.conf",
+            protocol="root",
+            template_values={
+                "BIND_HOST": BIND_HOST,
+                "DATA_DIR": str(self.data),
+                "AUTHDB_PATH": self.authdb_path,
+                "EXTRA_DIRECTIVES": self._extra,
+            },
+            reason="throwaway xrdacc root:// server for residual XrdAcc parity gaps",
+        ))
+        self.port = ep.port
+        self.access_log = pathlib.Path(ep.prefix) / "logs" / "access.log"
 
-    def stop(self):
-        subprocess.run([NGINX_BIN, "-c", self.conf, "-s", "stop"],
-                       capture_output=True)
-        shutil.rmtree(self.root, ignore_errors=True)
 
-
-def _server(authdb, **kw):
+@pytest.fixture()
+def make_server(lifecycle, tmp_path):
+    """Function-scoped factory that builds a harness-backed ``_Stream``."""
     if not _have_nginx():
         pytest.skip("nginx binary unavailable or built without the xrdacc engine")
-    srv = _Stream(authdb, **kw)
-    return srv
+
+    def _factory(authdb, **kw):
+        return _Stream(lifecycle, tmp_path, authdb, **kw)
+
+    return _factory
 
 
 # --------------------------------------------------------------------------- #
@@ -201,37 +195,28 @@ def _server(authdb, **kw):
 class TestCreateVsUpdate:
     """kXR_new (create) needs `i`/insert; kXR_delete (truncate) is only Update."""
 
-    def test_create_needs_insert(self):
-        srv = _server("u * /d rwl\n")        # lookup+write, NO insert
+    def test_create_needs_insert(self, make_server):
+        srv = make_server("u * /d rwl\n")        # lookup+write, NO insert
         srv.file("d/exist.txt")
         srv.start()
-        try:
-            # create (kXR_new) is AOP_Create -> needs insert -> denied
-            assert _open(srv.port, "/d/new.txt", kXR_new) == "DENY"
-            # truncate (kXR_delete) is AOP_Update -> needs only w -> granted
-            assert _open(srv.port, "/d/exist.txt", kXR_delete) == "GRANT"
-        finally:
-            srv.stop()
+        # create (kXR_new) is AOP_Create -> needs insert -> denied
+        assert _open(srv.port, "/d/new.txt", kXR_new) == "DENY"
+        # truncate (kXR_delete) is AOP_Update -> needs only w -> granted
+        assert _open(srv.port, "/d/exist.txt", kXR_delete) == "GRANT"
 
-    def test_insert_grants_create(self):
-        srv = _server("u * /d rwli\n")       # + insert
+    def test_insert_grants_create(self, make_server):
+        srv = make_server("u * /d rwli\n")       # + insert
         srv.file("d/exist.txt")
         srv.start()
-        try:
-            assert _open(srv.port, "/d/new.txt", kXR_new) == "GRANT"
-            assert _open(srv.port, "/d/exist.txt", kXR_delete) == "GRANT"
-        finally:
-            srv.stop()
+        assert _open(srv.port, "/d/new.txt", kXR_new) == "GRANT"
+        assert _open(srv.port, "/d/exist.txt", kXR_delete) == "GRANT"
 
-    def test_write_required_for_both(self):
-        srv = _server("u * /d rli\n")        # insert+lookup, NO write
+    def test_write_required_for_both(self, make_server):
+        srv = make_server("u * /d rli\n")        # insert+lookup, NO write
         srv.file("d/exist.txt")
         srv.start()
-        try:
-            assert _open(srv.port, "/d/new.txt", kXR_new) == "DENY"
-            assert _open(srv.port, "/d/exist.txt", kXR_delete) == "DENY"
-        finally:
-            srv.stop()
+        assert _open(srv.port, "/d/new.txt", kXR_new) == "DENY"
+        assert _open(srv.port, "/d/exist.txt", kXR_delete) == "DENY"
 
 
 # --------------------------------------------------------------------------- #
@@ -241,23 +226,17 @@ class TestCreateVsUpdate:
 class TestPrepareStage:
     """kXR_prepare(stage) uses AOP_Stage (priv 0x180); only `a` grants it."""
 
-    def test_stage_denied_without_a(self):
-        srv = _server("u * /pub rwl\n")      # no stage bits
+    def test_stage_denied_without_a(self, make_server):
+        srv = make_server("u * /pub rwl\n")      # no stage bits
         srv.file("pub/f.txt")
         srv.start()
-        try:
-            assert _prepare(srv.port, "/pub/f.txt") == "DENY"
-        finally:
-            srv.stop()
+        assert _prepare(srv.port, "/pub/f.txt") == "DENY"
 
-    def test_stage_granted_with_a(self):
-        srv = _server("u * /pub a\n")        # `a` = all (0x1ff) includes stage
+    def test_stage_granted_with_a(self, make_server):
+        srv = make_server("u * /pub a\n")        # `a` = all (0x1ff) includes stage
         srv.file("pub/f.txt")
         srv.start()
-        try:
-            assert _prepare(srv.port, "/pub/f.txt") == "GRANT"
-        finally:
-            srv.stop()
+        assert _prepare(srv.port, "/pub/f.txt") == "GRANT"
 
 
 # --------------------------------------------------------------------------- #
@@ -280,24 +259,18 @@ class TestResolveHosts:
             pytest.skip("127.0.0.1 has no usable PTR record on this host")
         return f"h {name} /pub rl\n"         # grant ONLY via the host rule
 
-    def test_off_ip_does_not_match(self):
-        srv = _server(self._authdb())
+    def test_off_ip_does_not_match(self, make_server):
+        srv = make_server(self._authdb())
         srv.file("pub/f.txt")
         srv.start()
-        try:
-            assert _stat(srv.port, "/pub/f.txt") == "DENY"
-        finally:
-            srv.stop()
+        assert _stat(srv.port, "/pub/f.txt") == "DENY"
 
-    def test_on_hostname_matches(self):
-        srv = _server(self._authdb(),
-                      extra="        brix_acc_resolve_hosts on;")
+    def test_on_hostname_matches(self, make_server):
+        srv = make_server(self._authdb(),
+                          extra="        brix_acc_resolve_hosts on;")
         srv.file("pub/f.txt")
         srv.start()
-        try:
-            assert _stat(srv.port, "/pub/f.txt") == "GRANT"
-        finally:
-            srv.stop()
+        assert _stat(srv.port, "/pub/f.txt") == "GRANT"
 
 
 # --------------------------------------------------------------------------- #
@@ -307,24 +280,18 @@ class TestResolveHosts:
 class TestEncoding:
     """`brix_acc_encoding on` URI-decodes authdb paths: `/a%20b` -> `/a b`."""
 
-    def test_off_literal_no_match(self):
-        srv = _server("u * /a%20b rl\n", tree=("a b",))
+    def test_off_literal_no_match(self, make_server):
+        srv = make_server("u * /a%20b rl\n", tree=("a b",))
         srv.file("a b/f.txt")
         srv.start()
-        try:
-            assert _stat(srv.port, "/a b/f.txt") == "DENY"
-        finally:
-            srv.stop()
+        assert _stat(srv.port, "/a b/f.txt") == "DENY"
 
-    def test_on_decoded_matches(self):
-        srv = _server("u * /a%20b rl\n", tree=("a b",),
-                      extra="        brix_acc_encoding on;")
+    def test_on_decoded_matches(self, make_server):
+        srv = make_server("u * /a%20b rl\n", tree=("a b",),
+                          extra="        brix_acc_encoding on;")
         srv.file("a b/f.txt")
         srv.start()
-        try:
-            assert _stat(srv.port, "/a b/f.txt") == "GRANT"
-        finally:
-            srv.stop()
+        assert _stat(srv.port, "/a b/f.txt") == "GRANT"
 
 
 # --------------------------------------------------------------------------- #
@@ -337,40 +304,33 @@ class TestAuthCache:
 
     CACHE = "        brix_auth_cache zone=authz ttl=60;"
 
-    def test_cache_hit_logs_cache_path(self):
-        srv = _server("u * /d rwl\n", extra=self.CACHE)
+    def test_cache_hit_logs_cache_path(self, make_server):
+        srv = make_server("u * /d rwl\n", extra=self.CACHE)
         srv.start()
-        try:
-            assert _open(srv.port, "/d/new.txt", kXR_new) == "DENY"   # engine
-            assert _open(srv.port, "/d/new.txt", kXR_new) == "DENY"   # cache hit
-            # The 1st open is served by the engine ("xrdacc denied"); the 2nd by
-            # the cache ("auth cache: denied").  Poll: nginx buffers the access
-            # log, so the second line may lag the request by a moment.
-            deadline = time.monotonic() + 5.0
-            log = ""
-            while time.monotonic() < deadline:
-                with open(f"{srv.root}/logs/access.log") as f:
-                    log = f.read()
-                if "cache" in log:
-                    break
-                time.sleep(0.1)
-            assert "xrdacc" in log, "first open should hit the engine"
-            assert "cache" in log, "second open should be served from the cache"
-        finally:
-            srv.stop()
+        assert _open(srv.port, "/d/new.txt", kXR_new) == "DENY"   # engine
+        assert _open(srv.port, "/d/new.txt", kXR_new) == "DENY"   # cache hit
+        # The 1st open is served by the engine ("xrdacc denied"); the 2nd by
+        # the cache ("auth cache: denied").  Poll: nginx buffers the access
+        # log, so the second line may lag the request by a moment.
+        deadline = time.monotonic() + 5.0
+        log = ""
+        while time.monotonic() < deadline:
+            log = srv.access_log.read_text()
+            if "cache" in log:
+                break
+            time.sleep(0.1)
+        assert "xrdacc" in log, "first open should hit the engine"
+        assert "cache" in log, "second open should be served from the cache"
 
-    def test_update_grant_does_not_leak_to_create(self):
-        srv = _server("u * /d rwl\n", extra=self.CACHE)   # write but no insert
+    def test_update_grant_does_not_leak_to_create(self, make_server):
+        srv = make_server("u * /d rwl\n", extra=self.CACHE)   # write but no insert
         srv.file("d/exist.txt")
         srv.start()
-        try:
-            # Prime the cache with an Update grant on /d/exist.txt …
-            assert _open(srv.port, "/d/exist.txt", kXR_delete) == "GRANT"
-            assert _open(srv.port, "/d/exist.txt", kXR_delete) == "GRANT"
-            # … a Create (kXR_new) on the SAME path must still be denied.
-            assert _open(srv.port, "/d/exist.txt", kXR_new) == "DENY"
-        finally:
-            srv.stop()
+        # Prime the cache with an Update grant on /d/exist.txt …
+        assert _open(srv.port, "/d/exist.txt", kXR_delete) == "GRANT"
+        assert _open(srv.port, "/d/exist.txt", kXR_delete) == "GRANT"
+        # … a Create (kXR_new) on the SAME path must still be denied.
+        assert _open(srv.port, "/d/exist.txt", kXR_new) == "DENY"
 
 
 # --------------------------------------------------------------------------- #
@@ -391,27 +351,17 @@ def _http_code(url, method="GET"):
 
 
 class _Webdav:
-    """A throwaway xrdacc WebDAV server with a 1s authdb refresh timer."""
+    """A throwaway xrdacc WebDAV server (1s authdb refresh) on the lifecycle harness."""
 
-    def __init__(self):
-        self.port = free_port()
-        self.root = os.path.join(os.environ["TMPDIR"], f"xrdacc-res-http-{self.port}")
-        self.authdb_path = f"{self.root}/authdb"
-        shutil.rmtree(self.root, ignore_errors=True)
-        for d in ("data/grant", "logs", "conf", "tmp"):
-            os.makedirs(os.path.join(self.root, d), exist_ok=True)
-        with open(f"{self.root}/data/grant/ok.txt", "wb") as f:
-            f.write(b"ok\n")
+    def __init__(self, lifecycle, tmp_path):
+        self._lifecycle = lifecycle
+        self.root = pathlib.Path(tmp_path) / "srv"
+        self.data = self.root / "data"
+        self.authdb_path = str(self.root / "authdb")
+        (self.data / "grant").mkdir(parents=True, exist_ok=True)
+        (self.data / "grant" / "ok.txt").write_bytes(b"ok\n")
         self.write_authdb("u * /grant rl\n")
-        self.conf = f"{self.root}/conf/nginx.conf"
-        with open(self.conf, "w") as f:
-            f.write(render_config(
-                "nginx_acc_residual_webdav.conf",
-                BASE_DIR=self.root,
-                BIND_HOST=BIND_HOST,
-                PORT=self.port,
-                AUTHDB_PATH=self.authdb_path,
-            ))
+        self.port = None
 
     def write_authdb(self, contents, mtime=None):
         with open(self.authdb_path, "w") as f:
@@ -423,40 +373,48 @@ class _Webdav:
         return f"http://{url_host(HOST)}:{self.port}{path}"
 
     def start(self):
-        t = subprocess.run([NGINX_BIN, "-t", "-c", self.conf],
-                           capture_output=True, text=True)
-        assert t.returncode == 0, f"nginx -t failed: {t.stderr}"
-        subprocess.run([NGINX_BIN, "-c", self.conf], capture_output=True)
-        if not _port_up(self.port):
-            pytest.skip("xrdacc webdav nginx did not start")
+        ep = self._lifecycle.start(NginxInstanceSpec(
+            name="lc-acc-residual-webdav",
+            template="nginx_lc_acc_residual_webdav.conf",
+            protocol="http",
+            template_values={
+                "BIND_HOST": BIND_HOST,
+                "DATA_DIR": str(self.data),
+                "AUTHDB_PATH": self.authdb_path,
+            },
+            reason="throwaway xrdacc WebDAV server for authdb hot-reload parity",
+        ))
+        self.port = ep.port
 
-    def stop(self):
-        subprocess.run([NGINX_BIN, "-c", self.conf, "-s", "stop"],
-                       capture_output=True)
-        shutil.rmtree(self.root, ignore_errors=True)
+
+@pytest.fixture()
+def make_webdav(lifecycle, tmp_path):
+    """Function-scoped factory that builds a harness-backed ``_Webdav``."""
+    if not _have_nginx():
+        pytest.skip("nginx binary unavailable or built without the engine")
+
+    def _factory():
+        return _Webdav(lifecycle, tmp_path)
+
+    return _factory
 
 
 class TestHttpHotReload:
     """Editing the authdb while a WebDAV worker is live takes effect within the
     refresh interval, with no restart (`brix_authdb_refresh`)."""
 
-    def test_reload_revokes_access(self):
-        if not _have_nginx():
-            pytest.skip("nginx binary unavailable or built without the engine")
-        srv = _Webdav()
+    def test_reload_revokes_access(self, make_webdav):
+        srv = make_webdav()
         srv.write_authdb("u * /grant rl\n", mtime=1577836800)   # 2020-01-01
         srv.start()
-        try:
-            assert _http_code(srv.url("/grant/ok.txt")) == 200
-            # Revoke /grant live with a strictly newer mtime so the timer reloads.
-            srv.write_authdb("u * /other rl\n", mtime=1717200000)  # 2024-06-01
-            deadline = time.monotonic() + 6.0
-            code = 200
-            while time.monotonic() < deadline:
-                code = _http_code(srv.url("/grant/ok.txt"))
-                if code == 403:
-                    break
-                time.sleep(0.3)
-            assert code == 403, "authdb edit must take effect without restart"
-        finally:
-            srv.stop()
+        assert _http_code(srv.url("/grant/ok.txt")) == 200
+        # Revoke /grant live with a strictly newer mtime so the timer reloads.
+        srv.write_authdb("u * /other rl\n", mtime=1717200000)  # 2024-06-01
+        deadline = time.monotonic() + 6.0
+        code = 200
+        while time.monotonic() < deadline:
+            code = _http_code(srv.url("/grant/ok.txt"))
+            if code == 403:
+                break
+            time.sleep(0.3)
+        assert code == 403, "authdb edit must take effect without restart"

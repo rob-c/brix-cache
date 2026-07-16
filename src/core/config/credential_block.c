@@ -4,6 +4,7 @@
  */
 #include "credential_block.h"
 #include "core/compat/cstr.h"
+#include "fs/vfs/vfs_backend_registry.h"   /* brix_vfs_backend_cred_t */
 
 #include <fcntl.h>
 #include <string.h>
@@ -188,6 +189,71 @@ brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     *cf = save;
     return rv;
+}
+
+/* ---- NUL-terminated view of a credential field, or NULL when unset ----
+ *
+ * WHAT: Returns s->data as a C string when the field is set, NULL otherwise.
+ *
+ * WHY: The backend-cred struct wants "unset" as NULL (the registry setter
+ * treats NULL as clear-to-empty); credential fields are interned with a
+ * trailing NUL (brix_pstrdup_z), so the cast is safe.
+ *
+ * HOW: 1. len > 0 ⇒ the interned, NUL-terminated data pointer; else NULL.
+ */
+static const char *
+brix_credential_str_or_null(const ngx_str_t *s)
+{
+    return (s->len > 0) ? (const char *) s->data : NULL;
+}
+
+/* ---- THE credential_t → backend_cred_t mapper (P80.1) ----
+ *
+ * WHAT: Maps every consumable field of a brix_credential into a
+ * brix_vfs_backend_cred_t for brix_vfs_backend_set_credential. Returns NGX_OK,
+ * or NGX_ERROR when the credential's token_file is set but unreadable.
+ *
+ * WHY: Four call sites (WebDAV parse, stream parse, S3-front parse, stream
+ * worker replay) each hand-copied this mapping and drifted: the worker replay
+ * dropped bearer + all three s3 fields, and because the registry setter
+ * unconditionally overwrites all 8 slots, the parse-time S3 keys were wiped to
+ * "" on every worker spawn (phase-80 finding 1.1). One mapper makes that drift
+ * class impossible.
+ *
+ * HOW:
+ *   1. Zero *out; NULL cred ⇒ anonymous, done.
+ *   2. Derive the bearer (inline token or token_file) into the caller's
+ *      bearer_buf; error out if a configured token_file is unreadable.
+ *   3. x509: prefer the proxy PEM (key bundled inside); else cert + key.
+ *   4. Straight str-or-NULL for ca_dir, the three s3 fields, and sss_keytab.
+ */
+ngx_int_t
+brix_credential_to_backend_cred(const brix_credential_t *cred,
+    char *bearer_buf, size_t bearer_cap,
+    struct brix_vfs_backend_cred_s *out, ngx_log_t *log)
+{
+    ngx_memzero(out, sizeof(*out));
+
+    if (cred == NULL) {
+        return NGX_OK;                  /* anonymous */
+    }
+    if (brix_credential_bearer(cred, bearer_buf, bearer_cap, log) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    out->bearer = (bearer_buf[0] != '\0') ? bearer_buf : NULL;
+
+    if (cred->x509_proxy.len > 0) {
+        out->x509_proxy = (const char *) cred->x509_proxy.data;
+    } else {
+        out->x509_proxy = brix_credential_str_or_null(&cred->x509_cert);
+        out->x509_key   = brix_credential_str_or_null(&cred->x509_key);
+    }
+    out->ca_dir        = brix_credential_str_or_null(&cred->ca_dir);
+    out->s3_access_key = brix_credential_str_or_null(&cred->s3_access_key);
+    out->s3_secret_key = brix_credential_str_or_null(&cred->s3_secret_key);
+    out->s3_region     = brix_credential_str_or_null(&cred->s3_region);
+    out->sss_keytab    = brix_credential_str_or_null(&cred->sss_keytab);
+    return NGX_OK;
 }
 
 ngx_int_t

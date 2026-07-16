@@ -33,6 +33,10 @@ Physicists at CERN, SLAC, and Fermilab move petabytes of collision data using tw
 
 New to XRootD or grid security? [What Is This Project](docs/01-getting-started/what-is-this.md) answers all the "wait, what?" questions, and [XRootD Basics](docs/02-concepts/xrootd-basics.md) fills in the physics context.
 
+Writing tests? New server topologies should go through the pytest server
+registry; see [tests/configs/REGISTRY_MIGRATION.md](tests/configs/REGISTRY_MIGRATION.md)
+and [TESTING.md](TESTING.md#registry-lifecycle-mode).
+
 > 📖 **40 minutes from zero to running server:**
 > 1. [Before You Start](docs/01-getting-started/before-you-start.md) — Servers, ports, protocols demystified (5 min)
 > 2. [What Is This Project?](docs/01-getting-started/what-is-this.md) — Why this exists and what it does (5 min)
@@ -545,7 +549,7 @@ The Python test suite is comprehensive by design — `xrdcp` and XRootD Python c
 pytest -v
 
 # Run cross-compatible tests against both BriX-Cache and reference xrootd
-tests/run_cross_compatible_tests.sh
+PYTHONPATH=tests python3 -m pytest tests/test_cmd_official_interop.py -v
 
 # Target an already-running server (if desired)
 export TEST_NGINX_URL=https://ci-nginx.example:8443
@@ -582,7 +586,7 @@ TEST_CROSS_BACKEND=nginx pytest tests/test_xrdhttp_webdav.py -v
 TEST_CROSS_BACKEND=xrootd pytest tests/test_xrdhttp_webdav.py -v
 ```
 
-The reference XrdHttp server runs on port **11113** by default (configurable via `TEST_XRDHTTP_HTTPS_PORT`). All three test modules are automatically included in `tests/run_cross_compatible_tests.sh`.
+The reference XrdHttp server runs on port **11113** by default (configurable via `TEST_XRDHTTP_HTTPS_PORT`). All three test modules are automatically included in the cross-compatible interop run (`tests/test_cmd_official_interop.py`).
 
 ---
 

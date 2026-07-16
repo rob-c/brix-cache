@@ -1,9 +1,12 @@
 /*
- * sd_remote.c — read-only remote-origin storage driver. See the header.
+ * sd_remote.c — remote-origin (s3://) storage driver. See the header.
  *
- * s3:// delegates entirely to the shared S3 driver (sd_s3): the SD object wraps an
- * sd_s3_file*; pread is a signed Range GET; stat/fstat report the HEAD size. Only
- * the read slots are populated — the driver advertises CAP_RANGE_READ alone.
+ * s3:// delegates entirely to the shared S3 driver (sd_s3): the SD object wraps
+ * an sd_s3_file*; pread/preadv are signed Range GETs; stat/fstat report the HEAD
+ * size. Writes are staged whole-object uploads (.staged_* → single PUT or MPU)
+ * plus .unlink (DELETE) — there is deliberately no .pwrite, so the caps stay
+ * CAP_RANGE_READ|CAP_MEMFILE and random in-place writes are rejected at the cap
+ * layer. Namespace ops (dirlist/mkdir/rename) remain unimplemented.
  */
 
 #include "sd_remote.h"
@@ -18,9 +21,18 @@ typedef struct {
     sd_s3_file *s3;
 } sd_remote_obj_state;
 
-/* Per-staged-write state: the delegated S3 write handle. */
+/* Per-staged-write state: the delegated S3 write handle, plus the composed
+ * object path so a noreplace commit can HEAD the destination (P80.2). When the
+ * upload was opened under a per-user credential (P80.3) the triple is copied
+ * here — the caller's cred store does not outlive the open call, and the
+ * noreplace HEAD must present the same identity as the upload itself. */
 typedef struct {
     sd_s3_file *s3;
+    char        objpath[768];
+    int         has_cred;
+    char        ak[128];
+    char        sk[256];
+    char        region[64];
 } sd_remote_staged_state;
 
 /* Multipart part size for a staged upload of unknown final size (S3's 5 MiB
@@ -52,6 +64,35 @@ sd_remote_s3_params(const brix_sd_remote_cfg_t *cfg, const char *objpath,
     p->transport  = cfg->transport;
     p->tctx       = cfg->tctx;
     p->timeout_ms = cfg->timeout_ms;
+}
+
+/* ---- sd_remote_cred_gate — classify a per-user credential (P80.3) ---------
+ *
+ * WHAT: Decides how a cred-scoped slot must treat `cred`: 1 = a usable S3
+ *       keypair (sign with the override), 0 = fall back to the instance's
+ *       static service credential, -1 = refuse with EACCES.
+ *
+ * WHY:  Every cred slot on this driver (open/staged_open/stat/unlink) shares
+ *       the same three-way decision, including the fallback_deny rule: a cred
+ *       of a kind this S3-only backend cannot use (x509/bearer) under deny
+ *       mode must be refused rather than silently signed with the export's
+ *       shared service credential — exactly the fallback the operator forbade.
+ *
+ * HOW:  Usable means both s3_ak and s3_sk are present and non-empty; anything
+ *       else is refused under fallback_deny and falls back otherwise. */
+static int
+sd_remote_cred_gate(const brix_sd_cred_t *cred)
+{
+    if (cred != NULL
+        && cred->s3_ak != NULL && cred->s3_ak[0] != '\0'
+        && cred->s3_sk != NULL && cred->s3_sk[0] != '\0')
+    {
+        return 1;
+    }
+    if (cred != NULL && cred->fallback_deny) {
+        return -1;
+    }
+    return 0;
 }
 
 /* ---- sd_remote_open_impl (shared by the plain and cred-scoped open slots) --
@@ -154,37 +195,27 @@ sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
  *       requesting identity — the origin must see THAT user's SigV4
  *       signature, not the export's shared key.
  *
- * HOW:  A NULL cred, or a cred with s3_ak/s3_sk unset (a non-S3 credential
- *       kind — x509 or bearer — was selected instead, which this backend
- *       cannot use), falls back to the static instance credential via
- *       sd_remote_open_impl(..., NULL, NULL, NULL, ...) — identical to the
- *       plain open. EXCEPT when the operator set fallback_deny: an x509/
- *       bearer-kind cred (missing ak or sk) reaching an S3-only backend under
- *       deny mode must be refused rather than silently signed with the
- *       export's shared service credential — that is exactly the fallback
- *       the operator forbade. */
+ * HOW:  Three-way sd_remote_cred_gate: a usable S3 keypair signs with the
+ *       override; an unusable kind (x509/bearer) falls back to the static
+ *       instance credential, unless the operator set fallback_deny — then it
+ *       is refused with EACCES before any origin contact. */
 static brix_sd_obj_t *
 sd_remote_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, const brix_sd_cred_t *cred, int *err_out)
 {
+    int gate = sd_remote_cred_gate(cred);
+
     (void) mode;
 
-    if (cred != NULL && cred->s3_ak != NULL && cred->s3_sk != NULL) {
+    if (gate > 0) {
         return sd_remote_open_impl(inst, path, sd_flags,
             cred->s3_ak, cred->s3_sk, cred->s3_region, err_out);
     }
-
-    /* fallback_deny: cred kind unusable by this driver — refuse, don't fall
-     * back to service cred */
-    if (cred != NULL && cred->fallback_deny
-        && (cred->s3_ak == NULL || cred->s3_ak[0] == '\0'
-            || cred->s3_sk == NULL || cred->s3_sk[0] == '\0'))
-    {
+    if (gate < 0) {
         if (err_out) { *err_out = EACCES; }
         errno = EACCES;
         return NULL;
     }
-
     return sd_remote_open_impl(inst, path, sd_flags, NULL, NULL, NULL,
                                err_out);
 }
@@ -219,6 +250,93 @@ sd_remote_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
     return n;
 }
 
+/*
+ * sd_remote_preadv — coalesced vectored read over the ranged-GET origin.
+ *
+ * WHAT: Reads the contiguous file span [off, off + sum(iov_len)) with as few
+ *       ranged GETs as the transport allows and scatters the bytes into the
+ *       iovecs. Returns total bytes read (short = EOF), or -1 with errno set.
+ *
+ * WHY: The vectored read paths (pgread batches, kXR_readv runs) describe one
+ *      contiguous span split across many small page-sized iovecs. The generic
+ *      per-iovec pread fallback would issue one signed HTTP round trip per
+ *      4 KiB page — thousands of requests for a large read, which times the
+ *      client out. One GET per SD_S3_PREAD_MAX-capped chunk restores sane
+ *      request counts.
+ *
+ * HOW: Single-iovec calls loop sd_remote_pread straight into the caller's
+ *      buffer (no copy). Scattered calls fill a malloc'd bounce buffer with
+ *      the same loop, then memcpy per iovec — the HTTP body is copied anyway,
+ *      so the bounce adds one pass over bytes that already left the socket.
+ *      A 0-byte pread means EOF; a short chunk keeps looping (sd_s3_pread
+ *      caps each request, a cap hit is not EOF).
+ */
+static ssize_t
+sd_remote_pread_full(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
+{
+    size_t  done = 0;
+
+    while (done < len) {
+        ssize_t n = sd_remote_pread(obj, (char *) buf + done, len - done,
+                                    off + (off_t) done);
+        if (n < 0) {
+            return (done > 0) ? (ssize_t) done : -1;
+        }
+        if (n == 0) {
+            break;              /* EOF */
+        }
+        done += (size_t) n;
+    }
+    return (ssize_t) done;
+}
+
+static ssize_t
+sd_remote_preadv(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
+    off_t off)
+{
+    size_t   total = 0;
+    size_t   scattered;
+    ssize_t  n;
+    char    *bounce;
+    int      i;
+
+    for (i = 0; i < iovcnt; i++) {
+        total += iov[i].iov_len;
+    }
+    if (total == 0) {
+        return 0;
+    }
+
+    if (iovcnt == 1) {
+        return sd_remote_pread_full(obj, iov[0].iov_base, iov[0].iov_len, off);
+    }
+
+    bounce = malloc(total);
+    if (bounce == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    n = sd_remote_pread_full(obj, bounce, total, off);
+    if (n < 0) {
+        free(bounce);
+        return -1;
+    }
+
+    scattered = 0;
+    for (i = 0; i < iovcnt && scattered < (size_t) n; i++) {
+        size_t take = iov[i].iov_len;
+        if (take > (size_t) n - scattered) {
+            take = (size_t) n - scattered;
+        }
+        memcpy(iov[i].iov_base, bounce + scattered, take);
+        scattered += take;
+    }
+
+    free(bounce);
+    return n;
+}
+
 static ngx_int_t
 sd_remote_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
@@ -226,9 +344,11 @@ sd_remote_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     return NGX_OK;
 }
 
+/* Shared stat body: HEAD the object, optionally signing with a per-user
+ * ak/sk/region override (NULL = the instance's static service credential). */
 static ngx_int_t
-sd_remote_stat(brix_sd_instance_t *inst, const char *path,
-    brix_sd_stat_t *out)
+sd_remote_stat_impl(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out, const char *ak, const char *sk, const char *region)
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
@@ -239,6 +359,9 @@ sd_remote_stat(brix_sd_instance_t *inst, const char *path,
 
     sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
+    if (ak != NULL)     { p.ak     = ak; }
+    if (sk != NULL)     { p.sk     = sk; }
+    if (region != NULL) { p.region = region; }
 
     s3 = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
     if (s3 == NULL) {
@@ -259,13 +382,45 @@ sd_remote_stat(brix_sd_instance_t *inst, const char *path,
     return NGX_OK;
 }
 
+static ngx_int_t
+sd_remote_stat(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out)
+{
+    return sd_remote_stat_impl(inst, path, out, NULL, NULL, NULL);
+}
+
+/* Cred-scoped stat (P80.3): the probe/HEAD runs as the requesting user, so a
+ * deny-mode request never reaches the origin under the service credential.
+ * Registering this slot is also the canonical capability gate that turns on
+ * per-user namespace credential resolution in brix_vfs_ns_cred(). */
+static ngx_int_t
+sd_remote_stat_cred(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out, const brix_sd_cred_t *cred)
+{
+    int gate = sd_remote_cred_gate(cred);
+
+    if (gate > 0) {
+        return sd_remote_stat_impl(inst, path, out,
+            cred->s3_ak, cred->s3_sk, cred->s3_region);
+    }
+    if (gate < 0) {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    return sd_remote_stat_impl(inst, path, out, NULL, NULL, NULL);
+}
+
 /* ---- write path (SP3): the S3 store as a writable backend / cache / stage tier.
  * A staged write delegates to sd_s3's single-PUT/multipart upload; the object only
  * becomes visible at commit, so a staged upload is atomic from the reader's view. */
 
+/* Shared staged-open body: start the upload, optionally signing with a
+ * per-user ak/sk/region override (NULL = the static service credential). The
+ * override triple is copied into the staged state so the noreplace commit's
+ * HEAD (P80.2) presents the same identity as the upload (P80.3). */
 static brix_sd_staged_t *
-sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+sd_remote_staged_open_impl(brix_sd_instance_t *inst, const char *final_path,
+    const char *ak, const char *sk, const char *region, int *err_out)
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
@@ -275,11 +430,15 @@ sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path,
     sd_remote_staged_state       *ss;
     brix_sd_staged_t           *h;
 
-    (void) mode;
     sd_remote_s3_key(cfg, final_path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
+    if (ak != NULL)     { p.ak     = ak; }
+    if (sk != NULL)     { p.sk     = sk; }
+    if (region != NULL) { p.region = region; }
 
-    /* Unknown final size -> multipart upload (handles any object size). */
+    /* Unknown final size: sd_s3 buffers a single PUT and lazily upgrades to a
+     * multipart upload only past SD_REMOTE_PART_SIZE (P80.2), so small objects
+     * cost one request while any size still works. */
     s3 = sd_s3_open_write(&p, -1, SD_REMOTE_PART_SIZE, errbuf, sizeof(errbuf));
     if (s3 == NULL) {
         if (err_out) { *err_out = EIO; }
@@ -295,10 +454,53 @@ sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path,
         if (err_out) { *err_out = ENOMEM; }
         return NULL;
     }
-    ss->s3   = s3;
+    ss->s3 = s3;
+    snprintf(ss->objpath, sizeof(ss->objpath), "%s", objpath);
+    if (ak != NULL && sk != NULL) {
+        ss->has_cred = 1;
+        snprintf(ss->ak, sizeof(ss->ak), "%s", ak);
+        snprintf(ss->sk, sizeof(ss->sk), "%s", sk);
+        snprintf(ss->region, sizeof(ss->region), "%s",
+                 (region != NULL) ? region : "");
+    }
     h->inst  = inst;
     h->state = ss;
     return h;
+}
+
+static brix_sd_staged_t *
+sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path,
+    mode_t mode, int *err_out)
+{
+    (void) mode;
+    return sd_remote_staged_open_impl(inst, final_path, NULL, NULL, NULL,
+                                      err_out);
+}
+
+/* Cred-scoped staged open (P80.3): a write whose identity resolved to a
+ * `<key>.s3` credential uploads to the origin as THAT user — every leg of the
+ * upload (CreateMPU/UploadPart/PUT/Complete, and the noreplace HEAD via the
+ * copied triple) signs with the per-user keys. Gate semantics identical to
+ * sd_remote_open_cred. */
+static brix_sd_staged_t *
+sd_remote_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
+    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+{
+    int gate = sd_remote_cred_gate(cred);
+
+    (void) mode;
+
+    if (gate > 0) {
+        return sd_remote_staged_open_impl(inst, final_path,
+            cred->s3_ak, cred->s3_sk, cred->s3_region, err_out);
+    }
+    if (gate < 0) {
+        if (err_out) { *err_out = EACCES; }
+        errno = EACCES;
+        return NULL;
+    }
+    return sd_remote_staged_open_impl(inst, final_path, NULL, NULL, NULL,
+                                      err_out);
 }
 
 static ssize_t
@@ -322,7 +524,39 @@ sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace)
     char                    errbuf[256];
     int                     rc;
 
-    (void) noreplace;                          /* S3 PUT/MPU always replaces */
+    /* Exclusive publish (P80.2): S3 PUT/MPU-complete always replaces, so
+     * noreplace is a HEAD-before-publish existence check. This is check-then-
+     * act — RACY against a concurrent external writer landing the object
+     * between the HEAD and the PUT — but honest O_EXCL/POSC semantics for
+     * everything going through this gateway, versus silently overwriting. */
+    if (noreplace) {
+        const brix_sd_remote_cfg_t *cfg = h->inst->state;
+        sd_s3_open_params             p;
+        sd_s3_file                   *probe;
+        int64_t                       size = 0;
+
+        sd_remote_s3_params(cfg, ss->objpath, &p);
+        if (ss->has_cred) {
+            /* P80.3: the existence probe must present the same identity as
+             * the upload it gates — never the shared service credential. */
+            p.ak = ss->ak;
+            p.sk = ss->sk;
+            if (ss->region[0] != '\0') { p.region = ss->region; }
+        }
+        probe = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
+        if (probe != NULL) {
+            int exists = sd_s3_size(probe, &size, errbuf, sizeof(errbuf)) == 0;
+
+            sd_s3_close(probe);
+            if (exists) {
+                /* Failure contract: leave the staged handle intact — the
+                 * caller's staged_abort discards the upload and frees it. */
+                errno = EEXIST;
+                return NGX_ERROR;
+            }
+        }
+    }
+
     rc = sd_s3_commit(ss->s3, errbuf, sizeof(errbuf));
     sd_s3_close(ss->s3);
     free(ss);
@@ -345,17 +579,22 @@ sd_remote_staged_abort(brix_sd_staged_t *h)
     free(h);
 }
 
+/* Shared unlink body: DELETE the object, optionally signing with a per-user
+ * ak/sk/region override (NULL = the instance's static service credential). */
 static ngx_int_t
-sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
+sd_remote_unlink_impl(brix_sd_instance_t *inst, const char *path,
+    const char *ak, const char *sk, const char *region)
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
     char                          objpath[768];
     char                          errbuf[256];
 
-    (void) is_dir;
     sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
+    if (ak != NULL)     { p.ak     = ak; }
+    if (sk != NULL)     { p.sk     = sk; }
+    if (region != NULL) { p.region = region; }
 
     if (sd_s3_delete(&p, errbuf, sizeof(errbuf)) != 0) {
         if (errno == 0) { errno = EIO; }
@@ -364,18 +603,47 @@ sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     return NGX_OK;
 }
 
+static ngx_int_t
+sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
+{
+    (void) is_dir;
+    return sd_remote_unlink_impl(inst, path, NULL, NULL, NULL);
+}
+
+/* Cred-scoped unlink (P80.3): the DELETE runs as the requesting user. Gate
+ * semantics identical to sd_remote_open_cred. */
+static ngx_int_t
+sd_remote_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir,
+    const brix_sd_cred_t *cred)
+{
+    int gate = sd_remote_cred_gate(cred);
+
+    (void) is_dir;
+
+    if (gate > 0) {
+        return sd_remote_unlink_impl(inst, path,
+            cred->s3_ak, cred->s3_sk, cred->s3_region);
+    }
+    if (gate < 0) {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    return sd_remote_unlink_impl(inst, path, NULL, NULL, NULL);
+}
+
 /* Read + write: the S3 store serves as a read origin (Range GET) and a writable
  * cache_store / stage_store / backend (staged single-PUT / multipart upload, plus
  * DELETE for eviction and post-flush stage cleanup). */
 static const brix_sd_driver_t brix_sd_remote_driver = {
     .name  = "remote",
-    /* phase-71: read-only S3 primary — no .pwrite slot (writes are staged
-     * whole-object PUTs via .staged_*), so CAP_RANDOM_WRITE is NOT advertised. */
+    /* phase-71: no .pwrite slot — writes are staged whole-object uploads via
+     * .staged_*, so CAP_RANDOM_WRITE is deliberately NOT advertised. */
     .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE,
     .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM,
     .open  = sd_remote_open,
     .close = sd_remote_close,
     .pread = sd_remote_pread,
+    .preadv = sd_remote_preadv,   /* coalesced ranged GETs (P80.1 read path) */
     .fstat = sd_remote_fstat,
     .stat  = sd_remote_stat,
     .unlink        = sd_remote_unlink,
@@ -384,6 +652,12 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
     .staged_commit = sd_remote_staged_commit,
     .staged_abort  = sd_remote_staged_abort,
     .open_cred     = sd_remote_open_cred,   /* phase-3 T3: per-user SigV4 */
+    /* P80.3: per-user SigV4 for writes + metadata. stat_cred also gates
+     * brix_vfs_ns_cred() — registering it turns on per-user namespace
+     * credential resolution for this driver. */
+    .staged_open_cred = sd_remote_staged_open_cred,
+    .stat_cred        = sd_remote_stat_cred,
+    .unlink_cred      = sd_remote_unlink_cred,
 };
 
 brix_sd_instance_t *

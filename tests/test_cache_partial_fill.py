@@ -14,7 +14,7 @@ from _cache_partial_helpers import (
 
 # Each test stands up its OWN dedicated cache + origin nginx (2 per xroot test),
 # and the slice-cache origin read path SIGSEGVs under heavy concurrency — so this
-# suite runs in run_suite.sh's SERIAL lane, not the -n12 parallel pool.
+# suite runs in the suite runner's SERIAL lane, not the -n12 parallel pool.
 pytestmark = pytest.mark.serial
 
 BLK = 1024 * 1024  # 1 MiB slice granule (matches the proven brix_cache_slice 1m)

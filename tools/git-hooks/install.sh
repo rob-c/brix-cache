@@ -9,4 +9,4 @@ cd "$REPO"
 git config core.hooksPath tools/git-hooks
 chmod +x tools/git-hooks/pre-push
 echo "Installed: core.hooksPath → tools/git-hooks"
-echo "  pre-push now runs 'tests/run_suite.sh --fast' (~4min). Bypass: git push --no-verify"
+echo "  pre-push now runs 'python3 -m cmdscripts.operator_runtime suite --fast' (~4min). Bypass: git push --no-verify"

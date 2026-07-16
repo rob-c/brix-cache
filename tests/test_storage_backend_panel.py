@@ -21,60 +21,43 @@ Asserts the five spec scenarios:
 
 import json
 import os
-import socket
-import subprocess
 import time
 import urllib.error
 import urllib.request
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
-
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+from settings import HOST, BIND_HOST, NGINX_BIN, TEST_ROOT
+from server_registry import NginxInstanceSpec
 
 DASH_PW = "storage_panel_pw_1"
 N = 4 * 1024 * 1024  # transfer size: large enough to dwarf noise
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
-@pytest.fixture(scope="module")
-def server(tmp_path_factory):
+@pytest.fixture
+def server(lifecycle):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("storpanel")
-    data = root / "data"
-    data.mkdir()
-    remote_ns = root / "remote_ns"
-    remote_ns.mkdir()
-    (root / "tmp").mkdir()
+    # The xroot-backed export needs a real namespace dir at config-parse time
+    # (its dead origin is never contacted); create it before render.
+    remote_ns = os.path.join(TEST_ROOT, f"storpanel-remote-ns-{os.getpid()}")
+    os.makedirs(remote_ns, exist_ok=True)
 
-    http_port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_storage_backend_panel.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  PORT=http_port,
-                                  PASSWORD=DASH_PW,
-                                  DATA_DIR=data,
-                                  REMOTE_NS=remote_ns))
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-storage-backend-panel",
+        template="nginx_lc_storage_backend_panel.conf",
+        protocol="webdav",
+        template_values={"BIND_HOST": BIND_HOST, "PASSWORD": DASH_PW,
+                         "REMOTE_NS": remote_ns},
+        reason="backend storage observability panel coverage"))
 
-    proc = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                          capture_output=True, text=True)
-    if proc.returncode != 0:
-        pytest.skip("nginx -t failed for the test config:\n" + proc.stderr)
+    data = ep.data_root
 
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    base = f"http://{HOST}:{http_port}"
+    base = f"http://{HOST}:{ep.port}"
     for _ in range(50):
         try:
             urllib.request.urlopen(base + "/brix/api/v1/snapshot", timeout=2)
@@ -82,8 +65,6 @@ def server(tmp_path_factory):
         except Exception:
             time.sleep(0.1)
     yield {"base": base, "data": str(data)}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "stop"],
-                   capture_output=True)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

@@ -110,6 +110,11 @@ int       brix_open_posix_dispatch(brix_open_args_t *a);
 
 /* open_resolved_file_dispatch.c — backend/credential routing (driver vs POSIX). */
 ngx_int_t brix_open_dispatch_open(brix_open_args_t *a);
+/* True when a WRITE's ns leaf is staged-only (no CAP_RANDOM_WRITE, no .pwrite)
+ * and must route through the whole-object staged adapter. Also used by the
+ * orchestrator's resume divert (P80.2). */
+int       brix_open_write_needs_staged(brix_open_args_t *a,
+    brix_sd_instance_t *sd_inst);
 
 /* open_resolved_file_finalize.c — post-fd handle finalization (validate, init,
  * CSI, throttle, monitor, path, retstat, wt-decide). */

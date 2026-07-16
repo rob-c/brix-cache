@@ -18,8 +18,6 @@ Cases:
 """
 
 import os
-import shutil
-import subprocess
 import time
 import uuid
 import xml.etree.ElementTree as ET
@@ -27,14 +25,17 @@ import xml.etree.ElementTree as ET
 import pytest
 import requests
 
-from settings import NGINX_BIN
-from config_templates import render_config
+from settings import BIND_HOST, HOST as _HOST, NGINX_BIN  # noqa: F401  (NGINX_BIN: harness gate)
+from server_registry import NginxInstanceSpec
 
-PORT = 19733
+pytestmark = [pytest.mark.uses_lifecycle_harness]
+
 TTL_SECONDS = 2
-HOST = f"http://127.0.0.1:{PORT}"
 BUCKET = "testbucket"
 NS = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
+
+# Base URL of the live per-test server; set by the ``cache_server`` fixture.
+HOST = None
 
 
 def _keys_in(xml_text):
@@ -42,42 +43,31 @@ def _keys_in(xml_text):
     return [e.text for e in root.findall(".//s3:Contents/s3:Key", NS)]
 
 
-@pytest.fixture(scope="module")
-def cache_server(tmp_path_factory):
-    base = tmp_path_factory.mktemp("s3cache")
-    data = base / "data"
-    logs = base / "logs"
+@pytest.fixture()
+def cache_server(lifecycle, tmp_path):
+    data = tmp_path / "data"
     data.mkdir()
-    logs.mkdir()
-    conf = base / "nginx.conf"
-    conf.write_text(render_config("nginx_s3_list_cache_self.conf",
-                                  BASE_DIR=base,
-                                  LOG_DIR=logs,
-                                  PORT=PORT,
-                                  DATA_DIR=data,
-                                  BUCKET=BUCKET,
-                                  TTL_SECONDS=TTL_SECONDS))
-    env = dict(os.environ)
-    env["LD_LIBRARY_PATH"] = "/tmp/rt_libshim:/usr/lib64:" + env.get("LD_LIBRARY_PATH", "")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(base), "-c", str(conf)],
-                            env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    # Wait for the listener.
-    for _ in range(50):
-        try:
-            requests.get(f"{HOST}/{BUCKET}/", params={"list-type": "2"}, timeout=1)
-            break
-        except requests.exceptions.ConnectionError:
-            time.sleep(0.1)
-    else:
-        proc.terminate()
-        pytest.skip("could not start the S3 list-cache test server")
+    # The list cache watches the export-root (DATA_DIR) mtime at SECOND
+    # granularity.  This per-test server (function scope) starts with no
+    # accumulated history, so a warm + a top-level PUT within the same wall-clock
+    # second would read an unchanged root mtime and serve the stale cached
+    # listing.  Backdate the root so the top-level PUT lands on a strictly newer
+    # second and the mtime-invalidation path fires.
+    os.utime(data, (time.time() - 5, time.time() - 5))
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-s3-list-cache",
+        template="nginx_lc_s3_list_cache_self.conf",
+        protocol="s3",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "DATA_DIR": str(data),
+            "BUCKET": BUCKET,
+            "TTL_SECONDS": TTL_SECONDS,
+        },
+        reason="s3 list-cache TTL"))
+    global HOST
+    HOST = f"http://{_HOST}:{ep.port}"
     yield str(data)
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-    shutil.rmtree(base, ignore_errors=True)
 
 
 def _put(key, body=b"x"):

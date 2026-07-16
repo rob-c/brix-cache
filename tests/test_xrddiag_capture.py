@@ -14,63 +14,45 @@ Run (serial):
 
 import os
 import shutil
-import socket
 import subprocess
-import time
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
+from settings import HOST, BIND_HOST, NGINX_BIN
+from server_registry import NginxInstanceSpec
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
 XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
 @pytest.fixture(scope="module")
-def anon(tmp_path_factory):
+def _client_built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrddiag"],
                           capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(XRDDIAG):
         pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
+
+
+@pytest.fixture()
+def anon(lifecycle, _client_built, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    root = tmp_path_factory.mktemp("xrdcap")
-    data = root / "data"
+    data = tmp_path / "data"
     data.mkdir()
     (data / "probe.txt").write_bytes(b"hello capture\n")
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_stream_posix_anon.conf",
-                                  BASE_DIR=root, BIND_HOST=BIND_HOST,
-                                  PORT=port, DATA_DIR=data,
-                                  WORKER_CONNECTIONS=256))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        try:
-            with socket.create_connection((HOST, port), timeout=1):
-                break
-        except OSError:
-            time.sleep(0.1)
-    yield port, root
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-xrddiag-capture",
+        template="nginx_lc_stream_posix_anon.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+        reason="anon root server for xrddiag capture/replay bundles"))
+    yield ep.port, tmp_path
 
 
 def _capture_stat(port, root):

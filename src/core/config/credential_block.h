@@ -66,4 +66,22 @@ const brix_credential_t *brix_credential_lookup(const char *name);
 ngx_int_t brix_credential_bearer(const brix_credential_t *cred, char *out,
     size_t cap, ngx_log_t *log);
 
+/* The registry-side credential struct (fs/vfs/vfs_backend_registry.h); forward
+ * tag only, so this config-domain header does not pull in the VFS headers. */
+struct brix_vfs_backend_cred_s;
+
+/* THE one credential_t → backend_cred_t mapper (P80.1). Every site that hands a
+ * brix_credential to brix_vfs_backend_set_credential MUST use this — four
+ * hand-copied mappers drifted apart (the stream worker replay dropped bearer +
+ * all three s3 fields, wiping the registry slots to "" on every worker spawn).
+ * Zeroes *out; derives the bearer into bearer_buf (out->bearer points at it when
+ * non-empty); x509 = proxy-or-cert, key only when there is no proxy; str-or-NULL
+ * for ca_dir / s3 access-key / s3 secret-key / s3 region / sss_keytab. Returns
+ * NGX_OK, or NGX_ERROR when a configured token_file cannot be read. NULL cred ⇒
+ * anonymous (all-NULL) + NGX_OK. bearer_buf must outlive the set_credential call
+ * that consumes *out (the registry copies; a stack buffer is fine). */
+ngx_int_t brix_credential_to_backend_cred(const brix_credential_t *cred,
+    char *bearer_buf, size_t bearer_cap,
+    struct brix_vfs_backend_cred_s *out, ngx_log_t *log);
+
 #endif /* BRIX_CONFIG_CREDENTIAL_BLOCK_H */

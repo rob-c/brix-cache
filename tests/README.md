@@ -23,10 +23,10 @@ Anything that needs Docker, Kubernetes, Helm, or a cluster to run belongs in
 
 | Command | What it runs | Time | Use when |
 |---|---|---|---|
-| `tests/run_suite.sh --pr` | The `not slow` set (~6,990 tests): parallel bulk (`-n12`) + a small serial lane, one flake-filter re-run | **<5min** | The PR gate |
-| `tests/run_suite.sh --fast` | Just the parallel bulk (`-m "not slow and not serial"`) — no serial lane | **~4min** | Fastest iteration ("did I break something") |
-| `tests/run_suite.sh --nightly` | The deferred `slow` set (~1,770): resilience/chaos/fault-injection, throughput/perf/topology, conformance, clientconf, interop, … | ~8min | Pre-release / nightly CI |
-| `tests/run_suite.sh` | The full 4-lane suite (`--pr` + `--nightly` coverage) with the full flake-rerun ladder | **~10–12min** | The authoritative release gate |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --pr` | The `not slow` set (~6,990 tests): parallel bulk (`-n12`) + a small serial lane, one flake-filter re-run | **<5min** | The PR gate |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast` | Just the parallel bulk (`-m "not slow and not serial"`) — no serial lane | **~4min** | Fastest iteration ("did I break something") |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --nightly` | The deferred `slow` set (~1,770): resilience/chaos/fault-injection, throughput/perf/topology, conformance, clientconf, interop, … | ~8min | Pre-release / nightly CI |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite` | The full 4-lane suite (`--pr` + `--nightly` coverage) with the full flake-rerun ladder | **~10–12min** | The authoritative release gate |
 | `PYTHONPATH=tests pytest tests/test_X.py -v` | One file/test | seconds | Focused debugging |
 
 **`--pr` + `--nightly` together cover the same tests as the full run.** The split
@@ -47,7 +47,7 @@ the *current* binary.
 families (resilience / chaos / conformance / clientconf / mesh / throughput /
 interop / …). Those are auto-tagged `slow` in `conftest.py`
 (`_SLOW_MODULE_HINTS` + `pytest_collection_modifyitems`) — a single, additive
-marker: it does **not** change what the full `run_suite.sh` runs.
+marker: it does **not** change what the full suite run covers.
 
 It is a fast *signal*, **not** a substitute for the full run: it skips ~1,750
 slow tests and doesn't run the dedicated serial/destructive lanes. Run the full

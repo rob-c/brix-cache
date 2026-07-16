@@ -32,6 +32,7 @@
 #include <stdlib.h>
 
 #include <sqlite3.h>
+#include <sys/xattr.h>    /* XATTR_CREATE / XATTR_REPLACE */
 
 struct pblock_catalog_iter {
     sqlite3_stmt *stmt;
@@ -275,6 +276,30 @@ pblock_catalog_closedir(pblock_catalog_iter *it)
 
 /* ---- xattrs --------------------------------------------------------------- */
 
+/* ---- POSIX existence gate for every xattr operation ----
+ *
+ * WHAT: 0 when `path` has an objects row; -1 with errno ENOENT when it does
+ *       not (or the underlying lookup failed, keeping its errno).
+ *
+ * WHY: The xattrs table is keyed by path with no foreign key — without this
+ *      gate a setxattr on a non-existent path inserted an ORPHAN row and
+ *      get/list on one returned ENODATA/empty instead of ENOENT, diverging
+ *      from every kernel *xattr syscall.
+ *
+ * HOW: 1. Existence-probe via pblock_catalog_lookup (nscache answers repeats).
+ *      2. Map "absent" (1) to ENOENT; pass hard errors (-1) through.
+ */
+static int
+xattr_path_gate(pblock_catalog *cat, const char *path)
+{
+    int rc = pblock_catalog_lookup(cat, path, NULL);
+
+    if (rc > 0) {
+        return cat_fail(ENOENT);
+    }
+    return rc;                    /* 0 = exists, -1 = lookup error (errno set) */
+}
+
 ssize_t
 pblock_catalog_getxattr(pblock_catalog *cat, const char *path,
     const char *name, void *buf, size_t cap)
@@ -283,6 +308,9 @@ pblock_catalog_getxattr(pblock_catalog *cat, const char *path,
     int           rc;
     ssize_t       len;
 
+    if (xattr_path_gate(cat, path) != 0) {
+        return -1;
+    }
     stmt = cat_prepare(cat,
         "SELECT value FROM xattrs WHERE path = ?1 AND name = ?2;");
     if (stmt == NULL) {
@@ -324,6 +352,9 @@ pblock_catalog_listxattr(pblock_catalog *cat, const char *path, void *buf,
     size_t        total = 0;
     char         *out = buf;
 
+    if (xattr_path_gate(cat, path) != 0) {
+        return -1;
+    }
     stmt = cat_prepare(cat,
         "SELECT name FROM xattrs WHERE path = ?1 ORDER BY name;");
     if (stmt == NULL) {
@@ -351,16 +382,49 @@ pblock_catalog_listxattr(pblock_catalog *cat, const char *path, void *buf,
     return (ssize_t) total;
 }
 
+/* ---- Set an xattr with kernel setxattr(2) flag semantics ----
+ *
+ * WHAT: Upserts (flags==0), inserts-only (XATTR_CREATE → EEXIST when present)
+ *       or updates-only (XATTR_REPLACE → ENODATA when absent) the (path, name)
+ *       row. 0, or -1/errno (ENOENT when the path itself does not exist,
+ *       EINVAL when both flags are set).
+ *
+ * WHY: The previous unconditional INSERT OR REPLACE silently ignored the
+ *      caller's flags, so protocol-level create/replace preconditions (WebDAV
+ *      If-None-Match-style, xrdfs xattr create) could never fail as required.
+ *
+ * HOW: 1. Reject the contradictory CREATE|REPLACE combination (EINVAL, as the
+ *         kernel does). 2. Gate on the path's objects row (ENOENT). 3. Pick
+ *         the statement the flags demand: plain INSERT (its PRIMARY KEY
+ *         constraint IS the create check), plain UPDATE (0 rows changed means
+ *         the name was absent), or INSERT OR REPLACE for the upsert.
+ *      4. Map SQLITE_CONSTRAINT/zero-change to EEXIST/ENODATA respectively.
+ */
 int
 pblock_catalog_setxattr(pblock_catalog *cat, const char *path,
-    const char *name, const void *val, size_t len)
+    const char *name, const void *val, size_t len, int flags)
 {
     sqlite3_stmt *stmt;
-    int           rc;
+    int           rc, changed;
+    const char   *sql;
 
-    stmt = cat_prepare(cat,
-        "INSERT OR REPLACE INTO xattrs (path, name, value)"
-        "  VALUES (?1, ?2, ?3);");
+    if ((flags & XATTR_CREATE) && (flags & XATTR_REPLACE)) {
+        return cat_fail(EINVAL);
+    }
+    if (xattr_path_gate(cat, path) != 0) {
+        return -1;
+    }
+
+    if (flags & XATTR_CREATE) {
+        sql = "INSERT INTO xattrs (path, name, value) VALUES (?1, ?2, ?3);";
+    } else if (flags & XATTR_REPLACE) {
+        sql = "UPDATE xattrs SET value = ?3 WHERE path = ?1 AND name = ?2;";
+    } else {
+        sql = "INSERT OR REPLACE INTO xattrs (path, name, value)"
+              "  VALUES (?1, ?2, ?3);";
+    }
+
+    stmt = cat_prepare(cat, sql);
     if (stmt == NULL) {
         return -1;
     }
@@ -369,8 +433,19 @@ pblock_catalog_setxattr(pblock_catalog *cat, const char *path,
     sqlite3_bind_blob(stmt, 3, val, (int) len, SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
+    changed = sqlite3_changes(cat->db);
     sqlite3_finalize(stmt);
-    return rc == SQLITE_DONE ? 0 : cat_fail(EIO);
+
+    if (rc == SQLITE_CONSTRAINT) {
+        return cat_fail(EEXIST);              /* XATTR_CREATE on existing name */
+    }
+    if (rc != SQLITE_DONE) {
+        return cat_fail(EIO);
+    }
+    if ((flags & XATTR_REPLACE) && changed == 0) {
+        return cat_fail(ENODATA);             /* XATTR_REPLACE on absent name  */
+    }
+    return 0;
 }
 
 int
@@ -380,6 +455,9 @@ pblock_catalog_removexattr(pblock_catalog *cat, const char *path,
     sqlite3_stmt *stmt;
     int           rc, changed;
 
+    if (xattr_path_gate(cat, path) != 0) {
+        return -1;
+    }
     stmt = cat_prepare(cat,
         "DELETE FROM xattrs WHERE path = ?1 AND name = ?2;");
     if (stmt == NULL) {

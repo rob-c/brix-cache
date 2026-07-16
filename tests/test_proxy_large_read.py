@@ -6,88 +6,56 @@ Regression for the splice under-drain stall: a single large official-XrdCl read
 splice() path, which on kernels whose socket-splice under-drains (e.g. WSL2)
 crawled a 5 MiB read past the client's timeout — the real cause of flaky
 test_conformance_topologies[proxy]/[mesh]. The proxy now falls back to the
-buffered recv relay for the remainder when splice can't keep up.
+buffered recv relay for the remainder when splice can't keep up
+(src/net/proxy/events_splice.c, brix_proxy_splice_drain_to_buffered).
 
-Self-contained: provisions its own backend + proxy nginx (high ports) and drives
-the freshly-built objs/nginx directly — no shared fleet. Uses the official XrdCl
-worker (tests/_xrdcl_proxy) because the bug only manifests with XrdCl's single
-large read (xrdcp chunks reads and never triggered splice).
+Throwaway backend + proxy nginx come from the registry lifecycle harness. Uses
+the official XrdCl worker (tests/_xrdcl_proxy) because the bug only manifests
+with XrdCl's single large read (xrdcp chunks reads and never triggered splice).
 """
 
 import hashlib
 import os
-import socket
-import subprocess
 import time
 
 import pytest
 
-from config_templates import render_config
-
-NGINX_BIN = os.environ.get("LIFECYCLE_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+from settings import BIND_HOST, NGINX_BIN
+from server_registry import NginxInstanceSpec
 
 pytestmark = [
-    pytest.mark.skipif(
-        not os.path.isfile(NGINX_BIN),
-        reason=f"nginx binary not built at {NGINX_BIN}",
-    ),
+    pytest.mark.uses_lifecycle_harness,
     # serial: asserts large reads are "fast" — timing-sensitive under the pool.
     pytest.mark.serial,
 ]
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
 @pytest.fixture
-def proxy_stack(tmp_path):
+def proxy_stack(lifecycle):
     """A backend data server + a transparent proxy in front of it; yields (proxy_url, md5)."""
-    root = tmp_path / "data"
-    root.mkdir()
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+    backend = lifecycle.start(NginxInstanceSpec(
+        name="lc-proxy-large-read-be",
+        template="nginx_lc_proxy_large_read_backend.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST},
+        reason="brix_proxy large-read backend origin"))
+
     blob = os.urandom(5 * 1024 * 1024)          # 5 MiB — large enough to splice
-    (root / "big.bin").write_bytes(blob)
+    with open(os.path.join(backend.data_root, "big.bin"), "wb") as fh:
+        fh.write(blob)
     md5 = hashlib.md5(blob).hexdigest()
 
-    be_port, px_port = _free_port(), _free_port()
-    confs = {
-        "be": render_config(
-            "nginx_proxy_large_read_backend.conf",
-            BASE_DIR=tmp_path,
-            PORT=be_port,
-            DATA_DIR=root,
-        ),
-        "px": render_config(
-            "nginx_proxy_large_read_proxy.conf",
-            BASE_DIR=tmp_path,
-            PORT=px_port,
-            BACKEND_PORT=be_port,
-        ),
-    }
-    paths = {}
-    for name, text in confs.items():
-        p = tmp_path / f"{name}.conf"
-        p.write_text(text)
-        paths[name] = str(p)
-        subprocess.run([NGINX_BIN, "-c", str(p)], check=True)
+    proxy = lifecycle.start(NginxInstanceSpec(
+        name="lc-proxy-large-read-px",
+        template="nginx_lc_proxy_large_read_proxy.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "BACKEND_PORT": backend.port},
+        reason="brix_proxy transparent front proxy"))
 
-    # wait for the proxy to accept
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", px_port), timeout=0.5):
-                break
-        except OSError:
-            time.sleep(0.02)
-
-    yield f"root://127.0.0.1:{px_port}", md5
-
-    for p in paths.values():
-        subprocess.run([NGINX_BIN, "-c", p, "-s", "stop"], stderr=subprocess.DEVNULL)
+    return f"root://{proxy.host}:{proxy.port}", md5
 
 
 def test_repeated_large_reads_through_proxy_are_fast_and_correct(proxy_stack):

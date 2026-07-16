@@ -122,12 +122,11 @@ def zipsrv():
     data = os.path.join(TEST_ROOT, "data-zip")
     os.makedirs(data, exist_ok=True)
     zpath = os.path.join(data, "a.zip")
-    if not os.path.exists(zpath):
-        with zipfile.ZipFile(zpath, "w") as z:
-            z.writestr("stored.txt", STORED, compress_type=zipfile.ZIP_STORED)
-            zi = zipfile.ZipInfo("sub/defl.bin")
-            zi.compress_type = zipfile.ZIP_DEFLATED
-            z.writestr(zi, DEFL)
+    with zipfile.ZipFile(zpath, "w") as z:
+        z.writestr("stored.txt", STORED, compress_type=zipfile.ZIP_STORED)
+        zi = zipfile.ZipInfo("sub/defl.bin")
+        zi.compress_type = zipfile.ZIP_DEFLATED
+        z.writestr(zi, DEFL)
     for p in (PORT, HTTP_PORT, S3_PORT):
         if not _wait_listen(p):
             pytest.skip(f"fleet zip instance not listening on {p}")

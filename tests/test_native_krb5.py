@@ -19,14 +19,12 @@ Run (serial):
 import hashlib
 import os
 import shutil
-import socket
 import subprocess
-import time
 
 import pytest
 
-from config_templates import render_config
 import kdc_helpers
+from server_registry import NginxInstanceSpec
 from settings import (
     BIND_HOST,
     HOST,
@@ -34,22 +32,16 @@ from settings import (
     KRB5_CONF,
     KRB5_KEYTAB,
     KRB5_SERVICE_PRINCIPAL,
+    NGINX_BIN,
     url_host,
 )
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 def _client_has_krb5():
@@ -64,8 +56,8 @@ def _client_has_krb5():
     return "krb5" in (p.stderr + p.stdout).lower()
 
 
-@pytest.fixture(scope="module")
-def krb5_server(tmp_path_factory):
+@pytest.fixture()
+def krb5_server(lifecycle, tmp_path):
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
@@ -77,56 +69,46 @@ def krb5_server(tmp_path_factory):
     if not kdc_helpers.krb5_tools_available():
         pytest.skip("MIT KDC tooling not installed (install krb5-server)")
 
-    # Stand up the isolated realm (KDC + service keytab + kinit'd alice).
+    # Stand up the isolated realm (KDC + service keytab + kinit'd alice); this
+    # generates the keytab + krb5.conf profile the acceptor authenticates against.
     if not kdc_helpers.up():
         pytest.skip("krb5 realm could not be provisioned")
 
-    root = tmp_path_factory.mktemp("krb5srv")
-    data = root / "data"
+    data = tmp_path / "data"
     data.mkdir()
     payload = os.urandom(40000)
     (data / "probe.txt").write_bytes(b"krb5-ok\n")
     (data / "blob.bin").write_bytes(payload)
 
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_native_krb5.conf",
-        BASE_DIR=root,
-        BIND_HOST=url_host(BIND_HOST),
-        PORT=port,
-        DATA_DIR=data,
-        PRINCIPAL=KRB5_SERVICE_PRINCIPAL,
-        KEYTAB=KRB5_KEYTAB,
-    ))
-    # The acceptor needs the realm config (auth_to_local + default_realm).
-    srv_env = {k: v for k, v in os.environ.items()}
-    srv_env["KRB5_CONFIG"] = KRB5_CONF
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True,
-                       text=True, env=srv_env)
-    if t.returncode != 0:
+    # The acceptor needs the realm config (auth_to_local + default_realm); the
+    # launcher's nginx -t inherits the process env, so pin it here too.
+    os.environ["KRB5_CONFIG"] = KRB5_CONF
+
+    try:
+        ep = lifecycle.start(NginxInstanceSpec(
+            name="lc-native-krb5",
+            template="nginx_lc_native_krb5.conf",
+            protocol="root",
+            template_values={
+                "BIND_HOST": url_host(BIND_HOST),
+                "DATA_DIR": str(data),
+                "PRINCIPAL": KRB5_SERVICE_PRINCIPAL,
+                "KEYTAB": KRB5_KEYTAB,
+            },
+            env={"KRB5_CONFIG": KRB5_CONF},
+            reason="stream krb5 auth"))
+    except Exception:
         kdc_helpers.down()
-        pytest.skip("nginx -t failed for the krb5 config:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True, env=srv_env)
-    for _ in range(50):
-        try:
-            with socket.create_connection((HOST, port), timeout=1):
-                break
-        except OSError:
-            time.sleep(0.1)
+        raise
 
     if not _client_has_krb5():
-        subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True,
-                       env=srv_env)
         kdc_helpers.down()
         pytest.skip("client built without -DBRIX_HAVE_KRB5")
 
-    yield {"port": port, "payload": payload, "conf": str(conf), "env": srv_env}
-
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True,
-                   env=srv_env)
-    time.sleep(0.3)
-    kdc_helpers.down()
+    try:
+        yield {"port": ep.port, "payload": payload}
+    finally:
+        kdc_helpers.down()
 
 
 def _client_env(ccache=KRB5_CCACHE):

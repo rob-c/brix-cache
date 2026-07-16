@@ -23,33 +23,14 @@ import time
 
 import pytest
 
-from guard_http_lib import NGINX_BIN, free_port
+from guard_http_lib import NGINX_BIN
 from settings import BIND_HOST
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
 
-pytestmark = pytest.mark.timeout(180)
-
-
-def _write_conf(prefix, body):
-    conf = prefix / "nginx.conf"
-    conf.write_text(render_config("nginx_stream_guard.conf",
-                                  BASE_DIR=prefix,
-                                  SERVER_BLOCKS=body))
-    return conf
-
-
-def _start_nginx(prefix, conf):
-    rc = subprocess.run([NGINX_BIN, "-p", str(prefix), "-c", str(conf)],
-                        capture_output=True, text=True)
-    assert rc.returncode == 0, f"nginx start failed: {rc.stderr}"
-
-
-def _stop_nginx(prefix, conf):
-    subprocess.run([NGINX_BIN, "-p", str(prefix), "-c", str(conf), "-s",
-                    "stop"], capture_output=True)
+pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness]
 
 
 def _xrdfs(port, *args, timeout=30):
@@ -68,59 +49,46 @@ def _guard_lines(prefix):
     return [ln for ln in log.read_text().splitlines() if "signal=" in ln]
 
 
-@pytest.fixture(scope="module")
-def relays(tmp_path_factory):
+@pytest.fixture()
+def relays(lifecycle, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
     if not os.access(XRDFS, os.X_OK):
         pytest.skip(f"xrdfs not built: {XRDFS}")
 
-    root = tmp_path_factory.mktemp("streamguard")
-    origin = root / "origin"
-    guarded = root / "guarded"
-    unguarded = root / "unguarded"
-    for prefix in (origin, guarded, unguarded):
-        (prefix / "logs").mkdir(parents=True)
-
-    export = origin / "export"
+    # brix_export is validated at config-parse time, so seed it before start().
+    export = tmp_path / "export"
     export.mkdir()
     payload = os.urandom(300000)
     (export / "f.bin").write_bytes(payload)
 
-    origin_port = free_port()
-    guarded_port = free_port()
-    unguarded_port = free_port()
+    origin = lifecycle.start(NginxInstanceSpec(
+        name="lc-stream-guard-origin",
+        template="nginx_lc_stream_guard_origin.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "EXPORT_DIR": str(export)},
+        reason="stream-guard origin (anon root:// export)"))
+    guarded = lifecycle.start(NginxInstanceSpec(
+        name="lc-stream-guard-guarded",
+        template="nginx_lc_stream_guard_relay.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "ORIGIN_PORT": origin.port,
+                         "GUARD_DIRECTIVE": "brix_guard_stream on;"},
+        reason="stream-guard guarded transparent relay"))
+    unguarded = lifecycle.start(NginxInstanceSpec(
+        name="lc-stream-guard-unguarded",
+        template="nginx_lc_stream_guard_relay.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "ORIGIN_PORT": origin.port,
+                         "GUARD_DIRECTIVE": ""},
+        reason="stream-guard unguarded relay (guard defaults off)"))
 
-    origin_conf = _write_conf(origin, render_config(
-        "nginx_stream_guard_origin_server.conf",
-        BIND_HOST=BIND_HOST,
-        PORT=origin_port,
-        EXPORT_DIR=export))
-    guarded_conf = _write_conf(guarded, render_config(
-        "nginx_stream_guard_relay_server.conf",
-        BIND_HOST=BIND_HOST,
-        PORT=guarded_port,
-        ORIGIN_PORT=origin_port,
-        GUARD_DIRECTIVE="brix_guard_stream on;"))
-    unguarded_conf = _write_conf(unguarded, render_config(
-        "nginx_stream_guard_relay_server.conf",
-        BIND_HOST=BIND_HOST,
-        PORT=unguarded_port,
-        ORIGIN_PORT=origin_port,
-        GUARD_DIRECTIVE=""))
-
-    _start_nginx(origin, origin_conf)
-    _start_nginx(guarded, guarded_conf)
-    _start_nginx(unguarded, unguarded_conf)
-    time.sleep(0.5)
-
-    yield {"origin_port": origin_port, "guarded_port": guarded_port,
-           "unguarded_port": unguarded_port, "guarded_prefix": guarded,
-           "unguarded_prefix": unguarded, "payload": payload}
-
-    _stop_nginx(origin, origin_conf)
-    _stop_nginx(guarded, guarded_conf)
-    _stop_nginx(unguarded, unguarded_conf)
+    # Guard audit lines land in each relay's own error.log (= {LOG_DIR}).
+    return {"origin_port": origin.port, "guarded_port": guarded.port,
+            "unguarded_port": unguarded.port,
+            "guarded_prefix": pathlib.Path(guarded.prefix) / "logs",
+            "unguarded_prefix": pathlib.Path(unguarded.prefix) / "logs",
+            "payload": payload}
 
 
 class TestStreamGuard:

@@ -18,6 +18,7 @@ docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md.
 """
 import json
 import os
+import pathlib
 import shutil
 import socket
 import subprocess
@@ -69,10 +70,11 @@ def test_scan_core_suite(scan_core_bin):
 # self-contained nginx with brix_scan_root on a seeded tree (mirrors         #
 # test_dashboard_files.py's provisioning).                                     #
 # --------------------------------------------------------------------------- #
-from settings import HOST, BIND_HOST  # noqa: E402
-from config_templates import render_config  # noqa: E402
+from settings import HOST, BIND_HOST, NGINX_BIN  # noqa: E402
+from server_registry import NginxInstanceSpec  # noqa: E402
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 SCAN_PW = "scan_admin_pw_42"
 
 A_BYTES = b"A" * 1000
@@ -96,12 +98,15 @@ def _xattr_supported(path):
         return False
 
 
-@pytest.fixture(scope="module")
-def scan_server(tmp_path_factory):
+@pytest.fixture()
+def scan_server(lifecycle, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip("nginx not executable: %s" % NGINX_BIN)
 
-    root = tmp_path_factory.mktemp("scansrv")
+    # brix_scan_root is validated at config-parse time, so the tree must exist
+    # before start().  Seed it under tmp_path: scan_root = <root>/data, with a
+    # secret one level up (outside scan_root) for the traversal probe.
+    root = tmp_path / "scanroot"
     data = root / "data"
     (data / "sub").mkdir(parents=True)
     (data / "a.bin").write_bytes(A_BYTES)
@@ -110,31 +115,25 @@ def scan_server(tmp_path_factory):
 
     xattr_ok = _xattr_supported(str(data / "a.bin"))
 
-    hp = _free_port()
-    hp_off = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_scan_dashboard.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  PORT=hp,
-                                  OFF_PORT=hp_off,
-                                  PASSWORD=SCAN_PW,
-                                  DATA_DIR=data))
+    off_port = _free_port()
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-scan-dashboard",
+        template="nginx_lc_scan_dashboard.conf",
+        protocol="http",
+        extra_ports={"OFF_PORT": off_port},
+        template_values={"BIND_HOST": BIND_HOST, "PASSWORD": SCAN_PW,
+                         "DATA_DIR": str(data)},
+        reason="storage-scan dashboard endpoint over a seeded tree"))
 
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    base = "http://%s:%d" % (HOST, hp)
+    base = "http://%s:%d" % (HOST, ep.port)
     for _ in range(50):
         try:
             urllib.request.urlopen(base + "/brix", timeout=2)
             break
         except Exception:
             time.sleep(0.1)
-    yield {"base": base, "base_off": "http://%s:%d" % (HOST, hp_off),
-           "data": data, "xattr_ok": xattr_ok}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "stop"], capture_output=True)
+    return {"base": base, "base_off": "http://%s:%d" % (HOST, off_port),
+            "data": data, "xattr_ok": xattr_ok}
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

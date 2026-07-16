@@ -902,14 +902,14 @@ Build matrix guardrails:
 - External XML builds are detected with `pkg-config --exists libxml-2.0` and
   compile `src/core/compat/xml.c` with `BRIX_HAVE_LIBXML2=1`.
 - Shared checksum code is compiled through `src/core/compat/crc32c.c`.
-- Unit coverage for the build hooks lives in `tests/unit/run_tests.sh`,
+- Unit coverage for the build hooks lives in `tests/cmdscripts/unit_tests.py`,
   `tests/unit/test_xml_compat.c`, and `tests/unit/test_crc32c.c`.
 
 Recommended Phase 0 verification:
 
 ```bash
 PYTHONPATH=tests pytest tests/test_phase0_guardrails.py -q
-tests/unit/run_tests.sh
+PYTHONPATH=tests python3 -m cmdscripts.unit_tests
 PYTHONPATH=tests pytest tests/test_http_webdav_status_codes.py tests/test_http_webdav_lock_recursive.py -q
 PYTHONPATH=tests pytest tests/test_token_auth.py tests/test_token_security.py tests/test_token_jwks_refresh.py -q
 PYTHONPATH=tests pytest tests/test_xrdhttp.py tests/test_xrdhttp_conformance.py tests/test_query_extended.py -q
@@ -989,7 +989,7 @@ Phase 1 guardrails:
 
 ```bash
 PYTHONPATH=tests pytest tests/test_phase1_commodity_libraries.py -q
-tests/unit/run_tests.sh
+PYTHONPATH=tests python3 -m cmdscripts.unit_tests
 ```
 
 The Phase 1 inventory is enforced by

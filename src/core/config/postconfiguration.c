@@ -74,6 +74,13 @@ brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
             "OPEN to anonymous clients (set brix_auth to require "
             "credentials)");
     }
+    if (xcf->auth == BRIX_AUTH_PWD) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "brix:   NOTE: password (pwd) authentication is enabled — do "
+            "NOT rely on password auth in production, it is poor practice "
+            "(prefer GSI/x509 or bearer tokens, and run pwd only behind "
+            "TLS)");
+    }
     if ((xcf->auth == BRIX_AUTH_GSI || xcf->auth == BRIX_AUTH_BOTH)
         && xcf->crl.len == 0)
     {

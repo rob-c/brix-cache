@@ -111,7 +111,11 @@
  *         matches the stored fresh key (this IS the delegation's proof of
  *         possession: only a client holding the matching CSR could produce
  *         a proxy whose key matches) and returns the assembled
- *         <proxy><chain> PEM.  Validate every cert's notAfter is still in
+ *         <proxy><chain><private key> PEM — the reqkey is serialized into
+ *         the blob so the stored credential is complete and can
+ *         authenticate downstream (proxy_ssl_certificate_key, TPC pull,
+ *         origin auth all load key+chain from the one stored file).
+ *         Validate every cert's notAfter is still in
  *         the future and the chain's end-entity DN matches ctx->dn (reuse
  *         delegation_chain_expired / delegation_eec_dn_matches, the SAME T8
  *         helpers — a two-step-assembled credential is validated exactly
@@ -360,10 +364,24 @@ delegation_store_pem(ngx_log_t *log, const ngx_str_t *dir, const char *key,
 
     fd = open(tmp_path, /* vfs-seam-allow: cred dir is svc-owned config, not an export */
               O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    if (fd < 0 && ngx_errno == NGX_ENOENT) {
+        /* Store dir vanished (tmpfs default is wiped by a reboot without a
+         * config reload, or an admin rm'd it) — recreate it 0700 as the
+         * worker uid and retry once before shouting. */
+        if (mkdir((const char *) dir->data, 0700) == 0 /* vfs-seam-allow: cred dir is svc-owned config, not an export */
+            || ngx_errno == NGX_EEXIST)
+        {
+            fd = open(tmp_path, /* vfs-seam-allow: cred dir is svc-owned config, not an export */
+                      O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+        }
+    }
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "brix_delegation: open(\"%s\") temp cred file failed",
-                      tmp_path);
+        ngx_log_error(NGX_LOG_ALERT, log, ngx_errno,
+                      "brix_delegation: open(\"%s\") temp cred file failed — "
+                      "credential store \"%V\" is missing or not writable; "
+                      "delegation will not work until "
+                      "brix_storage_credential_dir is fixed",
+                      tmp_path, dir);
         return NGX_ERROR;
     }
 

@@ -4,29 +4,26 @@ The worker-0 sweeper removes `*.xrdresume.part` files in the configured stage di
 once they are older than $BRIX_UPLOAD_RESUME_TTL, while preserving fresh ones
 (an in-progress / recently-interrupted upload must never be disturbed) and
 ignoring non-resume files.
+
+Throwaway nginx comes from the registry lifecycle harness.
 """
 import os
-import socket
-import subprocess
 import time
 
 import pytest
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
-from config_templates import render_config
+from settings import NGINX_BIN, BIND_HOST
+from server_registry import NginxInstanceSpec
 
-PORT = int(os.environ.get("TEST_XFER_SWEEP_PORT") or free_port())
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
-@pytest.fixture(scope="module")
-def sweep_server(tmp_path_factory):
+@pytest.fixture
+def sweep_server(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
 
-    d = tmp_path_factory.mktemp("resumesweep")
-    (d / "logs").mkdir()
-    (d / "data").mkdir()
-    stage = d / "stage"; stage.mkdir()
+    stage = tmp_path / "stage"; stage.mkdir()
 
     # An abandoned partial (old mtime) → must be swept.
     old = stage / "deadbeef.xrdresume.part"
@@ -41,41 +38,18 @@ def sweep_server(tmp_path_factory):
     keep.write_bytes(b"not a partial")
     os.utime(keep, (past, past))
 
-    conf = render_config("nginx_xfer_resume_sweep.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=PORT,
-                         DATA_DIR=d / "data",
-                         STAGE_DIR=stage)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    env = dict(os.environ, BRIX_UPLOAD_RESUME_TTL="600")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-    deadline = time.time() + 10
-    up = False
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, PORT), timeout=0.5).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip(f"sweep server did not start: {err}")
+    lifecycle.start(NginxInstanceSpec(
+        name="lc-resume-sweep",
+        template="nginx_xfer_resume_sweep.conf",
+        template_values={"BIND_HOST": BIND_HOST, "STAGE_DIR": str(stage)},
+        env={"BRIX_UPLOAD_RESUME_TTL": "600"},
+        reason="upload-resume partial TTL sweep coverage"))
 
     class S:
         pass
     s = S()
     s.old, s.fresh, s.keep = str(old), str(fresh), str(keep)
-    yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    return s
 
 
 def test_ttl_sweep_removes_only_stale_partials(sweep_server):

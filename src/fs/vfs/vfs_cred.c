@@ -234,6 +234,7 @@ vfs_cred_fill_user(brix_vfs_ctx_t *ctx, brix_sd_ucred_t *store,
     cred->ceph_user     = store->is_ceph ? store->ceph_user    : NULL;
     cred->key           = store->key;
     cred->principal     = store->principal;
+    cred->vos           = brix_identity_vo_csv_cstr(ctx->identity);
     cred->cred_dir      = ctx->storage_cred_dir;
     cred->fallback_deny = ctx->storage_cred_deny;
     *use_cred = 1;
@@ -309,6 +310,25 @@ vfs_backend_cred_decide(brix_vfs_ctx_t *ctx, int cap_ok,
     rc = vfs_cred_live_bag(ctx, cred, use_cred, err_out, &handled);
     if (handled) {
         return rc;
+    }
+
+    /* Local-identity backends (BRIX_SD_CRED_IDENTITY, e.g. pblock's catalog-
+     * internal ownership): the leaf consumes only WHO the client is — no
+     * forwardable secret exists to select or mint, so no credential directory
+     * is needed.  Hand the driver the principal + VO list and dispatch through
+     * the *_cred slots.  An unauthenticated/anonymous request falls through to
+     * the plain slots (service semantics), which is the pre-identity behaviour.
+     * No USER/FALLBACK/DENY counter fires here: those measure per-user BACKEND
+     * credential outcomes, and no backend credential is involved. */
+    if ((brix_sd_cred_accept(brix_vfs_ns_leaf(ctx->sd))
+         & BRIX_SD_CRED_IDENTITY)
+        && brix_sd_ucred_principal(ctx->identity, store->principal,
+                                   sizeof(store->principal)) == NGX_OK)
+    {
+        cred->principal = store->principal;
+        cred->vos       = brix_identity_vo_csv_cstr(ctx->identity);
+        *use_cred = 1;
+        return NGX_OK;
     }
 
     if (ctx->storage_cred_dir == NULL || ctx->storage_cred_dir[0] == '\0') {
@@ -426,9 +446,15 @@ brix_vfs_backend_cred(brix_vfs_ctx_t *ctx, brix_sd_ucred_t *store,
  *       copy) must run the cred gate whenever EITHER source is present; keying
  *       on storage_cred_dir alone dropped the passthrough bearer/proxy on ns
  *       ops (the data-plane gate already consults the deleg bag first).
+ *       A local-identity leaf (BRIX_SD_CRED_IDENTITY, e.g. pblock's catalog-
+ *       internal ownership) is a third source: it consumes only WHO the caller
+ *       is, so an authenticated identity must activate the gate too — without
+ *       it every namespace op (rm/chmod/setattr/xattr/rename) would dispatch
+ *       through the plain slots and run with service (root-like) rights.
  *
- * HOW:  storage_cred_dir non-empty OR a bound bag (mode != SELECT). Pure
- *       predicate — no I/O, no cred materialisation (the gate does that). */
+ * HOW:  storage_cred_dir non-empty OR a bound bag (mode != SELECT) OR an
+ *       identity-accepting leaf with an authenticated identity on the ctx.
+ *       Pure predicate — no I/O, no cred materialisation (the gate does that). */
 int
 brix_vfs_cred_gate_active(brix_vfs_ctx_t *ctx)
 {
@@ -436,6 +462,12 @@ brix_vfs_cred_gate_active(brix_vfs_ctx_t *ctx)
         return 0;
     }
     if (ctx->storage_cred_dir != NULL && ctx->storage_cred_dir[0] != '\0') {
+        return 1;
+    }
+    if (ctx->identity != NULL
+        && (brix_sd_cred_accept(brix_vfs_ns_leaf(ctx->sd))
+            & BRIX_SD_CRED_IDENTITY))
+    {
         return 1;
     }
     return (brix_vfs_backend_mode(ctx) != BRIX_CRED_SELECT) ? 1 : 0;
