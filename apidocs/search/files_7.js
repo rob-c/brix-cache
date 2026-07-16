@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['handler_2ec_0',['handler.c',['../protocols_2srr_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2root_2dirlist_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2root_2connection_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2cvmfs_2handler_8c.html',1,'(Global Namespace)'],['../observability_2metrics_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2s3_2handler_8c.html',1,'(Global Namespace)']]],
+  ['handler_2ec_0',['handler.c',['../observability_2metrics_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2srr_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2cvmfs_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2root_2connection_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2root_2dirlist_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2s3_2handler_8c.html',1,'(Global Namespace)']]],
   ['handler_2eh_1',['handler.h',['../handler_8h.html',1,'']]],
   ['handler_5fdispatch_2ec_2',['handler_dispatch.c',['../handler__dispatch_8c.html',1,'']]],
   ['handler_5fobject_5froute_2ec_3',['handler_object_route.c',['../handler__object__route_8c.html',1,'']]],
@@ -11,7 +11,7 @@ var searchData=
   ['health_2ec_8',['health.c',['../health_8c.html',1,'']]],
   ['health_5fcheck_2ec_9',['health_check.c',['../health__check_8c.html',1,'']]],
   ['health_5fcheck_2eh_10',['health_check.h',['../health__check_8h.html',1,'']]],
-  ['helpers_2ec_11',['helpers.c',['../core_2config_2helpers_8c.html',1,'(Global Namespace)'],['../fs_2path_2helpers_8c.html',1,'(Global Namespace)'],['../protocols_2root_2fattr_2helpers_8c.html',1,'(Global Namespace)']]],
+  ['helpers_2ec_11',['helpers.c',['../fs_2path_2helpers_8c.html',1,'(Global Namespace)'],['../protocols_2root_2fattr_2helpers_8c.html',1,'(Global Namespace)'],['../core_2config_2helpers_8c.html',1,'(Global Namespace)']]],
   ['hex_2ec_12',['hex.c',['../hex_8c.html',1,'']]],
   ['hex_2eh_13',['hex.h',['../hex_8h.html',1,'']]],
   ['history_2ec_14',['history.c',['../history_8c.html',1,'']]],

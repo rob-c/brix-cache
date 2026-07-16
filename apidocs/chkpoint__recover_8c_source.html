@@ -413,27 +413,44 @@ $(document).ready(function(){initNavTree('chkpoint__recover_8c_source.html','');
 <div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span> </div>
 <div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>    lock_fd = <a class="code hl_function" href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a>(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);</div>
 <div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    <span class="keywordflow">if</span> (lock_fd &lt; 0) {</div>
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>        <a class="code hl_function" href="log_8c.html#abec0706126f3659b27dcca8116c0ba64">brix_log_safe_path</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, NGX_LOG_ERR, ngx_errno,</div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>                             <span class="stringliteral">&quot;brix: checkpoint recovery lock failed &quot;</span></div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>                             <span class="stringliteral">&quot;\&quot;%s\&quot;&quot;</span>, lock_path);</div>
-<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    }</div>
-<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span> </div>
-<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    <span class="keywordflow">if</span> (flock(lock_fd, LOCK_EX) != 0) {</div>
-<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>        ngx_close_file(lock_fd);</div>
-<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>        <a class="code hl_function" href="log_8c.html#abec0706126f3659b27dcca8116c0ba64">brix_log_safe_path</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, NGX_LOG_ERR, ngx_errno,</div>
-<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>                             <span class="stringliteral">&quot;brix: checkpoint recovery cannot lock &quot;</span></div>
-<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>                             <span class="stringliteral">&quot;\&quot;%s\&quot;&quot;</span>, lock_path);</div>
-<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>    }</div>
-<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span> </div>
-<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>    rc = <a class="code hl_function" href="chkpoint__recover_8c.html#a0b71e62247d254bf65d887e93e8186bb">ckp_recover_scan</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, root_canon, root_canon, 0);</div>
-<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span> </div>
-<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>    (void) flock(lock_fd, LOCK_UN);</div>
-<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>    ngx_close_file(lock_fd);</div>
-<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span> </div>
-<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    <span class="keywordflow">return</span> rc;</div>
-<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>}</div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>        <span class="comment">/* An export this worker cannot write is not a recovery failure: a .ckp</span></div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span><span class="comment">         * snapshot is only ever produced by a worker writing INTO this root, so</span></div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span><span class="comment">         * a root that refuses our writes cannot hold a journal to roll back.</span></div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span><span class="comment">         * Read-only exports (EROFS) and permission-restricted ones (EACCES /</span></div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span><span class="comment">         * EPERM — e.g. a root-master fleet whose workers drop to an</span></div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span><span class="comment">         * unprivileged user) are legitimate read-serving deployments, so skip</span></div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span><span class="comment">         * recovery and carry on rather than failing worker init and</span></div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span><span class="comment">         * crash-looping the server.</span></div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span><span class="comment">         * Every other errno still fails loudly — it signals a genuinely broken</span></div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span><span class="comment">         * export (ENOTDIR, ENAMETOOLONG, ELOOP from a hostile symlink, …). */</span></div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>        <span class="keywordflow">if</span> (ngx_errno == EACCES || ngx_errno == EPERM || ngx_errno == EROFS) {</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>            <a class="code hl_function" href="log_8c.html#abec0706126f3659b27dcca8116c0ba64">brix_log_safe_path</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, NGX_LOG_WARN, ngx_errno,</div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>                                 <span class="stringliteral">&quot;brix: checkpoint recovery skipped — export &quot;</span></div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>                                 <span class="stringliteral">&quot;root is not writable by this worker &quot;</span></div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>                                 <span class="stringliteral">&quot;\&quot;%s\&quot;&quot;</span>, lock_path);</div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>            <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>        }</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>        <a class="code hl_function" href="log_8c.html#abec0706126f3659b27dcca8116c0ba64">brix_log_safe_path</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, NGX_LOG_ERR, ngx_errno,</div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>                             <span class="stringliteral">&quot;brix: checkpoint recovery lock failed &quot;</span></div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>                             <span class="stringliteral">&quot;\&quot;%s\&quot;&quot;</span>, lock_path);</div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>    }</div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span> </div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>    <span class="keywordflow">if</span> (flock(lock_fd, LOCK_EX) != 0) {</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>        ngx_close_file(lock_fd);</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>        <a class="code hl_function" href="log_8c.html#abec0706126f3659b27dcca8116c0ba64">brix_log_safe_path</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, NGX_LOG_ERR, ngx_errno,</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>                             <span class="stringliteral">&quot;brix: checkpoint recovery cannot lock &quot;</span></div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>                             <span class="stringliteral">&quot;\&quot;%s\&quot;&quot;</span>, lock_path);</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>    }</div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span> </div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>    rc = <a class="code hl_function" href="chkpoint__recover_8c.html#a0b71e62247d254bf65d887e93e8186bb">ckp_recover_scan</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, root_canon, root_canon, 0);</div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span> </div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>    (void) flock(lock_fd, LOCK_UN);</div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>    ngx_close_file(lock_fd);</div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span> </div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>    <span class="keywordflow">return</span> rc;</div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>}</div>
 </div>
 <div class="ttc" id="abrixposix__preload_8c_html_a1aa3037b164c5b99bcc46cd326202d7a"><div class="ttname"><a href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a></div><div class="ttdeci">int stat(const char *path, struct stat *stbuf)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00421">brixposix_preload.c:421</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_a75c78d38349765a47e81d1dd4362df85"><div class="ttname"><a href="brixposix__preload_8c.html#a75c78d38349765a47e81d1dd4362df85">fstatat</a></div><div class="ttdeci">int fstatat(int dirfd, const char *path, struct stat *stbuf, int flags)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00459">brixposix_preload.c:459</a></div></div>
