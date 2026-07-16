@@ -32,6 +32,13 @@ ngx_int_t brix_handle_chkpoint(brix_ctx_t *ctx, ngx_connection_t *c,
  * crashes or hard restarts.  Each <path>.ckp snapshot is copied back to <path>
  * and then removed, preserving the transaction rule that uncommitted writes do
  * not survive recovery.
+ *
+ * Serialised across workers by an exclusive flock on a lock file dropped at the
+ * export root.  A root this worker cannot write (EACCES/EPERM/EROFS) cannot hold
+ * a journal it never wrote, so recovery is SKIPPED with a warning and NGX_OK —
+ * read-only and permission-restricted exports must still serve reads rather
+ * than crash-loop worker init.  Returns NGX_ERROR only for a genuinely broken
+ * export or a failed rollback; the caller fails worker init on NGX_ERROR.
  */
 ngx_int_t brix_chkpoint_recover_root(ngx_log_t *log,
     const char *root_canon);

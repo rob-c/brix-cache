@@ -2,6 +2,28 @@
 # Sourced (not executed) by manage_test_servers.sh; uses its global
 # config vars.  Do not run directly.
 
+# --- root-harness export shim (counterpart to _ref_runas_user in refxrootd.sh) ---
+# The test configs carry no `user` directive, so under a ROOT harness nginx's master
+# drops every worker to `nobody`, while this script creates the export roots as root
+# under umask 022 (0755).  The worker then cannot write its OWN export: each PUT /
+# upload answers 403, and brix_chkpoint_recover_root's lock at the export root is
+# refused.  refxrootd.sh:_ref_launch already opens the reference xrootd's export for
+# exactly this reason ("the exported data root (a+rwX, shared with the root-owned
+# nginx fleet)") — which is why $TEST_ROOT/data works while the ~100 per-instance
+# data-<name> roots did not.  Apply the same treatment to the fleet's own exports.
+# Non-root runs own their exports already, so this is a no-op there.
+# This shim only makes the export WRITABLE; it cannot fix ownership, so chmod(2)
+# parity (xrdcl chmod/stat) still needs the worker to BE the test user — see
+# tests/run_suite_unprivileged.sh, which is the configuration this shim exists to
+# approximate, and the one to DROP it for once the harness always runs unprivileged.
+# NOTE: must always return 0 — callers run under `set -euo pipefail`.
+_open_export_for_worker() {  # _open_export_for_worker <export_root>
+    [ "$(id -u)" = "0" ] || return 0
+    [ -n "${1:-}" ] && [ -d "$1" ] || return 0
+    chmod -R a+rwX "$1" 2>/dev/null || true
+    return 0
+}
+
 start_nginx() {
     if [[ ! -x "$NGINX_BIN" ]]; then
         echo "ERROR: nginx binary not found/executable: $NGINX_BIN" >&2
@@ -9,6 +31,7 @@ start_nginx() {
     fi
 
     mkdir -p "${LOG_DIR}" "${TMP_DIR}" "${DATA_DIR}" "${NGINX_PREFIX}/conf"
+    _open_export_for_worker "${DATA_DIR}"
 
     # Generate the main nginx config from the nginx_shared.conf template.
     # This is the canonical shared instance: all standard ports live here.
@@ -331,6 +354,8 @@ start_dedicated_nginx() {
     if [[ ! -f "${data_root}/test.txt" ]]; then
         printf '%s\n' "hello from nginx-xrootd" > "${data_root}/test.txt"
     fi
+    # After the tree + seed files exist, so the whole export is opened at once.
+    _open_export_for_worker "${data_root}"
 
     (
         NGINX_PREFIX="${instance_root}"

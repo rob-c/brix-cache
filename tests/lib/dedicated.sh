@@ -13,8 +13,14 @@ start_krb5_tier() {
     # KDC tooling absent (kdc_helpers already explained); any other non-zero is a
     # real provisioning failure — in every case we skip the tier, never abort.
     local kdc_helper="${CONFIGS_DIR%/configs}/kdc_helpers.py"
-    python3 "$kdc_helper" up
-    local rc=$?
+    # `|| rc=$?` is load-bearing: manage_test_servers.sh runs under `set -euo
+    # pipefail`, so a BARE call here aborts start-all the moment the helper exits
+    # non-zero — `local rc=$?` never runs and every server started after this tier
+    # (clusters, cache, wt-sync/async, prepare) silently never launches, leaving a
+    # truncated fleet and rc=3 out of start-all.  Same footgun as _ref_runas_user
+    # (see refxrootd.sh): capture the status instead of letting it kill the shell.
+    local rc=0
+    python3 "$kdc_helper" up || rc=$?
     if [[ $rc -eq 3 ]]; then
         return 0
     fi

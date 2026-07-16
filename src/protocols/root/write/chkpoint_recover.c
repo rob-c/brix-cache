@@ -302,6 +302,23 @@ brix_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
 
     lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
     if (lock_fd < 0) {
+        /* An export this worker cannot write is not a recovery failure: a .ckp
+         * snapshot is only ever produced by a worker writing INTO this root, so
+         * a root that refuses our writes cannot hold a journal to roll back.
+         * Read-only exports (EROFS) and permission-restricted ones (EACCES /
+         * EPERM — e.g. a root-master fleet whose workers drop to an
+         * unprivileged user) are legitimate read-serving deployments, so skip
+         * recovery and carry on rather than failing worker init and
+         * crash-looping the server.
+         * Every other errno still fails loudly — it signals a genuinely broken
+         * export (ENOTDIR, ENAMETOOLONG, ELOOP from a hostile symlink, …). */
+        if (ngx_errno == EACCES || ngx_errno == EPERM || ngx_errno == EROFS) {
+            brix_log_safe_path(log, NGX_LOG_WARN, ngx_errno,
+                                 "brix: checkpoint recovery skipped — export "
+                                 "root is not writable by this worker "
+                                 "\"%s\"", lock_path);
+            return NGX_OK;
+        }
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "brix: checkpoint recovery lock failed "
                              "\"%s\"", lock_path);

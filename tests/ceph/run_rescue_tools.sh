@@ -19,13 +19,23 @@ docker ps --format '{{.Names}}' | grep -qx "$WORK" \
     || { echo "work container '$WORK' not running — run tests/ceph/build_in_container.sh" >&2; exit 1; }
 
 docker exec "$WORK" mkdir -p /work/repo/src/fs/backend/rados /work/repo/client/apps/ceph
+# Keep in step with client/Makefile's CEPH_CORE_SRCS / CEPHFS_RO_SRCS — that is the
+# build's source of truth (the RPM drives it too); this list only has to carry the
+# same TUs, plus the headers they include, into the container.
 for f in src/fs/backend/sd.h \
          src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph.h \
+         src/fs/backend/rados/sd_ceph_internal.h \
+         src/fs/backend/rados/sd_ceph_io.c \
+         src/fs/backend/rados/sd_ceph_cred.c \
+         src/fs/backend/rados/sd_ceph_object.c \
          src/fs/backend/rados/sd_ceph_striper.h \
          src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/sd_ceph_compat.h \
          src/fs/backend/rados/cephfs_denc.c src/fs/backend/rados/cephfs_denc.h \
          src/fs/backend/rados/cephfs_layout.c src/fs/backend/rados/cephfs_layout.h \
          src/fs/backend/rados/sd_cephfs_ro.c \
+         src/fs/backend/rados/sd_cephfs_ro_internal.h \
+         src/fs/backend/rados/sd_cephfs_ro_dir.c \
+         src/fs/backend/rados/sd_cephfs_ro_resolve.c \
          client/apps/ceph/ngx_shim.h client/apps/ceph/xrdcephfs_rescue.c \
          client/apps/ceph/xrdrados_rescue.c client/apps/ceph/xrdceph_migrate.c; do
     docker cp "$REPO/$f" "$WORK:/work/repo/$f" >/dev/null
@@ -35,10 +45,19 @@ docker exec -e CEPH_CONF=/etc/ceph/ceph.conf -e POOL="$POOL" -e META="$META" -e 
     "$WORK" bash -lc '
 set -e
 cd /work/repo
-CEPHFS_SRCS="src/fs/backend/rados/sd_cephfs_ro.c src/fs/backend/rados/sd_ceph.c
-             src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/cephfs_layout.c
-             src/fs/backend/rados/cephfs_denc.c"
-FLAT_SRCS="src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c"
+# Mirrors client/Makefile CEPH_CORE_SRCS / CEPHFS_RO_SRCS.  The tools compile the
+# driver TUs directly, so these lists are a symbol closure: when a TU is split,
+# omitting the new sibling here fails at LINK ("undefined reference to sd_ceph_*"),
+# not at compile.  sd_ceph_striper.c is deliberately absent — unreferenced here,
+# and it would drag in libradosstriper.
+FLAT_SRCS="src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c
+           src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_cred.c
+           src/fs/backend/rados/sd_ceph_object.c"
+CEPHFS_SRCS="src/fs/backend/rados/sd_cephfs_ro.c
+             src/fs/backend/rados/sd_cephfs_ro_dir.c
+             src/fs/backend/rados/sd_cephfs_ro_resolve.c
+             src/fs/backend/rados/cephfs_layout.c
+             src/fs/backend/rados/cephfs_denc.c $FLAT_SRCS"
 CC="gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH
     -I src -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h"
 
