@@ -18,21 +18,17 @@ Three behaviours are asserted:
 
 import os
 import shutil
-import subprocess
-import time
 
 import pytest
 
-from config_templates import render_config
-from settings import NGINX_BIN, free_port
+from settings import BIND_HOST
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 LOCK_KEY = "user.nginx_xrootd.lock"
 LOCK_VAL = (b"token=opaquelocktoken:11111111-2222-3333-4444-555555555555|"
             b"owner=cn=test|expires=9999999999999|scope=exclusive|depth=infinity")
-
-# A free OS port (env override honored) so the dedicated nginx instance never
-# collides with the shared test fleet or another self-contained test.
-SWEEP_PORT = int(os.environ.get("TEST_SWEEP_PORT") or free_port())
 
 
 def _xattr_supported(path):
@@ -60,20 +56,14 @@ def _count_locks(paths):
     return n
 
 
-def _write_conf(base, root, sweep):
-    # nginx opens <prefix>/logs/error.log and the default access_log relative to
-    # the -p prefix before/while parsing; create the dir and silence access_log.
-    os.makedirs(os.path.join(base, "logs"), exist_ok=True)
-    conf = os.path.join(base, f"nginx_{sweep}.conf")
-    with open(conf, "w") as fh:
-        fh.write(render_config(
-            "nginx_webdav_lock_startup_sweep.conf",
-            BASE_DIR=base,
-            SWEEP=sweep,
-            PORT=SWEEP_PORT,
-            DATA_DIR=root,
-        ))
-    return conf
+def _spec(name, root, sweep):
+    return NginxInstanceSpec(
+        name=name,
+        template="nginx_lc_webdav_lock_startup_sweep.conf",
+        protocol="webdav",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(root),
+                         "SWEEP": sweep},
+        reason="webdav lock startup sweep")
 
 
 @pytest.fixture
@@ -90,61 +80,42 @@ def sweep_env(tmp_path):
         pytest.skip("filesystem does not support user xattrs")
 
     nodes = [root, f, sub]
-    yield base, root, nodes
+    yield root, nodes
     shutil.rmtree(base, ignore_errors=True)
 
 
-def _run_nginx(conf, base, test_only=False):
-    args = [NGINX_BIN, "-c", conf, "-p", base]
-    if test_only:
-        args.insert(1, "-t")
-    res = subprocess.run(args, capture_output=True, text=True)
-    return res
-
-
-def _stop_nginx(conf, base):
-    subprocess.run([NGINX_BIN, "-c", conf, "-p", base, "-s", "stop"],
-                   capture_output=True, text=True)
-    time.sleep(0.5)
-
-
-def test_lock_startup_sweep_on_removes_locks(sweep_env):
-    base, root, nodes = sweep_env
-    conf = _write_conf(base, root, "on")
+def test_lock_startup_sweep_on_removes_locks(lifecycle, sweep_env):
+    root, nodes = sweep_env
     _seed_locks(nodes)
     assert _count_locks(nodes) == 3
 
-    res = _run_nginx(conf, base)
-    assert res.returncode == 0, f"nginx failed to start: {res.stderr}"
-    time.sleep(1)
-    _stop_nginx(conf, base)
+    # The sweep runs at worker startup; by the time start() reports ready it has
+    # already executed, so no explicit stop is needed before checking on disk.
+    lifecycle.start(_spec("lc-sweep-on", root, "on"))
 
     assert _count_locks(nodes) == 0, "sweep on should remove every lock xattr"
 
 
-def test_lock_startup_sweep_off_preserves_locks(sweep_env):
-    base, root, nodes = sweep_env
-    conf = _write_conf(base, root, "off")
+def test_lock_startup_sweep_off_preserves_locks(lifecycle, sweep_env):
+    root, nodes = sweep_env
     _seed_locks(nodes)
     assert _count_locks(nodes) == 3
 
-    res = _run_nginx(conf, base)
-    assert res.returncode == 0, f"nginx failed to start: {res.stderr}"
-    time.sleep(1)
-    _stop_nginx(conf, base)
+    lifecycle.start(_spec("lc-sweep-off", root, "off"))
 
     assert _count_locks(nodes) == 3, "default (sweep off) must preserve lock xattrs"
 
 
-def test_lock_startup_sweep_skipped_under_config_test(sweep_env):
-    base, root, nodes = sweep_env
-    conf = _write_conf(base, root, "on")
+def test_lock_startup_sweep_skipped_under_config_test(lifecycle, sweep_env):
+    root, nodes = sweep_env
     _seed_locks(nodes)
     assert _count_locks(nodes) == 3
 
     # `nginx -t` loads the config (running merge_loc_conf) but must NOT mutate
     # the filesystem -- the sweep is guarded by !ngx_test_config.
-    res = _run_nginx(conf, base, test_only=True)
-    assert res.returncode == 0, f"nginx -t failed: {res.stderr}"
+    reg = lifecycle.register(_spec("lc-sweep-cfgtest", root, "on"))
+    lifecycle.launcher.render_nginx(reg)
+    res = lifecycle.launcher.nginx_test(reg)
+    assert res.returncode == 0, f"nginx -t failed: {res.stdout + res.stderr}"
 
     assert _count_locks(nodes) == 3, "config test must not run the sweep"

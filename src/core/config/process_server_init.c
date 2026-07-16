@@ -52,17 +52,23 @@
  * HOW:
  *   1. Skip unless both a storage credential name and an export root are set.
  *   2. NUL-terminate the credential name and look it up in the credential
- *      block table.
- *   3. Map the credential fields (proxy-or-cert, key, CA dir, SSS keytab)
- *      into a brix_vfs_backend_cred_t.
+ *      block table; a miss is loud (error log) — a worker serving with a
+ *      wiped credential must never be silent.
+ *   3. Map the credential through brix_credential_to_backend_cred() — the
+ *      ONE shared mapper (P80.1). Its earlier hand-copied twin here dropped
+ *      bearer + all three s3 fields, and because set_credential overwrites
+ *      all 8 registry slots unconditionally, every worker spawn wiped the
+ *      parse-time S3 keys to "" (phase-80 finding 1.1).
  *   4. Install it on the export root's registry entry; set_credential also
  *      resets e->inst so the instance rebuilds with the credential on first
  *      use.
  */
 static void
-brix_init_server_backend_credential(ngx_stream_brix_srv_conf_t *xcf)
+brix_init_server_backend_credential(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *xcf)
 {
     char                       credz[256];
+    char                       bearer[4096];
     const brix_credential_t   *cred;
     brix_vfs_backend_cred_t    bcred;
 
@@ -77,21 +83,24 @@ brix_init_server_backend_credential(ngx_stream_brix_srv_conf_t *xcf)
                         sizeof(credz)));
     cred = brix_credential_lookup(credz);
     if (cred == NULL) {
+        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+            "brix: worker credential replay: no brix_credential \"%s\" "
+            "for export \"%s\" — backend keeps its (empty) worker-side "
+            "credential; upstream auth WILL fail", credz,
+            xcf->common.root_canon);
         return;
     }
 
-    ngx_memzero(&bcred, sizeof(bcred));
-    bcred.x509_proxy = cred->x509_proxy.len > 0
-        ? (const char *) cred->x509_proxy.data
-        : (cred->x509_cert.len > 0
-            ? (const char *) cred->x509_cert.data : NULL);
-    bcred.x509_key = (cred->x509_proxy.len == 0
-                      && cred->x509_key.len > 0)
-        ? (const char *) cred->x509_key.data : NULL;
-    bcred.ca_dir = cred->ca_dir.len > 0
-        ? (const char *) cred->ca_dir.data : NULL;
-    bcred.sss_keytab = cred->sss_keytab.len > 0
-        ? (const char *) cred->sss_keytab.data : NULL;
+    if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
+                                          &bcred, cycle->log) != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+            "brix: worker credential replay: cannot derive bearer for "
+            "brix_credential \"%s\" (export \"%s\") — credential NOT "
+            "installed; upstream auth WILL fail", credz,
+            xcf->common.root_canon);
+        return;
+    }
     brix_vfs_backend_set_credential(xcf->common.root_canon, &bcred);
 }
 
@@ -341,7 +350,7 @@ brix_init_server_crl_jwks(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
 ngx_int_t
 brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
 {
-    brix_init_server_backend_credential(xcf);
+    brix_init_server_backend_credential(cycle, xcf);
 
     /*
      * Capture the nginx-managed log fds the master opened during

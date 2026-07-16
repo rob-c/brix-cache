@@ -13,17 +13,17 @@ is not built.
 import hashlib
 import os
 import subprocess
-import time
 
 import pytest
 
 from settings import NGINX_BIN  # noqa: E402
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+
+pytestmark = [pytest.mark.uses_lifecycle_harness]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
-P_PWD = 21142                       # private port, clear of the fleet + 2109x band
 PW = "s3cret-passw0rd"
 USER = "pwduser"
 
@@ -32,66 +32,33 @@ def _run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=120, **kw)
 
 
-def _free_port(port):
-    subprocess.run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"],
-                   capture_output=True)
-    for _ in range(20):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode != 0:
-            return
-        time.sleep(0.1)
-
-
-def _wait_listen(proc, port, what):
-    for _ in range(60):
-        assert proc.poll() is None, f"{what} exited before binding {port}"
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return
-        time.sleep(0.1)
-    proc.terminate()
-    raise AssertionError(f"{what} did not come up on {port}")
-
-
 def _pwd_hash(password, salt):
     """The exact KDF stock XrdSecpwd uses: PBKDF2-HMAC-SHA1, 10000 iters, 24 B."""
     return hashlib.pbkdf2_hmac("sha1", password.encode(), salt, 10000, 24)
 
 
-@pytest.fixture(scope="module")
-def pwd_server(tmp_path_factory):
+@pytest.fixture()
+def pwd_server(lifecycle, tmp_path):
     if not os.path.exists(NATIVE_XRDCP):
         pytest.skip("native client/bin/xrdcp must be built (make -C client)")
 
-    base = tmp_path_factory.mktemp("pwd")
-    data = base / "data"
-    logs = base / "logs"
+    data = tmp_path / "data"
     data.mkdir()
-    logs.mkdir()
     (data / "hello.txt").write_text("hello-pwd-auth\n")
 
     salt = bytes(range(8))
-    pwdfile = base / "pwd.db"
-    pwdfile.write_text(
+    pwd_file = tmp_path / "pwd.db"
+    pwd_file.write_text(
         "# test password database\n"
         f"{USER}:{salt.hex()}:{_pwd_hash(PW, salt).hex()}\n")
 
-    cfg = base / "nginx.conf"
-    cfg.write_text(render_config("nginx_pwd_auth.conf",
-                                 LOG_DIR=logs,
-                                 PID_FILE=base / "nginx.pid",
-                                 PORT=P_PWD,
-                                 DATA_DIR=data,
-                                 PWD_FILE=pwdfile))
-
-    _free_port(P_PWD)
-    proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg)],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    _wait_listen(proc, P_PWD, "pwd nginx")
-    yield {"url": f"root://127.0.0.1:{P_PWD}", "data": data}
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-pwd-auth",
+        template="nginx_lc_pwd_auth.conf",
+        protocol="root",
+        template_values={"DATA_DIR": str(data), "PWD_FILE": str(pwd_file)},
+        reason="stream pwd-file auth"))
+    yield {"url": f"root://127.0.0.1:{ep.port}", "data": data}
 
 
 def _env(password=PW, user=USER):

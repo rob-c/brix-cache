@@ -17,13 +17,14 @@ import shutil
 import socket
 import struct
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -101,12 +102,11 @@ def test_w7_fuzz_target_present():
 # --------------------------------------------------------------------------- #
 
 def test_w8_lint_runs_clean():
-    script = ROOT / "tests/lint_alloc.sh"
-    assert script.exists()
-    proc = subprocess.run(["bash", str(script)], capture_output=True, text=True,
-                          timeout=120)
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "lint_alloc:" in proc.stdout
+    from cmdscripts.lint_alloc import run_checks
+
+    rc, output = run_checks()
+    assert rc == 0, output
+    assert "lint_alloc:" in output
 
 
 # --------------------------------------------------------------------------- #
@@ -160,8 +160,8 @@ def test_w6c_valgrind_findings_closed_and_harness_present():
     # (phase-79 split: the webdav registration site moved into config_proxy.c.)
     assert "brix_jwks_register_cleanup" in _read("src/protocols/webdav/config_proxy.c")
     assert "brix_jwks_register_cleanup" in _read("src/auth/token/config.c")
-    # Committed harness + findings writeup.
-    assert (ROOT / "tests/valgrind/run_valgrind.sh").exists()
+    # Committed harness (Python port: operator_runtime.run_valgrind) + findings writeup.
+    assert (ROOT / "tests/cmdscripts/operator_runtime.py").exists()
     assert (ROOT / "docs/07-security/valgrind-findings.md").exists()
 
 
@@ -169,34 +169,16 @@ def test_w6c_valgrind_findings_closed_and_harness_present():
 # Functional F1 helpers (raw XRootD wire)                                      #
 # --------------------------------------------------------------------------- #
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-def _spawn_stream(tmp_path, port):
+def _spawn_stream(lifecycle, tmp_path, name):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_bytes(b"A" * 4096)
-    (tmp_path / "logs").mkdir(exist_ok=True)
-    conf = render_config("nginx_memsafety_stream.conf",
-                         BASE_DIR=tmp_path,
-                         BIND_HOST=BIND_HOST,
-                         PORT=port,
-                         DATA_DIR=data)
-    cp = tmp_path / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(port):
-        proc.terminate()
-        pytest.skip("stream server did not start")
-    return proc
+    ep = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_lc_memsafety_stream.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+        reason="phase-27 readv segment-count guard"))
+    return ep.port
 
 
 def _login(port):
@@ -253,53 +235,39 @@ def _readv(s, segments):
 # 4. Functional F1                                                             #
 # --------------------------------------------------------------------------- #
 
-def test_readv_valid(tmp_path):
-    proc = _spawn_stream(tmp_path, 21870)
-    try:
-        s = _login(21870)
-        st, fh = _open_read(s, "/f.txt")
-        assert st == 0 and fh is not None, ("open failed", st)
-        st, body = _readv(s, [(fh, 256, 0)])
-        assert st == 0, ("readv status", st)
-        assert len(body) >= 256, len(body)
-        s.close()
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+def test_readv_valid(lifecycle, tmp_path):
+    port = _spawn_stream(lifecycle, tmp_path, "lc-memsafety-readv-valid")
+    s = _login(port)
+    st, fh = _open_read(s, "/f.txt")
+    assert st == 0 and fh is not None, ("open failed", st)
+    st, body = _readv(s, [(fh, 256, 0)])
+    assert st == 0, ("readv status", st)
+    assert len(body) >= 256, len(body)
+    s.close()
 
 
-def test_readv_oversized_rejected_cleanly(tmp_path):
+def test_readv_oversized_rejected_cleanly(lifecycle, tmp_path):
     # An over-MAXSEGS readv must be rejected without crashing the server: the
     # process must survive and keep serving other clients.
-    proc = _spawn_stream(tmp_path, 21871)
+    port = _spawn_stream(lifecycle, tmp_path, "lc-memsafety-readv-oversized")
+    s = _login(port)
+    st, fh = _open_read(s, "/f.txt")
+    assert st == 0 and fh is not None
+    # 4000 segments (> BRIX_READV_MAXSEGS=1024): the recv-layer cap and the
+    # readv callsite cap both reject; the connection is dropped or errored.
+    bogus = [(fh, 16, 0)] * 4000
     try:
-        s = _login(21871)
-        st, fh = _open_read(s, "/f.txt")
-        assert st == 0 and fh is not None
-        # 4000 segments (> BRIX_READV_MAXSEGS=1024): the recv-layer cap and the
-        # readv callsite cap both reject; the connection is dropped or errored.
-        bogus = [(fh, 16, 0)] * 4000
-        try:
-            st2, _ = _readv(s, bogus)
-            # Either an error status or a closed connection — never kXR_ok.
-            assert st2 != 0, st2
-        except (OSError, struct.error):
-            pass  # connection dropped — acceptable rejection
-        s.close()
+        st2, _ = _readv(s, bogus)
+        # Either an error status or a closed connection — never kXR_ok.
+        assert st2 != 0, st2
+    except (OSError, struct.error):
+        pass  # connection dropped — acceptable rejection
+    s.close()
 
-        # The server is still alive: a fresh client can log in and readv.
-        s2 = _login(21871)
-        st3, fh3 = _open_read(s2, "/f.txt")
-        assert st3 == 0 and fh3 is not None, "server died after oversized readv"
-        st4, body4 = _readv(s2, [(fh3, 128, 0)])
-        assert st4 == 0 and len(body4) >= 128
-        s2.close()
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+    # The server is still alive: a fresh client can log in and readv.
+    s2 = _login(port)
+    st3, fh3 = _open_read(s2, "/f.txt")
+    assert st3 == 0 and fh3 is not None, "server died after oversized readv"
+    st4, body4 = _readv(s2, [(fh3, 128, 0)])
+    assert st4 == 0 and len(body4) >= 128
+    s2.close()

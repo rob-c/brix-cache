@@ -100,14 +100,18 @@ sd_pblock_init(brix_sd_instance_t *inst, void *driver_conf)
 
     /* The export root "/" always exists (a directory), like a POSIX mount point —
      * so stat("/")/opendir("/")/PROPFIND on the root succeed before anything is
-     * written. Created once; harmless if a concurrent worker also creates it. */
+     * written. Created once; harmless if a concurrent worker also creates it.
+     * Sticky world-writable (/tmp semantics) so identity-enforced multi-user
+     * exports work out of the box: anyone may create top-level entries, only
+     * owners may remove them (pblock_ident_sticky_gate). Operators wanting a
+     * stricter top level chmod "/" or pre-create VO directories. */
     if (pblock_catalog_lookup(st->cat, "/", NULL) == 1) {
         pblock_meta root_meta;
 
         memset(&root_meta, 0, sizeof(root_meta));
         root_meta.is_dir = 1;
         root_meta.mtime  = root_meta.ctime = pblock_now();
-        root_meta.mode   = S_IFDIR | 0755;
+        root_meta.mode   = S_IFDIR | S_ISVTX | 0777;
         (void) pblock_catalog_put(st->cat, "/", &root_meta);
     }
 
@@ -171,16 +175,19 @@ pblock_make_obj(brix_sd_instance_t *inst, const char *path, int fd,
     obj->snap.ctime  = meta->ctime;
     obj->snap.mode   = meta->mode;
     obj->snap.ino    = (ino_t) pblock_fnv(path);
+    obj->snap.uid    = meta->uid;
+    obj->snap.gid    = meta->gid;
     obj->snap.is_dir = meta->is_dir ? 1 : 0;
     obj->snap.is_reg = meta->is_dir ? 0 : 1;
     return obj;
 }
 
 /* pblock_open_create — create a brand-new file: a fresh per-object dir + block 0,
- * plus its catalog row. Returns the object or NULL/errno (*err_out set). */
+ * plus its catalog row owned by (uid, gid) — 0/0 for the service itself.
+ * Returns the object or NULL/errno (*err_out set). */
 static brix_sd_obj_t *
 pblock_open_create(brix_sd_instance_t *inst, const char *path, mode_t mode,
-    int *err_out)
+    uint32_t uid, uint32_t gid, int *err_out)
 {
     pblock_state_t  *st = inst->state;
     pblock_meta      meta;
@@ -208,6 +215,8 @@ pblock_open_create(brix_sd_instance_t *inst, const char *path, mode_t mode,
     meta.block_size = st->block_size;
     meta.mtime      = meta.ctime = pblock_now();
     meta.mode       = S_IFREG | (mode & 0777);
+    meta.uid        = uid;
+    meta.gid        = gid;
 
     if (pblock_catalog_put(st->cat, path, &meta) != 0) {
         int err = errno;
@@ -266,9 +275,13 @@ pblock_open_existing(brix_sd_instance_t *inst, const char *path,
     return obj;
 }
 
-static brix_sd_obj_t *
-sd_pblock_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
-    mode_t mode, int *err_out)
+/* sd_pblock_open_as — the open implementation, parameterized by the owner
+ * (uid, gid) recorded on a CREATE. The plain vtable slot passes 0/0 (the
+ * service); the identity-aware open_cred slot (sd_pblock_cred.c) passes the
+ * requester's resolved catalog ids so new files are owned by their creator. */
+brix_sd_obj_t *
+sd_pblock_open_as(brix_sd_instance_t *inst, const char *path, int sd_flags,
+    mode_t mode, uint32_t uid, uint32_t gid, int *err_out)
 {
     pblock_state_t *st = inst->state;
     pblock_meta     meta;
@@ -301,7 +314,15 @@ sd_pblock_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
         if (err_out != NULL) { *err_out = ENOENT; }
         return NULL;
     }
-    return pblock_open_create(inst, path, mode, err_out);
+    return pblock_open_create(inst, path, mode, uid, gid, err_out);
+}
+
+static brix_sd_obj_t *
+sd_pblock_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
+    mode_t mode, int *err_out)
+{
+    /* No identity on the plain slot: creations belong to the service (0/0). */
+    return sd_pblock_open_as(inst, path, sd_flags, mode, 0, 0, err_out);
 }
 
 static ngx_int_t
@@ -345,6 +366,10 @@ sd_pblock_close(brix_sd_obj_t *obj)
  * atomic rename, real directories, server copy and object xattrs. */
 const brix_sd_driver_t brix_sd_pblock_driver = {
     .name = "pblock",
+    /* pblock consumes the request IDENTITY (principal + VO list): the catalog
+     * is its own identity registry, and the *_cred slots below enforce POSIX
+     * mode bits against the catalog-internal synthetic uid/gids. */
+    .cred_accept = BRIX_SD_CRED_IDENTITY,
     .caps = BRIX_SD_CAP_FD | BRIX_SD_CAP_SENDFILE
           | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_RANGE_READ
           | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_APPEND
@@ -388,6 +413,23 @@ const brix_sd_driver_t brix_sd_pblock_driver = {
     .staged_write  = sd_pblock_staged_write,
     .staged_commit = sd_pblock_staged_commit,
     .staged_abort  = sd_pblock_staged_abort,
+
+    /* identity-enforcing slots (sd_pblock_cred.c): POSIX mode-bit checks
+     * against catalog ownership when the request carries an identity;
+     * identity-less requests fall through to service semantics. */
+    .open_cred        = sd_pblock_open_cred,
+    .staged_open_cred = sd_pblock_staged_open_cred,
+    .stat_cred        = sd_pblock_stat_cred,
+    .unlink_cred      = sd_pblock_unlink_cred,
+    .mkdir_cred       = sd_pblock_mkdir_cred,
+    .rename_cred      = sd_pblock_rename_cred,
+    .setattr_cred     = sd_pblock_setattr_cred,
+    .getxattr_cred    = sd_pblock_getxattr_cred,
+    .listxattr_cred   = sd_pblock_listxattr_cred,
+    .setxattr_cred    = sd_pblock_setxattr_cred,
+    .removexattr_cred = sd_pblock_removexattr_cred,
+    .server_copy_cred = sd_pblock_server_copy_cred,
+    .opendir_cred     = sd_pblock_opendir_cred,
 };
 
 #endif /* BRIX_HAVE_SQLITE */

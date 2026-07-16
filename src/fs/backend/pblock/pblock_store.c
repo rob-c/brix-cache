@@ -170,6 +170,8 @@ pblock_fill_sd_stat(const pblock_meta *m, const char *path,
     out->ctime  = m->ctime;
     out->mode   = m->mode;
     out->ino    = (ino_t) pblock_fnv(path);
+    out->uid    = (uid_t) m->uid;
+    out->gid    = (gid_t) m->gid;
     out->is_dir = m->is_dir ? 1 : 0;
     out->is_reg = m->is_dir ? 0 : 1;
 }

@@ -77,8 +77,8 @@ def f3(tmp_path_factory):
     audit = d / "audit.log"
     port = 11257
 
-    copycmd = str(d / "copy.sh")
-    shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"), copycmd)
+    copycmd = str(d / "copy.py")
+    shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
     os.chmod(copycmd, 0o755)
     # residency oracle: always reports "online" (exit 0) → agent skips the copy.
     oracle = d / "oracle.sh"; oracle.write_text("#!/bin/sh\nexit 0\n")
@@ -152,8 +152,8 @@ def f5(tmp_path_factory):
     tape = d / "tape"; tape.mkdir()
     port = 11258; mport = 11259
 
-    copycmd = str(d / "copy.sh")
-    shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"), copycmd)
+    copycmd = str(d / "copy.py")
+    shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
     os.chmod(copycmd, 0o755)
 
     content = b"CHECKSUMMED-TAPE-CONTENT-" + b"k" * 300 + b"\n"

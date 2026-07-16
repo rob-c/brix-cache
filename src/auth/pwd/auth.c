@@ -180,6 +180,7 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
     uint8_t              hash[BRIX_PWD_HASH_LEN];
     size_t               saltlen = 0, hashlen = 0;
     char                 pwdpath[1024];
+    char                 vos[sizeof(ctx->login.vo_list)];
     int                  verified;
 
     if (conf->pwd_file.len == 0 || conf->pwd_file.len >= sizeof(pwdpath)) {
@@ -218,8 +219,9 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
     pwdpath[conf->pwd_file.len] = '\0';
 
     verified = 0;
+    vos[0] = '\0';
     if (brix_pwd_file_lookup(pwdpath, ctx->pwd.user, salt, &saltlen,
-                               hash, &hashlen) == NGX_OK)
+                               hash, &hashlen, vos, sizeof(vos)) == NGX_OK)
     {
         verified = brix_pwd_verify(creds, creds_len, salt, saltlen,
                                      hash, hashlen);
@@ -240,12 +242,28 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->login.auth_done = 1;
     ctx->token.auth = 0;
     ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) ctx->pwd.user, sizeof(ctx->login.dn));
-    ctx->login.vo_list[0] = '\0';
-    ctx->login.primary_vo[0] = '\0';
+
+    /* Optional VO/group membership from the pwd-file entry's 4th field: the
+     * comma-separated list becomes the identity's VO set (same seam GSI/unix
+     * auth fill), so group-aware backends (e.g. pblock's catalog-internal
+     * ownership) can enforce group access for password-authenticated users. */
+    ngx_cpystrn((u_char *) ctx->login.vo_list, (u_char *) vos,
+                sizeof(ctx->login.vo_list));
+    ngx_cpystrn((u_char *) ctx->login.primary_vo, (u_char *) vos,
+                sizeof(ctx->login.primary_vo));
+    {
+        char *comma = strchr(ctx->login.primary_vo, ',');
+
+        if (comma != NULL) {
+            *comma = '\0';
+        }
+    }
 
     if (ctx->identity != NULL
-        && brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
-                                  BRIX_AUTHN_PWD) != NGX_OK)
+        && (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
+                                   BRIX_AUTHN_PWD) != NGX_OK
+            || brix_identity_set_vos_csv(ctx->identity, c->pool,
+                                           ctx->login.vo_list) != NGX_OK))
     {
         return brix_send_error(ctx, c, kXR_NoMemory,
                                  "identity allocation failed");

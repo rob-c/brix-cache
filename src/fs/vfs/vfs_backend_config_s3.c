@@ -3,7 +3,7 @@
  * parsers plus their per-driver registry-entry builders (phase-79 file-size
  * split of vfs_backend_config.c).
  *
- * WHAT: Parses "s3://host[:port]/bucket" into a read-only S3 source backend and
+ * WHAT: Parses "s3://host[:port]/bucket" into an S3 source backend and
  *       "root://host:port" / "roots://host:port" into a remote root:// primary
  *       backend (any other value falling through to the local driver name via
  *       brix_vfs_backend_config). Includes the s3 and xroot entry builders.
@@ -21,11 +21,14 @@
 
 #include <string.h>
 
-/* Register a read-only S3 source backend for an export (phase-64): the export's
- * bytes live in a remote S3 bucket, served over the shared libcurl S3 transport
- * (signed Range GET). bucket is the path-style bucket name; port defaults to
- * 80/443 by tls when the URL omits it. The driver is CAP_RANGE_READ only, so an
- * S3 primary is read-only (writes are rejected, exactly like an http:// primary). */
+/* Register an S3 source backend for an export (phase-64): the export's bytes
+ * live in a remote S3 bucket, served over the shared libcurl S3 transport
+ * (signed Range GET; writes are staged whole-object uploads — single PUT or
+ * MPU — via the driver's .staged_* slots, plus .unlink/DELETE). bucket is the
+ * path-style bucket name; port defaults to 80/443 by tls when the URL omits
+ * it. The driver caps are CAP_RANGE_READ|CAP_MEMFILE — no CAP_RANDOM_WRITE, so
+ * in-place partial writes are rejected at the cap layer while sequential
+ * uploads go through the staged path. */
 void
 brix_vfs_backend_config_s3(const char *root_canon, const char *host,
     int port, int tls, const char *bucket)

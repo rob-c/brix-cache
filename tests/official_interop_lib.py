@@ -353,6 +353,34 @@ def _wipe_stale_working_files(root):
             pass                              # racing teardown / already gone
 
 
+def reset_to_seeded_tree(*roots):
+    """Remove non-seeded top-level artefacts and restore deterministic fixtures.
+
+    This is for tests that intentionally enumerate or recursively copy the
+    entire interop export. Those tests need a stable root even when they run late
+    in a long serial suite after other conformance modules have created working
+    files, FIFOs, symlinks, or restricted directories in the shared fleet tree.
+    """
+    for root in roots:
+        try:
+            entries = os.listdir(root)
+        except OSError:
+            continue
+        for name in entries:
+            if name in _SEEDED_TOPLEVEL:
+                continue
+            path = os.path.join(root, name)
+            try:
+                if os.path.islink(path) or os.path.isfile(path):
+                    os.remove(path)
+                else:
+                    shutil.rmtree(path, ignore_errors=True)
+            except OSError:
+                pass
+        make_rich_tree(root)
+    harmonize_perms(*roots)
+
+
 # --------------------------------------------------------------------------- #
 # Ownership harmonisation for the STOCK server's data.
 #

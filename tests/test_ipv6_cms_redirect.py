@@ -205,12 +205,10 @@ def _parse_redirect(body):
 
 # ===========================================================================
 # HTTP helpers — admin REST + read-only dashboard over http://[::1]:HTTP_PORT.
-# http.client.HTTPConnection accepts the bracketed [::1] host natively.
 # ===========================================================================
 
 def _http6_conn(timeout=8):
-    # Bracketed literal so http.client builds the Host header correctly.
-    return http.client.HTTPConnection(f"[{IPV6_HOST}]", IPV6_MGR_HTTP_PORT,
+    return http.client.HTTPConnection(IPV6_HOST, IPV6_MGR_HTTP_PORT,
                                       timeout=timeout)
 
 

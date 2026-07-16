@@ -3,6 +3,7 @@
 #include "protocols/root/connection/write_helpers.h"   /* brix_queue_response_base */
 #include <sys/socket.h>
 #include <sys/ioctl.h>   /* FIONREAD — only splice a fully-buffered body */
+#include <unistd.h>      /* read() — drain pipe residual on a spurious drain EAGAIN */
 
 /* zero-copy splice fast-path */
 #ifdef __linux__
@@ -13,6 +14,11 @@ static void brix_proxy_splice_wev(ngx_event_t *wev);
 /* Forward declaration — the under-draining-splice fallback, defined after the
  * pump (the pump calls it when splice stalls with data still queued). */
 static void brix_proxy_splice_to_buffered(brix_proxy_ctx_t *proxy);
+
+/* Forward declaration — the drain-side counterpart: when splice(pipe→client)
+ * stalls on a writable client (WSL2's under-draining splice), move the pipe
+ * residual into userspace and relay the remainder via the buffered path. */
+static void brix_proxy_splice_drain_to_buffered(brix_proxy_ctx_t *proxy);
 
 /*
  * brix_proxy_splice_done — called when all splice_total bytes have been
@@ -207,13 +213,28 @@ brix_proxy_splice_drain(brix_proxy_ctx_t *proxy, ngx_connection_t *cconn)
 
     if (r == 0 || ngx_errno == NGX_EAGAIN) {
         /*
-         * Client send buffer full.  Arm the client-write event and wait.  Do
-         * NOT arm upstream-read here: any unread upstream data sits in the
-         * kernel TCP receive buffer and will be drained by splice_pump (via
-         * splice(upstream→pipe)) once the pipe has room — no epoll wakeup
-         * required for that.  Arming upstream-read while the pipe is full just
-         * causes spurious wakeups that retry a full pipe and deadlock.
+         * splice(pipe→client) made no progress.  Two very different causes:
+         *
+         *  a) The client send buffer is genuinely full — the write event is not
+         *     ready.  Arm the client-write handler and wait for the drain edge.
+         *     Do NOT arm upstream-read here: any unread upstream data sits in the
+         *     kernel TCP receive buffer and is drained by splice_pump (via
+         *     splice(upstream→pipe)) once the pipe has room — no epoll wakeup is
+         *     needed.  Arming upstream-read while the pipe is full just spins on a
+         *     full pipe and deadlocks.
+         *
+         *  b) The client socket IS writable (write->ready) yet splice still
+         *     returned EAGAIN — the kernel's socket-splice under-drains (observed
+         *     on WSL2: pipe→socket refuses a tiny residual even though the socket
+         *     has room).  No not-writable→writable transition will follow, so an
+         *     armed edge-triggered write event would never fire and the pipe
+         *     residual would stall into the read timeout.  Drain the residual into
+         *     userspace and relay it via the reliable buffered path instead.
          */
+        if (cconn->write->ready) {
+            brix_proxy_splice_drain_to_buffered(proxy);
+            return BRIX_SPLICE_STEP_RETURN;
+        }
         cconn->write->handler = brix_proxy_splice_wev;
         if (ngx_handle_write_event(cconn->write, 0) != NGX_OK) {
             brix_proxy_abort(proxy, "proxy: splice client write arm failed");
@@ -341,6 +362,109 @@ brix_proxy_splice_to_buffered(brix_proxy_ctx_t *proxy)
      * event (the queued data produced no fresh edge, so post explicitly). */
     if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
         brix_proxy_abort(proxy, "proxy: splice fallback read arm failed");
+        return;
+    }
+    if (!proxy->conn->read->posted) {
+        ngx_post_event(proxy->conn->read, &ngx_posted_events);
+    }
+}
+
+/*
+ * brix_proxy_splice_drain_to_buffered — the drain-side counterpart of
+ * brix_proxy_splice_to_buffered.  Called when splice(pipe→client) reports EAGAIN
+ * while the client socket is writable — the kernel's pipe→socket splice
+ * under-drains (observed on WSL2: it refuses even a tiny residual with room in
+ * the socket).  An armed edge-triggered write event would never fire (no
+ * not-writable→writable transition follows), stalling the pipe residual into the
+ * read timeout.  Instead, read() the pipe residual (already fetched from the
+ * upstream socket) into the front of a heap buffer, recv any still-in-socket
+ * remainder via the normal body loop, and relay the whole tail RAW through
+ * brix_proxy_splice_fallback_finish — the same machinery the fill-side fallback
+ * uses.  The 8-byte header and splice_downstream body bytes are already on the
+ * wire, so no second header is emitted.
+ */
+static void
+brix_proxy_splice_drain_to_buffered(brix_proxy_ctx_t *proxy)
+{
+    size_t in_pipe   = proxy->splice_upstream - proxy->splice_downstream;
+    size_t remaining = proxy->splice_total - proxy->splice_downstream;
+    size_t pos       = 0;
+
+    /* downstream == total is the drain DONE path; guard defensively. */
+    if (remaining == 0) {
+        brix_proxy_splice_done(proxy);
+        return;
+    }
+
+    /*
+     * An oversized remainder cannot be held in one buffered allocation.  Fall
+     * back to the write-event wait (correct for genuine backpressure).  The
+     * writable-but-under-draining stall is confined to small trailing residuals
+     * far below this ceiling, so this branch is belt-and-braces.
+     */
+    if (remaining > BRIX_PROXY_MAX_BODY) {
+        proxy->client_conn->write->handler = brix_proxy_splice_wev;
+        if (ngx_handle_write_event(proxy->client_conn->write, 0) != NGX_OK) {
+            brix_proxy_abort(proxy, "proxy: splice client write arm failed");
+        }
+        return;
+    }
+
+    proxy->resp_body = ngx_alloc(remaining + 1, proxy->client_conn->log);
+    if (proxy->resp_body == NULL) {
+        brix_proxy_abort(proxy, "proxy: splice drain fallback body alloc failed");
+        return;
+    }
+
+    /*
+     * Move the pipe residual — bytes already spliced out of the upstream socket —
+     * into the front of the buffer.  The pipe is known to hold exactly in_pipe
+     * bytes, so a non-blocking read() returns them; loop only to absorb a short
+     * read or EINTR.  Anything else breaks the pipe accounting invariant and
+     * would corrupt the frame, so abort rather than relay garbage.
+     */
+    while (pos < in_pipe) {
+        ssize_t got = read(proxy->splice_pipe[0], proxy->resp_body + pos,
+                           in_pipe - pos);
+        if (got > 0) {
+            pos += (size_t) got;
+            continue;
+        }
+        if (got < 0 && ngx_errno == NGX_EINTR) {
+            continue;
+        }
+        ngx_free(proxy->resp_body);
+        proxy->resp_body = NULL;
+        brix_proxy_abort(proxy, "proxy: splice pipe drain read failed");
+        return;
+    }
+
+    proxy->resp_body[remaining] = '\0';
+    proxy->resp_dlen     = (uint32_t) remaining;
+    proxy->resp_body_pos = pos;                 /* pipe residual already buffered */
+    proxy->splice_active = 0;
+    proxy->splice_fallback = 1;
+
+    /*
+     * Restore the normal client write handler: the buffered relay
+     * (fallback_finish → brix_queue_response_base) drives the client send through
+     * ngx_stream_brix_send, and it must own any genuine-backpressure write event.
+     */
+    proxy->client_conn->write->handler = ngx_stream_brix_send;
+
+    ngx_log_error(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
+        "xrootd proxy: client splice under-draining (%uz/%uz body sent, socket "
+        "writable) — relaying the remaining %uz bytes via the buffered path",
+        proxy->splice_downstream, proxy->splice_total, remaining);
+
+    /*
+     * Recv any still-in-socket remainder in the read handler, then fallback_finish
+     * sends the whole tail.  The buffered residual produced no fresh edge, so post
+     * the read event explicitly; when the socket remainder is zero the posted
+     * handler dispatches straight to fallback_finish.
+     */
+    if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
+        brix_proxy_abort(proxy, "proxy: splice drain fallback read arm failed");
         return;
     }
     if (!proxy->conn->read->posted) {

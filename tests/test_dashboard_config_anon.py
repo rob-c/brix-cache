@@ -18,7 +18,6 @@ leaking secrets" and "anonymous stats without PII".
 """
 
 import os
-import socket
 import subprocess
 import time
 import urllib.error
@@ -26,10 +25,8 @@ import urllib.request
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
-
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+from settings import HOST, BIND_HOST, NGINX_BIN, free_port
+from server_registry import NginxInstanceSpec
 
 DASH_PW = "SECRET_DASH_PW_123"
 MACAROON_HEX = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
@@ -40,46 +37,32 @@ URL_CRED = "credpassLEAK"
 PLANTED_SECRETS = [DASH_PW, MACAROON_HEX, SET_SECRET, HEADER_SECRET, URL_CRED]
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
-@pytest.fixture(scope="module")
-def server(tmp_path_factory):
+@pytest.fixture
+def server(lifecycle):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("dashcfg")
-    data = root / "data"
-    data.mkdir()
-    (data / "probe.txt").write_bytes(b"hello\n")
-    (data / "big.bin").write_bytes(os.urandom(20 * 1024 * 1024))
+    root_port = free_port(BIND_HOST)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-dashboard-config-anon",
+        template="nginx_lc_dashboard_config_anon.conf",
+        protocol="webdav",
+        extra_ports={"ROOT_PORT": root_port},
+        template_values={"BIND_HOST": BIND_HOST, "URL_CRED": URL_CRED,
+                         "PASSWORD": DASH_PW, "MACAROON_HEX": MACAROON_HEX,
+                         "SET_SECRET": SET_SECRET, "HEADER_SECRET": HEADER_SECRET},
+        reason="dashboard config-redaction + anonymous-tier PII coverage"))
 
-    http_port = _free_port()
-    root_port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_dashboard_config_anon.conf",
-                                  BASE_DIR=root,
-                                  DATA_DIR=data,
-                                  BIND_HOST=BIND_HOST,
-                                  ROOT_PORT=root_port,
-                                  HTTP_PORT=http_port,
-                                  URL_CRED=URL_CRED,
-                                  PASSWORD=DASH_PW,
-                                  MACAROON_HEX=MACAROON_HEX,
-                                  SET_SECRET=SET_SECRET,
-                                  HEADER_SECRET=HEADER_SECRET))
-    proc = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                          capture_output=True, text=True)
-    if proc.returncode != 0:
-        pytest.skip("nginx -t failed for the test config:\n" + proc.stderr)
+    data = ep.data_root
+    with open(os.path.join(data, "probe.txt"), "wb") as fh:
+        fh.write(b"hello\n")
+    with open(os.path.join(data, "big.bin"), "wb") as fh:
+        fh.write(os.urandom(20 * 1024 * 1024))
 
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    base = f"http://{HOST}:{http_port}"
+    base = f"http://{HOST}:{ep.port}"
     # wait for readiness
     for _ in range(50):
         try:
@@ -89,7 +72,6 @@ def server(tmp_path_factory):
             time.sleep(0.1)
     yield {"base": base, "root_url": f"root://{HOST}:{root_port}",
            "data": str(data)}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "stop"], capture_output=True)
 
 
 def _get(base, path, cookie=None):

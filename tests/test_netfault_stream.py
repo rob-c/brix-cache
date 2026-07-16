@@ -17,11 +17,12 @@ Marker: netfault (own serial lane).  See docs/refactor/phase-39-network-fault-re
 """
 import os
 import socket
-import subprocess
 import time
 
 import pytest
-from config_templates import render_config
+
+from settings import BIND_HOST, NGINX_BIN
+from server_registry import NginxInstanceSpec
 
 from test_a_robustness import (
     HANDSHAKE,
@@ -34,82 +35,42 @@ from test_a_robustness import (
     kXR_ok,
 )
 
-pytestmark = [pytest.mark.netfault, pytest.mark.serial]
+pytestmark = [pytest.mark.netfault, pytest.mark.serial,
+              pytest.mark.uses_lifecycle_harness]
 
 HOST = "127.0.0.1"
-PORT = 11790
 
 HANDSHAKE_TIMEOUT_MS = 1000
 READ_TIMEOUT_MS = 2000
 SEND_TIMEOUT_MS = 2000
 
 
-def _nginx_bin():
-    cand = os.environ.get("BRIX_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-    if not os.path.exists(cand):
-        pytest.skip(f"nginx binary not found at {cand}; set BRIX_NGINX_BIN")
-    return cand
-
-
-def _wait_port(host, port, timeout=8.0):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            s = socket.create_connection((host, port), timeout=0.5)
-            s.close()
-            return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def nf_server(tmp_path_factory):
+@pytest.fixture()
+def nf_server(lifecycle, tmp_path):
     """Launch a single-process nginx with the Phase-39 deadlines enabled."""
-    nginx = _nginx_bin()
-    root = tmp_path_factory.mktemp("netfault")
-    dataroot = root / "data"
-    logdir = root / "logs"
-    dataroot.mkdir()
-    logdir.mkdir()
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
+    dataroot = tmp_path / "data"
+    dataroot.mkdir()
     (dataroot / "hello.txt").write_bytes(b"hello netfault\n")
     # A file big enough that a full-file read cannot drain into the socket buffer
     # while the client refuses to read — forces the send-drain park (WS2).
     (dataroot / "big.bin").write_bytes(os.urandom(4 * 1024 * 1024))
 
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_netfault_stream.conf",
-                                  LOG_DIR=logdir,
-                                  HOST=HOST,
-                                  PORT=PORT,
-                                  DATA_DIR=dataroot,
-                                  HANDSHAKE_TIMEOUT_MS=HANDSHAKE_TIMEOUT_MS,
-                                  READ_TIMEOUT_MS=READ_TIMEOUT_MS,
-                                  SEND_TIMEOUT_MS=SEND_TIMEOUT_MS))
-
-    proc = subprocess.Popen([nginx, "-p", str(root), "-c", str(conf)],
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    if not _wait_port(HOST, PORT):
-        proc.terminate()
-        out = b""
-        try:
-            out = proc.communicate(timeout=3)[0] or b""
-        except Exception:
-            pass
-        log = ""
-        try:
-            log = (logdir / "error.log").read_text()
-        except Exception:
-            pass
-        pytest.fail(f"netfault nginx did not come up.\nstdout:\n{out.decode(errors='replace')}\n"
-                    f"error.log:\n{log}")
-    yield (HOST, PORT)
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-netfault-stream",
+        template="nginx_lc_netfault_stream.conf",
+        protocol="root",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "DATA_DIR": str(dataroot),
+            "HANDSHAKE_TIMEOUT_MS": HANDSHAKE_TIMEOUT_MS,
+            "READ_TIMEOUT_MS": READ_TIMEOUT_MS,
+            "SEND_TIMEOUT_MS": SEND_TIMEOUT_MS,
+        },
+        reason="phase-39 stream per-connection deadlines"))
+    return (HOST, ep.port)
 
 
 def _connect(host, port, timeout=6.0):

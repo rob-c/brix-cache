@@ -21,7 +21,10 @@ import time
 
 import pytest
 
-from config_templates import render_config
+from settings import NGINX_BIN
+from server_registry import NginxInstanceSpec
+
+pytestmark = [pytest.mark.uses_lifecycle_harness]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
@@ -175,79 +178,47 @@ def test_native_gsi_failure_is_surfaced(gsi_server):
 # Proves official-tool compatibility of the server side (phase-48).
 # ---------------------------------------------------------------------------
 
-from settings import NGINX_BIN  # noqa: E402
-
-NGINX_PORT = 21096
-NGINX_SIGNED_PORT = 21097
-
-
-def _spawn_nginx_gsi(gsi_server, port, signed_dh=None, tag="nginx_gsi"):
-    """Start OUR nginx GSI server reusing the fixture's test PKI on `port`.
+def _start_nginx_gsi(lifecycle, gsi_server, name, signed_dh=None):
+    """Start OUR nginx GSI server on a throwaway lifecycle instance, reusing the
+    fixture's test PKI.  Returns the client URL (root://fqdn:port — no trailing
+    slash, matching the cert CN which is the fixture's fqdn).
 
     signed_dh: None (omit the directive — default off/unsigned) or one of
-    "off"/"auto"/"require" to exercise the phase-48 signed-DH server path.
-    Returns (proc, url); the caller owns proc and must terminate it.  Skips
-    (returning (None, None)) when the binary is missing or fails to bind."""
+    "off"/"auto"/"require" to exercise the phase-48 signed-DH server path."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not built at {NGINX_BIN}")
-    base = gsi_server["base"]
-    os.makedirs(os.path.join(base, "logs"), exist_ok=True)  # nginx default pid dir
-    cfg = os.path.join(base, f"{tag}.conf")
-    sdh = f"    brix_gsi_signed_dh {signed_dh};\n" if signed_dh else ""
-    with open(cfg, "w") as f:
-        f.write(render_config("nginx_native_gsi_interop.conf",
-                              BASE_DIR=base,
-                              TAG=tag,
-                              PORT=port,
-                              DATA_DIR=gsi_server["data"],
-                              SIGNED_DH_DIRECTIVE=sdh,
-                              CERT_FILE=gsi_server["hostcert"],
-                              KEY_FILE=gsi_server["hostkey"],
-                              CA_DIR=gsi_server["ca"]))
-    env = dict(os.environ)
-    env["LD_LIBRARY_PATH"] = "/tmp/rt_libshim:/usr/lib64:" + env.get("LD_LIBRARY_PATH", "")
-    _free_port(port)
-    proc = subprocess.Popen([NGINX_BIN, "-p", base, "-c", cfg],
-                            env=env, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
-    for _ in range(50):
-        # Our master must be alive AND the port listening — a dead master with a
-        # stale listener (different CA) would otherwise pass and corrupt the test.
-        if proc.poll() is not None:
-            pytest.skip("nginx GSI server exited (could not bind / config error)")
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return proc, f"root://{gsi_server['host']}:{port}"
-        time.sleep(0.1)
-    proc.terminate()
-    pytest.skip("nginx GSI server did not come up")
-    return None, None
+    sdh = f"    brix_gsi_signed_dh {signed_dh};" if signed_dh else ""
+    env = {"LD_LIBRARY_PATH": "/tmp/rt_libshim:/usr/lib64:"
+           + os.environ.get("LD_LIBRARY_PATH", "")}
+    ep = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_lc_native_gsi_interop.conf",
+        protocol="root",
+        env=env,
+        template_values={
+            "DATA_DIR": gsi_server["data"],
+            "SIGNED_DH_DIRECTIVE": sdh,
+            "CERT_FILE": gsi_server["hostcert"],
+            "KEY_FILE": gsi_server["hostkey"],
+            "CA_DIR": gsi_server["ca"],
+        },
+        reason="native/stock GSI interop against OUR nginx roots:// server"))
+    return f"root://{gsi_server['host']}:{ep.port}"
 
 
-@pytest.fixture(scope="module")
-def nginx_gsi_server(gsi_server):
+@pytest.fixture()
+def nginx_gsi_server(lifecycle, gsi_server):
     """OUR nginx GSI server, default (unsigned-DH) policy."""
-    proc, url = _spawn_nginx_gsi(gsi_server, NGINX_PORT)
-    yield url
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    return _start_nginx_gsi(lifecycle, gsi_server, "lc-nginx-gsi")
 
 
-@pytest.fixture(scope="module")
-def nginx_gsi_signed_server(gsi_server):
+@pytest.fixture()
+def nginx_gsi_signed_server(lifecycle, gsi_server):
     """OUR nginx GSI server with `brix_gsi_signed_dh require` — the modern
     RSA-signed-DH path (phase-48).  Every client is forced onto the signed
     variant, so a successful auth proves the server's signed path interoperates."""
-    proc, url = _spawn_nginx_gsi(gsi_server, NGINX_SIGNED_PORT,
-                                 signed_dh="require", tag="nginx_gsi_signed")
-    yield url
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    return _start_nginx_gsi(lifecycle, gsi_server, "lc-nginx-gsi-signed",
+                            signed_dh="require")
 
 
 def test_stock_client_auths_to_our_server(gsi_server, nginx_gsi_server):

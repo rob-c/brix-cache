@@ -56,7 +56,7 @@ brix_vfs_copy_fail(brix_vfs_ctx_t *ctx, const char *src, int err,
  * HOW:  Re-fetch the leaf driver (non-NULL by the caller's guard), zero the
  *       cred (the gate fills only the active kind), resolve the credential,
  *       reject an existing destination when overwrite is unset, then call the
- *       server_copy slot (ENOSYS when absent) and book the OP_COPY observation
+ *       server_copy slot (ENOTSUP when absent) and book the OP_COPY observation
  *       with the copied byte count.
  */
 static ngx_int_t
@@ -80,7 +80,7 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
      * accessor legitimately returns NULL for the default POSIX driver — keep
      * the invariant local so a future caller cannot hand us a NULL vtable. */
     if (drv == NULL) {
-        return brix_vfs_copy_fail(ctx, src, ENOSYS, start);
+        return brix_vfs_copy_fail(ctx, src, ENOTSUP, start);
     }
 
     /* Zero before the gate: it fills only the active credential kind; an
@@ -107,7 +107,7 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
     rc = (drv->server_copy != NULL)
         ? brix_sd_server_copy_maybe_cred(leaf, s, d, &copied,
                use_cred ? &cred : NULL)
-        : (errno = ENOSYS, NGX_ERROR);
+        : (errno = ENOTSUP, NGX_ERROR);
     saved_errno = (rc == NGX_OK) ? 0 : errno;
     brix_vfs_observe_ctx_op(ctx, src, BRIX_METRIC_OP_COPY, NULL,
                               rc == NGX_OK ? (size_t) copied : 0, rc,

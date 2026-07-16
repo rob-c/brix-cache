@@ -12,37 +12,18 @@ Run:
 import hashlib
 import os
 import shutil
-import socket
 import subprocess
-import time
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
+from settings import HOST, BIND_HOST, NGINX_BIN
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _port_up(host, port):
-    try:
-        with socket.create_connection((host, port), timeout=1):
-            return True
-    except OSError:
-        return False
 
 
 def _md5(p):
@@ -50,38 +31,32 @@ def _md5(p):
 
 
 @pytest.fixture(scope="module")
-def rw(tmp_path_factory):
+def _client_built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
     subprocess.run(["make", "-C", CLIENT_DIR, "xrdcp"], capture_output=True, text=True, timeout=240)
     if not os.path.exists(XRDCP):
         pytest.skip("xrdcp build failed")
+
+
+@pytest.fixture()
+def rw(lifecycle, _client_built, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("bulk")
-    data = root / "data"
+    data = tmp_path / "data"
     (data / "g").mkdir(parents=True)
     (data / "g" / "a.txt").write_bytes(b"alpha\n")
     (data / "g" / "b.txt").write_bytes(b"bravo\n")
     (data / "g" / "c.dat").write_bytes(b"charlie\n")     # excluded by *.txt
     (data / "destdir").mkdir()                            # pre-existing remote dir
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_stream_posix_anon.conf",
-                                  BASE_DIR=root, BIND_HOST=BIND_HOST,
-                                  PORT=port, DATA_DIR=data,
-                                  WORKER_CONNECTIONS=64))
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    yield {"port": port, "data": data}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-xrdcp-bulk",
+        template="nginx_lc_stream_posix_anon.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+        reason="xrdcp bulk/batch transfers against a writable anon root server"))
+    return {"port": ep.port, "data": data}
 
 
 def _url(rw, path=""):

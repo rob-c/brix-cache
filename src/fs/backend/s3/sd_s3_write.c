@@ -291,8 +291,13 @@ sd_s3_open_write(const sd_s3_open_params *p, int64_t expected_size,
     f->is_write  = 1;
     f->part_size = (part_size > 0) ? part_size : (64LL * 1024 * 1024);
 
-    if (expected_size >= 0 && expected_size <= f->part_size) {
-        /* single buffered PUT */
+    if (expected_size <= f->part_size) {
+        /* Single buffered PUT — including UNKNOWN size (P80.2): start in the
+         * PUT buffer and upgrade to MPU mid-stream only if the volume actually
+         * exceeds part_size (sd_s3_put_upgrade_mpu). Small objects of unknown
+         * size cost one PUT instead of Create+UploadPart+Complete, and a
+         * known-size PUT that overruns its announcement upgrades instead of
+         * growing the buffer without bound. */
         size_t cap = (expected_size > 0) ? (size_t) expected_size
                                          : (size_t) SD_S3_PUT_BUF_INIT;
         if (cap < (size_t) SD_S3_PUT_BUF_INIT) { cap = SD_S3_PUT_BUF_INIT; }
@@ -302,9 +307,10 @@ sd_s3_open_write(const sd_s3_open_params *p, int64_t expected_size,
             sd_s3_close(f);
             return NULL;
         }
-        f->put_cap = cap;
+        f->put_cap  = cap;
+        f->lazy_mpu = 1;
     } else {
-        /* multipart upload */
+        /* announced size larger than one part: multipart upload from the start */
         if (sd_s3_mpu_create(f, errbuf, errcap) != 0) {
             int e = errno;               /* preserve the CreateMPU error class */
             sd_s3_close(f);
@@ -323,6 +329,38 @@ sd_s3_open_write(const sd_s3_open_params *p, int64_t expected_size,
     return f;
 }
 
+/* Upgrade a lazy PUT-buffered write to a multipart upload mid-stream (P80.2):
+ * create the MPU, move the buffered bytes into the part buffer (put_len is
+ * <= part_size by the caller's trigger condition, so they fit in one part),
+ * and continue accumulating through the normal MPU path. On failure the PUT
+ * buffer is intact and the handle unchanged, so the caller's error return
+ * leaves a consistent (abortable) handle. */
+static int
+sd_s3_put_upgrade_mpu(sd_s3_file *f, char *errbuf, size_t errcap)
+{
+    void *part;
+
+    if (sd_s3_mpu_create(f, errbuf, errcap) != 0) {
+        return -1;
+    }
+    part = malloc((size_t) f->part_size);
+    if (part == NULL) {
+        sd_s3_set_err(errbuf, errcap, "s3 mpu upgrade: out of memory (part)");
+        sd_s3_mpu_abort(f);
+        return -1;
+    }
+    memcpy(part, f->put_buf, f->put_len);
+    f->part_buf      = part;
+    f->part_buf_len  = f->put_len;
+    f->mpu_write_off = f->put_write_off;
+    free(f->put_buf);
+    f->put_buf = NULL;
+    f->put_len = 0;
+    f->put_cap = 0;
+    f->is_mpu  = 1;
+    return 0;
+}
+
 int
 sd_s3_pwrite(sd_s3_file *f, const void *buf, size_t n, off_t off,
              char *errbuf, size_t errcap)
@@ -333,6 +371,12 @@ sd_s3_pwrite(sd_s3_file *f, const void *buf, size_t n, off_t off,
     }
     if (n == 0) {
         return 0;
+    }
+    if (!f->is_mpu && f->lazy_mpu
+        && f->put_len + n > (size_t) f->part_size
+        && sd_s3_put_upgrade_mpu(f, errbuf, errcap) != 0)
+    {
+        return -1;
     }
     if (f->is_mpu) {
         const char *src = (const char *) buf;

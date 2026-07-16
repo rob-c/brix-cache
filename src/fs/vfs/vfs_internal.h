@@ -179,6 +179,8 @@ brix_vfs_sd_stat_fill(const brix_sd_stat_t *in, brix_vfs_stat_t *out)
     out->ctime = in->ctime;
     out->mode = (ngx_uint_t) in->mode;
     out->ino = in->ino;
+    out->uid = in->uid;
+    out->gid = in->gid;
     out->is_directory = in->is_dir ? 1 : 0;
     out->is_regular = in->is_reg ? 1 : 0;
 }
@@ -220,6 +222,8 @@ brix_vfs_sd_stat_to_vfs(const brix_sd_stat_t *in, brix_vfs_stat_t *out)
     out->ctime = in->ctime;
     out->mode = (ngx_uint_t) in->mode;
     out->ino = in->ino;
+    out->uid = in->uid;
+    out->gid = in->gid;
     out->is_directory = in->is_dir ? 1 : 0;
     out->is_regular = in->is_reg ? 1 : 0;
 }

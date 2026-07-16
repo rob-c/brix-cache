@@ -22,12 +22,11 @@ import time
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
+from settings import HOST, BIND_HOST, NGINX_BIN
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
@@ -70,7 +69,7 @@ def _build_tree(root):
 
 
 @pytest.fixture(scope="module")
-def web_servers(tmp_path_factory):
+def _client_built():
     import shutil
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
@@ -78,40 +77,40 @@ def web_servers(tmp_path_factory):
                        capture_output=True, text=True, timeout=240)
     if not os.path.exists(XRDCP):
         pytest.skip(f"xrdcp build failed:\n{r.stdout}\n{r.stderr}")
+
+
+@pytest.fixture()
+def web_servers(lifecycle, _client_built, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("webxfer")
-    dav_data = root / "dav"
-    s3_data = root / "s3"
+    dav_data = tmp_path / "dav"
+    s3_data = tmp_path / "s3"
     dav_data.mkdir()
     s3_data.mkdir()
     (s3_data / "testbucket").mkdir()
-    dav_port = _free_port()
     s3_port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_client_web_transfer.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  WEBDAV_PORT=dav_port,
-                                  S3_PORT=s3_port,
-                                  WEBDAV_DIR=dav_data,
-                                  S3_DIR=s3_data,
-                                  S3_ACCESS_KEY=S3_AK,
-                                  S3_SECRET_KEY=S3_SK))
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"nginx -t failed:\n{chk.stderr}")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
+
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-client-web-transfer",
+        template="nginx_lc_client_web_transfer.conf",
+        protocol="http",
+        extra_ports={"S3_PORT": s3_port},
+        template_values={"BIND_HOST": BIND_HOST,
+                         "WEBDAV_DIR": str(dav_data),
+                         "S3_DIR": str(s3_data),
+                         "S3_ACCESS_KEY": S3_AK,
+                         "S3_SECRET_KEY": S3_SK},
+        reason="webdav+s3 client transfer"))
+
+    # Harness waits on the WebDAV {PORT} only; poll the S3 port too.
     for _ in range(50):
-        if _port_up(HOST, dav_port) and _port_up(HOST, s3_port):
+        if _port_up(HOST, s3_port):
             break
         time.sleep(0.1)
-    yield {"dav_port": dav_port, "s3_port": s3_port, "root": root,
-           "dav_data": dav_data}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+
+    return {"dav_port": ep.port, "s3_port": s3_port, "root": tmp_path,
+            "dav_data": dav_data}
 
 
 def test_webdav_upload_download_roundtrip(web_servers, tmp_path):

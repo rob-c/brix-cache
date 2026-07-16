@@ -87,6 +87,12 @@ typedef struct {
     /* --- HTTP-TPC OAuth2/OIDC credential delegation --- */
     ngx_http_brix_tpc_conf_t tpc_cred;
 
+    /* --- HTTP Basic password auth (pwd db) --- */
+    ngx_str_t      pwd_file;        /* [brix_webdav_pwd_file <file>] enable HTTP
+                                       Basic verified against the same
+                                       user:salthex:hashhex[:vo,..] db the
+                                       stream `brix_auth pwd` uses ("" = off) */
+
     /* --- Bearer token (WLCG/SciToken) settings --- */
     ngx_str_t      token_jwks;      /* path to JWKS file for RS256 validation */
     ngx_str_t      token_issuer;    /* required "iss" claim; "" to skip check */

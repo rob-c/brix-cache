@@ -116,7 +116,12 @@ typedef enum {
 typedef enum {
     BRIX_SD_CRED_NONE      = 0,
     BRIX_SD_CRED_BEARER    = 1u << 0,  /* raw JWT bearer text        */
-    BRIX_SD_CRED_PROXY_PEM = 1u << 1   /* full x509 proxy PEM        */
+    BRIX_SD_CRED_PROXY_PEM = 1u << 1,  /* full x509 proxy PEM        */
+    /* Local identity: the backend consumes only WHO the client is (principal +
+     * VO list) for its own ownership/enforcement model — no forwardable secret
+     * is required or minted, so no credential directory needs configuring.
+     * pblock's catalog-internal ownership registry is the consumer. */
+    BRIX_SD_CRED_IDENTITY  = 1u << 2
 } brix_sd_cred_kind_t;
 
 /* ---- SD open flags --------------------------------------------------------
@@ -209,6 +214,8 @@ typedef struct {
                                   /* cred)                                              */
     const char *key;             /* credential-dir lookup key (audit + flush re-resolve) */
     const char *principal;       /* authenticated principal (audit/ledger; may be NULL) */
+    const char *vos;             /* comma-separated VO/group names of the principal      */
+                                  /* (NULL or "" when none; consumed by IDENTITY drivers) */
     const char *cred_dir;        /* export credential directory (flush re-resolve)      */
     enum brix_cred_mode mode;    /* how this cred was obtained (phase-70; 0 = SELECT)   */
     unsigned    fallback_deny:1; /* 1 = service-credential fallback forbidden           */
@@ -246,13 +253,17 @@ typedef struct {
  * enumeration, non-zero to abort it (that code is returned to the caller). */
 typedef int (*brix_sd_catalog_cb)(void *ctx, const brix_sd_catalog_ent_t *ent);
 
-/* Protocol-neutral stat the driver fills; the VFS maps it to brix_vfs_stat_t. */
+/* Protocol-neutral stat the driver fills; the VFS maps it to brix_vfs_stat_t.
+ * uid/gid are the owner ids in the driver's own namespace (POSIX: kernel ids;
+ * pblock: catalog-internal synthetic ids); 0 for backends with no owner model. */
 typedef struct {
     off_t       size;
     time_t      mtime;
     time_t      ctime;
     mode_t      mode;
     ino_t       ino;
+    uid_t       uid;
+    gid_t       gid;
     unsigned    is_dir:1;
     unsigned    is_reg:1;
 } brix_sd_stat_t;
@@ -959,6 +970,69 @@ brix_sd_posix_wrap(brix_sd_obj_t *obj, ngx_fd_t fd)
     ngx_memzero(obj, sizeof(*obj));
     obj->driver = &brix_sd_posix_driver;
     obj->fd = fd;
+}
+
+/* ---- brix_sd_obj_preadv — vectored read with per-driver fallback ---------
+ *
+ * WHAT: Issues a positioned vectored read on `obj`, using the driver's native
+ *       preadv slot when present, else emulating it with one driver->pread per
+ *       iovec. Returns total bytes read (short = EOF), or -1 with errno set
+ *       (ENOTSUP when the driver has no byte-read slot at all).
+ *
+ * WHY:  preadv/preadv2 are OPTIONAL vtable slots — remote/object drivers
+ *       (sd_remote) implement only pread, and the read fan-out paths (pgread,
+ *       kXR_readv batches) previously called obj->driver->preadv unguarded,
+ *       which is a NULL call (SIGSEGV) on those backends. One shared fallback
+ *       keeps the emulation policy (stop on short read) in a single place.
+ *
+ * HOW:  Native slot when non-NULL; otherwise fill each iovec with a pread
+ *       loop — a short-but-nonzero pread is NOT EOF (drivers may cap a single
+ *       request), only a 0-byte pread is, so keep reading until the iovec is
+ *       full or the driver reports EOF/error. A -1 mid-loop after bytes were
+ *       already delivered reports the bytes (POSIX readv semantics); the
+ *       caller's next call surfaces the error.
+ */
+static ngx_inline ssize_t
+brix_sd_obj_preadv(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
+    off_t off)
+{
+    ssize_t  total = 0;
+    int      i;
+    int      eof = 0;
+
+    if (obj->driver->preadv != NULL) {
+        return obj->driver->preadv(obj, iov, iovcnt, off);
+    }
+
+    if (obj->driver->pread == NULL) {
+        errno = ENOTSUP;
+        return -1;
+    }
+
+    for (i = 0; i < iovcnt && !eof; i++) {
+        size_t filled = 0;
+
+        while (filled < iov[i].iov_len) {
+            ssize_t n = obj->driver->pread(obj,
+                                           (char *) iov[i].iov_base + filled,
+                                           iov[i].iov_len - filled,
+                                           off + total);
+            if (n < 0) {
+                if (total > 0) {
+                    return total;
+                }
+                return -1;
+            }
+            if (n == 0) {
+                eof = 1;        /* only a 0-byte pread means EOF */
+                break;
+            }
+            filled += (size_t) n;
+            total  += n;
+        }
+    }
+
+    return total;
 }
 
 #endif /* BRIX_SD_H */

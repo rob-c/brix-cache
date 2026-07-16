@@ -25,11 +25,11 @@ import time
 
 import pytest
 
+from cmdscripts import c_object_units
 from config_templates import render_config
 from settings import HOST, NGINX_BIN, free_ports
 
 _HERE = os.path.dirname(__file__)
-_RUNNER = os.path.join(_HERE, "c", "run_slice_tests.sh")
 _OBJS = os.environ.get("TEST_NGINX_OBJS", "/tmp/nginx-1.28.3/objs")
 _NGINX = os.environ.get("TEST_NGINX_BIN", os.path.join(_OBJS, "nginx"))
 
@@ -37,20 +37,16 @@ _NGINX = os.environ.get("TEST_NGINX_BIN", os.path.join(_OBJS, "nginx"))
 class TestSliceLibrary:
     """Step A — the shared slice enumeration/path/meta/evict library."""
 
-    def test_slice_library_unit_tests_pass(self):
+    def test_slice_library_unit_tests_pass(self, tmp_path):
         slice_o = os.path.join(_OBJS, "addon", "cache", "slice.o")
         if not os.path.exists(slice_o):
             pytest.skip(f"slice.o not built under {_OBJS}; build the module first")
 
-        proc = subprocess.run(
-            [_RUNNER, _OBJS],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=120,
-        )
-        out = proc.stdout.decode(errors="replace")
+        ok, out = c_object_units.run_checks(tmp_path, ["slice"])[0]
+        if out.startswith("SKIP"):
+            pytest.skip(out)
         # Surface the C harness output on failure for debugging.
-        assert proc.returncode == 0, f"slice unit tests failed:\n{out}"
+        assert ok, f"slice unit tests failed:\n{out}"
         assert ", 0 failed" in out, f"unexpected slice unit test output:\n{out}"
 
 
@@ -492,15 +488,14 @@ def test_last_partial_slice_is_clamped(xcache):
 class TestCinfoLibrary:
     """The .cinfo bitmap C unit tests, linked against the real cinfo.o."""
 
-    def test_cinfo_library_unit_tests_pass(self):
+    def test_cinfo_library_unit_tests_pass(self, tmp_path):
         cinfo_o = os.path.join(_OBJS, "addon", "cache", "cinfo.o")
         if not os.path.exists(cinfo_o):
             pytest.skip("cinfo.o not built under %s; build the module first" % _OBJS)
-        runner = os.path.join(_HERE, "c", "run_cinfo_tests.sh")
-        proc = subprocess.run([runner, _OBJS], stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, timeout=120)
-        out = proc.stdout.decode(errors="replace")
-        assert proc.returncode == 0, "cinfo unit tests failed:\n%s" % out
+        ok, out = c_object_units.run_checks(tmp_path, ["cinfo"])[0]
+        if out.startswith("SKIP"):
+            pytest.skip(out)
+        assert ok, "cinfo unit tests failed:\n%s" % out
         assert ", 0 failed" in out, "unexpected cinfo unit output:\n%s" % out
 
 

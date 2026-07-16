@@ -99,6 +99,8 @@ sd_posix_fill_stat(const struct stat *st, brix_sd_stat_t *out)
     out->ctime = st->st_ctime;
     out->mode  = st->st_mode;
     out->ino   = st->st_ino;
+    out->uid   = st->st_uid;
+    out->gid   = st->st_gid;
     out->is_dir = S_ISDIR(st->st_mode) ? 1 : 0;
     out->is_reg = S_ISREG(st->st_mode) ? 1 : 0;
 }

@@ -5,7 +5,7 @@ Covers the Pillar-F follow-ups:
   * the scratch wiring: a recall is staged to a local POSIX scratch mount and
     committed to storage (force-scratch on a POSIX export, via the env knobs);
   * #1 LFN threading: the copycmd is exported $FRM_LFN, so a REAL recall script
-    (frm_fake_mss.sh) fetches the right object even though it writes to a scratch
+    (cmdscripts/frm_fake_mss.py) fetches the right object even though it writes to a scratch
     path that does not encode the object;
   * #2 control-dir: with BRIX_FRM_CONTROL_DIR set, the residency marker lives in
     a local POSIX control mount (a flat hashed stub), not on the export object.
@@ -62,9 +62,9 @@ def _start_frm(d, *, force_scratch=False, control_dir=False, real_mss=False,
     queue = d / "frm.queue"
     audit = d / "audit.log"; audit.write_text("")
 
-    copycmd = d / "copycmd.sh"
+    copycmd = d / "copycmd.py" if real_mss else d / "copycmd.sh"
     if real_mss:
-        shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"),
+        shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"),
                     str(copycmd))
     else:
         copycmd.write_text(FIXED_COPYCMD)

@@ -2,16 +2,21 @@
 #define BRIX_SD_REMOTE_H
 
 /*
- * sd_remote.h — read-only remote-origin storage driver for the read-through cache.
+ * sd_remote.h — remote-origin (s3://) storage driver: ranged reads plus staged
+ * whole-object writes.
  *
- * WHAT: A capability-typed SD driver (CAP_RANGE_READ only; all write/dir/xattr
- *       slots NULL) that serves open/stat/pread/fstat/close against a REMOTE
- *       object store. The cache fill drives it driver→driver: open the origin
- *       object, pread sequential ranges into the cache's staged-write sink.
+ * WHAT: A capability-typed SD driver (CAP_RANGE_READ|CAP_MEMFILE) serving
+ *       open/stat/pread/preadv/fstat/close against a REMOTE object store, plus
+ *       staged whole-object writes (.staged_* → single PUT or multipart upload)
+ *       and .unlink (DELETE). The read-through cache fill drives it
+ *       driver→driver: open the origin object, pread sequential ranges into the
+ *       cache's staged-write sink; as a primary it also accepts uploads.
  *
- * WHY:  It folds the cache origin onto the SAME SD seam as the local cache and
- *       export, so the fill is origin-agnostic. The driver can never be mistaken
- *       for a writable export primary — the write vtable slots are absent.
+ * WHY:  It folds the origin onto the SAME SD seam as the local cache and
+ *       export, so fills and uploads are origin-agnostic. There is deliberately
+ *       no .pwrite slot — random in-place writes are impossible on an object
+ *       store, so they are rejected at the cap layer while sequential uploads
+ *       go through the staged path. Dir/xattr/namespace slots stay NULL.
  *
  * HOW:  s3:// delegates to the shared S3 driver (sd_s3): the per-open object wraps
  *       an sd_s3_file*, pread is a signed Range GET. The HTTP transport is INJECTED

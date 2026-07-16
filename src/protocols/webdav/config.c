@@ -253,7 +253,7 @@ webdav_summary_is_new(ngx_http_brix_webdav_loc_conf_t *conf,
  */
 static void webdav_log_endpoint_warnings(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf, ngx_uint_t has_x509,
-    ngx_uint_t has_token);
+    ngx_uint_t has_token, ngx_uint_t has_pwd);
 
 void
 webdav_log_endpoint_summary(ngx_conf_t *cf,
@@ -262,6 +262,7 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
     ngx_uint_t  has_x509  = (conf->cadir.len > 0 || conf->cafile.len > 0
                              || conf->proxy_certs);
     ngx_uint_t  has_token = (conf->jwks_key_count > 0);
+    ngx_uint_t  has_pwd   = (conf->pwd_file.len > 0);
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: WebDAV (davs://) endpoint ready — export \"%V\" (%s), auth: %s",
@@ -269,11 +270,12 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
         conf->common.allow_write ? "read-write" : "read-only",
         webdav_auth_name(conf->auth));
 
-    if (has_x509 || has_token) {
+    if (has_x509 || has_token || has_pwd) {
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "brix:   credentials accepted:%s%s",
+            "brix:   credentials accepted:%s%s%s",
             has_x509 ? " x509/GSI-proxy" : "",
-            has_token ? " bearer-token" : "");
+            has_token ? " bearer-token" : "",
+            has_pwd ? " basic-password" : "");
     }
     if (conf->crl.len > 0) {
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
@@ -289,7 +291,7 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
             &conf->upstream_url);
     }
 
-    webdav_log_endpoint_warnings(cf, conf, has_x509, has_token);
+    webdav_log_endpoint_warnings(cf, conf, has_x509, has_token, has_pwd);
 }
 
 /* Valid-but-noteworthy settings, surfaced explicitly for a first-time admin so
@@ -299,8 +301,15 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
 static void
 webdav_log_endpoint_warnings(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf, ngx_uint_t has_x509,
-    ngx_uint_t has_token)
+    ngx_uint_t has_token, ngx_uint_t has_pwd)
 {
+    if (has_pwd) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix:   NOTE: password (Basic) authentication is enabled — do "
+            "NOT rely on password auth in production, it is poor practice "
+            "(prefer x509/GSI or bearer tokens, and serve Basic only over "
+            "TLS: passwords cross the wire base64-encoded, not encrypted)");
+    }
     if (has_x509 && conf->crl.len == 0) {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: x509/GSI is accepted but no CRL is configured — "
@@ -313,12 +322,13 @@ webdav_log_endpoint_warnings(ngx_conf_t *cf,
             "files (set brix_webdav_auth required)");
     }
     if (conf->auth == WEBDAV_AUTH_REQUIRED && !has_x509 && !has_token
-        && !conf->upstream_proxy)
+        && !has_pwd && !conf->upstream_proxy)
     {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-            "brix:   NOTE: auth is required but no x509 CA or token JWKS is "
-            "configured — every client will be rejected (set "
-            "brix_webdav_cadir and/or brix_webdav_token_jwks)");
+            "brix:   NOTE: auth is required but no x509 CA, token JWKS or "
+            "password db is configured — every client will be rejected (set "
+            "brix_webdav_cadir, brix_webdav_token_jwks and/or "
+            "brix_webdav_pwd_file)");
     }
 }
 

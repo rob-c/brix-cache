@@ -40,7 +40,7 @@ brix_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-/* `require_vo <vo>[ <path>]` — append a VO ACL rule to vo_rules.  Returns
+/* `brix_require_vo <path> <vo>` — append a VO ACL rule to vo_rules.  Returns
  * NGX_CONF_OK, or NGX_CONF_ERROR (emerg-logged) on bad args. */
 char *
 brix_conf_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)

@@ -44,7 +44,7 @@ brix_vfs_driver_rmtree(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
     brix_sd_stat_t st;
 
     if (drv->stat == NULL || drv->unlink == NULL) {
-        errno = ENOSYS;
+        errno = ENOTSUP;
         return NGX_ERROR;
     }
     if (brix_sd_stat_maybe_cred(leaf, logical, &st, cred) != NGX_OK) {
@@ -105,7 +105,7 @@ brix_vfs_driver_rmtree(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
  *       3. When the cred gate is active, resolve the user credential; on
  *          failure observe EACCES (or the gate's errno) and return NGX_ERROR.
  *       4. Recursive → brix_vfs_driver_rmtree; else unlink via the driver
- *          (require_empty_dir selects directory semantics), or ENOSYS when the
+ *          (require_empty_dir selects directory semantics), or ENOTSUP when the
  *          driver has no unlink.
  *       5. Observe the result and return it. */
 static ngx_int_t
@@ -146,7 +146,7 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
         rc = brix_sd_unlink_maybe_cred(leaf, logical,
                  require_empty_dir ? 1 : 0, use_cred ? &cred : NULL);
     } else {
-        errno = ENOSYS;
+        errno = ENOTSUP;
         rc = NGX_ERROR;
     }
     saved_errno = errno;

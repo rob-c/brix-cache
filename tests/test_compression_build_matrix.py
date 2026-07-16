@@ -145,16 +145,18 @@ def test_codec_per_codec_drop_independence(tmp_path, dropped):
 
 
 @pytest.mark.timeout(900)   # full nginx + dynamic-module build is ~90s+, far over the 30s default
-def test_dynamic_module_dlopen_codec_wiring():
+def test_dynamic_module_dlopen_codec_wiring(tmp_path):
     """Full isolated --with-compat dynamic build; assert the codec libs (incl.
     lz4) are linked into the dynamic stream .so and resolve at load."""
-    script = os.path.join(REPO, "tests", "build_dynamic_modules.sh")
-    if not os.path.isfile(script):
-        pytest.fail("build_dynamic_modules.sh not present")
+    from pathlib import Path
 
-    r = subprocess.run(["bash", script], capture_output=True, text=True,
-                       timeout=900)
-    assert r.returncode == 0, (
-        f"dynamic-module codec wiring FAILED (exit {r.returncode}):\n"
-        f"{r.stdout[-2000:]}\n{r.stderr[-2000:]}")
-    assert "ALL DYNAMIC-MODULE CHECKS PASSED" in r.stdout, r.stdout[-2000:]
+    from cmdscripts.operator_build import build_dynamic_modules
+
+    nginx_src = Path(os.environ.get("NGINX_SRC", "/tmp/nginx-1.28.3"))
+    results = build_dynamic_modules(nginx_src, tmp_path / "xrd-build-matrix")
+    skips = [msg for ok, msg in results if msg.startswith("SKIP")]
+    if skips:
+        pytest.skip("; ".join(skips))
+    failures = [msg for ok, msg in results if not ok]
+    assert not failures, (
+        "dynamic-module codec wiring FAILED:\n" + "\n".join(failures))

@@ -17,68 +17,51 @@ Run:
 import hashlib
 import json
 import os
-import socket
-import subprocess
+import pathlib
 import time
 import urllib.error
 import urllib.request
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
+from settings import HOST, BIND_HOST, NGINX_BIN, free_port
+from server_registry import NginxInstanceSpec
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 DASH_PW = "files_admin_pw_42"
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-@pytest.fixture(scope="module")
-def server(tmp_path_factory):
+@pytest.fixture
+def server(lifecycle):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("dashfiles")
-    data = root / "data"
-    (data / "sub").mkdir(parents=True)
+    off_port = free_port(BIND_HOST)   # second server: dashboard WITHOUT browse_root
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-dashboard-files",
+        template="nginx_lc_dashboard_files.conf",
+        protocol="webdav",
+        extra_ports={"OFF_PORT": off_port},
+        template_values={"BIND_HOST": BIND_HOST, "PASSWORD": DASH_PW},
+        reason="dashboard admin file browser coverage"))
+
+    # DATA_ROOT is the browse root; seed the tree and a sibling secret OUTSIDE it.
+    data = pathlib.Path(ep.data_root)
+    (data / "sub").mkdir(parents=True, exist_ok=True)
     (data / "alpha.bin").write_bytes(os.urandom(1234))
     (data / "sub" / "note.txt").write_bytes(b"hello world\n")
-    # a sensitive file OUTSIDE the browse root, used as the traversal target
-    (root / "secret.txt").write_bytes(b"TOPSECRET\n")
+    (data.parent / "secret.txt").write_bytes(b"TOPSECRET\n")
 
-    hp = _free_port()
-    hp_off = _free_port()   # second server: dashboard WITHOUT browse_root
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_dashboard_files.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  PORT=hp,
-                                  OFF_PORT=hp_off,
-                                  PASSWORD=DASH_PW,
-                                  DATA_DIR=data))
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    base = f"http://{HOST}:{hp}"
+    base = f"http://{HOST}:{ep.port}"
     for _ in range(50):
         try:
             urllib.request.urlopen(base + "/brix", timeout=2)
             break
         except Exception:
             time.sleep(0.1)
-    yield {"base": base, "base_off": f"http://{HOST}:{hp_off}", "data": data,
+    yield {"base": base, "base_off": f"http://{HOST}:{off_port}", "data": data,
            "alpha_md5": hashlib.md5((data / "alpha.bin").read_bytes()).hexdigest()}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "stop"], capture_output=True)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

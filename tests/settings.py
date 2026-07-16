@@ -4,6 +4,17 @@ import os
 import socket
 
 TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
+REGISTRY_ROOT = os.environ.get(
+    "TEST_REGISTRY_ROOT", os.path.join(TEST_ROOT, "registry")
+)
+REGISTRY_MANIFEST = os.environ.get(
+    "TEST_REGISTRY_MANIFEST", os.path.join(REGISTRY_ROOT, "manifest.json")
+)
+REGISTRY_ENABLED = os.environ.get("TEST_SERVER_REGISTRY", "1") != "0"
+REGISTRY_START = os.environ.get("TEST_REGISTRY_START", "1") != "0"
+REGISTRY_KEEP_LOGS = os.environ.get("TEST_REGISTRY_KEEP_LOGS", "0") == "1"
+REGISTRY_STRICT_TEMPLATES = os.environ.get("TEST_REGISTRY_STRICT_TEMPLATES", "1") != "0"
+REGISTRY_PORT_BASE = os.environ.get("TEST_REGISTRY_PORT_BASE")
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +51,12 @@ def free_ports(n, host="127.0.0.1"):
     finally:
         for s in socks:
             s.close()
+
+
+def reserve_ports(names, host="127.0.0.1"):
+    """Return a stable name->port map while holding sockets during allocation."""
+    ports = free_ports(len(names), host=host)
+    return dict(zip(names, ports))
 
 # ---------------------------------------------------------------------------
 # Remote server target

@@ -50,7 +50,7 @@ Every claim below was checked directly against source; see
 
 | Directive | Args | Default | Scope |
 |---|---|---|---|
-| `brix_storage_credential_dir` | `<path>` | `""` (feature off) | HTTP (main/srv/loc) **and** stream (`server{}`) |
+| `brix_storage_credential_dir` | `<path>` | `/dev/shm/brix-creds` (tmpfs; created 0700 at config time; explicit `""` = feature off) | HTTP (main/srv/loc) **and** stream (`server{}`) |
 | `brix_storage_credential_fallback` | `allow \| deny` | `allow` | HTTP (main/srv/loc) **and** stream (`server{}`) |
 | `brix_storage_credential_mint_ca` | `<ca_cert.pem> <ca_key.pem>` | unset (minting off) | HTTP (main/srv/loc) **and** stream (`server{}`) — Phase 3 T1 |
 | `brix_storage_credential_mint_ttl` | `<seconds>` | `3600` | HTTP (main/srv/loc) **and** stream (`server{}`) — Phase 3 T1 |

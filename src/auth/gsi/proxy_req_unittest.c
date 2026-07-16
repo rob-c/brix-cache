@@ -228,8 +228,10 @@ static void test_sign_pxyreq(suite_t *s)
 }
 
 /* WHAT: stage 3 — assemble the delegated credential (brix_gsi_assemble_proxy).
- * WHY:  the credential must be proxy||chain and reject a mismatched key.
- * HOW:  assemble with the matching key, count the certs, then retry wrong. */
+ * WHY:  the credential must be proxy||chain||key — a complete credential the
+ *       holder can authenticate with — and reject a mismatched key.
+ * HOW:  assemble with the matching key, count the certs, extract the embedded
+ *       private key and match it to reqkey, then retry with a wrong key. */
 static void test_assemble_proxy(suite_t *s)
 {
     printf("[assemble_proxy]\n");
@@ -241,14 +243,26 @@ static void test_assemble_proxy(suite_t *s)
                                      s->esink);
     s->cred = cred_out.data; cred_len = cred_out.len;
     CHECK(rc == 0, "assemble_proxy succeeds with matching key");
-    CHECK(s->cred && cred_len == s->pxy_len + s->eec_len, "credential = proxy + chain");
-    /* count certs in the assembled credential */
+    CHECK(s->cred && cred_len > s->pxy_len + s->eec_len,
+          "credential = proxy + chain + key");
+    /* count certs in the assembled credential (cert-reader must stop cleanly
+     * at the trailing key block) */
     if (s->cred) {
         BIO *b = BIO_new_mem_buf(s->cred, (int) cred_len);
         int cnt = 0; X509 *t;
         while ((t = PEM_read_bio_X509(b, NULL, NULL, NULL))) { cnt++; X509_free(t); }
         BIO_free(b);
         CHECK(cnt == 2, "assembled credential holds 2 certs (proxy+EEC)");
+    }
+    /* the embedded private key must be present and be the request key */
+    if (s->cred) {
+        BIO *b = BIO_new_mem_buf(s->cred, (int) cred_len);
+        EVP_PKEY *ck = b ? PEM_read_bio_PrivateKey(b, NULL, NULL, NULL) : NULL;
+        CHECK(ck != NULL, "assembled credential holds a private key");
+        CHECK(ck != NULL && EVP_PKEY_eq(ck, s->reqkey) == 1,
+              "embedded private key == request key");
+        EVP_PKEY_free(ck);
+        BIO_free(b);
     }
 
     /* key mismatch must fail */

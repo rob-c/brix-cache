@@ -112,8 +112,12 @@ sd_pblock_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     return pblock_catalog_remove(st->cat, path) == 0 ? NGX_OK : NGX_ERROR;
 }
 
+/* sd_pblock_mkdir_as — mkdir recording (uid, gid) as the new directory's
+ * owner. The plain slot passes 0/0 (service); mkdir_cred (sd_pblock_cred.c)
+ * passes the requester's resolved catalog ids. */
 ngx_int_t
-sd_pblock_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
+sd_pblock_mkdir_as(brix_sd_instance_t *inst, const char *path, mode_t mode,
+    uint32_t uid, uint32_t gid)
 {
     pblock_state_t *st = inst->state;
     pblock_meta     meta;
@@ -122,17 +126,27 @@ sd_pblock_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
     meta.is_dir = 1;
     meta.mtime  = meta.ctime = pblock_now();
     meta.mode   = S_IFDIR | (mode & 0777);
+    meta.uid    = uid;
+    meta.gid    = gid;
     /* One INSERT — the PRIMARY KEY constraint is the existence check (EEXIST),
      * so no separate lookup is needed. */
     return pblock_catalog_create(st->cat, path, &meta) == 0 ? NGX_OK : NGX_ERROR;
 }
 
-/* sd_pblock_setattr — apply kXR_chmod (mode) and/or kXR_setattr (times) to an
- * existing catalog row. The catalog records mode + mtime + ctime, so those are
- * honoured; it has no owner (uid/gid) or atime columns, so set_owner and atime
- * are accepted-and-ignored (object-store semantics) rather than failing — a chown
- * an export cannot represent should not break the op. ctime is bumped on any
- * change, matching POSIX. lookup→modify→put reuses the upsert path. */
+ngx_int_t
+sd_pblock_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
+{
+    return sd_pblock_mkdir_as(inst, path, mode, 0, 0);
+}
+
+/* sd_pblock_setattr — apply kXR_chmod (mode), chown (owner) and/or kXR_setattr
+ * (times) to an existing catalog row. The catalog records mode + owner (the
+ * catalog-internal synthetic uid/gid) + mtime + ctime; atime has no column and
+ * is accepted-and-ignored (object-store semantics) rather than failing — a
+ * setattr an export cannot represent should not break the op. ctime is bumped
+ * on any change, matching POSIX. This plain slot applies the caller's values
+ * verbatim (service semantics); ownership POLICY (who may chown) lives in the
+ * identity-aware setattr_cred slot. */
 ngx_int_t
 sd_pblock_setattr(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr)
@@ -140,16 +154,24 @@ sd_pblock_setattr(brix_sd_instance_t *inst, const char *path,
     pblock_state_t *st = inst->state;
     int             set_mtime = 0;
     int64_t         mtime = 0;
+    int64_t         uid = -1, gid = -1;
 
     if (attr->set_times && attr->mtime.tv_nsec != UTIME_OMIT) {
         set_mtime = 1;
         mtime = (attr->mtime.tv_nsec == UTIME_NOW)
                 ? pblock_now() : (int64_t) attr->mtime.tv_sec;
     }
+    if (attr->set_owner) {
+        /* (uid_t)-1 / (gid_t)-1 mean "keep" (chown(2)); map to the catalog's
+         * signed -1 sentinel. */
+        uid = attr->uid == (uid_t) -1 ? -1 : (int64_t) attr->uid;
+        gid = attr->gid == (gid_t) -1 ? -1 : (int64_t) attr->gid;
+    }
 
     /* One UPDATE — no read-modify-write. ENOENT (rc<0 with errno) when absent. */
     return pblock_catalog_setattr(st->cat, path, attr->set_mode ? 1 : 0,
-               attr->mode & 0777, set_mtime, mtime, pblock_now()) == 0
+               attr->mode & 0777, attr->set_owner ? 1 : 0, uid, gid,
+               set_mtime, mtime, pblock_now()) == 0
            ? NGX_OK : NGX_ERROR;
 }
 
@@ -212,9 +234,12 @@ sd_pblock_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     return pblock_catalog_rename(st->cat, src, dst) == 0 ? NGX_OK : NGX_ERROR;
 }
 
+/* sd_pblock_server_copy_as — server-side copy whose destination row is owned
+ * by (uid, gid): the copier, not the source's owner (POSIX cp semantics). The
+ * plain slot passes 0/0 (service); server_copy_cred passes the requester. */
 ngx_int_t
-sd_pblock_server_copy(brix_sd_instance_t *inst, const char *src,
-    const char *dst, off_t *bytes_out)
+sd_pblock_server_copy_as(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, uint32_t uid, uint32_t gid)
 {
     pblock_state_t *st = inst->state;
     pblock_meta     smeta, dmeta;
@@ -263,6 +288,8 @@ sd_pblock_server_copy(brix_sd_instance_t *inst, const char *src,
     dmeta.block_size = smeta.block_size;
     dmeta.mtime      = dmeta.ctime = pblock_now();
     dmeta.mode       = smeta.mode;
+    dmeta.uid        = uid;
+    dmeta.gid        = gid;
 
     if (pblock_catalog_put(st->cat, dst, &dmeta) != 0) {
         int err = errno;
@@ -275,6 +302,13 @@ sd_pblock_server_copy(brix_sd_instance_t *inst, const char *src,
         *bytes_out = (off_t) smeta.size;
     }
     return NGX_OK;
+}
+
+ngx_int_t
+sd_pblock_server_copy(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out)
+{
+    return sd_pblock_server_copy_as(inst, src, dst, bytes_out, 0, 0);
 }
 
 /* ---- directory iteration -------------------------------------------------- */
@@ -375,8 +409,9 @@ sd_pblock_setxattr(brix_sd_instance_t *inst, const char *path,
 {
     pblock_state_t *st = inst->state;
 
-    (void) flags;   /* XATTR_CREATE/REPLACE not distinguished by this backend */
-    return pblock_catalog_setxattr(st->cat, path, name, val, len) == 0
+    /* XATTR_CREATE/XATTR_REPLACE are enforced by the catalog (EEXIST/ENODATA),
+     * as is the path-existence gate (ENOENT). */
+    return pblock_catalog_setxattr(st->cat, path, name, val, len, flags) == 0
                ? NGX_OK : NGX_ERROR;
 }
 

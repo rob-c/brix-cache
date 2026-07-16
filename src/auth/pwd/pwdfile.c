@@ -83,13 +83,14 @@ pwd_from_hex(const char *hex, size_t hexlen, uint8_t *out, size_t outcap)
     return (int) (hexlen / 2);
 }
 
-/* Parse one "user:salthex:hashhex" line for `user`.  Returns 1 on a match (salt +
- * hash filled), 0 otherwise. */
+/* Parse one "user:salthex:hashhex[:vo1,vo2]" line for `user`.  Returns 1 on a
+ * match (salt + hash filled; vos filled with the optional comma-separated VO
+ * list, or "" when the legacy 3-field form is used), 0 otherwise. */
 static int
 pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
-    uint8_t *hash, size_t *hashlen)
+    uint8_t *hash, size_t *hashlen, char *vos, size_t voscap)
 {
-    char  *colon1, *colon2, *nl;
+    char  *colon1, *colon2, *colon3, *nl;
     int    n;
 
     while (*line == ' ' || *line == '\t') {
@@ -116,6 +117,13 @@ pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
     }
     *colon2 = '\0';
 
+    /* Optional 4th field: comma-separated VO/group list.  Split it off BEFORE
+     * hex-decoding the hash so the hash field length excludes it. */
+    colon3 = strchr(colon2 + 1, ':');
+    if (colon3 != NULL) {
+        *colon3 = '\0';
+    }
+
     n = pwd_from_hex(colon1 + 1, strlen(colon1 + 1), salt, BRIX_PWD_MAX_SALT);
     if (n <= 0) {
         return 0;
@@ -126,12 +134,21 @@ pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
         return 0;
     }
     *hashlen = (size_t) n;
+
+    if (vos != NULL && voscap > 0) {
+        const char *v = (colon3 != NULL) ? colon3 + 1 : "";
+
+        if (strlen(v) >= voscap) {
+            return 0;   /* over-long VO list: reject the entry outright */
+        }
+        strcpy(vos, v);
+    }
     return 1;
 }
 
 ngx_int_t
 brix_pwd_file_lookup(const char *path, const char *user, uint8_t *salt,
-    size_t *saltlen, uint8_t *hash, size_t *hashlen)
+    size_t *saltlen, uint8_t *hash, size_t *hashlen, char *vos, size_t voscap)
 {
     FILE  *f;
     char   line[512];
@@ -145,7 +162,9 @@ brix_pwd_file_lookup(const char *path, const char *user, uint8_t *salt,
         return NGX_DECLINED;
     }
     while (fgets(line, sizeof(line), f) != NULL) {
-        if (pwd_parse_line(line, user, salt, saltlen, hash, hashlen)) {
+        if (pwd_parse_line(line, user, salt, saltlen, hash, hashlen,
+                           vos, voscap))
+        {
             found = 1;
             break;
         }

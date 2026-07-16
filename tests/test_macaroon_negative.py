@@ -18,10 +18,7 @@ These drive the validator over HTTP against a macaroon-secret WebDAV server:
 """
 
 import os
-import socket
-import subprocess
 import sys
-import time
 
 import pytest
 
@@ -35,7 +32,9 @@ except Exception:                                    # pragma: no cover
     _HAVE_REQUESTS = False
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST   # noqa: E402
-from config_templates import render_config                   # noqa: E402
+from server_registry import NginxInstanceSpec                # noqa: E402
+
+pytestmark = [pytest.mark.uses_lifecycle_harness]
 
 PORT = int(os.environ.get("TEST_MACAROON_PORT") or free_port())
 SECRET_HEX = "deadbeef" * 8
@@ -44,52 +43,31 @@ WRONG_SECRET = bytes.fromhex("cafebabe" * 8)
 LOCATION = f"http://{HOST}:{PORT}"
 
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def mac_server(tmp_path_factory):
+@pytest.fixture()
+def mac_server(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     if not _HAVE_REQUESTS:
         pytest.skip("requests not available")
 
-    d = tmp_path_factory.mktemp("mac")
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    (d / "cadir").mkdir()
-    data = d / "data"
+    data = tmp_path / "data"
     data.mkdir()
     (data / "test.txt").write_text("hello-macaroon\n")
+    cadir = tmp_path / "cadir"
+    cadir.mkdir()
 
-    conf = render_config("nginx_webdav_macaroon.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=PORT,
-                         DATA_DIR=data,
-                         SECRET_HEX=SECRET_HEX)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(PORT):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"macaroon webdav server did not start: {err}")
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-macaroon-negative",
+        template="nginx_lc_webdav_macaroon.conf",
+        protocol="webdav",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "CADIR": str(cadir), "SECRET_HEX": SECRET_HEX},
+        reason="webdav macaroon negative auth"))
+
+    global PORT, LOCATION
+    PORT = ep.port
+    LOCATION = f"http://{HOST}:{PORT}"
     yield
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _caveats(before="2099-12-31T23:59:59Z"):

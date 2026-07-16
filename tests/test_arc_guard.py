@@ -16,17 +16,15 @@ Run:
 """
 
 import os
-import subprocess
 import time
 
 import pytest
 
-from guard_http_lib import (NGINX_BIN, AuditLog, GuardServer, StubBackend,
-                            free_port)
+from guard_http_lib import NGINX_BIN, AuditLog, GuardServer, StubBackend
 from settings import HOST, BIND_HOST
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
 
 @pytest.fixture(scope="module")
@@ -36,31 +34,25 @@ def stub_backend():
     backend.stop()
 
 
-@pytest.fixture(scope="module")
-def _server(tmp_path_factory, stub_backend):
+@pytest.fixture()
+def _server(lifecycle, tmp_path, stub_backend):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("arcguard")
-    audit_path = root / "guard-audit.log"
-    guard_port = free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_guard_arc.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  PORT=guard_port,
-                                  AUDIT_LOG=audit_path,
-                                  BACKEND_PORT=stub_backend.port))
-    rc = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                        capture_output=True, text=True)
-    if rc.returncode != 0:
-        pytest.skip(f"nginx -t failed: {rc.stderr}")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    server = GuardServer(HOST, guard_port)
+    audit_path = tmp_path / "guard-audit.log"
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name="lc-arc-guard",
+        template="nginx_guard_arc_lc.conf",
+        protocol="http",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "AUDIT_LOG": str(audit_path),
+            "BACKEND_PORT": stub_backend.port,
+        },
+        reason="phase-65 ARC guard-profile matrix"))
+    server = GuardServer(HOST, endpoint.port)
     server.wait_ready("/arex/ready")
-    yield {"server": server, "audit": AuditLog(str(audit_path))}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "stop"],
-                   capture_output=True)
+    return {"server": server, "audit": AuditLog(str(audit_path))}
 
 
 @pytest.fixture()

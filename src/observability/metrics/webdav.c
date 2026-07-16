@@ -37,6 +37,7 @@ static const char *brix_webdav_auth_names[BRIX_WEBDAV_NAUTH_RESULTS] = {
     "token_ok",
     "anonymous_fallback",
     "rejected",
+    "pwd_ok",
 };
 
 static const char *brix_webdav_put_names[BRIX_WEBDAV_NPUT_MODES] = {

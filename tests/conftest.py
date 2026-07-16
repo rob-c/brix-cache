@@ -19,6 +19,8 @@ import subprocess
 import tempfile
 
 import pytest
+from server_launcher import LifecycleHarness, RegistryLauncher
+from server_registry import get_server, read_manifest, register_compat_fleet, selected_specs
 from settings import (
     CA_CERT,
     CA_DIR,
@@ -91,6 +93,7 @@ except OSError:
 # Guards the destructive full-tree wipe so it runs at most once per process
 # (defensive — _setup_session is normally called only from pytest_sessionstart).
 _test_tree_wiped = False
+_pytest_config = None
 
 
 def _chdir_scratch():
@@ -439,7 +442,8 @@ def _setup_session():
     os.environ["X509_CERT_DIR"] = CA_DIR
     os.environ["X509_USER_PROXY"] = PROXY_STD
 
-    _start_all_resilient()
+    specs = getattr(_pytest_config, "_nginx_xrootd_selected_registry_specs", None)
+    _start_all_resilient(specs)
 
 
 def _reap_leaked_test_servers():
@@ -448,7 +452,7 @@ def _reap_leaked_test_servers():
     Pidfile-based ``stop-all`` only knows the servers it launched; a fleet
     process orphaned by a ``kill -9``'d prior run keeps holding its fixed port,
     which makes the next ``start-all`` bind fail.  This is the cmdline-scoped
-    reap ``brutal_teardown.sh`` uses, done in-process so it never touches the
+    reap the brutal-teardown utility uses, done in-process so it never touches the
     freshly-generated data/PKI (a full brutal_teardown would wipe them).  Only a
     process whose argv references TEST_ROOT / /tmp/xrd / /tmp/hsproto is killed —
     never a broad ``pkill`` that could match this interpreter.
@@ -476,7 +480,7 @@ def _reap_leaked_test_servers():
                     pass
 
 
-def _start_all_resilient():
+def _start_all_resilient(specs=None):
     """Start the fleet, self-healing the one recoverable start-all failure.
 
     A leaked fixed-port server from an interrupted (``kill -9``'d) prior run
@@ -484,7 +488,7 @@ def _start_all_resilient():
     ``capture_output=True``, so that transient condition aborted the WHOLE
     session with a bare ``CalledProcessError`` (pytest INTERNALERROR, zero tests
     run) AND swallowed the stderr that names the stuck port — the exact failure
-    ``brutal_teardown.sh`` warns about.  Now: on failure the captured output is
+    the brutal-teardown utility warns about.  Now: on failure the captured output is
     always surfaced, leaked test servers are reaped, and start-all is retried
     once.  A genuinely-unstartable fleet still raises, but with the diagnostic
     visible instead of hidden.
@@ -492,11 +496,18 @@ def _start_all_resilient():
     import sys
     import time
 
-    script = os.path.join(os.path.dirname(__file__), "manage_test_servers.sh")
     for attempt in (1, 2):
-        r = subprocess.run([script, "start-all"], capture_output=True, text=True)
-        if r.returncode == 0:
+        try:
+            register_compat_fleet()
+            RegistryLauncher(os.path.dirname(__file__)).start_registered(specs)
             return
+        except Exception as exc:
+            message = str(exc)
+            class _Result:
+                returncode = 1
+                stdout = ""
+                stderr = message
+            r = _Result()
         sys.stderr.write(
             f"\n[conftest] start-all failed (attempt {attempt}/2, rc={r.returncode}).\n"
             f"--- start-all stdout (tail) ---\n{(r.stdout or '')[-4000:]}\n"
@@ -507,14 +518,14 @@ def _start_all_resilient():
                 "[conftest] reaping leaked fixed-port test servers and retrying "
                 "start-all once…\n"
             )
-            subprocess.run([script, "stop-all"], capture_output=True)
+            RegistryLauncher(os.path.dirname(__file__)).stop_registered(specs)
             _reap_leaked_test_servers()
             time.sleep(2)
     raise pytest.UsageError(
         "start-all failed twice (see the surfaced stdout/stderr above — typically "
         "a leaked server from an interrupted run still holding a fixed port). The "
-        "session cannot proceed without the fleet; run tests/brutal_teardown.sh "
-        "and retry."
+        "session cannot proceed without the fleet; run 'PYTHONPATH=tests "
+        "python3 -m cmdscripts.operator_build brutal_teardown' and retry."
     )
 
 
@@ -534,6 +545,10 @@ def pytest_sessionstart(session):
         if not REMOTE_SERVER and not no_local_work:
             _chdir_scratch()
             _ensure_client_x509_env()
+            if os.path.exists(os.environ.get("TEST_REGISTRY_MANIFEST", "")):
+                read_manifest(os.environ["TEST_REGISTRY_MANIFEST"])
+            else:
+                read_manifest()
         return
     if _should_skip_local_lifecycle(session.config):
         # Attach mode (an external fleet is already up) skips _setup_session(),
@@ -566,6 +581,8 @@ def pytest_configure(config):
     test tree that the session wipes and recreates — nothing leaks into /tmp.
     Runs on the controller and on every xdist worker, before any test executes.
     """
+    global _pytest_config
+    _pytest_config = config
     os.makedirs(TMP_DIR, exist_ok=True)
     os.environ["TMPDIR"] = TMP_DIR
     tempfile.tempdir = TMP_DIR
@@ -585,6 +602,18 @@ def pytest_configure(config):
         "markers",
         "privileged: requires root (real accounts + setfsuid impersonation)",
     )
+    config.addinivalue_line(
+        "markers",
+        "uses_lifecycle_harness: test exercises registry-controlled server lifecycle",
+    )
+    config.addinivalue_line(
+        "markers",
+        "registry_server(name): test requires the named server registry spec",
+    )
+    config.addinivalue_line(
+        "markers",
+        "registry_servers(*names): test requires the named server registry specs",
+    )
 
 
 # Load the multi-user permission conformance fixtures (mu_fleet, cast, apply_policy, ...).
@@ -595,8 +624,8 @@ pytest_plugins = ["conftest_mu"]
 # destructive/resilience suites, multi-node meshes, differential client suites,
 # conformance/interop batches, and throughput/perf runs.  Tests in these modules
 # are auto-marked `slow` so a fast iteration check can deselect them with
-# `-m "not slow"` (see tests/run_suite.sh --fast).  Over-inclusion is safe: the
-# full run (run_suite.sh) covers everything regardless of this marker.
+# `-m "not slow"` (see `cmdscripts.operator_runtime suite --fast`).  Over-inclusion
+# is safe: the full suite run covers everything regardless of this marker.
 _SLOW_MODULE_HINTS = (
     "resilien", "chaos", "evil_actor", "evil_paths", "netfault", "net_resilience",
     "topolog", "conformance", "official", "clientconf", "hybrid", "throughput",
@@ -669,6 +698,8 @@ def pytest_collection_modifyitems(config, items):
 
     if cms_items:
         items[:] = other_items + cms_items
+    register_compat_fleet()
+    config._nginx_xrootd_selected_registry_specs = selected_specs(items)
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -684,14 +715,8 @@ def pytest_sessionfinish(session, exitstatus):
         return
 
     try:
-        subprocess.run(
-            [
-                os.path.join(os.path.dirname(__file__), "manage_test_servers.sh"),
-                "stop-all",
-            ],
-            capture_output=True,
-            timeout=30,
-        )
+        specs = getattr(session.config, "_nginx_xrootd_selected_registry_specs", None)
+        RegistryLauncher(os.path.dirname(__file__)).stop_registered(specs)
     except Exception:
         pass  # best-effort cleanup
 
@@ -718,19 +743,45 @@ def _test_session_setup():
     yield
     if REMOTE_SERVER or _external_fleet_attached():
         return
-    import subprocess
 
     try:
-        subprocess.run(
-            [
-                os.path.join(os.path.dirname(__file__), "manage_test_servers.sh"),
-                "stop-all",
-            ],
-            capture_output=True,
-            timeout=30,
-        )
+        specs = getattr(_pytest_config, "_nginx_xrootd_selected_registry_specs", None)
+        RegistryLauncher(os.path.dirname(__file__)).stop_registered(specs)
     except Exception:
         pass
+
+
+@pytest.fixture(scope="session")
+def registry():
+    return RegistryLauncher(os.path.dirname(__file__))
+
+
+@pytest.fixture
+def registry_server():
+    def _lookup(name):
+        return get_server(name)
+
+    return _lookup
+
+
+@pytest.fixture
+def lifecycle():
+    """Per-test registry lifecycle harness for throwaway nginx instances.
+
+    Tests whose subject is lifecycle behavior (reload/reopen/restart/crash)
+    drive their own short-lived instances through this instead of hand-rolled
+    subprocess calls; teardown stops and unregisters everything it created.
+    """
+    harness = LifecycleHarness()
+    try:
+        yield harness
+    finally:
+        harness.close()
+
+
+@pytest.fixture
+def command_runner(registry):
+    return registry.run_cmd
 
 
 @pytest.fixture(scope="session")

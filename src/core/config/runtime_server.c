@@ -40,26 +40,60 @@ brix_server_storage_backend_is_remote(const ngx_str_t *sb)
                && ngx_strncmp(sb->data, "https://", sizeof("https://") - 1) == 0);
 }
 
-static const char *
-brix_server_cred_str_or_null(const ngx_str_t *s)
+/*
+ * brix_server_guard_remote_authz — config-time guardrail for an origin-scheme
+ * backend whose export setup will never run (P80.5, finding 1.5).
+ *
+ * WHAT: Rejects at config time the combination of an origin-scheme
+ *       brix_storage_backend (s3/http/xroot/...), configured authorization
+ *       rules (brix_authdb / brix_require_vo / brix_inherit_parent_group),
+ *       and a server mode that skips brix_server_setup_export — the exact
+ *       gate below (brix_server_has_runtime_export).
+ *
+ * WHY: When the export setup is skipped, root_canon stays "/" and the path
+ *      join produces "//<wire-path>" while every authdb/VO rule was
+ *      canonicalized to "/<path>" at load — nothing ever matches and every
+ *      op dies "3010 authdb denied" with zero hint at the cause. The lab
+ *      burned hours on this silent everything-denied server; make it a loud
+ *      config error instead.
+ *
+ * HOW: Pure predicate over already-merged conf fields; emits one EMERG
+ *      naming the "//path vs /path" mechanics and which engine breaks on
+ *      which side (xrdacc authorizes the LOGICAL wire path; native authdb /
+ *      VO ACLs authorize the RESOLVED backing path).
+ */
+static ngx_int_t
+brix_server_guard_remote_authz(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf)
 {
-    return (s->len > 0) ? (const char *) s->data : NULL;
-}
+    int  has_rules;
 
-static void
-brix_server_fill_x509_credential(const brix_credential_t *cred,
-    brix_vfs_backend_cred_t *bcred)
-{
-    if (cred->x509_proxy.len > 0) {
-        bcred->x509_proxy = (const char *) cred->x509_proxy.data;
-        return;
+    if (brix_server_has_runtime_export(xcf)
+        || !brix_storage_backend_is_remote(&xcf->common))
+    {
+        return NGX_OK;
     }
-    if (cred->x509_cert.len > 0) {
-        bcred->x509_proxy = (const char *) cred->x509_cert.data;
+
+    has_rules = xcf->authdb.len > 0
+                || (xcf->vo_rules != NULL && xcf->vo_rules->nelts > 0)
+                || (xcf->group_rules != NULL && xcf->group_rules->nelts > 0);
+    if (!has_rules) {
+        return NGX_OK;
     }
-    if (cred->x509_key.len > 0) {
-        bcred->x509_key = (const char *) cred->x509_key.data;
-    }
+
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "brix_storage_backend \"%V\" with authorization rules "
+        "(brix_authdb/brix_require_vo/brix_inherit_parent_group) requires a "
+        "runtime export: this server mode (manager/supervisor/proxy) skips "
+        "brix_export setup, so the authz gate would check \"//<path>\" "
+        "(root_canon \"/\" + wire path) against rules canonicalized to "
+        "\"/<path>\" — nothing matches and EVERY request is denied 3010. "
+        "xrdacc rules break on the logical wire path; native authdb/VO ACL "
+        "rules break on the resolved backing path. Set brix_export to a real "
+        "local directory (it aligns both sides), or drop the authz rules "
+        "from this server block",
+        &xcf->common.storage_backend);
+    return NGX_ERROR;
 }
 
 static ngx_int_t
@@ -84,20 +118,11 @@ brix_server_set_storage_credential(ngx_conf_t *cf,
             &xcf->common.storage_credential);
         return NGX_ERROR;
     }
-    if (brix_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
-        != NGX_OK)
+    if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
+                                          &bcred, cf->log) != NGX_OK)
     {
         return NGX_ERROR;
     }
-
-    ngx_memzero(&bcred, sizeof(bcred));
-    bcred.bearer = (bearer[0] != '\0') ? bearer : NULL;
-    brix_server_fill_x509_credential(cred, &bcred);
-    bcred.ca_dir = brix_server_cred_str_or_null(&cred->ca_dir);
-    bcred.s3_access_key = brix_server_cred_str_or_null(&cred->s3_access_key);
-    bcred.s3_secret_key = brix_server_cred_str_or_null(&cred->s3_secret_key);
-    bcred.s3_region = brix_server_cred_str_or_null(&cred->s3_region);
-    bcred.sss_keytab = brix_server_cred_str_or_null(&cred->sss_keytab);
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: backend credential \"%V\" for \"%s\": gsi=%s key=%s bearer=%s",
         &xcf->common.storage_credential, xcf->common.root_canon,
@@ -451,6 +476,9 @@ brix_config_prepare_server(ngx_conf_t *cf,
             "brix_tap_proxy_auth gsi: enabling GSI proxy delegation capture");
     }
 
+    if (brix_server_guard_remote_authz(cf, xcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
     if (brix_server_setup_export(cf, xcf) != NGX_OK) {
         return NGX_ERROR;
     }

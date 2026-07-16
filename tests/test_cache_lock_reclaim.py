@@ -23,27 +23,22 @@ RUN
 """
 
 import os
-import subprocess
+from pathlib import Path
 
 import pytest
 
-_HERE = os.path.dirname(__file__)
-_RUNNER = os.path.join(_HERE, "c", "run_cache_lock_reclaim_tests.sh")
+from cmdscripts.c_regression_units import cache_lock_reclaim
+
 _OBJS = os.environ.get("TEST_NGINX_OBJS", "/tmp/nginx-1.28.3/objs")
 _NGX_SRC = os.path.dirname(_OBJS)
 
 
-def test_dead_owner_fill_lock_is_reclaimed():
+def test_dead_owner_fill_lock_is_reclaimed(tmp_path):
     lock_o = os.path.join(_OBJS, "addon", "cache", "lock.o")
     if not os.path.exists(lock_o):
         pytest.skip(f"{lock_o} not built; build the module first (./configure && make)")
 
-    proc = subprocess.run(
-        [_RUNNER, _NGX_SRC],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=60,
-    )
-    out = proc.stdout.decode(errors="replace")
-    assert proc.returncode == 0, f"cache-lock reclaim test failed:\n{out}"
-    assert "all cache-lock reclaim checks passed" in out, f"unexpected output:\n{out}"
+    ok, message = cache_lock_reclaim(tmp_path, Path(_NGX_SRC))
+    if message.startswith("SKIP"):
+        pytest.skip(message)
+    assert ok, f"cache-lock reclaim test failed:\n{message}"

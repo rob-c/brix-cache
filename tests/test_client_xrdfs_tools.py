@@ -14,54 +14,38 @@ Run:
 
 import os
 import shutil
-import socket
 import subprocess
-import time
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
+from settings import HOST, BIND_HOST, NGINX_BIN
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _port_up(host, port):
-    try:
-        with socket.create_connection((host, port), timeout=1):
-            return True
-    except OSError:
-        return False
-
-
 @pytest.fixture(scope="module")
-def tree_root(tmp_path_factory):
+def _client_built():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
     subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
                    capture_output=True, text=True, timeout=240)
     if not os.path.exists(XRDFS):
         pytest.skip("xrdfs build failed")
+
+
+@pytest.fixture()
+def tree_root(lifecycle, _client_built, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
     # Nest test data under /t so a server-created dotfile at the data root
     # (e.g. .nginx-xrootd-ckp-recovery.lock) can't pollute the recursive walks.
-    root = tmp_path_factory.mktemp("xtools")
-    data = root / "data"
+    data = tmp_path / "data"
     t = data / "t"
     (t / "sub" / "deep").mkdir(parents=True)
     (t / "a.txt").write_bytes(b"0123456789")          # 10
@@ -70,23 +54,13 @@ def tree_root(tmp_path_factory):
     (t / "sub" / "deep" / "d.log").write_bytes(b"x" * 20)
     total = 10 + 7 + 4096 + 20
 
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_stream_posix_anon.conf",
-                                  BASE_DIR=root, BIND_HOST=BIND_HOST,
-                                  PORT=port, DATA_DIR=data,
-                                  WORKER_CONNECTIONS=64))
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    yield {"port": port, "total": total}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-xrdfs-tools",
+        template="nginx_lc_stream_posix_anon.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+        reason="xrdfs recursive tools against a writable anon root server"))
+    return {"port": ep.port, "total": total}
 
 
 def _run(tree_root, *args):

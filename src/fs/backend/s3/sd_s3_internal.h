@@ -44,6 +44,9 @@ struct sd_s3_file {
     /* write state */
     int                          is_write;
     int                          is_mpu;
+    int                          lazy_mpu;   /* PUT-buffered until the volume
+                                              * exceeds part_size, then upgrade
+                                              * to MPU mid-stream (P80.2) */
     int64_t                      part_size;
     /* single PUT */
     void                        *put_buf;

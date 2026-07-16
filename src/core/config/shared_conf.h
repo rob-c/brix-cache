@@ -7,7 +7,20 @@
 
 #include <ngx_thread_pool.h>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include "observability/pmark/pmark.h"
+
+/* Default per-user credential store: a RAM-backed (tmpfs) directory, so
+ * delegated private keys never persist across a reboot, never land in
+ * backups/snapshots, and leave no blocks on real disk. /dev/shm is mounted
+ * on effectively every Linux system, so no operator setup is required —
+ * the directory itself is created 0700 at config time (see
+ * brix_shared_credential_dir_ensure below). Opt out with an explicit
+ * `brix_storage_credential_dir "";`. */
+#define BRIX_CREDENTIAL_DIR_DEFAULT  "/dev/shm/brix-creds"
 
 /*
  * ngx_http_brix_shared_conf_t — Common fields embedded at the top of every
@@ -51,7 +64,11 @@ typedef struct {
                                              * <dir>] — directory of per-identity
                                              * x509 proxy PEMs for a remote
                                              * backend (phase-1 per-user backend
-                                             * credentials); "" = feature off.   */
+                                             * credentials). Defaults to the
+                                             * tmpfs BRIX_CREDENTIAL_DIR_DEFAULT
+                                             * (/dev/shm/brix-creds, created 0700
+                                             * at config time); explicit "" =
+                                             * feature off.                      */
     ngx_uint_t          storage_credential_fallback; /* [brix_storage_credential_
                                              * fallback allow|deny] — 0 allow the
                                              * static service credential when the
@@ -293,6 +310,111 @@ brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
 }
 
 /*
+ * brix_shared_credential_dir_ensure() — Config-time guarantee for
+ * brix_storage_credential_dir: create the directory 0700 (chown'd to the
+ * worker user when the master runs as root) if it is missing, and shout —
+ * NGX_LOG_WARN at parse time — when it cannot be created, is not a
+ * directory, is group/other-accessible, or is owned by a user the workers
+ * do not run as.
+ *
+ * WHY: The store holds delegated PRIVATE KEYS, and the default lives on
+ * tmpfs (/dev/shm) precisely so nothing persists across reboots or lands in
+ * backups — but /dev/shm is world-writable (1777), so the entire security
+ * boundary is this directory's 0700 mode + ownership, which must therefore
+ * be enforced here rather than left to operator setup. A broken or
+ * foreign-owned path must NOT kill startup (the store may be unused, and
+ * fallback=allow keeps requests on the service credential), but the admin
+ * must be told that credential delegation will not work until it is fixed.
+ *
+ * HOW: stat(); on ENOENT mkdir(0700) + chown to ccf->user when euid==0
+ * (mirroring ngx_create_paths). Every failure and every unsafe pre-existing
+ * state warns via ngx_conf_log_error and returns — never fatal. Called from
+ * every shared merge (per server/location), so a broken path is shouted per
+ * context; the healthy path prints nothing and costs one stat().
+ */
+static inline void
+brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
+{
+    struct stat       st;
+    const char       *path;
+    uid_t             want_uid;
+    ngx_core_conf_t  *ccf;
+
+    if (dir == NULL || dir->len == 0) {
+        return;                 /* explicit "" = per-user store disabled */
+    }
+
+    path = (const char *) dir->data;    /* conf tokens are NUL-terminated */
+    ccf  = (ngx_core_conf_t *)
+               ngx_get_conf(cf->cycle->conf_ctx, ngx_core_module);
+    want_uid = (geteuid() == 0
+                && ccf != NULL
+                && ccf->user != (ngx_uid_t) NGX_CONF_UNSET_UINT)
+             ? (uid_t) ccf->user : geteuid();
+
+    if (stat(path, &st) != 0) {
+        if (errno != ENOENT) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+                "brix: credential store \"%s\" is not accessible — "
+                "credential delegation will not work until "
+                "brix_storage_credential_dir is fixed", path);
+            return;
+        }
+
+        if (mkdir(path, 0700) != 0 && errno != EEXIST) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+                "brix: cannot create credential store \"%s\" — "
+                "credential delegation will not work until "
+                "brix_storage_credential_dir is fixed", path);
+            return;
+        }
+
+        if (stat(path, &st) != 0) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+                "brix: credential store \"%s\" vanished after create — "
+                "credential delegation will not work", path);
+            return;
+        }
+
+        /* The master parses config as root but the workers write the store
+         * as the `user` directive's uid — hand the fresh directory to them,
+         * exactly as ngx_create_paths does for the temp paths. */
+        if (geteuid() == 0 && st.st_uid != want_uid
+            && chown(path, want_uid,
+                     (ccf != NULL) ? (gid_t) ccf->group : (gid_t) -1) != 0)
+        {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+                "brix: cannot chown credential store \"%s\" to the worker "
+                "user — credential delegation will not work", path);
+        }
+        return;
+    }
+
+    if (!S_ISDIR(st.st_mode)) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix: credential store \"%s\" is not a directory — "
+            "credential delegation will not work until "
+            "brix_storage_credential_dir is fixed", path);
+        return;
+    }
+
+    if ((st.st_mode & 0077) != 0) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix: credential store \"%s\" is group/other-accessible "
+            "(mode %04uo) — delegated private keys may be exposed; "
+            "chmod 0700", path, (ngx_uint_t) (st.st_mode & 07777));
+    }
+
+    if (st.st_uid != want_uid) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix: credential store \"%s\" is owned by uid %ud but the "
+            "workers run as uid %ud — credential delegation will not work "
+            "until ownership or brix_storage_credential_dir is fixed",
+            path, (ngx_uint_t) st.st_uid, (ngx_uint_t) want_uid);
+    }
+}
+
+/*
  * ngx_http_brix_shared_merge() — Merges shared preamble fields from parent to
  * child using standard nginx merge macros. Called at the top of each protocol's
  * merge_loc_conf function before protocol-specific merge logic runs.
@@ -301,7 +423,9 @@ brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
  * HTTP protocol (WebDAV, S3, cvmfs) calls it instead of hand-merging the same
  * ~20 fields (which drifted per protocol and dropped the read-only enforcement
  * in cvmfs). Defaults: enable=0, allow_write=0, compress=0, ktls=1,
- * thread_pool_name="", tier grammar defaults as before.
+ * thread_pool_name="", storage_credential_dir=BRIX_CREDENTIAL_DIR_DEFAULT
+ * (tmpfs store, ensured 0700 by brix_shared_credential_dir_ensure above),
+ * tier grammar defaults as before.
  *
  * HOW: root_default parameterizes the one deliberate per-protocol difference
  * (WebDAV exports default to "/", S3/cvmfs to ""). Ends by applying the hard
@@ -353,8 +477,14 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
     ngx_conf_merge_str_value(conf->storage_credential, prev->storage_credential,
                              "");
+    /* Defaults to a RAM-backed (tmpfs) store so delegated keys never touch
+     * real disk; behaviour-neutral for non-delegated deployments because a
+     * lookup miss with fallback=allow (the default) lands on the service
+     * credential exactly like an unset dir. `""` opts out entirely. */
     ngx_conf_merge_str_value(conf->storage_credential_dir,
-                             prev->storage_credential_dir, "");
+                             prev->storage_credential_dir,
+                             BRIX_CREDENTIAL_DIR_DEFAULT);
+    brix_shared_credential_dir_ensure(cf, &conf->storage_credential_dir);
     ngx_conf_merge_uint_value(conf->storage_credential_fallback,
                               prev->storage_credential_fallback, 0);
     ngx_conf_merge_str_value(conf->storage_credential_mint_ca_cert,

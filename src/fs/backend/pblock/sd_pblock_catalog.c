@@ -338,7 +338,9 @@ pblock_catalog_open(const char *db_path, int busy_timeout_ms)
                "  block_size INTEGER NOT NULL DEFAULT 0,"
                "  mtime INTEGER NOT NULL DEFAULT 0,"
                "  ctime INTEGER NOT NULL DEFAULT 0,"
-               "  mode INTEGER NOT NULL DEFAULT 0);") != 0
+               "  mode INTEGER NOT NULL DEFAULT 0,"
+               "  uid INTEGER NOT NULL DEFAULT 0,"
+               "  gid INTEGER NOT NULL DEFAULT 0);") != 0
         || cat_exec(cat,
                "CREATE INDEX IF NOT EXISTS objects_parent"
                "  ON objects(parent);") != 0
@@ -347,7 +349,19 @@ pblock_catalog_open(const char *db_path, int busy_timeout_ms)
                "  path TEXT NOT NULL,"
                "  name TEXT NOT NULL,"
                "  value BLOB NOT NULL,"
-               "  PRIMARY KEY(path, name));") != 0)
+               "  PRIMARY KEY(path, name));") != 0
+        || cat_exec(cat,
+               /* Identity registry: catalog-internal synthetic uid/gid
+                * assignment (kind 0 = principal/uid, 1 = VO-group/gid). The
+                * UNIQUE index makes an id collision from a concurrent
+                * assignment a constraint failure, not silent aliasing. */
+               "CREATE TABLE IF NOT EXISTS ids("
+               "  kind INTEGER NOT NULL,"
+               "  name TEXT NOT NULL,"
+               "  id INTEGER NOT NULL,"
+               "  PRIMARY KEY(kind, name));") != 0
+        || cat_exec(cat,
+               "CREATE UNIQUE INDEX IF NOT EXISTS ids_id ON ids(id);") != 0)
     {
         int err = errno;
 
@@ -357,11 +371,18 @@ pblock_catalog_open(const char *db_path, int busy_timeout_ms)
         return NULL;
     }
 
-    /* Forward-compat: add block_size to an `objects` table created before the
-     * column existed. Best-effort — a "duplicate column" error on an up-to-date
-     * schema is expected and ignored. */
+    /* Forward-compat: add columns to an `objects` table created before they
+     * existed. Best-effort — a "duplicate column" error on an up-to-date
+     * schema is expected and ignored. Pre-migration rows keep uid/gid 0
+     * (service-owned), matching their pre-identity behaviour. */
     sqlite3_exec(cat->db,
         "ALTER TABLE objects ADD COLUMN block_size INTEGER NOT NULL DEFAULT 0;",
+        NULL, NULL, NULL);
+    sqlite3_exec(cat->db,
+        "ALTER TABLE objects ADD COLUMN uid INTEGER NOT NULL DEFAULT 0;",
+        NULL, NULL, NULL);
+    sqlite3_exec(cat->db,
+        "ALTER TABLE objects ADD COLUMN gid INTEGER NOT NULL DEFAULT 0;",
         NULL, NULL, NULL);
 
     /* Namespace lookup cache (best-effort: a calloc failure just disables it —

@@ -138,6 +138,7 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_conf_merge_value(conf->open_file_cache_events,
                          prev->open_file_cache_events, 0);
 
+    ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");
     ngx_conf_merge_str_value(conf->token_jwks, prev->token_jwks, "");
     ngx_conf_merge_str_value(conf->token_issuer, prev->token_issuer, "");
     ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
@@ -157,12 +158,6 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
 
 
     return NGX_CONF_OK;
-}
-
-static const char *
-webdav_cred_str_or_null(const ngx_str_t *s)
-{
-    return (s->len > 0) ? (const char *) s->data : NULL;
 }
 
 static char *
@@ -236,19 +231,11 @@ webdav_set_storage_credential(ngx_conf_t *cf,
             &conf->common.storage_credential);
         return NGX_CONF_ERROR;
     }
-    if (brix_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
-        != NGX_OK)
+    if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
+                                          &bcred, cf->log) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }
-    ngx_memzero(&bcred, sizeof(bcred));
-    bcred.bearer = (bearer[0] != '\0') ? bearer : NULL;
-    bcred.x509_proxy = webdav_cred_str_or_null(&cred->x509_proxy);
-    bcred.ca_dir = webdav_cred_str_or_null(&cred->ca_dir);
-    bcred.s3_access_key = webdav_cred_str_or_null(&cred->s3_access_key);
-    bcred.s3_secret_key = webdav_cred_str_or_null(&cred->s3_secret_key);
-    bcred.s3_region = webdav_cred_str_or_null(&cred->s3_region);
-    bcred.sss_keytab = webdav_cred_str_or_null(&cred->sss_keytab);
     brix_vfs_backend_set_credential(conf->common.root_canon, &bcred);
     return NGX_CONF_OK;
 }
@@ -330,12 +317,20 @@ static char *
 webdav_validate_auth_paths(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
+    /* auth optional/required needs at least ONE credential verifier: an x509
+     * CA (cadir/cafile), a token verifier (JWKS / issuer registry / macaroon
+     * secret), or a Basic password db — otherwise every client is rejected
+     * and the misconfiguration should fail `nginx -t`, not surface as 403s. */
     if ((conf->auth == WEBDAV_AUTH_OPTIONAL
          || conf->auth == WEBDAV_AUTH_REQUIRED)
-        && conf->cadir.len == 0 && conf->cafile.len == 0)
+        && conf->cadir.len == 0 && conf->cafile.len == 0
+        && conf->token_jwks.len == 0 && conf->token_config.len == 0
+        && conf->token_macaroon_secret.len == 0 && conf->pwd_file.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav: auth optional/required needs brix_webdav_cadir or brix_webdav_cafile");
+            "brix_webdav: auth optional/required needs a credential verifier "
+            "— brix_webdav_cadir/cafile, brix_webdav_token_jwks/config/"
+            "macaroon_secret, or brix_webdav_pwd_file");
         return NGX_CONF_ERROR;
     }
     if (webdav_validate_path(cf, "brix_webdav_cadir", &conf->cadir,
@@ -364,6 +359,11 @@ webdav_build_ca_store_once(ngx_conf_t *cf,
     if (conf->auth != WEBDAV_AUTH_OPTIONAL
         && conf->auth != WEBDAV_AUTH_REQUIRED)
     {
+        return NGX_CONF_OK;
+    }
+    /* Token-only / Basic-only exports carry no x509 trust anchors: there is
+     * no store to build, and the cert tier declines at request time. */
+    if (conf->cadir.len == 0 && conf->cafile.len == 0) {
         return NGX_CONF_OK;
     }
     store = webdav_build_ca_store(cf->log, conf, &crl_count);
@@ -400,6 +400,23 @@ webdav_validate_token_jwks_path(ngx_conf_t *cf,
         return NGX_CONF_ERROR;
     }
     if (webdav_validate_path(cf, "brix_webdav_token_jwks", &conf->token_jwks,
+                             WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+/* brix_webdav_pwd_file must point at a readable regular file so a typo'd
+ * password db fails `nginx -t` instead of silently rejecting every login. */
+static char *
+webdav_validate_pwd_file_path(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (conf->pwd_file.len == 0) {
+        return NGX_CONF_OK;
+    }
+    if (webdav_validate_path(cf, "brix_webdav_pwd_file", &conf->pwd_file,
                              WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK)
     {
         return NGX_CONF_ERROR;
@@ -452,6 +469,7 @@ webdav_validate_webdav_enabled(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *
     if (webdav_validate_auth_paths(cf, conf) != NGX_CONF_OK
         || webdav_build_ca_store_once(cf, conf) != NGX_CONF_OK
         || webdav_validate_token_jwks_path(cf, conf) != NGX_CONF_OK
+        || webdav_validate_pwd_file_path(cf, conf) != NGX_CONF_OK
         || webdav_validate_tpc_paths(cf, conf) != NGX_CONF_OK)
     {
         return NGX_CONF_ERROR;

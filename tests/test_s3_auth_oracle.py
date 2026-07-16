@@ -19,9 +19,6 @@ import hashlib
 import hmac
 import os
 import re
-import socket
-import subprocess
-import time
 from urllib.parse import quote
 
 import pytest
@@ -32,10 +29,12 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from config_templates import render_config
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
 
-PORT = int(os.environ.get("TEST_S3_ORACLE_PORT") or free_port())
+pytestmark = [pytest.mark.uses_lifecycle_harness]
+
+PORT = None
 BUCKET = "testbucket"
 REGION = "us-east-1"
 ACCESS_KEY = "test-access-key"
@@ -43,54 +42,28 @@ SECRET_KEY = "test-secret-key"
 KEYOBJ = "obj.txt"
 
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def s3_server(tmp_path_factory):
+@pytest.fixture()
+def s3_server(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     if not _HAVE_REQUESTS:
         pytest.skip("requests not available")
 
-    d = tmp_path_factory.mktemp("s3oracle")
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    data = d / "data"
+    data = tmp_path / "data"
     data.mkdir()
     (data / KEYOBJ).write_text("s3-oracle-object\n")
 
-    conf = render_config("nginx_s3_auth_oracle.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=PORT,
-                         DATA_DIR=data,
-                         BUCKET=BUCKET,
-                         ACCESS_KEY=ACCESS_KEY,
-                         SECRET_KEY=SECRET_KEY,
-                         REGION=REGION)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(PORT):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"S3 SigV4 server did not start: {err}")
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-s3-auth-oracle",
+        template="nginx_lc_s3_auth_oracle.conf",
+        protocol="s3",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "BUCKET": BUCKET, "ACCESS_KEY": ACCESS_KEY,
+                         "SECRET_KEY": SECRET_KEY, "REGION": REGION},
+        reason="s3 SigV4 auth oracle"))
+    global PORT
+    PORT = ep.port
     yield
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _signing_key(secret, date):

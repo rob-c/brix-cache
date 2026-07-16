@@ -37,13 +37,13 @@ import pytest
 
 from guard_http_lib import NGINX_BIN, AuditLog, GuardServer, free_port
 from settings import HOST, BIND_HOST
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
 FILTER_DIR = REPO / "deploy" / "fail2ban" / "filter.d"
 
-pytestmark = pytest.mark.timeout(180)
+pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness]
 
 SCANNER_PROBES = ["/wp-login.php", "/cgi-bin/probe.cgi", "/phpMyAdmin/index",
                   "/.git/config", "/x/.env"]
@@ -79,16 +79,14 @@ def _port_alive(port):
         return False
 
 
-@pytest.fixture(scope="module")
-def fleet(tmp_path_factory):
+@pytest.fixture()
+def fleet(lifecycle, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("guardendp")
-    (root / "logs").mkdir()
-    dav_root = root / "dav_export"
-    s3_root = root / "s3_export"
-    xrd_root = root / "xrd_export"
+    dav_root = tmp_path / "dav_export"
+    s3_root = tmp_path / "s3_export"
+    xrd_root = tmp_path / "xrd_export"
     for d in (dav_root, s3_root, xrd_root):
         d.mkdir()
     (dav_root / "hello.txt").write_bytes(b"dav-hello\n")
@@ -97,35 +95,31 @@ def fleet(tmp_path_factory):
     (xrd_root / "f.bin").write_bytes(os.urandom(4096))
 
     ports = {name: free_port() for name in ("dav", "s3", "ops", "xrd", "cms")}
-    audits = {name: root / f"{name}-audit.log" for name in ("dav", "s3", "ops")}
+    audits = {name: tmp_path / f"{name}-audit.log" for name in ("dav", "s3", "ops")}
 
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_guard_endpoints.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  DAV_PORT=ports["dav"],
-                                  S3_PORT=ports["s3"],
-                                  OPS_PORT=ports["ops"],
-                                  XRD_PORT=ports["xrd"],
-                                  CMS_PORT=ports["cms"],
-                                  DAV_AUDIT=audits["dav"],
-                                  S3_AUDIT=audits["s3"],
-                                  OPS_AUDIT=audits["ops"],
-                                  DAV_ROOT=dav_root,
-                                  S3_ROOT=s3_root,
-                                  XRD_ROOT=xrd_root))
-    rc = subprocess.run([NGINX_BIN, "-t", "-p", str(root), "-c", str(conf)],
-                        capture_output=True, text=True)
-    assert rc.returncode == 0, f"nginx -t failed: {rc.stderr}"
-    rc = subprocess.run([NGINX_BIN, "-p", str(root), "-c", str(conf)],
-                        capture_output=True, text=True)
-    assert rc.returncode == 0, f"nginx start failed: {rc.stderr}"
+    lifecycle.start(NginxInstanceSpec(
+        name="lc-guard-endpoints",
+        template="nginx_guard_endpoints_lc.conf",
+        readiness="none",
+        extra_ports={"DAV_PORT": ports["dav"], "S3_PORT": ports["s3"],
+                     "OPS_PORT": ports["ops"], "XRD_PORT": ports["xrd"],
+                     "CMS_PORT": ports["cms"]},
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "DAV_AUDIT": str(audits["dav"]),
+            "S3_AUDIT": str(audits["s3"]),
+            "OPS_AUDIT": str(audits["ops"]),
+            "DAV_ROOT": str(dav_root),
+            "S3_ROOT": str(s3_root),
+            "XRD_ROOT": str(xrd_root),
+        },
+        reason="phase-65 multi-front-door guard endpoints"))
     deadline = time.time() + 10
     while time.time() < deadline and not all(
             _port_alive(p) for p in ports.values()):
         time.sleep(0.1)
 
-    yield {
+    return {
         "dav": GuardServer(HOST, ports["dav"]),
         "s3": GuardServer(HOST, ports["s3"]),
         "ops": GuardServer(HOST, ports["ops"]),
@@ -134,8 +128,6 @@ def fleet(tmp_path_factory):
         "audits": {k: AuditLog(str(v)) for k, v in audits.items()},
         "dav_root": dav_root,
     }
-    subprocess.run([NGINX_BIN, "-p", str(root), "-c", str(conf), "-s", "stop"],
-                   capture_output=True)
 
 
 class TestWebdavEndpointGuard:
@@ -303,10 +295,19 @@ class TestAuditLinesAreBannable:
 
     def test_emitted_lines_match_filters(self, fleet):
         """Cross-check real emitted lines (not samples) against the filters."""
+        # Provoke one line for each signal the HTTP surfaces emit, so the
+        # cross-check runs against freshly-emitted traffic rather than lines
+        # left over from a shared server (this fleet is per-test).
+        fleet["ops"].get("/wp-login.php")                 # signature
+        fleet["dav"].get("/no-such-file.bin")             # notfound
+        fleet["s3"].get("/bucket/obj.bin")                # authfail
+        for name in ("ops", "dav", "s3"):
+            fleet["audits"][name].wait_for_count(1)
+
         lines = []
         for audit in fleet["audits"].values():
             lines.extend(audit.lines())
-        assert lines, "suite should have produced audit lines by now"
+        assert lines, "the guard surfaces produced no audit lines"
         for line in lines:
             signal = re.search(r"signal=(\w+)", line).group(1)
             match = re.search(self._failregex(signal), line)

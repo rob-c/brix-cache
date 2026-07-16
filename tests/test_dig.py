@@ -12,19 +12,16 @@ Self-provisions a WebDAV server with a dig export + a principal→export allow-f
   * write method on a dig path                                 -> 405  (read-only)
   * dig disabled                                               -> 404  (falls through)
 
+Throwaway nginx instances come from the registry lifecycle harness.
+
 Run:
     PYTHONPATH=tests python3 -m pytest tests/test_dig.py -v
 """
 
 import os
-import socket
-import subprocess
-import sys
-import time
+from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 
 try:
     import requests
@@ -33,101 +30,66 @@ except Exception:  # pragma: no cover
     _HAVE_REQUESTS = False
 
 from utils.make_token import TokenIssuer  # noqa: E402
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST, TOKENS_DIR  # noqa: E402
-from config_templates import render_config  # noqa: E402
+from settings import NGINX_BIN, HOST, BIND_HOST, TOKENS_DIR  # noqa: E402
+from server_registry import NginxInstanceSpec
 
-
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
 def _issuer():
     iss = TokenIssuer(TOKENS_DIR)
-    if not os.path.exists(iss.key_path):
-        iss.init_keys()
-    if not os.path.exists(iss.jwks_path):
+    if not os.path.exists(iss.key_path) or not os.path.exists(iss.jwks_path):
         iss.init_keys()
     return iss
 
 
-def _start(tmp_path_factory, dig_on):
+def _start(lifecycle, tmp_path, name, dig_on):
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
     iss = _issuer()
-    d = tmp_path_factory.mktemp("dig")
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    (d / "data").mkdir()
-    (d / "cadir").mkdir()
+    cadir = tmp_path / "cadir"
+    cadir.mkdir()
     # The dig export tree + a secret OUTSIDE it + a symlink escaping the export.
-    exp = d / "export"
+    exp = tmp_path / "export"
     exp.mkdir()
     (exp / "server.cfg").write_text("DIG-CONFIG-CONTENT\n")
-    (d / "outside.txt").write_text("OUTSIDE-SECRET\n")
+    (tmp_path / "outside.txt").write_text("OUTSIDE-SECRET\n")
     try:
-        os.symlink(str(d / "outside.txt"), str(exp / "escape"))
+        os.symlink(str(tmp_path / "outside.txt"), str(exp / "escape"))
     except OSError:
         pass
-    allow = d / "dig.allow"
+    allow = tmp_path / "dig.allow"
     allow.write_text("# principal export\ndiguser conf\n")
 
-    port = free_port()
     dig = (f"brix_webdav_dig on;\n"
            f"            brix_webdav_dig_export conf {exp};\n"
            f"            brix_webdav_dig_auth {allow};") if dig_on else ""
-    conf = render_config("nginx_dig.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=port,
-                         DATA_DIR=d / "data",
-                         JWKS_PATH=iss.jwks_path,
-                         ISSUER=iss.issuer,
-                         AUDIENCE=iss.audience,
-                         DIG_DIRECTIVES=dig)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(port):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"dig server did not start: {err}")
-    return proc, port, iss
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_dig.conf",
+        protocol="http",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "CADIR": str(cadir),
+            "JWKS_PATH": iss.jwks_path,
+            "ISSUER": iss.issuer,
+            "AUDIENCE": iss.audience,
+            "DIG_DIRECTIVES": dig,
+        },
+        reason="XrdDig remote-diagnostics security envelope"))
+    return endpoint.port, iss
 
 
-@pytest.fixture(scope="module")
-def dig_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
-    proc, port, iss = _start(tmp_path_factory, dig_on=True)
-    yield port, iss
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+@pytest.fixture
+def dig_server(lifecycle, tmp_path):
+    return _start(lifecycle, tmp_path, "lc-dig", dig_on=True)
 
 
-@pytest.fixture(scope="module")
-def dig_off_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
-    proc, port, iss = _start(tmp_path_factory, dig_on=False)
-    yield port, iss
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+@pytest.fixture
+def dig_off_server(lifecycle, tmp_path):
+    return _start(lifecycle, tmp_path, "lc-dig-off", dig_on=False)
 
 
 def _get(port, path, sub=None, iss=None):

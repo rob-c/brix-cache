@@ -67,8 +67,12 @@ against a stock `sec.protocol pwd` server with a pwd-admin DB is the remaining g
 
 ## Operator: generating xrootd_pwd_file entries
 
-Each line is `user:salthex:hashhex`, `hash = PBKDF2-HMAC-SHA1(password, salt, 10000,
-24B)` (`#`/blank lines ignored). Generate an entry with a random 8-byte salt:
+Each line is `user:salthex:hashhex[:vo1,vo2]`, `hash = PBKDF2-HMAC-SHA1(password, salt,
+10000, 24B)` (`#`/blank lines ignored). The optional 4th field is a comma-separated
+VO/group list stamped onto the authenticated identity (same seam GSI/unix fill), so
+group-aware backends (e.g. pblock catalog-internal ownership) enforce group access for
+password users; the legacy 3-field form yields an empty VO set. Generate an entry with
+a random 8-byte salt:
 
 ```python
 import hashlib, os, sys
@@ -82,3 +86,14 @@ The native client supplies the password via `XRDC_PWD` (or the stock `XrdSecCRED
 hex blob) and the username via `XRDC_PWD_USER`/`USER`; select with `xrdcp --auth pwd`.
 `pwd` is opt-in (`xrootd_auth pwd` + a non-empty `xrootd_pwd_file`) and should run
 only behind TLS.
+
+The SAME db also serves HTTP/WebDAV exports: `brix_webdav_pwd_file <file>` enables
+HTTP Basic auth (curl `-u user:pass`) verified with the identical PBKDF2 check, and
+stamps the identity (dn = username, VOs from the 4th field) like the stream side —
+one credential store across root://, http(s):// and dav(s)://. Exports with a
+pwd file answer unauthenticated/failed requests with `401` +
+`WWW-Authenticate: Basic realm="brix"` so browsers pop their native login
+prompt (cert/token-only exports keep the flat 403 — no prompt that cannot
+succeed). Both sides log a
+config-time WARN that password auth is poor practice for production; prefer
+GSI/x509 or bearer tokens, and serve password auth only over TLS.

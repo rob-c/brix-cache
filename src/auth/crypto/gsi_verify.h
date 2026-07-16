@@ -37,10 +37,16 @@ typedef struct {
  *   untrusted    — STACK_OF(X509) of intermediate certs, or NULL if none
  *   verify_depth — maximum proxy chain depth (0 = use OpenSSL default)
  *   res          — caller-allocated output; res->dn_buf set on NGX_OK
- *   client_purpose — 1 for the WebDAV/TLS client-cert path: proxy chains are
- *                  NOT accepted and the leaf must be usable for client auth
+ *   client_purpose — 1 for the WebDAV/TLS client-cert path: additionally
+ *                  requires the leaf to be usable for client auth
  *                  (clientAuth/anyEKU + digitalSignature/keyAgreement).  0 for
- *                  the root:// GSI path: RFC 3820 proxy chains are accepted.
+ *                  the root:// GSI path: no leaf-purpose check.
+ *
+ * RFC 3820 proxy chains are accepted in BOTH modes (grid clients present
+ * voms-proxy-init credentials over davs:// exactly as over root://); the
+ * flag only gates the extra leaf-purpose check, never proxy acceptance —
+ * see the regression note at the X509_V_FLAG_ALLOW_PROXY_CERTS call in
+ * gsi_verify.c.
  *
  * In both modes every cert in the verified chain is held to the per-cert
  * conformance policy (key strength, no MD5/SHA-1, well-formed serial, no

@@ -49,6 +49,15 @@ GSI_TLS_URL = f"roots://{SERVER_HOST}:{NGINX_GSI_TLS_PORT}"
 ANON_URL    = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 PROXY_PEM   = PROXY_STD
 
+
+def _ensure_random_bin():
+    os.makedirs(DATA_ROOT, exist_ok=True)
+    path = os.path.join(DATA_ROOT, "random.bin")
+    if os.path.exists(path) and os.path.getsize(path) == 5242880:
+        return
+    with open(path, "wb") as handle:
+        handle.write(bytes((i * 37 + 17) & 0xff for i in range(5242880)))
+
 # ---------------------------------------------------------------------------
 # XRootD opcodes (same as wire_protocol_security.py)
 # ---------------------------------------------------------------------------
@@ -499,10 +508,12 @@ class TestGSIClientRead:
         assert gsi_data == anon_data
 
     def test_read_random_bin_md5_matches(self):
+        _ensure_random_bin()
         gsi_data  = _xrd_read_all(f"{GSI_URL}//random.bin")
-        anon_data = _xrd_read_all(f"{ANON_URL}//random.bin")
         assert gsi_data is not None
-        assert hashlib.md5(gsi_data).hexdigest() == hashlib.md5(anon_data).hexdigest()
+        with open(os.path.join(DATA_ROOT, "random.bin"), "rb") as handle:
+            expected = handle.read()
+        assert hashlib.md5(gsi_data).hexdigest() == hashlib.md5(expected).hexdigest()
 
     def test_read_partial_correct_bytes(self):
         f = xrd_client.File()

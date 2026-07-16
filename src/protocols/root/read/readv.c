@@ -150,7 +150,9 @@ brix_readv_read_one_run(const brix_readv_run_ctx_t *rctx,
         obj = brix_vfs_effective_obj(&first_segment->obj,
                                        first_segment->fd, &scratch);
         do {
-            bytes_read = obj->driver->preadv(
+            /* Compat seam: falls back to per-iovec pread when the driver has
+             * no native preadv slot (remote/object backends). */
+            bytes_read = brix_sd_obj_preadv(
                 obj, iov, (int) run_count, first_segment->offset);
         } while (bytes_read < 0 && errno == EINTR);
     }

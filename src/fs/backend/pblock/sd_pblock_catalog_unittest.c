@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/xattr.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -222,7 +223,7 @@ test_xattr(pblock_catalog *cat)
     ssize_t n;
 
     CHECK(pblock_catalog_put(cat, "/xf", &f) == 0, "put xf");
-    CHECK(pblock_catalog_setxattr(cat, "/xf", "user.k", "val", 3) == 0,
+    CHECK(pblock_catalog_setxattr(cat, "/xf", "user.k", "val", 3, 0) == 0,
           "setxattr");
     n = pblock_catalog_getxattr(cat, "/xf", "user.k", buf, sizeof(buf));
     CHECK(n == 3 && memcmp(buf, "val", 3) == 0, "getxattr n=%zd", n);
@@ -236,6 +237,144 @@ test_xattr(pblock_catalog *cat)
     n = pblock_catalog_getxattr(cat, "/xf", "user.k", buf, sizeof(buf));
     CHECK(n == -1 && errno == ENODATA, "get after remove n=%zd errno=%d", n,
           errno);
+}
+
+/* the identity registry assigns stable ids >= PBLOCK_ID_BASE, never renumbers,
+ * keeps user/group namespaces separate, and rejects empty names. */
+static void
+test_id_map(pblock_catalog *cat)
+{
+    int64_t alice1 = 0, alice2 = 0, bob = 0, atlas = 0, alice_grp = 0;
+
+    CHECK(pblock_catalog_id_map(cat, PBLOCK_ID_USER, "alice", &alice1) == 0,
+          "map alice: %s", strerror(errno));
+    CHECK(alice1 >= PBLOCK_ID_BASE, "alice id below base: %lld",
+          (long long) alice1);
+    CHECK(pblock_catalog_id_map(cat, PBLOCK_ID_USER, "alice", &alice2) == 0
+          && alice2 == alice1, "alice id not stable: %lld vs %lld",
+          (long long) alice1, (long long) alice2);
+
+    CHECK(pblock_catalog_id_map(cat, PBLOCK_ID_USER, "bob", &bob) == 0
+          && bob != alice1, "bob id collides with alice");
+    CHECK(pblock_catalog_id_map(cat, PBLOCK_ID_GROUP, "atlas", &atlas) == 0
+          && atlas != alice1 && atlas != bob, "atlas gid collides");
+    /* the same NAME in the group namespace is a separate identity */
+    CHECK(pblock_catalog_id_map(cat, PBLOCK_ID_GROUP, "alice", &alice_grp) == 0
+          && alice_grp != alice1, "group 'alice' shares the user id");
+
+    errno = 0;
+    CHECK(pblock_catalog_id_map(cat, PBLOCK_ID_USER, "", &bob) == -1
+          && errno == EINVAL, "empty name accepted (errno %d)", errno);
+}
+
+/* setattr's owner column honors set_owner + the -1 keep sentinels. */
+static void
+test_setattr_owner(pblock_catalog *cat)
+{
+    pblock_meta f = file_meta("ffffffffffffffffffffffffffffffff", 1);
+    pblock_meta out;
+
+    f.uid = 10001;
+    f.gid = 10002;
+    CHECK(pblock_catalog_put(cat, "/owned", &f) == 0, "put owned");
+    CHECK(pblock_catalog_lookup(cat, "/owned", &out) == 0
+          && out.uid == 10001 && out.gid == 10002,
+          "put owner not stored: %u/%u", out.uid, out.gid);
+
+    /* chgrp only: uid=-1 keeps the owner */
+    CHECK(pblock_catalog_setattr(cat, "/owned", 0, 0, 1, -1, 10007,
+                                 0, 0, 2000) == 0, "chgrp failed");
+    CHECK(pblock_catalog_lookup(cat, "/owned", &out) == 0
+          && out.uid == 10001 && out.gid == 10007,
+          "chgrp result %u/%u", out.uid, out.gid);
+    CHECK(out.ctime == 2000, "ctime not bumped: %lld", (long long) out.ctime);
+
+    /* set_owner=0 must not touch the columns even with ids present */
+    CHECK(pblock_catalog_setattr(cat, "/owned", 1, 0600, 0, 10099, 10099,
+                                 0, 0, 2001) == 0, "chmod failed");
+    CHECK(pblock_catalog_lookup(cat, "/owned", &out) == 0
+          && out.uid == 10001 && out.gid == 10007 && (out.mode & 0777) == 0600,
+          "chmod leaked ownership: %u/%u mode %o", out.uid, out.gid, out.mode);
+
+    errno = 0;
+    CHECK(pblock_catalog_setattr(cat, "/no-such", 0, 0, 1, 1, 1, 0, 0, 1) == -1
+          && errno == ENOENT, "setattr on absent row (errno %d)", errno);
+}
+
+/* setxattr honours XATTR_CREATE / XATTR_REPLACE and the path-existence gate. */
+static void
+test_xattr_flags(pblock_catalog *cat)
+{
+    pblock_meta f = file_meta("99999999999999999999999999999999", 1);
+    char        buf[32];
+    ssize_t     n;
+
+    CHECK(pblock_catalog_put(cat, "/xflags", &f) == 0, "put xflags");
+
+    errno = 0;
+    CHECK(pblock_catalog_setxattr(cat, "/xflags", "user.a", "v", 1,
+                                  XATTR_CREATE | XATTR_REPLACE) == -1
+          && errno == EINVAL, "both flags accepted (errno %d)", errno);
+
+    errno = 0;
+    CHECK(pblock_catalog_setxattr(cat, "/xflags", "user.a", "v", 1,
+                                  XATTR_REPLACE) == -1 && errno == ENODATA,
+          "REPLACE created (errno %d)", errno);
+
+    CHECK(pblock_catalog_setxattr(cat, "/xflags", "user.a", "v1", 2,
+                                  XATTR_CREATE) == 0, "CREATE new failed");
+    errno = 0;
+    CHECK(pblock_catalog_setxattr(cat, "/xflags", "user.a", "v2", 2,
+                                  XATTR_CREATE) == -1 && errno == EEXIST,
+          "CREATE overwrote (errno %d)", errno);
+
+    CHECK(pblock_catalog_setxattr(cat, "/xflags", "user.a", "v3", 2,
+                                  XATTR_REPLACE) == 0, "REPLACE failed");
+    n = pblock_catalog_getxattr(cat, "/xflags", "user.a", buf, sizeof(buf));
+    CHECK(n == 2 && memcmp(buf, "v3", 2) == 0, "REPLACE value n=%zd", n);
+
+    /* every xattr op on an absent path is ENOENT, not silent success */
+    errno = 0;
+    CHECK(pblock_catalog_setxattr(cat, "/xghost", "user.a", "v", 1, 0) == -1
+          && errno == ENOENT, "set on ghost path (errno %d)", errno);
+    errno = 0;
+    CHECK(pblock_catalog_getxattr(cat, "/xghost", "user.a", buf,
+                                  sizeof(buf)) == -1 && errno == ENOENT,
+          "get on ghost path (errno %d)", errno);
+    errno = 0;
+    CHECK(pblock_catalog_listxattr(cat, "/xghost", buf, sizeof(buf)) == -1
+          && errno == ENOENT, "list on ghost path (errno %d)", errno);
+    errno = 0;
+    CHECK(pblock_catalog_removexattr(cat, "/xghost", "user.a") == -1
+          && errno == ENOENT, "remove on ghost path (errno %d)", errno);
+}
+
+/* parent_lookup surfaces the parent row (and the right errnos). */
+static void
+test_parent_lookup(pblock_catalog *cat)
+{
+    pblock_meta d = dir_meta();
+    pblock_meta f = file_meta("88888888888888888888888888888888", 1);
+    pblock_meta out;
+
+    d.uid = 10042;
+    d.mode = S_IFDIR | 0770;
+    CHECK(pblock_catalog_put(cat, "/pdir", &d) == 0, "mkdir pdir");
+    CHECK(pblock_catalog_put(cat, "/pdir/leaf", &f) == 0, "leaf");
+
+    CHECK(pblock_catalog_parent_lookup(cat, "/pdir/leaf", &out) == 0
+          && out.is_dir && out.uid == 10042 && (out.mode & 0777) == 0770,
+          "parent row wrong: uid %u mode %o", out.uid, out.mode);
+
+    errno = 0;
+    CHECK(pblock_catalog_parent_lookup(cat, "/", &out) == -1
+          && errno == EINVAL, "root parent (errno %d)", errno);
+    errno = 0;
+    CHECK(pblock_catalog_parent_lookup(cat, "/ghost/leaf", &out) == -1
+          && errno == ENOENT, "ghost parent (errno %d)", errno);
+    errno = 0;
+    CHECK(pblock_catalog_parent_lookup(cat, "/pdir/leaf/below", &out) == -1
+          && errno == ENOTDIR, "file parent (errno %d)", errno);
 }
 
 int
@@ -261,6 +400,10 @@ main(void)
     test_rename_subtree(cat);
     test_opendir(cat);
     test_xattr(cat);
+    test_id_map(cat);
+    test_setattr_owner(cat);
+    test_xattr_flags(cat);
+    test_parent_lookup(cat);
 
     pblock_catalog_close(cat);
     unlink(db);

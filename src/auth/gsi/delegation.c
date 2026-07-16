@@ -352,67 +352,32 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
         return NGX_ERROR;
     }
 
-    /* Verify the signed proxy's key matches our request key (assemble's contract);
-     * its cert+chain output is discarded — we build a fuller credential below. */
+    /*
+     * Assemble the full pull credential = proxy cert + issuer chain + its
+     * private key (our request key), PEM, so the TPC pull can authenticate to
+     * the source AS THE USER (loaded in src/tpc/gsi/gsi_outbound_certreq.c).
+     * assemble_proxy verifies the signed proxy's key matches the request key
+     * and serializes the key into the blob itself.
+     */
     err[0] = '\0';
     {
         const brix_gsi_blob_t signed_blob = { signed_pem, signed_len };
         const brix_gsi_blob_t chain_blob  = { ctx->gsi.deleg_chain_pem,
                                               ctx->gsi.deleg_chain_len };
         const brix_gsi_err_t  err_sink    = { err, sizeof(err) };
-        brix_gsi_buf_t        verify_out  = { NULL, 0 };
+        brix_gsi_buf_t        cred_out    = { NULL, 0 };
 
         if (brix_gsi_assemble_proxy(&signed_blob, ctx->gsi.deleg_reqkey,
-                                      &chain_blob, &verify_out,
+                                      &chain_blob, &cred_out,
                                       &err_sink) != 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "brix: GSI kXGC_sigpxy: assemble proxy failed: %s", err);
             free(plain);
             return NGX_ERROR;
         }
-        free(verify_out.data);
-    }
-
-    /*
-     * Build the full pull credential = proxy cert + its private key (our request
-     * key) + issuer chain, PEM, so the TPC pull can authenticate to the source AS
-     * THE USER (loaded in src/tpc/gsi/gsi_outbound_certreq.c).
-     */
-    {
-        BIO    *kb = BIO_new(BIO_s_mem());
-        char   *kd = NULL;
-        long    kl = 0;
-        u_char *cred;
-        size_t  total;
-
-        if (kb == NULL
-            || PEM_write_bio_PrivateKey(kb, ctx->gsi.deleg_reqkey, NULL, NULL, 0,
-                                        NULL, NULL) != 1) {
-            BIO_free(kb);
-            free(plain);
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "brix: GSI kXGC_sigpxy: cannot export proxy key");
-            return NGX_ERROR;
-        }
-        kl = BIO_get_mem_data(kb, &kd);
-        total = signed_len + ctx->gsi.deleg_chain_len + (size_t) kl;
-        cred = malloc(total + 1);
-        if (cred == NULL) {
-            BIO_free(kb);
-            free(plain);
-            return NGX_ERROR;
-        }
-        /* Order: proxy cert + issuer chain + key — so a cert-reader stops cleanly
-         * at the trailing key block while a key-reader skips the cert blocks. */
-        ngx_memcpy(cred, signed_pem, signed_len);
-        ngx_memcpy(cred + signed_len, ctx->gsi.deleg_chain_pem,
-                   ctx->gsi.deleg_chain_len);
-        ngx_memcpy(cred + signed_len + ctx->gsi.deleg_chain_len, kd, (size_t) kl);
-        cred[total] = '\0';
-        BIO_free(kb);
         free(ctx->gsi.deleg_proxy_pem);
-        ctx->gsi.deleg_proxy_pem = cred;
-        ctx->gsi.deleg_proxy_len = total;
+        ctx->gsi.deleg_proxy_pem = cred_out.data;
+        ctx->gsi.deleg_proxy_len = cred_out.len;
     }
     free(plain);
 

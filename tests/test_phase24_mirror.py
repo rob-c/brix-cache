@@ -13,13 +13,16 @@ Coverage:
   4. Stream functional: a kXR_stat replays to the shadow XRootD server
      (success), and a status mismatch increments the divergence counter
      (security-neg / divergence).
+
+Registry-backed: every nginx here is a throwaway instance provisioned through
+the `lifecycle` harness (templates nginx_mirror_http.conf /
+nginx_mirror_stream_parse.conf / nginx_mirror_stream_pair.conf).
 """
 
 import os
 import re
 import socket
 import struct
-import subprocess
 import threading
 import time
 import http.server
@@ -28,7 +31,10 @@ from pathlib import Path
 
 import pytest
 
+from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, free_ports, HOST, BIND_HOST
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -111,110 +117,90 @@ def test_metrics_present():
 # 2. Config validation                                                         #
 # --------------------------------------------------------------------------- #
 
-HEADER = (
-    "error_log {logs}/error.log info;\n"
-    "pid       {logs}/nginx.pid;\n"
-    "events {{ worker_connections 64; }}\n"
-)
+def _parse_http(lifecycle, name, knobs):
+    lifecycle.register(NginxInstanceSpec(
+        name=name,
+        template="nginx_mirror_http.conf",
+        template_values={"BIND_HOST": BIND_HOST, "MIRROR_KNOBS": knobs},
+        reason="HTTP mirror directive parse coverage",
+    ))
+    lifecycle.reconfigure(name)
+    lifecycle.nginx_test(name)  # raises on parse failure
 
 
-def _nginx_check(conf_text, tmp_path):
-    (tmp_path / "logs").mkdir(exist_ok=True)
-    (tmp_path / "t").mkdir(exist_ok=True)
-    conf = tmp_path / "nginx.conf"
-    conf.write_text(conf_text)
-    proc = subprocess.run([NGINX_BIN, "-t", "-p", str(tmp_path), "-c", str(conf)],
-                          capture_output=True, text=True)
-    return proc.returncode, proc.stdout + proc.stderr
+def _parse_stream(lifecycle, name, knobs, shadow_port):
+    lifecycle.register(NginxInstanceSpec(
+        name=name,
+        template="nginx_mirror_stream_parse.conf",
+        template_values={"BIND_HOST": BIND_HOST, "HOST": HOST,
+                         "SHADOW_PORT": shadow_port, "MIRROR_KNOBS": knobs},
+        reason="stream mirror directive parse coverage",
+    ))
+    lifecycle.reconfigure(name)
+    lifecycle.nginx_test(name)
 
 
-def _http_block(body, tmp_path):
-    return HEADER.format(logs=tmp_path / "logs") + f"""
-    http {{
-        client_body_temp_path {tmp_path}/t; proxy_temp_path {tmp_path}/t;
-        fastcgi_temp_path {tmp_path}/t; uwsgi_temp_path {tmp_path}/t;
-        scgi_temp_path {tmp_path}/t; access_log off;
-        {body}
-    }}
-    """
+def test_http_mirror_directives_parse(lifecycle):
+    s1, s2 = free_ports(2)
+    _parse_http(lifecycle, "lc-mir-hparse", (
+        f"            brix_mirror_url     http://{HOST}:{s1};\n"
+        f"            brix_mirror_url     https://{HOST}:{s2};\n"
+        "            brix_mirror_methods GET HEAD PROPFIND;\n"
+        "            brix_mirror_sample  25;\n"
+        "            brix_mirror_strip_auth on;\n"
+        "            brix_mirror_log_diverge on;\n"
+        "            brix_mirror_timeout 3s;\n"
+    ))
 
 
-def test_http_mirror_directives_parse(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:21940;
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_mirror_url     http://{HOST}:21999;
-                brix_mirror_url     https://{HOST}:21998;
-                brix_mirror_methods GET HEAD PROPFIND;
-                brix_mirror_sample  25;
-                brix_mirror_strip_auth on;
-                brix_mirror_log_diverge on;
-                brix_mirror_timeout 3s;
-            }}
-        }}
-    """, tmp_path)
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc == 0, out
-
-
-def test_http_mirror_bad_scheme_rejected(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:21941;
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_mirror_url ftp://{HOST}:21999;
-            }}
-        }}
-    """, tmp_path)
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc != 0
+def test_http_mirror_bad_scheme_rejected(lifecycle, tmp_path):
+    port, shadow = free_ports(2)
+    result = lifecycle.expect_config_failure(NginxInstanceSpec(
+        name="lc-mir-badscheme",
+        template="nginx_mirror_http.conf",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "PORT": port,
+            "DATA_ROOT": str(tmp_path / "data"),
+            "LOG_DIR": str(tmp_path),
+            "TMP_DIR": str(tmp_path),
+            "MIRROR_KNOBS": f"            brix_mirror_url ftp://{HOST}:{shadow};\n",
+        },
+        reason="mirror URL bad-scheme rejection coverage",
+    ))
+    out = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode != 0
     assert "http://" in out
 
 
-def test_stream_mirror_directives_parse(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:21942;
-            brix_root on;
-            brix_storage_backend posix:/tmp/xrd-test/data;
-            brix_auth none;
-            brix_stream_mirror_url {HOST}:21943;
-            brix_mirror_opcodes stat locate dirlist;
-            brix_mirror_sample 50;
-            brix_mirror_log_diverge on;
-            brix_mirror_timeout 3s;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc == 0, out
+def test_stream_mirror_directives_parse(lifecycle):
+    (shadow,) = free_ports(1)
+    _parse_stream(lifecycle, "lc-mir-sparse", (
+        "        brix_mirror_opcodes stat locate dirlist;\n"
+        "        brix_mirror_sample 50;\n"
+        "        brix_mirror_log_diverge on;\n"
+        "        brix_mirror_timeout 3s;\n"
+    ), shadow)
 
 
-def test_stream_mirror_bad_opcode_rejected(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:21944;
-            brix_root on;
-            brix_storage_backend posix:/tmp/xrd-test/data;
-            brix_auth none;
-            brix_stream_mirror_url {HOST}:21943;
-            brix_mirror_opcodes bogus;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc != 0
+def test_stream_mirror_bad_opcode_rejected(lifecycle, tmp_path):
+    port, shadow = free_ports(2)
+    result = lifecycle.expect_config_failure(NginxInstanceSpec(
+        name="lc-mir-badop",
+        template="nginx_mirror_stream_parse.conf",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "HOST": HOST,
+            "PORT": port,
+            "SHADOW_PORT": shadow,
+            "DATA_ROOT": str(tmp_path / "data"),
+            "LOG_DIR": str(tmp_path),
+            "MIRROR_KNOBS": "        brix_mirror_opcodes bogus;\n",
+        },
+        reason="mirror bad-opcode rejection coverage",
+    ))
+    out = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode != 0
     assert "brix_mirror_opcodes" in out
 
 
@@ -222,23 +208,13 @@ def test_stream_mirror_bad_opcode_rejected(tmp_path):
 # Phase 24 write mirroring (W1: stream metadata) — wiring + gate               #
 # --------------------------------------------------------------------------- #
 
-def test_stream_mirror_write_opcodes_and_gate_parse(tmp_path):
+def test_stream_mirror_write_opcodes_and_gate_parse(lifecycle):
     """The write opcodes + brix_mirror_writes gate parse on the stream side."""
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:21945;
-            brix_root on;
-            brix_storage_backend posix:/tmp/xrd-test/data;
-            brix_auth none;
-            brix_stream_mirror_url {HOST}:21943;
-            brix_mirror_writes on;
-            brix_mirror_opcodes mkdir rm rmdir mv truncate chmod;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
-    assert rc == 0, out
+    (shadow,) = free_ports(1)
+    _parse_stream(lifecycle, "lc-mir-wparse", (
+        "        brix_mirror_writes on;\n"
+        "        brix_mirror_opcodes mkdir rm rmdir mv truncate chmod;\n"
+    ), shadow)
 
 
 def test_mirror_writes_off_by_default_and_gated_in_source():
@@ -249,7 +225,6 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
     assert "BRIX_MIRROR_OP_WRITE" in mh
     assert "mirror_writes" in mh
     # OP_DEFAULT/OP_ALL must NOT pull in the write bits.
-    import re
     op_all = re.search(r"define\s+BRIX_MIRROR_OP_ALL\b(.*?)\n\n", mh, re.S)
     assert op_all and "MKDIR" not in op_all.group(1) and "OP_WRITE" not in op_all.group(1)
     # The stream maybe() enforces mirror_writes as a second, independent guard.
@@ -310,24 +285,29 @@ class _ShadowHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
-def _start_shadow(port):
+def _start_shadow():
     _ShadowHandler.received = []
     _ShadowHandler.bodies = {}
     _ShadowHandler.methods = []
-    srv = http.server.HTTPServer((BIND_HOST, port), _ShadowHandler)
+    srv = http.server.HTTPServer((BIND_HOST, 0), _ShadowHandler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    return srv
+    return srv, srv.server_address[1]
 
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
+def _start_mirror_primary(lifecycle, tmp_path, name, knobs, seed_files=()):
+    data = tmp_path / "data"
+    data.mkdir(exist_ok=True)
+    for n, text in seed_files:
+        (data / n).write_text(text)
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_mirror_http.conf",
+        protocol="http",
+        data_root=str(data),
+        template_values={"BIND_HOST": BIND_HOST, "MIRROR_KNOBS": knobs},
+        reason="HTTP mirror functional coverage",
+    ))
+    return endpoint.port
 
 
 def _read_status_and_body(s):
@@ -386,42 +366,18 @@ def _wait_shadow(path, timeout=6):
 
 
 @pytest.fixture
-def http_mirror_server(tmp_path):
-    primary_port, shadow_port = free_ports(2)
-    data = tmp_path / "data"; data.mkdir()
-    (data / "hello.txt").write_text("hello mirror\n")
-    shadow = _start_shadow(shadow_port)
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{primary_port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_mirror_url     http://{HOST}:{shadow_port};
-                brix_mirror_methods GET HEAD;
-                brix_mirror_sample  100;
-                brix_mirror_strip_auth on;
-            }}
-        }}
-    """, tmp_path)
-    conf_path = tmp_path / "nginx.conf"
-    (tmp_path / "logs").mkdir(exist_ok=True); (tmp_path / "t").mkdir(exist_ok=True)
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def http_mirror_server(lifecycle, tmp_path):
+    shadow, shadow_port = _start_shadow()
     try:
-        if not _wait_port(primary_port):
-            err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-            proc.terminate()
-            pytest.skip(f"primary did not start: {err}")
-        yield primary_port, shadow_port
+        port = _start_mirror_primary(
+            lifecycle, tmp_path, "lc-mir-http",
+            (f"            brix_mirror_url     http://{HOST}:{shadow_port};\n"
+             "            brix_mirror_methods GET HEAD;\n"
+             "            brix_mirror_sample  100;\n"
+             "            brix_mirror_strip_auth on;\n"),
+            seed_files=[("hello.txt", "hello mirror\n")])
+        yield port, shadow_port
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
         shadow.shutdown()
 
 
@@ -447,44 +403,20 @@ def test_auth_stripped_from_shadow(http_mirror_server):
                 "shadow must not receive the client's Authorization header"
 
 
-def test_shadow_failure_transparent(tmp_path):
+def test_shadow_failure_transparent(lifecycle, tmp_path):
     # Shadow port has nothing listening → mirror connect fails, but the primary
     # GET must still succeed (the client never sees the shadow path).
-    primary_port, dead_shadow = free_ports(2)
-    data = tmp_path / "data"; data.mkdir()
-    (data / "f.txt").write_text("body\n")
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{primary_port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_mirror_url     http://{HOST}:{dead_shadow};
-                brix_mirror_methods GET;
-                brix_mirror_sample  100;
-                brix_mirror_timeout 1s;
-            }}
-        }}
-    """, tmp_path)
-    conf_path = tmp_path / "nginx.conf"
-    (tmp_path / "logs").mkdir(exist_ok=True); (tmp_path / "t").mkdir(exist_ok=True)
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    try:
-        if not _wait_port(primary_port):
-            proc.terminate()
-            pytest.skip("primary did not start")
-        assert _http_get(primary_port, "/f.txt") == 200
-        # Repeat — a failing mirror must not break subsequent requests.
-        assert _http_get(primary_port, "/f.txt") == 200
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+    (dead_shadow,) = free_ports(1)
+    port = _start_mirror_primary(
+        lifecycle, tmp_path, "lc-mir-dead",
+        (f"            brix_mirror_url     http://{HOST}:{dead_shadow};\n"
+         "            brix_mirror_methods GET;\n"
+         "            brix_mirror_sample  100;\n"
+         "            brix_mirror_timeout 1s;\n"),
+        seed_files=[("f.txt", "body\n")])
+    assert _http_get(port, "/f.txt") == 200
+    # Repeat — a failing mirror must not break subsequent requests.
+    assert _http_get(port, "/f.txt") == 200
 
 
 def test_write_not_mirrored(http_mirror_server):
@@ -495,42 +427,19 @@ def test_write_not_mirrored(http_mirror_server):
     assert "/uploaded.txt" not in _shadow_paths(), "PUT must never be mirrored"
 
 
-def test_sample_zero_mirrors_nothing(tmp_path):
-    primary_port, shadow_port = free_ports(2)
-    data = tmp_path / "data"; data.mkdir()
-    (data / "z.txt").write_text("z\n")
-    shadow = _start_shadow(shadow_port)
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{primary_port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_mirror_url     http://{HOST}:{shadow_port};
-                brix_mirror_methods GET;
-                brix_mirror_sample  0;
-            }}
-        }}
-    """, tmp_path)
-    conf_path = tmp_path / "nginx.conf"
-    (tmp_path / "logs").mkdir(exist_ok=True); (tmp_path / "t").mkdir(exist_ok=True)
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def test_sample_zero_mirrors_nothing(lifecycle, tmp_path):
+    shadow, shadow_port = _start_shadow()
     try:
-        if not _wait_port(primary_port):
-            proc.terminate()
-            pytest.skip("primary did not start")
-        assert _http_get(primary_port, "/z.txt") == 200
+        port = _start_mirror_primary(
+            lifecycle, tmp_path, "lc-mir-zero",
+            (f"            brix_mirror_url     http://{HOST}:{shadow_port};\n"
+             "            brix_mirror_methods GET;\n"
+             "            brix_mirror_sample  0;\n"),
+            seed_files=[("z.txt", "z\n")])
+        assert _http_get(port, "/z.txt") == 200
         time.sleep(1.0)
         assert _shadow_paths() == [], "sample 0 must mirror nothing"
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
         shadow.shutdown()
 
 
@@ -604,95 +513,49 @@ def _wait_metric(metrics_port, name, surface, want, timeout=8):
     return last
 
 
-def _start_stream_pair(tmp_path, primary_port, shadow_port, metrics_port,
-                       primary_files, shadow_files):
+def _start_stream_pair(lifecycle, tmp_path, name, primary_files, shadow_files):
     pdata = tmp_path / "pdata"; pdata.mkdir()
     sdata = tmp_path / "sdata"; sdata.mkdir()
     for n in primary_files:
         (pdata / n).write_text("x\n")
     for n in shadow_files:
         (sdata / n).write_text("x\n")
-
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:{shadow_port};
-            brix_root on;
-            brix_storage_backend posix:{sdata};
-            brix_auth none;
-        }}
-        server {{
-            listen {BIND_HOST}:{primary_port};
-            brix_root on;
-            brix_storage_backend posix:{pdata};
-            brix_auth none;
-            brix_stream_mirror_url {HOST}:{shadow_port};
-            brix_mirror_opcodes stat;
-            brix_mirror_sample 100;
-            brix_mirror_log_diverge on;
-            brix_mirror_timeout 3s;
-        }}
-    }}
-    http {{
-        access_log off;
-        server {{
-            listen {BIND_HOST}:{metrics_port};
-            location /metrics {{ brix_metrics on; }}
-        }}
-    }}
-    """
-    conf_path = tmp_path / "nginx.conf"
-    (tmp_path / "logs").mkdir(exist_ok=True)
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not (_wait_port(primary_port) and _wait_port(shadow_port)
-            and _wait_port(metrics_port)):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"stream pair did not start: {err}")
-    return proc
+    shadow_port, metrics_port = free_ports(2)
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_mirror_stream_pair.conf",
+        data_root=str(pdata),
+        extra_ports={"SHADOW_PORT": shadow_port, "METRICS_PORT": metrics_port},
+        template_values={"BIND_HOST": BIND_HOST, "HOST": HOST,
+                         "SHADOW_DATA": str(sdata)},
+        reason="stream mirror + divergence functional coverage",
+    ))
+    return endpoint.port, metrics_port
 
 
 # --------------------------------------------------------------------------- #
 # 4. Stream functional                                                         #
 # --------------------------------------------------------------------------- #
 
-def test_stat_mirrored_to_shadow(tmp_path):
-    primary, shadow, metrics = free_ports(3)
-    proc = _start_stream_pair(tmp_path, primary, shadow, metrics,
-                              primary_files=["present.txt"],
-                              shadow_files=["present.txt"])
-    try:
-        _xrd_stat(HOST, primary, "/present.txt")
-        got = _wait_metric(metrics, "brix_mirror_requests_total", "stream", 1)
-        assert got is not None and got >= 1, \
-            f"stream mirror request not counted (got {got})"
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+def test_stat_mirrored_to_shadow(lifecycle, tmp_path):
+    primary, metrics = _start_stream_pair(
+        lifecycle, tmp_path, "lc-mir-stream-ok",
+        primary_files=["present.txt"], shadow_files=["present.txt"])
+    _xrd_stat(HOST, primary, "/present.txt")
+    got = _wait_metric(metrics, "brix_mirror_requests_total", "stream", 1)
+    assert got is not None and got >= 1, \
+        f"stream mirror request not counted (got {got})"
 
 
-def test_divergence_counted(tmp_path):
+def test_divergence_counted(lifecycle, tmp_path):
     # Primary HAS the file (stat ok); shadow does NOT (kXR_NotFound) → divergence.
-    primary, shadow, metrics = free_ports(3)
-    proc = _start_stream_pair(tmp_path, primary, shadow, metrics,
-                              primary_files=["only-here.txt"],
-                              shadow_files=[])
-    try:
-        _xrd_stat(HOST, primary, "/only-here.txt")
-        got = _wait_metric(metrics, "brix_mirror_divergence_total", "stream", 1)
-        assert got is not None and got >= 1, \
-            f"divergence not counted (got {got})"
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+    primary, metrics = _start_stream_pair(
+        lifecycle, tmp_path, "lc-mir-stream-div",
+        primary_files=["only-here.txt"], shadow_files=[])
+    _xrd_stat(HOST, primary, "/only-here.txt")
+    got = _wait_metric(metrics, "brix_mirror_divergence_total", "stream", 1)
+    assert got is not None and got >= 1, \
+        f"divergence not counted (got {got})"
 
 
 # --------------------------------------------------------------------------- #
@@ -746,53 +609,26 @@ def _wait_shadow_method(method, path, timeout=6):
     return False
 
 
-def _start_http_writes_primary(tmp_path, primary_port, shadow_port,
-                               writes="on", methods="PUT DELETE MKCOL MOVE COPY"):
-    data = tmp_path / "data"; data.mkdir(exist_ok=True)
-    conf = _http_block(f"""
-        server {{
-            listen {BIND_HOST}:{primary_port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                brix_allow_write on;
-                brix_mirror_url     http://{HOST}:{shadow_port};
-                brix_mirror_methods {methods};
-                brix_mirror_writes  {writes};
-                brix_mirror_sample  100;
-            }}
-        }}
-    """, tmp_path)
-    conf_path = tmp_path / "nginx.conf"
-    (tmp_path / "logs").mkdir(exist_ok=True); (tmp_path / "t").mkdir(exist_ok=True)
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(primary_port):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"primary did not start: {err}")
-    return proc
+def _writes_knobs(shadow_port, writes="on",
+                  methods="PUT DELETE MKCOL MOVE COPY"):
+    return (
+        "            brix_allow_write on;\n"
+        f"            brix_mirror_url     http://{HOST}:{shadow_port};\n"
+        f"            brix_mirror_methods {methods};\n"
+        f"            brix_mirror_writes  {writes};\n"
+        "            brix_mirror_sample  100;\n"
+    )
 
 
 @pytest.fixture
-def http_mirror_writes_server(tmp_path):
-    primary_port, shadow_port = free_ports(2)
-    shadow = _start_shadow(shadow_port)
+def http_mirror_writes_server(lifecycle, tmp_path):
+    shadow, shadow_port = _start_shadow()
     try:
-        proc = _start_http_writes_primary(tmp_path, primary_port, shadow_port)
-    except BaseException:
-        shadow.shutdown()    # don't leak the shadow listener on skip/error
-        raise
-    try:
-        yield primary_port, shadow_port
+        port = _start_mirror_primary(
+            lifecycle, tmp_path, "lc-mir-writes",
+            _writes_knobs(shadow_port))
+        yield port, shadow_port
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
         shadow.shutdown()
 
 
@@ -813,22 +649,17 @@ def test_delete_mirrored_to_shadow(http_mirror_writes_server):
         "shadow never received the DELETE"
 
 
-def test_writes_off_not_mirrored(tmp_path):
+def test_writes_off_not_mirrored(lifecycle, tmp_path):
     """With brix_mirror_writes off, a PUT is NOT replayed to the shadow."""
-    primary_port, shadow_port = free_ports(2)
-    shadow = _start_shadow(shadow_port)
-    proc = _start_http_writes_primary(tmp_path, primary_port, shadow_port,
-                                      writes="off")
+    shadow, shadow_port = _start_shadow()
     try:
-        _http_req(primary_port, "PUT", "/off.bin", b"data")
+        port = _start_mirror_primary(
+            lifecycle, tmp_path, "lc-mir-writesoff",
+            _writes_knobs(shadow_port, writes="off"))
+        _http_req(port, "PUT", "/off.bin", b"data")
         time.sleep(1.0)
         with _ShadowHandler.lock:
             assert ("PUT", "/off.bin") not in _ShadowHandler.methods, \
                 "PUT mirrored despite brix_mirror_writes off"
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
         shadow.shutdown()

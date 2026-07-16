@@ -48,7 +48,7 @@ vfs_backend_mkpath_leaf(brix_sd_instance_t *leaf, const char *logical,
         /* Not a real failure — the caller falls back to
          * brix_vfs_backend_mkpath — but set errno for clarity to any caller
          * that inspects it before checking the NGX_DECLINED return. */
-        errno = ENOSYS;
+        errno = ENOTSUP;
         return NGX_DECLINED;
     }
 
@@ -108,7 +108,7 @@ typedef struct {
  *       (caps, credential) is resolved by the caller and passed in explicitly —
  *       this helper is pure dispatch with side effects at the driver edge.
  *
- * HOW:  Rejects a NULL mkdir slot with ENOSYS. For `parents` picks the
+ * HOW:  Rejects a NULL mkdir slot with ENOTSUP. For `parents` picks the
  *       leaf-aware cred-threaded mkpath when use_cred, else the root-canon
  *       mkpath, mapping a 0/-1 return to NGX_OK/NGX_ERROR. The non-parents case
  *       returns brix_sd_mkdir_maybe_cred directly. */
@@ -121,7 +121,7 @@ vfs_backend_mkdir_dispatch(const vfs_mkdir_req_t *req,
     const char     *logical = brix_vfs_export_relative(ctx, req->path);
 
     if (drv->mkdir == NULL) {
-        errno = ENOSYS;
+        errno = ENOTSUP;
         return NGX_ERROR;
     }
     if (req->parents) {
