@@ -2,6 +2,37 @@
 # Sourced (not executed) by manage_test_servers.sh; uses its global
 # config vars.  Do not run directly.
 
+# XrdHttpTPC's TempCA walks EVERY file in http.cadir and open()s it as a
+# certificate.  The test PKI keeps the CA PRIVATE key (ca.key, 0400 root — by
+# design; _ref_launch deliberately relaxes only the public *.pem) in that same
+# directory, so under a root harness the -R user cannot read it and TPC logs
+#   TPC_Maintenance: Failed to open certificate file ca.key Permission denied
+#   TPC_Config: CAs / CRL generation for libcurl failed.
+# xrootd's init then wedges BEFORE signalling ready, so `xrootd -b`'s parent
+# blocks forever on the daemonize pipe and start-all hangs at its very last step.
+#
+# Give XrdHttp a public-only VIEW of the CA — cert, hash links, signing policy,
+# CRLs — and never a private key.  GSI is unaffected and keeps using the real dir
+# (sec.protocol's -certdir does hash lookups instead of scanning every file).
+_xrdhttp_public_cadir() {  # _xrdhttp_public_cadir <src_ca_dir> <dst_dir>
+    local src="$1" dst="$2" f name
+    mkdir -p "$dst" || return 1
+    for f in "$src"/*; do
+        [[ -e "$f" ]] || continue
+        name="${f##*/}"
+        # Private keys never leave the source dir; *.srl is openssl's serial
+        # counter, not CA material TPC can parse.
+        case "$name" in
+            *.key|*.srl) continue ;;
+        esac
+        # -L so the hash symlinks (<hash>.0 -> ca.pem) land as real readable files.
+        cp -fL "$f" "$dst/$name" 2>/dev/null || true
+    done
+    chmod a+rx "$dst"    2>/dev/null || true
+    chmod a+r  "$dst"/*  2>/dev/null || true
+    return 0
+}
+
 start_xrdhttp() {
     if ! have_cmd "$REF_BIN"; then
         echo "ERROR: xrootd binary not found on PATH" >&2
@@ -57,6 +88,10 @@ start_xrdhttp() {
         return 1
     fi
 
+    # Public-only CA view for http.cadir (see _xrdhttp_public_cadir above).
+    local ca_public="${xrdhttp_dir}/ca-public"
+    _xrdhttp_public_cadir "${PKI_DIR}/ca" "$ca_public"
+
     render_cfg "${CONFIGS_DIR}/xrootd_xrdhttp.conf" "$cfg_path" \
         DATA_DIR="${data_dir}" \
         ADMIN_DIR="${xrdhttp_dir}/admin-conf" \
@@ -67,7 +102,7 @@ start_xrdhttp() {
         HTTP_LIB="${http_lib}" \
         SERVER_CERT="${PKI_DIR}/server/hostcert.pem" \
         SERVER_KEY="${PKI_DIR}/server/hostkey.pem" \
-        CA_DIR="${PKI_DIR}/ca" \
+        CA_DIR="${ca_public}" \
         TPC_LIB="${tpc_lib}"
 
     # Start xrootd with HTTP module. Via _ref_launch (refxrootd.sh) so it drops to

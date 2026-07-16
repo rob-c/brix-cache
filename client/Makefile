@@ -345,20 +345,42 @@ CEPH_C_FLAGS   := -std=c11 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(HARDEN) $(OPT)
 CEPH_CXX_FLAGS := -std=c++17 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(HARDEN) $(OPT) \
                   -Iapps/ceph $(CFLAGS)
 
-$(BINDIR)/xrdrados_rescue: apps/ceph/xrdrados_rescue.c $(CEPH_RADOS_DIR)/sd_ceph.c \
-		$(CEPH_RADOS_DIR)/sd_ceph_compat.c apps/ceph/ngx_shim.h | $(BINDIR)
-	$(CC) $(CEPH_C_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(filter %.c,$^) -lrados -o $@
-	@echo " + built $@ (librados)"
+# The driver's translation units, named ONCE.  These tools link no library for
+# the backend — they compile the driver sources straight in — so this list must
+# be the full symbol closure, and it drifts silently: a split TU that nobody adds
+# here fails only at LINK time, and only when librados headers are installed (so
+# a box without them never notices).  That is exactly what happened when the
+# phase-79 file-size work split sd_ceph.c -> +sd_ceph_io.c +sd_ceph_cred.c
+# +sd_ceph_object.c and sd_cephfs_ro.c -> +sd_cephfs_ro_dir.c
+# +sd_cephfs_ro_resolve.c: three recipes each kept their own stale copy of the
+# old two-file list, and every ceph tool failed with `undefined reference to
+# sd_ceph_*`, breaking `make -C client` and the RPM's build-time assertion.
+# Keep these as variables so the next split is a one-line change here, not three
+# drifting copies. Deliberately NOT sd_ceph_striper.c: nothing in these tools
+# references it and pulling it in would add a libradosstriper link dependency.
+CEPH_CORE_SRCS := $(CEPH_RADOS_DIR)/sd_ceph.c \
+                  $(CEPH_RADOS_DIR)/sd_ceph_compat.c \
+                  $(CEPH_RADOS_DIR)/sd_ceph_io.c \
+                  $(CEPH_RADOS_DIR)/sd_ceph_cred.c \
+                  $(CEPH_RADOS_DIR)/sd_ceph_object.c
+CEPHFS_RO_SRCS := $(CEPH_RADOS_DIR)/sd_cephfs_ro.c \
+                  $(CEPH_RADOS_DIR)/sd_cephfs_ro_dir.c \
+                  $(CEPH_RADOS_DIR)/sd_cephfs_ro_resolve.c \
+                  $(CEPH_RADOS_DIR)/cephfs_denc.c \
+                  $(CEPH_RADOS_DIR)/cephfs_layout.c
 
-$(BINDIR)/xrdceph_migrate: apps/ceph/xrdceph_migrate.c $(CEPH_RADOS_DIR)/sd_ceph.c \
-		$(CEPH_RADOS_DIR)/sd_ceph_compat.c apps/ceph/ngx_shim.h | $(BINDIR)
-	$(CC) $(CEPH_C_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(filter %.c,$^) -lrados -o $@
-	@echo " + built $@ (librados)"
-
-$(BINDIR)/xrdcephfs_rescue: apps/ceph/xrdcephfs_rescue.c $(CEPH_RADOS_DIR)/sd_cephfs_ro.c \
-		$(CEPH_RADOS_DIR)/sd_ceph.c $(CEPH_RADOS_DIR)/sd_ceph_compat.c \
-		$(CEPH_RADOS_DIR)/cephfs_denc.c $(CEPH_RADOS_DIR)/cephfs_layout.c \
+$(BINDIR)/xrdrados_rescue: apps/ceph/xrdrados_rescue.c $(CEPH_CORE_SRCS) \
 		apps/ceph/ngx_shim.h | $(BINDIR)
+	$(CC) $(CEPH_C_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(filter %.c,$^) -lrados -o $@
+	@echo " + built $@ (librados)"
+
+$(BINDIR)/xrdceph_migrate: apps/ceph/xrdceph_migrate.c $(CEPH_CORE_SRCS) \
+		apps/ceph/ngx_shim.h | $(BINDIR)
+	$(CC) $(CEPH_C_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(filter %.c,$^) -lrados -o $@
+	@echo " + built $@ (librados)"
+
+$(BINDIR)/xrdcephfs_rescue: apps/ceph/xrdcephfs_rescue.c $(CEPHFS_RO_SRCS) \
+		$(CEPH_CORE_SRCS) apps/ceph/ngx_shim.h | $(BINDIR)
 	$(CC) $(CEPH_C_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(filter %.c,$^) -lrados -o $@
 	@echo " + built $@ (librados; cephfsro core)"
 
