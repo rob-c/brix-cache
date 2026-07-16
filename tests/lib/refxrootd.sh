@@ -10,7 +10,9 @@
 # admin/pid dirs (chown to the user), the exported data root (a+rwX, shared with
 # the root-owned nginx fleet), and the test PKI it reads for GSI (a+rX + readable
 # key/cert). Non-root runs are unchanged (empty user -> original launch).
-# DROP this shim once the harness always runs unprivileged (see TESTING.md §0).
+# DROP this shim once the harness always runs unprivileged — that mode now exists:
+# tests/run_suite_unprivileged.sh (TESTING.md §5a), where the invoking user IS the
+# server user, _ref_runas_user returns empty and none of this engages.
 # NOTE: must always return 0 — callers assign `u="$(_ref_runas_user)"` under
 # `set -e`, so a bare `[ root ] && echo` (exit 1 when unprivileged) would abort
 # the whole start-all on any non-root box.
