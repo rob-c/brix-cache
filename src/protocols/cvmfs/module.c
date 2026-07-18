@@ -70,6 +70,7 @@ ngx_http_brix_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->cvmfs.enable         = NGX_CONF_UNSET;
     c->cvmfs.manifest_ttl   = NGX_CONF_UNSET;
     c->cvmfs.negative_ttl   = NGX_CONF_UNSET;
+    c->cvmfs.offline_ttl    = NGX_CONF_UNSET;
     c->cvmfs.upstream_allow = NGX_CONF_UNSET_PTR;
     c->cvmfs.upstream_max   = NGX_CONF_UNSET_UINT;
     c->cvmfs.origin_select  = NGX_CONF_UNSET_UINT;
@@ -84,6 +85,7 @@ ngx_http_brix_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->cvmfs.origin_attempt_timeout = NGX_CONF_UNSET;
     c->cvmfs.origin_reuse_conn      = NGX_CONF_UNSET;
     c->cvmfs.fill_retry_policy      = NGX_CONF_UNSET_UINT;
+    c->cvmfs.origin_http_version    = NGX_CONF_UNSET_UINT;
     c->cvmfs.shared_cache           = NGX_CONF_UNSET;
     c->cvmfs.unified_origin         = NGX_CONF_UNSET;
     c->cvmfs.geo_answer             = NGX_CONF_UNSET_UINT;
@@ -91,6 +93,8 @@ ngx_http_brix_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->cvmfs.geo_max_servers        = NGX_CONF_UNSET_UINT;
     c->scvmfs               = NGX_CONF_UNSET;
     c->scvmfs_authz         = NGX_CONF_UNSET_UINT;
+    c->repo_authz           = NGX_CONF_UNSET_PTR;
+    c->qos                  = NGX_CONF_UNSET_PTR;
 
     return c;
 }
@@ -309,6 +313,14 @@ static ngx_conf_enum_t  brix_cvmfs_select_enum[] = {
 static ngx_conf_enum_t  brix_cvmfs_retry_policy_enum[] = {
     { ngx_string("failover"),      BRIX_CVMFS_RETRY_FAILOVER },
     { ngx_string("force-primary"), BRIX_CVMFS_RETRY_FORCE_PRIMARY },
+    { ngx_null_string, 0 }
+};
+
+static ngx_conf_enum_t  brix_cvmfs_origin_httpv_enum[] = {
+    { ngx_string("1.1"),      BRIX_CVMFS_ORIGIN_HTTP_11 },
+    { ngx_string("2"),        BRIX_CVMFS_ORIGIN_HTTP_2 },
+    { ngx_string("2-direct"), BRIX_CVMFS_ORIGIN_HTTP_2D },
+    { ngx_string("3"),        BRIX_CVMFS_ORIGIN_HTTP_3 },
     { ngx_null_string, 0 }
 };
 

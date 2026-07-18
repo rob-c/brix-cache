@@ -72,6 +72,13 @@ int cvmfs_whitelist_parse(const unsigned char *buf, size_t len, cvmfs_whitelist_
             if (e > 0) e_expiry = e;
         } else if (lineno == 0) {
             first_ts = parse_expiry(L, n);
+        } else if (n >= 1 && L[0] == 'N') {
+            /* "N<fqrn>" — binds the whitelist to one repository. A fingerprint
+             * never starts with 'N' (hex alphabet is 0-9A-F), so this is
+             * unambiguous. Last write wins; kept for the client's repo check. */
+            size_t c = n - 1 < sizeof(out->repo_name) - 1 ? n - 1 : sizeof(out->repo_name) - 1;
+            memcpy(out->repo_name, L + 1, c);
+            out->repo_name[c] = '\0';
         } else {
             size_t t = 0;
             while (t < n && L[t] != ' ' && L[t] != '\t' && L[t] != '#') t++;
@@ -95,6 +102,7 @@ int cvmfs_whitelist_parse(const unsigned char *buf, size_t len, cvmfs_whitelist_
     size_t h = p;
     while (h < len && buf[h] != '\n') h++;   /* the hash line is the signed text */
     if (h >= len) return -1;
+    cvmfs_hash_parse((const char *) buf + p, h - p, &out->signed_hash);
     out->signed_hash_text = buf + p;
     out->signed_hash_text_len = h - p;
     out->signature = buf + h + 1;

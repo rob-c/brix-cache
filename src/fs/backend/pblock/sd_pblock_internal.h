@@ -53,6 +53,36 @@ typedef struct {
     char            blob_id[PBLOCK_BLOB_ID_CAP];
     int64_t         block_size;           /* this file's stripe size            */
     pblock_meta     meta;                 /* cached metadata row                */
+    void           *lab;                  /* pblock_lab_obj_t* (Phase-83); NULL  *
+                                           * ⇒ no lab rule applies to this handle*/
+    int64_t         a_rbytes;             /* F17: bytes read through this handle *
+                                           * (accumulated only when st->audit)   */
+    int64_t         a_wbytes;             /* F17: bytes written through handle    */
+    int64_t         a_maxblock;           /* F17: highest block index touched, +1 */
+    uint32_t       *csi_crc;              /* F3: at-rest per-block CRC32c snapshot *
+                                           * loaded at open (0 = unset); NULL when *
+                                           * csi off. Verify reads this — no DB on *
+                                           * the hot path. Owned; freed at close.  */
+    uint64_t        csi_n;                /* entries in csi_crc[]                  */
+    int64_t         csi_dlo;              /* lowest block index written through    *
+                                           * this handle (verify skips [dlo,dhi):  *
+                                           * its snapshot CRC is stale; flush       *
+                                           * recomputes it). INT64_MAX = none.     */
+    int64_t         csi_dhi;              /* highest written block index + 1       */
+    struct pblock_lock_rng_s *lock_rng;   /* F15: foreign range leases snapshotted *
+                                           * at open (owned; freed at close). NULL *
+                                           * ⇒ no ranges — pwrite skips the scan.  */
+    uint32_t        lock_n;               /* F15: entries in lock_rng[]            */
+    int64_t         quota_max;            /* F5: largest size this handle may grow *
+                                           * the file to, snapshotted at open       *
+                                           * (INT64_MAX = no quota) — writes past   *
+                                           * it fail EDQUOT with no DB on the hot   *
+                                           * path                                   */
+    void           *wv;                   /* F10: brix_wverify_t* whole-object CRC *
+                                           * accumulator — armed only on create /  *
+                                           * O_TRUNC opens when st->refs; feeds     *
+                                           * publish-time dedup. NULL ⇒ no dedup    *
+                                           * candidate hash from this handle.       */
     unsigned        dirty:1;              /* size/mtime need catalog write-back */
 } pblock_obj_t;
 

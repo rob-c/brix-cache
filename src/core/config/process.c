@@ -23,6 +23,7 @@
 #include "auth/gsi/keypool.h"
 #include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"
+#include "core/seccomp/seccomp.h"          /* D-3 per-worker syscall filter */
 #include "observability/sesslog/sesslog_ngx.h"
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
@@ -162,6 +163,7 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     ngx_uint_t                     i;
     ngx_stream_brix_srv_conf_t  *gsi_xcf = NULL;  /* first GSI block: keypool cfg */
     ngx_uint_t                     manager_seen = 0;
+    ngx_uint_t                     seccomp_mode = BRIX_SECCOMP_OFF; /* D-3: strictest wins */
     brix_phase_timer_t           pt;
     u_char                         ctx[64];
 
@@ -225,6 +227,13 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
             manager_seen = 1;   /* A4: arm the pending-locate reaper below */
         }
 
+        /* D-3: the seccomp filter is process-global, but the directive is
+         * per-server; take the strictest requested value across enabled blocks
+         * (off < audit < enforce, encoded in the enum order). */
+        if (xcf->seccomp > seccomp_mode) {
+            seccomp_mode = xcf->seccomp;
+        }
+
         if (brix_init_one_server(cycle, xcf) != NGX_OK) {
             return NGX_ERROR;
         }
@@ -245,6 +254,15 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 
     ngx_snprintf(ctx, sizeof(ctx) - 1, "xrootd init_process[w%ui]%Z", ngx_worker);
     brix_phase_timer_log(&pt, cycle->log, (const char *) ctx);
+
+    /* D-3: install the seccomp syscall filter LAST, once every one-shot setup
+     * syscall above has run, so only the steady-state serving set must be on the
+     * allowlist. Fails the worker closed if an audit/enforce filter cannot be
+     * loaded (e.g. libseccomp missing) — never serve unfiltered when the operator
+     * configured a filter. */
+    if (brix_seccomp_install(cycle, seccomp_mode) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     return NGX_OK;
 }

@@ -12,14 +12,19 @@ def test_ceph_harness_commands_are_importable():
 
 
 @pytest.mark.optin
+@pytest.mark.timeout(600)
 def test_ceph_harness_lifecycle():
     """Opt-in Docker lab lifecycle: start -> env -> status -> pool-reset.
 
     Deliberately leaves the demo container running (like the shell harness);
     stop it with `python3 -m cmdscripts.ceph_harness stop`.
+
+    Overrides the 30s global default: a cold start pulls/boots the demo
+    MON/MGR/OSD and waits for HEALTH, and pool-reset recreates 32 PGs against a
+    single-OSD cluster still settling -- comfortably past 30s on the first run.
     """
-    if os.environ.get("PHASE81_RUN_CEPH_PORTS") != "1":
-        pytest.skip("set PHASE81_RUN_CEPH_PORTS=1 to run the Docker Ceph harness")
+    if os.environ.get("PHASE81_RUN_CEPH_PORTS") == "0":
+        pytest.skip("PHASE81_RUN_CEPH_PORTS=0 set — skipping the Docker Ceph harness")
     if not ceph_harness.have_docker():
         pytest.skip("docker not found")
     assert ceph_harness.cmd_start() == 0

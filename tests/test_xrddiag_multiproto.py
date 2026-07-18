@@ -29,14 +29,13 @@ import os
 import shutil
 import socket
 import subprocess
-import time
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+from settings import HOST, free_port
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,14 +48,6 @@ for _k in ("X509_USER_PROXY", "X509_CERT_DIR", "BEARER_TOKEN", "BEARER_TOKEN_FIL
     _CLEAN_ENV.pop(_k, None)
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
 def _port_up(host, port):
     try:
         with socket.create_connection((host, port), timeout=1):
@@ -65,8 +56,8 @@ def _port_up(host, port):
         return False
 
 
-@pytest.fixture(scope="module")
-def servers(tmp_path_factory):
+@pytest.fixture
+def servers(lifecycle, tmp_path_factory):
     """One nginx serving the same data over root / http / https / davs / s3."""
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
@@ -91,30 +82,22 @@ def servers(tmp_path_factory):
     if r.returncode != 0:
         pytest.skip("openssl cert generation failed")
 
-    pr, ph, ps, p3 = _free_port(), _free_port(), _free_port(), _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_xrddiag_multiproto.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  ROOT_PORT=pr,
-                                  HTTP_PORT=ph,
-                                  HTTPS_PORT=ps,
-                                  S3_PORT=p3,
-                                  DATA_DIR=data,
-                                  CERT=cert,
-                                  KEY=key))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, pr) and _port_up(HOST, ph) and _port_up(HOST, ps) \
-                and _port_up(HOST, p3):
-            break
-        time.sleep(0.1)
-    yield {"root": pr, "http": ph, "https": ps, "s3": p3}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-xrddiag-multiproto",
+        template="nginx_xrddiag_multiproto.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+        extra_ports={"HTTP_PORT": free_port(),
+                     "HTTPS_PORT": free_port(),
+                     "S3_PORT": free_port()},
+        template_values={"CERT": cert, "KEY": key},
+        reason="Multi-protocol xrddiag deep-dive: root/http/https/davs/s3 on one nginx.",
+    ))
+    yield {"root": ep.port,
+           "http": ep.extra_ports["HTTP_PORT"],
+           "https": ep.extra_ports["HTTPS_PORT"],
+           "s3": ep.extra_ports["S3_PORT"]}
 
 
 def _run(*args, env=None, timeout=60):
@@ -219,6 +202,7 @@ def test_s3_sigv4_accepted(servers):
 # cms:// (cluster manager — fleet-gated)
 # --------------------------------------------------------------------------
 
+@pytest.mark.registry_server("cluster-redir")
 def test_cms_manager_trace():
     from settings import SERVER_HOST, CLUSTER_REDIR_PORT
     if not _port_up(SERVER_HOST, CLUSTER_REDIR_PORT):

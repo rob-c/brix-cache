@@ -42,6 +42,7 @@ static void brixmount_usage(FILE *out, const brix_driver_t *drv, size_t n) {
         "  e.g. brixMount cvmfs    atlas.cern.ch           ~/myAtlasMountDir/\n"
         "       brixMount cvmfs-rw atlas.cern.ch           ~/myAtlasMountDir/\n"
         "       brixMount eos      root://eoslhcb.cern.ch  ~/myEOSMountDir/\n"
+        "       brixMount autofs   -                       /cvmfs   (automount umbrella)\n"
         "types:\n");
     for (size_t i = 0; i < n; i++)
         fprintf(out, "  %-8s %s%s\n", drv[i].type, drv[i].brand,
@@ -132,6 +133,7 @@ int brixmount_dispatch(int argc, char **argv, const brix_driver_t *drv, size_t n
 /* real driver entries */
 int brixcvmfs_main(int argc, char **argv);
 int brixcvmfs_rw_main(int argc, char **argv);
+int brixautofs_main(int argc, char **argv);
 extern int xrootdfs_aio_main(int argc, char **argv) __attribute__((weak));
 
 /* overlay subcommand cores (client/lib/fs/overlay.h — decls kept local so the
@@ -150,7 +152,7 @@ int main(int argc, char **argv) {
         fprintf(stdout,
             "brixMount — a hardened, iron-clad FUSE mount, battle-tested against bad/evil networks\n"
             "usage: brixMount <type> <endpoint> <mountdir> [fuse-opts]\n"
-            "  types: cvmfs  cvmfs-rw  eos  root  roots\n"
+            "  types: cvmfs  cvmfs-rw  autofs  eos  root  roots\n"
             BRIX_USAGE_FOOTER("brixMount"));
         return 0;
     }
@@ -162,6 +164,7 @@ int main(int argc, char **argv) {
     static const brix_driver_t drivers[] = {
         { "cvmfs",    "CVMFS-brix",    brixcvmfs_main },
         { "cvmfs-rw", "CVMFS-brix-rw", brixcvmfs_rw_main },
+        { "autofs",   "CVMFS-brix-autofs", brixautofs_main },
         { "eos",   "XRootDFS-brix", NULL },   /* filled below if weak-linked */
         { "root",  "XRootDFS-brix", NULL },
         { "roots", "XRootDFS-brix", NULL },

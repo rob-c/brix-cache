@@ -24,6 +24,9 @@ typedef struct {
     guard_ruleset_t  rules;      /* built once at relay start ("root" profile) */
     int              enable;
     int              drop;       /* set by the sink -> the pump tears down */
+    int              hs_seen;    /* first-bytes wire check reached a verdict */
+    unsigned char    hs_buf[20]; /* accumulated opening bytes (kXR sig is 20) */
+    unsigned char    hs_len;     /* bytes buffered so far (fragmentation-safe) */
     char             ip[64];     /* NUL-terminated client address for audit */
     ngx_log_t       *log;        /* relay's stable log (no session appender) */
 } brix_relay_guard_t;
@@ -36,6 +39,13 @@ void brix_relay_guard_init(brix_relay_guard_t *g, int enable,
 /* Tap sink (brix_tap_sink_fn): ctx is the brix_relay_guard_t. */
 void brix_relay_guard_sink(void *ctx, const brix_tap_frame_t *f,
     brix_tap_dir_t dir, const uint8_t *payload, size_t payload_len);
+
+/* First-bytes wire check: inspect the opening client->upstream bytes for the
+ * kXR handshake signature BEFORE they are forwarded. A client not speaking
+ * root sets the drop flag and emits one signal=notroot audit line. Runs at
+ * most once per relay (guarded by g->hs_seen); a no-op when disabled. */
+void brix_relay_guard_handshake(brix_relay_guard_t *g,
+    const unsigned char *buf, size_t len);
 
 /* 1 when a classified frame demanded the connection be dropped. */
 int brix_relay_guard_should_drop(const brix_relay_guard_t *g);

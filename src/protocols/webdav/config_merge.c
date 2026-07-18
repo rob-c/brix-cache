@@ -78,6 +78,8 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
                               WEBDAV_AUTH_OPTIONAL);
     brix_acc_http_merge_conf(&conf->acc, &prev->acc);
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
+    ngx_conf_merge_str_value(conf->ssl_client_capath,
+                             prev->ssl_client_capath, "");
     ngx_conf_merge_value(conf->tape_rest, prev->tape_rest, 0);
     /* Uploads staged + resumable by DEFAULT.  Set brix_webdav_upload_resume
      * off to opt out. */
@@ -331,6 +333,17 @@ webdav_validate_auth_paths(ngx_conf_t *cf,
             "brix_webdav: auth optional/required needs a credential verifier "
             "— brix_webdav_cadir/cafile, brix_webdav_token_jwks/config/"
             "macaroon_secret, or brix_webdav_pwd_file");
+        return NGX_CONF_ERROR;
+    }
+    /* E-1: a writable export that does not REQUIRE authentication lets an
+     * unauthenticated client create/overwrite/delete objects. Warn always;
+     * refuse under strict security. */
+    if (conf->common.allow_write && conf->auth != WEBDAV_AUTH_REQUIRED
+        && brix_shared_security_gate(cf, conf->common.strict_security,
+               "WebDAV export permits unauthenticated writes "
+               "(brix_allow_write on but brix_webdav_auth is not required)",
+               "brix_webdav_auth required") != NGX_OK)
+    {
         return NGX_CONF_ERROR;
     }
     if (webdav_validate_path(cf, "brix_webdav_cadir", &conf->cadir,

@@ -18,17 +18,16 @@ import os
 import shutil
 import socket
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
 
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-SRC, DST = 21214, 21215
 
 
 def _have(*t):
@@ -39,20 +38,12 @@ def _run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=60, **kw)
 
 
-def _wait(port, tries=80):
-    for _ in range(tries):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return True
-        time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def gsi_nginx(tmp_path_factory):
+@pytest.fixture
+def gsi_nginx(lifecycle, tmp_path_factory):
     if not _have("openssl", "xrdgsiproxy"):
         pytest.skip("openssl / xrdgsiproxy not installed")
-    if not (os.path.exists(NGINX) and os.path.exists(XRDCP)):
-        pytest.skip("nginx / xrdcp not built")
+    if not os.path.exists(XRDCP):
+        pytest.skip("xrdcp not built")
 
     base = tmp_path_factory.mktemp("gsinginx")
     ca, certs, srv, usr, sdata, ddata = (
@@ -104,54 +95,51 @@ def gsi_nginx(tmp_path_factory):
 
     (sdata / "hello.txt").write_text("nginx-GSI-source native tpc pull\n")
 
-    src_cfg = base / "src.conf"
-    src_cfg.write_text(render_config("nginx_tpc_gsi_nginx_source_src.conf",
-                                     BASE_DIR=base,
-                                     PORT=SRC,
-                                     DATA_DIR=sdata,
-                                     CERT_FILE=srv / "hostcert.pem",
-                                     KEY_FILE=srv / "hostkey.pem",
-                                     CA_DIR=certs))
+    src = lifecycle.start(NginxInstanceSpec(
+        name="lc-tpc-gsi-nginx-source",
+        template="nginx_tpc_gsi_nginx_source_src.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(sdata),
+        template_values={
+            "CERT_FILE": str(srv / "hostcert.pem"),
+            "KEY_FILE": str(srv / "hostkey.pem"),
+            "CA_DIR": str(certs),
+        },
+        reason="W1: nginx GSI pull source.",
+    ))
+    dst = lifecycle.start(NginxInstanceSpec(
+        name="lc-tpc-gsi-nginx-dest",
+        template="nginx_tpc_gsi_nginx_source_dst.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(ddata),
+        template_values={
+            "CERT_FILE": str(dproxy),
+            "KEY_FILE": str(dproxy),
+            "CA_DIR": str(certs),
+        },
+        reason="W1: native TPC dest, GSI-auths outbound to the nginx source.",
+    ))
 
-    dst_cfg = base / "dst.conf"
-    dst_cfg.write_text(render_config("nginx_tpc_gsi_nginx_source_dst.conf",
-                                     BASE_DIR=base,
-                                     PORT=DST,
-                                     DATA_DIR=ddata,
-                                     CERT_FILE=dproxy,
-                                     KEY_FILE=dproxy,
-                                     CA_DIR=certs))
-
-    for port in (SRC, DST):
-        _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])
-    procs = [subprocess.Popen([NGINX, "-c", str(c), "-p", str(base)],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-             for c in (src_cfg, dst_cfg)]
-    if not _wait(SRC) or not _wait(DST):
-        for p in procs:
-            p.terminate()
-        pytest.skip("nginx GSI src/dst did not come up")
-
-    ctx = {"base": str(base), "ddata": str(ddata), "fqdn": fqdn,
-           "env": dict(penv, X509_USER_PROXY=str(uproxy))}
-    yield ctx
-    for p in procs:
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+    return {"ddata": str(ddata), "fqdn": fqdn, "src_port": src.port,
+            "dst_port": dst.port,
+            "src_logs": os.path.join(src.prefix, "logs"),
+            "dst_logs": os.path.join(dst.prefix, "logs"),
+            "env": dict(penv, X509_USER_PROXY=str(uproxy))}
 
 
 def test_tpc_pull_nginx_dest_from_nginx_gsi_source(gsi_nginx):
     out = Path(gsi_nginx["ddata"]) / "pulled.txt"
     r = _run([XRDCP, "-f", "--tpc", "only",
-              f"root://{gsi_nginx['fqdn']}:{SRC}//hello.txt",
-              f"root://127.0.0.1:{DST}//pulled.txt"], env=gsi_nginx["env"])
+              f"root://{gsi_nginx['fqdn']}:{gsi_nginx['src_port']}//hello.txt",
+              f"root://127.0.0.1:{gsi_nginx['dst_port']}//pulled.txt"],
+             env=gsi_nginx["env"])
     if r.returncode != 0 or not out.exists():
         tail = ""
-        for log in ("dst-err.log", "src-err.log"):
-            p = Path(gsi_nginx["base"]) / log
+        for logdir, log in ((gsi_nginx["dst_logs"], "dst-err.log"),
+                            (gsi_nginx["src_logs"], "src-err.log")):
+            p = Path(logdir) / log
             if p.exists():
                 tail += f"\n--- {log} ---\n" + "\n".join(
                     p.read_text(errors="replace").splitlines()[-15:])

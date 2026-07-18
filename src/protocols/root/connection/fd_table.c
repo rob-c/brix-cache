@@ -273,12 +273,12 @@ brix_validate_file_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
         || (ctx->files[handle_index].fd < 0
             && ctx->files[handle_index].sd_obj.driver == NULL
-            && ctx->files[handle_index].staged == NULL))
+            && ctx->files[handle_index].writer == NULL))
     {
         /* A driver-backed handle (object/remote backend) is "open" with no kernel
          * fd — data I/O routes through sd_obj.driver, so fd < 0 is normal there.
-         * A whole-object staged write handle (staged != NULL) is likewise "open"
-         * with no fd — byte I/O routes through the staged handle (phase-70). */
+         * A whole-object staged write handle (writer != NULL) is likewise "open"
+         * with no fd — byte I/O routes through the write session (phase-70). */
         BRIX_BAIL_ERR(ctx, c, op, verb, "-", "-",
                         kXR_FileNotOpen, "invalid file handle", rc);
     }

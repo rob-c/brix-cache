@@ -20,7 +20,6 @@ succeeded.
 import gzip
 import os
 import socket
-import subprocess
 import time
 import uuid
 import zlib
@@ -36,11 +35,15 @@ except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 
-WEBDAV_PORT = int(os.environ.get("TEST_CE_WEBDAV_PORT") or free_port())
-S3_PORT = int(os.environ.get("TEST_CE_S3_PORT") or free_port())
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 BUCKET = "testbucket"
+
+# Ports are assigned per-server by the lifecycle harness; _url() reads them here.
+WEBDAV_PORT = None
+S3_PORT = None
 
 ORIGINAL = (b"the quick brown fox jumps over the lazy dog 0123456789\n" * 2000)
 
@@ -56,43 +59,39 @@ def _wait_port(port, timeout=10):
     return False
 
 
-@pytest.fixture(scope="module")
-def ce_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+@pytest.fixture()
+def ce_server(lifecycle, tmp_path):
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
     if not _HAVE_REQUESTS:
         pytest.skip("requests not available")
 
-    d = tmp_path_factory.mktemp("ce")
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    wroot = d / "wdata"
-    wroot.mkdir()
-    sroot = d / "sdata"
-    sroot.mkdir()
+    global WEBDAV_PORT, S3_PORT
 
-    conf = render_config("nginx_put_content_encoding.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         WEBDAV_PORT=WEBDAV_PORT,
-                         S3_PORT=S3_PORT,
-                         WEBDAV_DIR=wroot,
-                         S3_DIR=sroot,
-                         BUCKET=BUCKET)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not (_wait_port(WEBDAV_PORT) and _wait_port(S3_PORT)):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"content-encoding server did not start: {err}")
+    wroot = tmp_path / "wdata"
+    wroot.mkdir()
+    sroot = tmp_path / "sdata"
+    sroot.mkdir()
+    s3_port = free_port(HOST)
+
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-put-content-encoding",
+        template="nginx_lc_put_content_encoding.conf",
+        protocol="http",
+        extra_ports={"S3_PORT": s3_port},
+        template_values={"BIND_HOST": BIND_HOST,
+                         "WEBDAV_DIR": str(wroot),
+                         "S3_DIR": str(sroot),
+                         "BUCKET": BUCKET},
+        reason="webdav+s3 PUT Content-Encoding decompress-on-store"))
+
+    WEBDAV_PORT = ep.port
+    S3_PORT = s3_port
+
+    # Harness waits on the WebDAV {PORT} only; poll the S3 port too.
+    if not _wait_port(S3_PORT):
+        pytest.skip("content-encoding S3 listener did not come up")
     yield
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _url(plane, key):

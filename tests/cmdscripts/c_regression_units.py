@@ -91,6 +91,7 @@ ngx_int_t ngx_thread_task_post(ngx_thread_pool_t *tp, ngx_thread_task_t *t)
 {(void)tp;(void)t;return NGX_ERROR;}
 ngx_int_t brix_sd_ucred_resolve(const char *d, const char *k, void *out)
 {(void)d;(void)k;(void)out;return NGX_ERROR;}
+void brix_sd_ucred_wipe(void *c){(void)c;}
 #if (NGX_THREADS)
 void brix_task_bind(ngx_thread_task_t *task,
     void (*handler)(void *, ngx_log_t *),
@@ -249,16 +250,30 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/sd_pblock_unittest.c"),
             str(backend / "pblock/sd_pblock.c"),
             str(backend / "pblock/sd_pblock_io.c"),
+            str(backend / "pblock/pblock_ctl.c"),
+            str(backend / "pblock/pblock_fault.c"),
+            str(backend / "pblock/pblock_csi.c"),
+            str(backend / "pblock/pblock_quota.c"),
+            str(backend / "pblock/pblock_nearline.c"),
+            str(backend / "pblock/pblock_anomaly.c"),
+            str(backend / "pblock/pblock_locks.c"),
+            str(backend / "pblock/pblock_refs.c"),
+            str(backend / "pblock/pblock_snap.c"),
+            str(backend / "pblock/pblock_hist.c"),
+            str(REPO_ROOT / "src/core/compat/crc32c.c"),
+            str(REPO_ROOT / "src/core/compat/wverify.c"),
             str(backend / "pblock/sd_pblock_namespace.c"),
             str(backend / "pblock/sd_pblock_staged.c"),
             str(backend / "pblock/sd_pblock_ident.c"),
             str(backend / "pblock/sd_pblock_cred.c"),
             str(backend / "pblock/pblock_store.c"),
+            str(backend / "pblock/pblock_xform.c"),
             str(backend / "pblock/sd_pblock_catalog.c"),
             str(backend / "pblock/sd_pblock_catalog_objects.c"),
             str(backend / "pblock/sd_pblock_catalog_ns.c"),
             *libs,
             "-lpthread",
+            "-lz",
         ],
     )
     return drv if not drv[0] else result(True, "run_pblock_tests: ALL PASS")

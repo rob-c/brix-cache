@@ -1,0 +1,18 @@
+[Unit]
+Description=CVMFS-brix static mount of %i
+Documentation=man:brixMount(1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/mkdir -p /cvmfs/%i /var/lib/brixcvmfs/%i
+ExecStart=/usr/bin/brixMount cvmfs %i /cvmfs/%i -f -o cache=/var/lib/brixcvmfs/%i,allow_other,nodev,nosuid
+ExecStopPost=-/usr/bin/fusermount3 -uz /cvmfs/%i
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

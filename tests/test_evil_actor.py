@@ -57,7 +57,11 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
+from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST, free_port
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 # tunables (env-overridable so CI can dial intensity)
 AIO_ROUNDS   = int(os.environ.get("TEST_EVIL_AIO_ROUNDS", "600"))
@@ -273,10 +277,7 @@ def srv():
     if shutil.which("pgrep") is None:
         pytest.skip("pgrep required")
 
-    prefix = tempfile.mkdtemp(prefix="evil-")
-    datadir = os.path.join(prefix, "data")
-    for d in (os.path.join(prefix, "logs"), datadir):
-        os.makedirs(d, exist_ok=True)
+    datadir = tempfile.mkdtemp(prefix="evil-data-")
 
     # large, deterministic file so pgread/readv/write offload to the thread pool
     # and a happy-path read can be byte-verified.
@@ -288,79 +289,42 @@ def srv():
     # a small writable scratch file
     open(os.path.join(datadir, "w.bin"), "wb").close()
 
-    root_port, http_port = _free_ports(2)
-    for p in (root_port, http_port):
-        if _reachable(p):
-            shutil.rmtree(prefix, ignore_errors=True)
-            pytest.skip("port %d in use" % p)
+    # The 3-worker server + metrics plane is driven through the registry
+    # (LifecycleHarness): {PORT} is the root:// front, {HTTP_PORT} the metrics
+    # plane, and the harness renders nginx_evil_actor.conf, runs `nginx -t`, and
+    # reaps master+workers on close().  Crash detection is unchanged — it reads
+    # the master pid from endpoint.pidfile and scans endpoint.prefix/logs.
+    harness = LifecycleHarness()
+    try:
+        endpoint = harness.start(NginxInstanceSpec(
+            name="evil-actor",
+            template="nginx_evil_actor.conf",
+            protocol="root",
+            data_root=datadir,
+            extra_ports={"HTTP_PORT": free_port()},
+            readiness="tcp",
+            template_values={"BIND_HOST": BIND_HOST},
+        ))
+    except Exception as exc:
+        harness.close()
+        shutil.rmtree(datadir, ignore_errors=True)
+        pytest.skip("nginx did not start: %s" % str(exc)[-400:])
 
-    conf = ("""
-worker_processes 3;
-daemon on;
-master_process on;
-pid %s/logs/nginx.pid;
-error_log %s/logs/error.log info;
-thread_pool aiopool threads=4 max_queue=4096;
-events { worker_connections 1024; }
-stream {
-    server {
-        listen %s:%d;
-        brix_root on;
-        brix_storage_backend posix:%s;
-        brix_auth none;
-        brix_allow_write on;
-        brix_thread_pool aiopool;
-        brix_memory_budget 8m;
-    }
-}
-http {
-    access_log off;
-    server {
-        listen %s:%d;
-        location = /metrics { brix_metrics on; }
-    }
-}
-""" % (prefix, prefix, BIND_HOST, root_port, datadir, BIND_HOST, http_port))
-    conf_path = os.path.join(prefix, "nginx.conf")
-    open(conf_path, "w").write(conf)
-    pidfile = os.path.join(prefix, "logs", "nginx.pid")
-
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", prefix, "-c", conf_path],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        tail = (chk.stderr or chk.stdout).strip()[-400:]
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("nginx rejected config: %s" % tail)
-    run = subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path],
-                         capture_output=True, text=True)
-    if run.returncode != 0 or not _wait_port(root_port):
-        tail = (run.stderr or run.stdout).strip()[-400:]
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True)
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("nginx did not start: %s" % tail)
-
-    s = _Srv(prefix, conf_path, pidfile, root_port, http_port, datadir)
-    s.master = _master_pid(pidfile)
+    root_port, http_port = endpoint.port, endpoint.extra_ports["HTTP_PORT"]
+    s = _Srv(endpoint.prefix, endpoint.config, endpoint.pidfile,
+             root_port, http_port, datadir)
+    s.master = _master_pid(endpoint.pidfile)
     if not s.master or not _alive(s.master):
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True)
-        shutil.rmtree(prefix, ignore_errors=True)
+        harness.close()
+        shutil.rmtree(datadir, ignore_errors=True)
         pytest.skip("master pid never appeared")
     print("\n[evil] master=%d root=%d http=%d workers=%s"
           % (s.master, root_port, http_port, _worker_pids(s.master)))
     try:
         yield s
     finally:
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True)
-        time.sleep(0.3)
-        if s.master and _alive(s.master):
-            try:
-                os.kill(s.master, 9)
-            except OSError:
-                pass
-        shutil.rmtree(prefix, ignore_errors=True)
+        harness.close()
+        shutil.rmtree(datadir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------

@@ -242,7 +242,8 @@ tape_authz_path(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
     }
     rc = webdav_resolve_destination_path(r->connection->log, "tape",
                                          conf->common.root_canon, logical,
-                                         abs, abssz);
+                                         abs, abssz,
+                                         conf->common.cache_store_endpoint);
     if (rc != NGX_OK) {
         return rc;                              /* 403 confine / 404 / 409 / 400 */
     }

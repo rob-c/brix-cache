@@ -142,10 +142,16 @@ def spike_cas_hash(nginx: Path | None = None) -> int:
     Stratum-1: fetch the root catalog object and hash it raw and inflated."""
     stratum1 = os.environ.get("SPIKE_S1", "http://cvmfs-stratum-one.cern.ch/cvmfs/cvmfs-config.cern.ch")
     with LiveRun("cvmfs_spike", nginx) as run:
-        manifest = run.call(["curl", "-sf", "--max-time", "15", f"{stratum1}/.cvmfspublished"], check=False)
-        if manifest.returncode != 0:
+        # .cvmfspublished is a *signed* manifest: ASCII header lines followed by
+        # a binary signature after the "--" marker, so it must be fetched as
+        # bytes (a text fetch chokes decoding the signature). We only need the
+        # ASCII header, so decode leniently up to the signature boundary.
+        try:
+            manifest = run.curl_bytes(f"{stratum1}/.cvmfspublished", "-f", timeout=15)
+        except LiveFailure:
             raise LiveSkip(f"Stratum-1 unreachable ({stratum1})")
-        root = next((line[1:] for line in manifest.stdout.splitlines() if line.startswith("C")), "")
+        header = manifest.split(b"\n--\n", 1)[0].decode("ascii", errors="replace")
+        root = next((line[1:] for line in header.splitlines() if line.startswith("C")), "")
         if not root:
             raise LiveFailure("manifest has no root catalog (C) line")
         print(f"repo manifest root catalog: {root}")
@@ -178,14 +184,22 @@ def run_baseline(run: LiveRun, name: str, port: int, origin: str, out_dir: Path)
     if name == "squid":
         if shutil.which("squid") is None:
             return True, "SKIP: squid not installed"
-        conf = run.write(
-            work / "squid.conf",
+        (work / "cache").mkdir(exist_ok=True)
+        # The baseline conf follows WLCG guidance whose default pid/log/coredump
+        # paths (/run/squid.pid, /var/log/squid) are only writable by root. Pin
+        # them into the per-run work dir so the baseline stands up unprivileged.
+        squid_conf = (
             (BASELINES_DIR / "squid.conf").read_text()
             .replace("@PORT@", str(port))
             .replace("@CACHEDIR@", f"{work}/cache")
-            .replace("@ORIGINHOST@", origin_host),
+            .replace("@ORIGINHOST@", origin_host)
+        ) + (
+            f"\npid_filename {work}/squid.pid\n"
+            f"access_log {work}/access.log\n"
+            f"cache_log {work}/cache.log\n"
+            f"coredump_dir {work}/cache\n"
         )
-        (work / "cache").mkdir(exist_ok=True)
+        conf = run.write(work / "squid.conf", squid_conf)
         run.call(["squid", "-f", conf, "-z"], check=False)
         run.call(["squid", "-f", conf])
         stop = ["squid", "-f", str(conf), "-k", "shutdown"]

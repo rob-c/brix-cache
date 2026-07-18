@@ -383,6 +383,47 @@ class TestClone:
         finally:
             sock.close()
 
+    def test_clone_negative_offset_rejected(self):
+        """A wire offset with the high bit set (negative off_t) is refused early
+        with kXR_ArgInvalid (3000) — NOT handed to copy_file_range/pread where a
+        negative off_t would round-trip to a kernel EINVAL (kXR_IOError, 3007).
+        The specific code proves the new guard ran, and the worker survives to
+        serve the next request."""
+        KXR_ARGINVALID = 3000
+        src_data = b"z" * 64
+        upload(ANON_URL, "clone_neg_src.bin", src_data)
+        upload(ANON_URL, "clone_neg_dst.bin", b"\x00" * 64)
+
+        sock = self._connect(HOST, ANON_PORT)
+        try:
+            src_fh = self._open(sock, 2, "/clone_neg_src.bin", options=0x0010)
+            dst_fh = self._open(sock, 3, "/clone_neg_dst.bin", options=0x0020)
+
+            # src_off = 0xFFFFFFFFFFFFFFFF → negative off_t after the cast.
+            huge = 0xFFFFFFFFFFFFFFFF
+            status, body = self._clone(sock, 4, dst_fh, [(src_fh, huge, 16, 0)])
+            assert status != 0, "expected error: clone with out-of-range offset"
+            errnum = struct.unpack(">I", body[:4])[0]
+            assert errnum == KXR_ARGINVALID, \
+                f"expected kXR_ArgInvalid(3000), got {errnum}"
+
+            # A dst_off that overflows off_t + len must also be refused early.
+            status, body = self._clone(sock, 5, dst_fh, [(src_fh, 0, 16, huge)])
+            assert status != 0, "expected error: clone with out-of-range dst offset"
+            errnum = struct.unpack(">I", body[:4])[0]
+            assert errnum == KXR_ARGINVALID, \
+                f"expected kXR_ArgInvalid(3000) for dst overflow, got {errnum}"
+
+            # Worker is still alive and serving: a valid clone now succeeds.
+            status, _ = self._clone(sock, 6, dst_fh, [(src_fh, 0, len(src_data), 0)])
+            assert status == 0, f"post-reject clone failed: status={status}"
+            assert self._read(sock, 7, dst_fh, 0, len(src_data)) == src_data
+
+            self._close(sock, 8, src_fh)
+            self._close(sock, 9, dst_fh)
+        finally:
+            sock.close()
+
 
 # ---------------------------------------------------------------------------
 # kXR_ckpXeq — sub-operation variants (pgwrite, truncate, writev)

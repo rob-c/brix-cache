@@ -28,6 +28,12 @@ jobs:
       - name: http helper reimplementation
         if: '!cancelled()'
         run: tools/ci/check_http_helper_reimpl.sh
+      - name: auth verdict sentinel — no unsanctioned auth_done setters (C-3)
+        if: '!cancelled()'
+        run: tools/ci/check_auth_verdict_sentinel.sh
+      - name: metric cardinality — no unbounded Prometheus label values
+        if: '!cancelled()'
+        run: tools/ci/check_metric_cardinality.sh
       - name: sd driver conformance
         if: '!cancelled()'
         run: tools/ci/check_sd_driver_conformance.sh

@@ -288,6 +288,10 @@ int brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
 /* Strip CGI query string from a path (modifies out in-place). */
 void brix_strip_cgi(const char *in, char *out, size_t outsz);
 
+/* CGI opaque gate (hyper-hardening D-2): byte-hygiene (always on) +
+ * brix_opaque_schema_check (opt-in via brix_opaque_strict). Pure-C ABI. */
+#include "protocols/root/path/opaque_validate.h"
+
 /*
  * Count path components before filesystem operations begin.
  * Returns NGX_OK if depth ≤ BRIX_MAX_WALK_DEPTH; NGX_ERROR otherwise.

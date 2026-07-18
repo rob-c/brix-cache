@@ -34,11 +34,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-/*
- * Maximum number of bytes accepted in an OCSP HTTP response body.
- * OCSP responses are small (a few KB at most); guard against runaways.
- */
-#define OCSP_MAX_RESPONSE_BYTES  (64 * 1024)
+/* OCSP_MAX_RESPONSE_BYTES now lives in ocsp_internal.h (enforced by the
+ * transport read in ocsp_request.c, not just defined). */
 
 /*
  * ocsp_query_t — the certificate identity for one OCSP query.
@@ -82,7 +79,7 @@ typedef struct {
  */
 static int
 ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
-    const ocsp_query_t *q, int soft_fail)
+    const ocsp_query_t *q, int soft_fail, int require_nonce)
 {
     int result = soft_fail ? 0 : -1; /* default on error / UNKNOWN */
     int n_urls = sk_OPENSSL_STRING_num(ocsp_urls);
@@ -91,12 +88,13 @@ ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
     for (i = 0; i < n_urls; i++) {
         const char    *url = sk_OPENSSL_STRING_value(ocsp_urls, i);
         OCSP_RESPONSE *resp;
+        OCSP_REQUEST  *req = NULL;
         int            status;
 
         ngx_log_error(NGX_LOG_DEBUG, log, 0,
                       "brix_ocsp: querying responder \"%s\"", url);
 
-        resp = do_ocsp_request(log, url, q->leaf, q->issuer, q->id);
+        resp = do_ocsp_request(log, url, q->leaf, q->issuer, q->id, &req);
         if (resp == NULL) {
             /* Network error — try next URL */
             continue;
@@ -106,9 +104,11 @@ ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
          * the default verification.  A production deployment should
          * pass xcf->gsi_store here.  For the auth path this is
          * acceptable because the chain is already verified before
-         * brix_ocsp_check_cert() is called. */
-        status = check_ocsp_response(log, resp, NULL, q->id, NULL);
+         * brix_ocsp_check_cert() is called.  `req` carries the nonce so the
+         * response's nonce can be matched (and, under require_nonce, enforced). */
+        status = check_ocsp_response(log, resp, NULL, q->id, req, require_nonce);
         OCSP_RESPONSE_free(resp);
+        OCSP_REQUEST_free(req);
 
         if (status == 0) {
             ngx_log_error(NGX_LOG_DEBUG, log, 0,
@@ -129,7 +129,8 @@ ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
 
 /* HOW: Validates leaf and issuer are non-NULL (returns soft_fail result if either is missing). Extracts OCSP URLs from the certificate's AIA extension via X509_get1_ocsp(). Builds the OCSP certificate ID (SHA-1 hash of issuer fields) using OCSP_cert_to_id(). Delegates the per-URL query loop to ocsp_check_urls() (GOOD→0, REVOKED→-1 never overridden, UNKNOWN/network-error→soft_fail default). Frees ID and URL stack on exit. */
 int
-brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
+brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail,
+    int require_nonce)
 {
     STACK_OF(OPENSSL_STRING) *ocsp_urls = NULL;
     OCSP_CERTID              *id        = NULL;
@@ -168,7 +169,7 @@ brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
 
     {
         ocsp_query_t q = { leaf, issuer, id };
-        result = ocsp_check_urls(log, ocsp_urls, &q, soft_fail);
+        result = ocsp_check_urls(log, ocsp_urls, &q, soft_fail, require_nonce);
     }
 
     OCSP_CERTID_free(id);
@@ -287,18 +288,23 @@ ocsp_fetch_staple_urls(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf,
     for (i = 0; i < n_urls; i++) {
         const char    *url = sk_OPENSSL_STRING_value(ocsp_urls, i);
         OCSP_RESPONSE *resp;
+        OCSP_REQUEST  *req = NULL;
         int            status;
 
         ngx_log_error(NGX_LOG_DEBUG, log, 0,
                       "brix_ocsp: fetching staple from \"%s\"", url);
 
-        resp = do_ocsp_request(log, url, q->leaf, q->issuer, q->id);
+        resp = do_ocsp_request(log, url, q->leaf, q->issuer, q->id, &req);
         if (resp == NULL) {
             continue;
         }
 
-        /* Verify the response is GOOD before caching */
-        status = check_ocsp_response(log, resp, xcf->gsi_store, q->id, NULL);
+        /* Verify the response is GOOD before caching.  Staple prefetch is a
+         * server-side cache warm, not a live client decision, so the nonce is
+         * matched-if-present but never required (require_nonce = 0). */
+        status = check_ocsp_response(log, resp, xcf->gsi_store, q->id, req, 0);
+        OCSP_REQUEST_free(req);
+        req = NULL;
         if (status != 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
                 "brix_ocsp: staple response not GOOD (status=%d) "

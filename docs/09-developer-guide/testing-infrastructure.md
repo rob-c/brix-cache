@@ -24,8 +24,8 @@ conftest.pytest_sessionstart()
         │
         ├── pki_helpers.blitz_test_pki()  
         │
-        ├── manage_test_servers.sh start-all
-        │   (launches ALL dedicated nginx and xrootd instances)
+        ├── fleet_prep.prepare() + register_full_fleet() + RegistryLauncher.start_registered()
+        │   (launches ALL dedicated nginx and xrootd instances from fleet_specs)
         │
         └── export environment variables (X509_CERT_DIR, etc.)
                 │
@@ -34,7 +34,7 @@ conftest.pytest_sessionstart()
                 │
                 ▼
 conftest.pytest_sessionfinish()
-        └── manage_test_servers.sh stop-all
+        └── RegistryLauncher.stop_registered()   (CLI equivalent: manage_test_servers stop-all)
 ```
 
 ### Server Management
@@ -247,7 +247,7 @@ JWT/WLCG bearer tokens are managed by `utils/make_token.py:TokenIssuer`. Tokens 
 
 ### How tokens are initialized
 
-The main nginx config (`nginx_shared.conf`) references `{TOKEN_DIR}/jwks.json`. `manage_test_servers.sh` calls `python3 utils/make_token.py init {TOKEN_DIR}` to generate the RSA-2048 signing keypair and JWKS before starting nginx.
+The main nginx config (`nginx_shared.conf`) references `{TOKEN_DIR}/jwks.json`. `fleet_prep.prepare()` calls `make_token.py init {TOKEN_DIR}` to generate the RSA-2048 signing keypair and JWKS before starting nginx.
 
 The JWKS:
 

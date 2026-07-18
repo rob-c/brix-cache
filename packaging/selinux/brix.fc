@@ -1,0 +1,24 @@
+# BriX-Cache file contexts (targeted policy).
+#
+# Canonical paths match contrib/brix-cache.conf.example and the hardened
+# systemd unit's ReadWritePaths; the legacy nginx-xrootd spellings stay
+# labelled so pre-rebrand deployments keep working after an upgrade.  Sites
+# exporting from elsewhere add equivalences with semanage fcontext (see the
+# header of brix.te).
+
+# Export root + default stage dir for partial uploads.
+/var/lib/brix-cache(/.*)?		gen_context(system_u:object_r:brix_var_lib_t,s0)
+/var/lib/nginx-xrootd(/.*)?		gen_context(system_u:object_r:brix_var_lib_t,s0)
+
+# Cache tree (only present when a cache/stage tier is configured).
+/var/cache/brix-cache(/.*)?		gen_context(system_u:object_r:brix_cache_t,s0)
+/var/cache/nginx-xrootd(/.*)?		gen_context(system_u:object_r:brix_cache_t,s0)
+
+# Auxiliary config read at runtime (token JWKS, authdb, ...).
+/etc/brix-cache(/.*)?			gen_context(system_u:object_r:httpd_config_t,s0)
+/etc/nginx-xrootd(/.*)?			gen_context(system_u:object_r:httpd_config_t,s0)
+
+# Grid credential tree: hostcert/hostkey, IGTF CA certificates + CRLs,
+# vomsdir/*.lsc.  cert_t is readable by httpd_t out of the box and is the
+# label the manual hardening docs have always recommended for this tree.
+/etc/grid-security(/.*)?		gen_context(system_u:object_r:cert_t,s0)

@@ -498,7 +498,8 @@ s3_handle_get_bucket_versioning(ngx_http_request_t *r)
 }
 
 ngx_int_t
-s3_handle_get_acl(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
+s3_handle_get_acl(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf)
 {
     /* Canned owner-FULL_CONTROL ACL — the gateway authorizes via XrdAcc/tokens,
      * not per-object S3 ACLs, but SDKs probe this and expect a well-formed doc. */
@@ -508,6 +509,28 @@ s3_handle_get_acl(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     size_t      xml_len = 0;
     size_t      xml_capacity = 1024;
     ngx_buf_t  *buf;
+
+    /*
+     * A-3/T3: object ACL runs behind the object gate.  SigV4 authenticates the
+     * requester; it does NOT prove the named object exists or is readable.  A
+     * canned 200 for a GetObjectAcl on an absent (or directory) key leaks
+     * existence and mints a FULL_CONTROL grant for nothing — so, for an object
+     * ?acl (fs_path != NULL), stat the resolved key first (as the mapped user,
+     * via the same VFS surface the tag/HEAD paths use) and answer NoSuchKey when
+     * it is missing, before the canned document is produced.  Bucket ?acl
+     * (fs_path == NULL) legitimately has no per-object target and is unchanged.
+     */
+    if (fs_path != NULL) {
+        brix_vfs_ctx_t  vctx;
+        brix_vfs_stat_t vst;
+
+        s3_tag_vfs_ctx(r, fs_path, cf, &vctx);
+        if (brix_vfs_stat(&vctx, &vst) != NGX_OK || vst.is_directory) {
+            return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                           "The specified key does not exist.",
+                           BRIX_S3_EVENT_NO_SUCH_KEY);
+        }
+    }
 
     if (cf->access_key.len > 0) {
         n = cf->access_key.len < sizeof(owner) - 1

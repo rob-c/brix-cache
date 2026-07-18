@@ -136,12 +136,280 @@ webdav_postconf_install_handlers(ngx_http_core_main_conf_t *cmcf)
 }
 
 /*
+ * webdav_postconf_load_client_capath - add a hashed CA dir to one server's
+ * TLS client-verify trust store.
+ *
+ * WHAT: Load the brix_ssl_client_capath directory into the SSL_CTX certificate
+ * store of one server block as an OpenSSL hashed-directory lookup; returns
+ * NGX_OK, or NGX_ERROR (a fatal config error) when the path is not an
+ * accessible directory or the store cannot be extended.
+ *
+ * WHY: Grid hosts ship their trust anchors as an OpenSSL hashed directory
+ * (/etc/grid-security/certificates, the IGTF layout) and no bundle file, but
+ * stock nginx's ssl_client_certificate/ssl_trusted_certificate are file-only —
+ * so a fail-closed `ssl_verify_client on` front leg could not consume the dir
+ * at all. A hashed lookup also resolves issuers at verify time, so CA-package
+ * updates are picked up without a reload. Misconfiguration is fatal (not a
+ * warning) because this directive IS the trust perimeter: a typo that silently
+ * loaded nothing would reject every client with an unhelpful handshake error.
+ *
+ * HOW: 1) ngx_file_info() the path (conf tokens are NUL-terminated) and demand
+ * an existing directory; 2) fetch the server's verify store with
+ * SSL_CTX_get_cert_store(); 3) X509_STORE_load_locations(store, NULL, dir)
+ * appends the hash-dir lookup (additive — certs from ssl_client_certificate
+ * stay trusted); 4) log one INFO line naming the server and directory.
+ */
+static ngx_int_t
+webdav_postconf_load_client_capath(ngx_conf_t *cf,
+                                   ngx_http_core_srv_conf_t *cscf,
+                                   ngx_http_ssl_srv_conf_t *sslcf,
+                                   ngx_str_t *capath)
+{
+    ngx_file_info_t  fi;
+    X509_STORE      *store;
+
+    if (ngx_file_info(capath->data, &fi) != 0) {
+        ngx_log_error(NGX_LOG_EMERG, cf->log, ngx_errno,
+                      "brix_ssl_client_capath \"%V\" is not accessible",
+                      capath);
+        return NGX_ERROR;
+    }
+
+    if (!ngx_is_dir(&fi)) {
+        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+                      "brix_ssl_client_capath \"%V\" is not a directory "
+                      "(for a bundle file use ssl_client_certificate)",
+                      capath);
+        return NGX_ERROR;
+    }
+
+    store = SSL_CTX_get_cert_store(sslcf->ssl.ctx);
+    if (store == NULL
+        || X509_STORE_load_locations(store, NULL,
+                                     (const char *) capath->data) != 1)
+    {
+        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+                      "brix_ssl_client_capath \"%V\": cannot add hashed "
+                      "CA-directory lookup to the TLS trust store", capath);
+        return NGX_ERROR;
+    }
+
+    ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+                  "brix_webdav: added hashed CA dir \"%V\" to the client-"
+                  "verify trust store for server %V",
+                  capath, &cscf->server_name);
+    return NGX_OK;
+}
+
+/* The stock proxy module: its ctx_index locates the (private) proxy loc-conf
+ * in each location's conf array; ngx_http_upstream_conf_t is that struct's
+ * FIRST member, so a first-member cast reaches the public upstream conf. */
+extern ngx_module_t  ngx_http_proxy_module;
+
+
+/*
+ * webdav_postconf_proxy_capath_apply - add one location's hashed CA dir to
+ * its upstream (proxy_ssl) trust store.
+ *
+ * WHAT: For a single location conf array, when brix_proxy_ssl_capath is set,
+ * add the directory as an OpenSSL hashed lookup to the location's upstream
+ * SSL_CTX; NGX_OK when unset. Fatal (NGX_ERROR) when the location has no
+ * https proxy_pass — the directive would otherwise silently protect nothing.
+ *
+ * WHY: second half of brix_proxy_ssl_capath (see module_directives.c): the
+ * parse-time handler could only seed one <hash>.N file through the stock
+ * proxy_ssl_trusted_certificate slot, because the upstream SSL_CTX does not
+ * exist until the proxy module's merge. Here — after all merges — the ctx is
+ * live, so the whole directory becomes a verify-time hashed lookup: every CA
+ * in /etc/grid-security/certificates is trusted and IGTF package updates are
+ * picked up without a reload.
+ *
+ * HOW: reads the webdav loc-conf for the capath, then casts the proxy
+ * module's private loc-conf to its public first member
+ * (ngx_http_upstream_conf_t) to reach upstream->ssl->ctx. The ssl object is
+ * per-location here, not shared: injecting the trusted-certificate seed made
+ * this location "SSL-configured", so the proxy merge gave it its own ctx.
+ * X509_STORE_load_locations(store, NULL, dir) appends the hash-dir lookup
+ * (additive — the seeded file stays trusted). Conf tokens and
+ * ngx_conf_full_name results are NUL-terminated, so capath->data is a valid
+ * C string.
+ */
+static ngx_int_t
+webdav_postconf_proxy_capath_apply(ngx_conf_t *cf, void **loc_conf,
+                                   ngx_str_t *name)
+{
+    ngx_http_brix_webdav_loc_conf_t *wlcf;
+    ngx_http_upstream_conf_t          *ucf;
+    X509_STORE                        *store;
+
+    wlcf = loc_conf[ngx_http_brix_webdav_module.ctx_index];
+    if (wlcf == NULL || wlcf->proxy_ssl_capath.len == 0) {
+        return NGX_OK;
+    }
+
+    ucf = loc_conf[ngx_http_proxy_module.ctx_index];
+
+    if (ucf == NULL || ucf->ssl == NULL || ucf->ssl->ctx == NULL) {
+        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+                      "brix_proxy_ssl_capath in location \"%V\" requires "
+                      "\"proxy_pass https://...\" in the same location",
+                      name);
+        return NGX_ERROR;
+    }
+
+    store = SSL_CTX_get_cert_store(ucf->ssl->ctx);
+    if (store == NULL
+        || X509_STORE_load_locations(store, NULL,
+                        (const char *) wlcf->proxy_ssl_capath.data) != 1)
+    {
+        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+                      "brix_proxy_ssl_capath \"%V\": cannot add hashed "
+                      "CA-directory lookup to the upstream trust store",
+                      &wlcf->proxy_ssl_capath);
+        return NGX_ERROR;
+    }
+
+    ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+                  "brix_webdav: added hashed CA dir \"%V\" to the upstream "
+                  "(proxy_ssl) trust store for location %V",
+                  &wlcf->proxy_ssl_capath, name);
+    return NGX_OK;
+}
+
+
+/* Forward declaration: location and tree walkers are mutually recursive
+ * (same finalised-structures walk as proto_exclusive.c — the raw
+ * clcf->locations queue is unreliable after init_static_location_trees). */
+static ngx_int_t webdav_postconf_proxy_capath_location(ngx_conf_t *cf,
+    ngx_http_core_loc_conf_t *clcf);
+
+
+static ngx_int_t
+webdav_postconf_proxy_capath_loc_array(ngx_conf_t *cf,
+    ngx_http_core_loc_conf_t **arr)
+{
+    ngx_uint_t  i;
+
+    if (arr == NULL) {
+        return NGX_OK;
+    }
+    for (i = 0; arr[i] != NULL; i++) {
+        if (webdav_postconf_proxy_capath_location(cf, arr[i]) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+webdav_postconf_proxy_capath_tree(ngx_conf_t *cf,
+    ngx_http_location_tree_node_t *node)
+{
+    if (node == NULL) {
+        return NGX_OK;
+    }
+
+    if (node->exact != NULL
+        && webdav_postconf_proxy_capath_location(cf, node->exact) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    if (node->inclusive != NULL
+        && webdav_postconf_proxy_capath_location(cf, node->inclusive)
+           != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    if (webdav_postconf_proxy_capath_tree(cf, node->left) != NGX_OK
+        || webdav_postconf_proxy_capath_tree(cf, node->tree) != NGX_OK
+        || webdav_postconf_proxy_capath_tree(cf, node->right) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+webdav_postconf_proxy_capath_location(ngx_conf_t *cf,
+    ngx_http_core_loc_conf_t *clcf)
+{
+    if (webdav_postconf_proxy_capath_apply(cf, clcf->loc_conf, &clcf->name)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    if (webdav_postconf_proxy_capath_tree(cf, clcf->static_locations)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+#if (NGX_PCRE)
+    if (webdav_postconf_proxy_capath_loc_array(cf, clcf->regex_locations)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+#endif
+    return NGX_OK;
+}
+
+
+/*
+ * webdav_postconf_setup_proxy_capath - walk every location of every server
+ * and apply the brix_proxy_ssl_capath second half where the directive is set.
+ * The directive is location-only (never merged), so the server-level conf
+ * array cannot carry it; only the finalised location structures are walked.
+ */
+static ngx_int_t
+webdav_postconf_setup_proxy_capath(ngx_conf_t *cf,
+                                   ngx_http_core_main_conf_t *cmcf)
+{
+    ngx_http_core_srv_conf_t **cscfp = cmcf->servers.elts;
+    ngx_http_core_loc_conf_t  *clcf;
+    ngx_uint_t                 s;
+
+    for (s = 0; s < cmcf->servers.nelts; s++) {
+        clcf = cscfp[s]->ctx->loc_conf[ngx_http_core_module.ctx_index];
+
+        if (webdav_postconf_proxy_capath_tree(cf, clcf->static_locations)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+#if (NGX_PCRE)
+        if (webdav_postconf_proxy_capath_loc_array(cf,
+                clcf->regex_locations) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+#endif
+
+        if (webdav_postconf_proxy_capath_loc_array(cf,
+                cscfp[s]->named_locations) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+
+    return NGX_OK;
+}
+
+
+/*
  * webdav_postconf_setup_ssl_ctx - apply GSI-proxy and kTLS flags to one server.
  *
  * WHAT: For a single server block, enable X509_V_FLAG_ALLOW_PROXY_CERTS on its
- * SSL verify params when proxy_certs is on, and opt its TLS context into
- * kernel-TLS when brix_ktls is on; a no-op for servers without WebDAV config or
- * without an SSL context.
+ * SSL verify params when proxy_certs is on, add the brix_ssl_client_capath
+ * hashed CA directory to its verify store when set (returning NGX_ERROR when
+ * that directory is unusable — a fatal config error), and opt its TLS context
+ * into kernel-TLS when brix_ktls is on; returns NGX_OK for servers without
+ * WebDAV config or without an SSL context (no-op).
  *
  * WHY: GSI proxy-cert chains are rejected by OpenSSL unless the proxy-certs flag
  * is set (AGENTS.md INVARIANT), and kTLS offload must be armed per-server while
@@ -152,10 +420,12 @@ webdav_postconf_install_handlers(ngx_http_core_main_conf_t *cmcf)
  * HOW: Reads the WebDAV loc-conf and SSL srv-conf from the server's context and
  * early-returns if either is absent. When proxy_certs is set it fetches the
  * verify params via SSL_CTX_get0_param() and sets the proxy-cert flag (logging
- * INFO); when common.ktls is set it calls brix_http_ktls_enable_ctx(). Registration
+ * INFO); when ssl_client_capath is set it delegates to
+ * webdav_postconf_load_client_capath() and propagates its failure; when
+ * common.ktls is set it calls brix_http_ktls_enable_ctx(). Registration
  * effects are identical whether or not this is split out.
  */
-static void
+static ngx_int_t
 webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
 {
     ngx_http_conf_ctx_t             *ctx = cscf->ctx;
@@ -165,12 +435,12 @@ webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
 
     wdcf = ctx->loc_conf[ngx_http_brix_webdav_module.ctx_index];
     if (wdcf == NULL) {
-        return;
+        return NGX_OK;
     }
 
     sslcf = ctx->srv_conf[ngx_http_ssl_module.ctx_index];
     if (sslcf == NULL || sslcf->ssl.ctx == NULL) {
-        return;
+        return NGX_OK;
     }
 
     if (wdcf->proxy_certs) {
@@ -184,6 +454,14 @@ webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
         }
     }
 
+    if (wdcf->ssl_client_capath.len > 0
+        && webdav_postconf_load_client_capath(cf, cscf, sslcf,
+                                              &wdcf->ssl_client_capath)
+           != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
     /* kTLS: opt every https server's TLS context into kernel-TLS so HTTPS
      * GET sendfiles over kTLS and PUT decrypts in-kernel (unless brix_ktls
      * off on that server). The server-level webdav loc-conf carries the flag
@@ -194,6 +472,8 @@ webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
         brix_http_ktls_enable_ctx(sslcf->ssl.ctx, cf->log,
                                   &cscf->server_name);
     }
+
+    return NGX_OK;
 }
 
 /*
@@ -258,22 +538,27 @@ webdav_postconf_setup_thread_pool(ngx_conf_t *cf,
  * of side effects and log output.
  *
  * HOW: Fetches the servers array once, loops applying webdav_postconf_setup_ssl_ctx()
- * to each element, then loops again applying webdav_postconf_setup_thread_pool();
- * neither pass can fail, so no return value is needed.
+ * to each element (propagating NGX_ERROR — an unusable brix_ssl_client_capath
+ * is a fatal config error), then loops again applying
+ * webdav_postconf_setup_thread_pool(), which cannot fail.
  */
-static void
+static ngx_int_t
 webdav_postconf_setup_servers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 {
     ngx_http_core_srv_conf_t **cscfp = cmcf->servers.elts;
     ngx_uint_t                 s;
 
     for (s = 0; s < cmcf->servers.nelts; s++) {
-        webdav_postconf_setup_ssl_ctx(cf, cscfp[s]);
+        if (webdav_postconf_setup_ssl_ctx(cf, cscfp[s]) != NGX_OK) {
+            return NGX_ERROR;
+        }
     }
 
     for (s = 0; s < cmcf->servers.nelts; s++) {
         webdav_postconf_setup_thread_pool(cf, cscfp[s]);
     }
+
+    return NGX_OK;
 }
 
 ngx_int_t
@@ -291,7 +576,15 @@ ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
         return NGX_ERROR;
     }
 
-    webdav_postconf_setup_servers(cf, cmcf);
+    if (webdav_postconf_setup_servers(cf, cmcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    /* brix_proxy_ssl_capath second half: the upstream SSL_CTX exists only
+     * after the proxy module's merge, so the hashed-dir add runs here. */
+    if (webdav_postconf_setup_proxy_capath(cf, cmcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     if (brix_tpc_registry_configure(cf) != NGX_OK) {
         return NGX_ERROR;

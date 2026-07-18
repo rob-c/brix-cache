@@ -141,6 +141,7 @@ def _complete(key, upload_id, parts):
 # ---------------------------------------------------------------------------
 # PUT / GET / HEAD — byte-exact object round-trip over IPv6  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_anonymous_put_and_get():
     """REGRESSION: anonymous PUT then GET over [::1] is byte-exact."""
     uid = uuid.uuid4().hex
@@ -155,6 +156,7 @@ def test_s3_ipv6_anonymous_put_and_get():
     assert r.content == content
 
 
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_head_object():
     """REGRESSION: HEAD returns the correct Content-Length and an ETag."""
     uid = uuid.uuid4().hex
@@ -170,6 +172,7 @@ def test_s3_ipv6_head_object():
     assert "ETag" in r.headers
 
 
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_put_zero_byte_object():
     """REGRESSION: a zero-byte object round-trips over IPv6."""
     uid = uuid.uuid4().hex
@@ -186,6 +189,7 @@ def test_s3_ipv6_put_zero_byte_object():
 # ---------------------------------------------------------------------------
 # Range GET  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_range_get():
     """REGRESSION: a partial (Range) GET returns 206 with the exact slice."""
     uid = uuid.uuid4().hex
@@ -205,6 +209,7 @@ def test_s3_ipv6_range_get():
 # ---------------------------------------------------------------------------
 # DeleteObject  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_delete_object():
     """REGRESSION: DELETE removes the object; a subsequent GET is 404."""
     uid = uuid.uuid4().hex
@@ -220,6 +225,7 @@ def test_s3_ipv6_delete_object():
     assert r.status_code == 404
 
 
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_get_missing_404_xml():
     """REGRESSION: GET of a missing key returns 404 with NoSuchKey XML."""
     r = requests.get(_obj_url(f"ipv6_no_such_{uuid.uuid4().hex}"), timeout=10)
@@ -230,6 +236,7 @@ def test_s3_ipv6_get_missing_404_xml():
 # ---------------------------------------------------------------------------
 # ListObjectsV2  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_list_objects_v2():
     """REGRESSION: ListObjectsV2 parses and returns the seeded keys."""
     uid = uuid.uuid4().hex
@@ -249,6 +256,7 @@ def test_s3_ipv6_list_objects_v2():
 # ---------------------------------------------------------------------------
 # CopyObject (PUT + x-amz-copy-source)  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_copy_object():
     """REGRESSION: CopyObject duplicates an existing object byte-exact."""
     uid = uuid.uuid4().hex
@@ -276,6 +284,7 @@ def test_s3_ipv6_copy_object():
 # ---------------------------------------------------------------------------
 # DeleteObjects batch (POST /?delete)  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_delete_objects_batch():
     """REGRESSION: batch DeleteObjects removes every listed key over IPv6."""
     uid = uuid.uuid4().hex
@@ -312,6 +321,7 @@ def test_s3_ipv6_delete_objects_batch():
 # Multipart upload — full cycle (Initiate / UploadPart x3 / Complete)
 # (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_multipart_upload_full_cycle():
     """REGRESSION: Initiate → UploadPart×3 → Complete concatenates in order."""
     uid = uuid.uuid4().hex
@@ -342,6 +352,7 @@ def test_s3_ipv6_multipart_upload_full_cycle():
 # ---------------------------------------------------------------------------
 # OPTIONS / CORS preflight  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_options_cors_preflight():
     """REGRESSION: OPTIONS advertises the full S3 method set over IPv6."""
     r = requests.options(f"{BASE_URL}/{BUCKET}/", timeout=10)
@@ -354,6 +365,7 @@ def test_s3_ipv6_options_cors_preflight():
 # ---------------------------------------------------------------------------
 # Security-negative: path traversal must not bypass confinement over IPv6
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-s3")
 def test_s3_ipv6_path_traversal_rejected():
     """SECURITY-NEG: a ``../`` key is rejected (never 200/500); IPv6 does not
     bypass the confined-resolver contract enforced for every other transport."""

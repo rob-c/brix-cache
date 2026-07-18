@@ -90,23 +90,24 @@ webdav_handle_put_body(ngx_http_request_t *r)
  *   byte-identical to the prior inline tail.
  *
  * HOW:
- *   1. brix_vfs_staged_commit; failure → log + finalize 500, return.
+ *   1. brix_vfs_writer_commit; failure → log + finalize 500, return.
  *   2. Persist checksum-on-write digests (§8.3, best-effort).
  *   3. Emit 201 Created (new file) or 204 No Content, content-length 0, send
  *      headers, and finalize with ngx_http_send_special(NGX_HTTP_LAST).
  */
 static void
 webdav_put_commit(ngx_http_request_t *r, const char *path,
-    brix_vfs_staged_t *staged, int created)
+    brix_vfs_writer_t *writer, int created)
 {
     ngx_int_t status;
 
     brix_dashboard_http_finish(r);
 
     /* Atomically publish the staged temp onto the final path (an empty PUT
-     * commits an empty file).  excl=0 == replace (the prior brix_staged_commit
-     * non-EXCL semantics). */
-    if (brix_vfs_staged_commit(staged, 0) != NGX_OK) {
+     * commits an empty file), folding the verify read-back when the export opts
+     * in.  Replace semantics (excl=0 — the prior brix_staged_commit non-EXCL
+     * behaviour); a mismatch/short verify unlinks and fails. */
+    if (brix_vfs_writer_commit(writer) != NGX_OK) {
         brix_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
                              "brix_webdav: staged commit failed for: \"%s\"",
                              path);
@@ -132,7 +133,7 @@ webdav_put_body_inner(ngx_http_request_t *r)
     ngx_http_brix_webdav_loc_conf_t *conf;
     char                             path[WEBDAV_MAX_PATH];
     brix_vfs_ctx_t                   vctx;
-    brix_vfs_staged_t               *staged = NULL;
+    brix_vfs_writer_t               *writer = NULL;
     int                              created = 0;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
@@ -141,17 +142,17 @@ webdav_put_body_inner(ngx_http_request_t *r)
         return;
     }
 
-    if (webdav_put_open_target(r, conf, path, &vctx, &staged)
+    if (webdav_put_open_target(r, conf, path, &vctx, &writer)
         == WEBDAV_PUT_DONE)
     {
         return;
     }
 
-    if (webdav_put_stream_body(r, conf, path, staged, created)
+    if (webdav_put_stream_body(r, conf, path, writer, created)
         == WEBDAV_PUT_DONE)
     {
         return;
     }
 
-    webdav_put_commit(r, path, staged, created);
+    webdav_put_commit(r, path, writer, created);
 }

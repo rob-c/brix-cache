@@ -84,6 +84,7 @@ kXR_truncate  = 3028
 kXR_OK             = 0
 kXR_ERROR          = 4003
 kXR_ArgInvalid     = 3000
+kXR_ArgMissing     = 3001
 kXR_FileNotOpen    = 3004
 kXR_InvalidRequest = 3006
 kXR_NOT_AUTHORIZED = 3010
@@ -612,6 +613,10 @@ class TestReadOnlyServer:
 # Read-side symlink escape checks
 # ===========================================================================
 
+@pytest.mark.skipif(
+    CROSS_BACKEND == "xrootd",
+    reason="symlink-escape confinement (openat2 RESOLVE_BENEATH) is nginx-xrootd-specific",
+)
 class TestReadSideSymlinkEscape:
     """Read-only operations must not follow symlinks outside brix_export."""
 
@@ -675,6 +680,10 @@ class TestReadSideSymlinkEscape:
 # Write-side symlink escape checks (partner to TestReadSideSymlinkEscape)
 # ===========================================================================
 
+@pytest.mark.skipif(
+    CROSS_BACKEND == "xrootd",
+    reason="write-side symlink-escape confinement (openat2 RESOLVE_BENEATH) is nginx-xrootd-specific",
+)
 class TestWriteSideSymlinkEscape:
     """Mutating ops (open-create, mkdir, rm, truncate, mv-destination) must not
     follow a symlink out of brix_export.  This is the write-side partner to
@@ -1040,7 +1049,12 @@ class TestUnknownOpcode:
             status, body = _read_response(sock)
 
         assert status == kXR_ERROR
-        assert _error_code(body) == kXR_InvalidRequest
+        # nginx-xrootd answers an unknown opcode with kXR_InvalidRequest; stock
+        # xrootd rejects it earlier as kXR_ArgMissing. Both are correct errors.
+        expected = {kXR_InvalidRequest}
+        if CROSS_BACKEND == "xrootd":
+            expected.add(kXR_ArgMissing)
+        assert _error_code(body) in expected
 
     def test_unknown_opcode_before_login(self):
         """A bogus request ID before login should also be rejected."""
@@ -1531,6 +1545,10 @@ class TestPathTraversal:
 # kXR_set — advisory session configuration
 # ===========================================================================
 
+@pytest.mark.skipif(
+    CROSS_BACKEND == "xrootd",
+    reason="kXR_set leniency (advisory modifiers always accepted with kXR_ok) is nginx-xrootd-specific",
+)
 class TestSet:
     """kXR_set (3018) accepts all advisory modifier values after login."""
 

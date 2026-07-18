@@ -32,10 +32,17 @@
 #include "sd_pblock_catalog.h"
 #include "pblock_store.h"        /* packed-block storage engine (split out) */
 #include "sd_pblock_internal.h"
+#include "pblock_fault.h"        /* Phase-83 lab fault injection + I/O shaping */
+#include "pblock_csi.h"          /* Phase-83 F3 per-block CRC32c integrity */
+#include "pblock_quota.h"        /* Phase-83 F5 quotas + space accounting */
+#include "pblock_locks.h"        /* Phase-83 F15 range-lease snapshot check */
+#include "core/compat/wverify.h" /* Phase-83 F10 whole-object CRC accumulator */
 
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <sys/types.h>
@@ -59,8 +66,39 @@ sd_pblock_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
     if (len == 0) {
         return 0;
     }
-    return pblock_read_blocks(os->st, os->blob_id, os->block_size, obj->fd,
-                              buf, len, off);
+    if (os->lab != NULL) {                       /* Phase-83 F1/F8 */
+        int e = pblock_lab_io_gate(os->lab, 0, &len, off);
+
+        if (e != 0) {
+            errno = e;
+            return -1;
+        }
+        if (len == 0) {
+            return 0;
+        }
+    }
+    {
+        ssize_t n = pblock_read_blocks(os->st, os->blob_id, os->block_size,
+                                       obj->fd, buf, len, off);
+
+        if (n > 0 && os->st->csi                     /* F3: at-rest integrity */
+            && pblock_csi_verify(os->csi_crc, os->csi_n, os->block_size,
+                                 os->meta.size, buf, off, (size_t) n,
+                                 os->csi_dlo, os->csi_dhi) != 0)
+        {
+            return -1;                               /* errno=EIO; never serve  *
+                                                      * corrupt bytes            */
+        }
+        if (n > 0 && os->st->audit) {                /* F17: fold into close */
+            int64_t last = pblock_last_block(off + n, os->block_size) + 1;
+
+            os->a_rbytes += n;
+            if (last > os->a_maxblock) {
+                os->a_maxblock = last;
+            }
+        }
+        return n;
+    }
 }
 
 ssize_t
@@ -72,6 +110,25 @@ sd_pblock_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
     if (len == 0) {
         return 0;
     }
+    if (os->lab != NULL) {                       /* Phase-83 F1/F8 */
+        int e = pblock_lab_io_gate(os->lab, 1, &len, off);
+
+        if (e != 0) {
+            errno = e;
+            return -1;
+        }
+        if (len == 0) {
+            return 0;
+        }
+    }
+    if ((int64_t) off + (int64_t) len > os->quota_max) {     /* F5 */
+        errno = EDQUOT;
+        return -1;
+    }
+    if (os->lock_n && pblock_locks_range_denied(os, off, len)) {   /* F15 */
+        errno = EBUSY;
+        return -1;
+    }
     n = pblock_write_blocks(os->st, os->blob_id, os->block_size, obj->fd,
                             buf, len, off);
     if (n > 0) {
@@ -80,6 +137,29 @@ sd_pblock_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
             os->meta.size = (int64_t) off + n;
         }
         os->dirty = 1;
+        if (os->wv != NULL) {                        /* F10: grow the dedup CRC */
+            (void) brix_wverify_update(os->wv, buf, off, (size_t) n);
+        }
+        if (os->st->csi) {                           /* F3: widen written extent */
+            int64_t fb = off / os->block_size;
+            int64_t lb = (off + n - 1) / os->block_size;
+
+            if (fb < os->csi_dlo) {
+                os->csi_dlo = fb;
+            }
+            if (lb + 1 > os->csi_dhi) {
+                os->csi_dhi = lb + 1;
+            }
+        }
+        if (os->st->audit) {                         /* F17: fold into close */
+            int64_t last = pblock_last_block(off + n, os->block_size) + 1;
+
+            os->a_wbytes += n;
+            if (last > os->a_maxblock) {
+                os->a_maxblock = last;
+            }
+        }
+        pblock_lab_crash(os->st->lab, "after_block_write");   /* F7 */
     }
     return n;
 }
@@ -145,6 +225,16 @@ sd_pblock_copy_range(brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *dst,
     if (r <= 0) {
         return r;
     }
+    if ((int64_t) dst_off + r > dos->quota_max) {            /* F5 */
+        errno = EDQUOT;
+        return -1;
+    }
+    if (dos->lock_n
+        && pblock_locks_range_denied(dos, dst_off, (size_t) r))    /* F15 */
+    {
+        errno = EBUSY;
+        return -1;
+    }
     w = pblock_write_blocks(dos->st, dos->blob_id, dos->block_size, dst->fd,
                             buf, (size_t) r, dst_off);
     if (w > 0) {
@@ -153,6 +243,9 @@ sd_pblock_copy_range(brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *dst,
             dos->meta.size = (int64_t) dst_off + w;
         }
         dos->dirty = 1;
+        if (dos->wv != NULL) {                       /* F10: grow the dedup CRC */
+            (void) brix_wverify_update(dos->wv, buf, dst_off, (size_t) w);
+        }
     }
     return w;
 }
@@ -170,6 +263,9 @@ sd_pblock_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     if (!want_zerocopy || obj->fd == NGX_INVALID_FILE) {
         return NGX_INVALID_FILE;
     }
+    if (pblock_xform_active(&os->st->xform)) {
+        return NGX_INVALID_FILE;   /* F12/F13: block 0 holds transformed bytes */
+    }
     if (off == 0 && (int64_t) len <= os->block_size) {
         return obj->fd;
     }
@@ -186,6 +282,37 @@ sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len)
     int64_t       boundary = (int64_t) len - keep * bs;   /* bytes kept in `keep` */
     int64_t       i;
     int           fd, transient = 0;
+
+    /* F12/F13: transformed blocks carry a header — trim the boundary block by
+     * re-encoding its surviving logical prefix, not a raw ftruncate. */
+    if (pblock_xform_active(&os->st->xform)) {
+        unsigned char *scratch = malloc((size_t) bs);
+        char           bp[PATH_MAX];
+        uint32_t       llen;
+
+        if (scratch == NULL) {
+            return NGX_ERROR;
+        }
+        if (pblock_block_path(os->st, os->blob_id, keep, bp, sizeof(bp)) != 0
+            || pblock_xform_block_load(&os->st->xform, keep, bp, scratch, bs,
+                                       &llen) != 0
+            || pblock_xform_block_store(&os->st->xform, keep, bp, scratch,
+                                        (uint32_t) boundary, bs) != 0)
+        {
+            free(scratch);
+            return NGX_ERROR;
+        }
+        free(scratch);
+        for (i = keep + 1; i <= old_last; i++) {
+            if (pblock_block_path(os->st, os->blob_id, i, bp, sizeof(bp)) == 0) {
+                unlink(bp);
+            }
+        }
+        os->meta.size  = (int64_t) len;
+        os->meta.mtime = pblock_now();
+        os->dirty      = 1;
+        return NGX_OK;
+    }
 
     /* trim the boundary block to its surviving length */
     if (keep == 0) {
@@ -257,7 +384,9 @@ sd_pblock_fsync(brix_sd_obj_t *obj)
     }
 
     if (os->dirty) {
-        if (pblock_catalog_touch(os->st->cat, os->path, os->meta.size,
+        if (pblock_quota_touch_admit(os->st, os->path, os->meta.uid,
+                                     os->meta.size) != 0             /* F5 */
+            || pblock_catalog_touch(os->st->cat, os->path, os->meta.size,
                                  os->meta.mtime) != 0)
         {
             return NGX_ERROR;

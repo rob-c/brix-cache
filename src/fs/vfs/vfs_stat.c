@@ -89,10 +89,12 @@ brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
                    use_cred ? &cred : NULL) != NGX_OK)
         {
             saved_errno = errno;
+            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
             brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
                                       NGX_ERROR, saved_errno, start);
             return NGX_ERROR;
         }
+        brix_sd_ucred_wipe(&store);       /* secret consumed; erase (A-4/T4) */
         brix_vfs_sd_stat_fill(&sd_st, stat_out);
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
                                   NGX_OK, 0, start);
@@ -185,6 +187,30 @@ brix_vfs_residency(brix_vfs_ctx_t *ctx, brix_sd_residency_t *out,
     return NGX_OK;
 }
 
+/* Driver-reported export space (phase-83 F5). Same decorator walk as residency:
+ * the first tier implementing the optional `space` slot answers with its
+ * quota-aware logical view; exports whose drivers have no space model decline so
+ * the caller keeps its statvfs(2) fallback. */
+ngx_int_t
+brix_vfs_space(brix_vfs_ctx_t *ctx, brix_sd_space_t *out)
+{
+    brix_sd_instance_t *inst;
+
+    if (out == NULL || ctx == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    for (inst = ctx->sd; inst != NULL;
+         inst = brix_vfs_decorator_source(inst))
+    {
+        if (inst->driver->space != NULL) {
+            return inst->driver->space(inst, out);
+        }
+    }
+    return NGX_DECLINED;
+}
+
 /*
  * brix_vfs_probe — confined existence/type probe for pre-op resolution and
  * ACL gates. Unlike brix_vfs_stat/statf this emits NO OP_STAT metric or
@@ -240,8 +266,10 @@ brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
                    brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
                    &sd_st, use_cred ? &cred : NULL) != NGX_OK)
         {
+            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
             return NGX_DECLINED;   /* absent (or unsupported) — caller's errno */
         }
+        brix_sd_ucred_wipe(&store);       /* secret consumed; erase (A-4/T4) */
         brix_vfs_sd_stat_fill(&sd_st, stat_out);
         return NGX_OK;
     }

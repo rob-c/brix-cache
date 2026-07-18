@@ -778,6 +778,69 @@ def test_open_opaque_cgi_ignored(srv, suffix):
 
 
 # =========================================================================== #
+# L2. OPAQUE BYTE-HYGIENE (hyper-hardening §D-2) — reject control / high-bit /
+#     shell-metacharacter bytes in the CGI opaque before any handler parses,
+#     logs, or forwards it. OURS intentionally diverges from stock here (stock
+#     accepts the raw bytes), so these assert OURS-only rejection, NOT parity.
+# =========================================================================== #
+kXR_ArgInvalid = 3000   # XProtocol.hh — "an argument has an illegal value"
+
+
+def _open_our(path, options=kXR_open_read):
+    """Open `path` on OURS only; return (status, body)."""
+    s = _session(OUR_PORT)
+    try:
+        return _open(s, path, options)
+    finally:
+        s.close()
+
+
+def test_open_opaque_structural_bytes_allowed(srv):
+    """success: an opaque using the full legitimate byte set (percent-encoding,
+    plus-as-space, comma list separator, nested '?') still opens — the gate is
+    zero-false-positive against conforming clients, parity with stock."""
+    path = "/data.bin?authz=a+b,c%20d&tpc.src=root://h:1094//x?y=1"
+    st_o, b_o, st_f, b_f, raw = assert_same_category(srv, path, kXR_open_read)
+    assert st_o == kXR_ok, f"legitimate opaque byte set rejected on OURS:{raw}"
+    assert len(b_o) == 4, f"OUR opaque open body not 4 bytes:{raw}"
+
+
+@pytest.mark.parametrize("bad,label", [
+    ("\x0a", "LF"),           # log + outbound-request CRLF injection
+    ("\x0d", "CR"),           # request smuggling
+    ("\x1b", "ESC"),          # terminal-escape log injection
+    ("\x7f", "DEL"),          # control
+    ("\xff", "high-bit"),     # non-ASCII / mojibake / filter-evasion
+    ("`", "backtick"),        # command substitution
+    ("$", "dollar"),          # shell expansion
+    (";", "semicolon"),       # command chaining
+    ("<", "redirect"),        # shell redirect / XML-ish
+    (" ", "space"),           # header/argument splitting
+    ("'", "quote"),           # quoting break-out
+])
+def test_open_opaque_injection_byte_rejected(srv, bad, label):
+    """security-negative: an opaque carrying a control / high-bit / shell-meta
+    byte is rejected with kXR_error (kXR_ArgInvalid) — or the link is dropped —
+    on OURS, before any handler parses, logs, or forwards it."""
+    st, body = _open_our("/data.bin?authz=x" + bad + "y")
+    assert _rejected(st), \
+        f"OURS accepted opaque with {label} byte 0x{ord(bad):02x} (status={st})"
+    if st == kXR_error:
+        assert _errnum(body) == kXR_ArgInvalid, \
+            f"OURS rejected {label} opaque with wrong errno {_errnum(body)}"
+
+
+def test_open_opaque_injection_byte_no_opaque_clean(srv):
+    """error boundary: the same metacharacter in the PATH (no '?') is governed by
+    the existing path validator, not the opaque gate — confirm the opaque gate is
+    scoped to post-'?' bytes and a clean path still resolves normally."""
+    # A legitimate path + clean opaque: gate is silent, open succeeds on OURS.
+    st, body = _open_our("/data.bin?xrd.cc=US")
+    assert st == kXR_ok, f"clean opaque wrongly rejected (status={st})"
+    assert len(body) == 4
+
+
+# =========================================================================== #
 # M. MALFORMED PATHS — embedded NUL / oversized rejected (parity, both error)
 # =========================================================================== #
 def test_open_embedded_nul_rejected_parity(srv):

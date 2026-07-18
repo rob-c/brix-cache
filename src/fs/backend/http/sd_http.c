@@ -149,6 +149,12 @@ brix_sd_http_create(const brix_sd_http_cfg_t *cfg, ngx_log_t *log)
     sd_http_init_tctx(is, cfg);
     is->timeout_ms = (cfg->timeout_ms > 0) ? cfg->timeout_ms
                                             : BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
+    /* Store only whether selection/failover logging is enabled, NOT a usable log
+     * pointer: this instance is built at postconfiguration and memoized for the
+     * worker's whole life, so a captured log dangles once fork replaces the
+     * config-phase cycle log (its fd is reused — a fill-thread notice would then
+     * land on a live client socket). The fill-thread log sites resolve the CURRENT
+     * process error log via sd_http_live_log() instead. */
     is->log        = log;
     is->cur_ep     = -1;
     if (cfg->bearer_token != NULL && cfg->bearer_token[0] != '\0') {

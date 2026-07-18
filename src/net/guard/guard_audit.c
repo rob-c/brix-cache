@@ -30,7 +30,33 @@ guard_reason_str(guard_reason_t r)
     case GUARD_R_GRAMMAR:   return "grammar";
     case GUARD_R_NOTFOUND:  return "notfound";
     case GUARD_R_AUTHFAIL:  return "authfail";
+    case GUARD_R_NOTROOT:   return "notroot";
+    case GUARD_R_PROXYABUSE: return "proxyabuse";
+    case GUARD_R_TAMPER:    return "cvmfs_tamper";
     case GUARD_R_NONE:      default: return "none";
+    }
+}
+
+/* ---- Wire guess -> stable lowercase token ----
+ *
+ * WHAT: returns the token that names a non-root client in the notroot audit
+ *   line's path field ("tls-clienthello", "http-request", "ssh-banner", …).
+ *
+ * WHY: for signal=notroot there is no wire path; the wire guess is the useful
+ *   operator context, so it rides the path field with a stable spelling.
+ *
+ * HOW: 1. Switch over the enum; unknown values map to "junk".
+ */
+const char *
+guard_wire_str(guard_wire_t w)
+{
+    switch (w) {
+    case GUARD_WIRE_ROOT:  return "root";
+    case GUARD_WIRE_TLS:   return "tls-clienthello";
+    case GUARD_WIRE_HTTP:  return "http-request";
+    case GUARD_WIRE_SSH:   return "ssh-banner";
+    case GUARD_WIRE_EMPTY: return "empty";
+    case GUARD_WIRE_JUNK:  default: return "junk";
     }
 }
 

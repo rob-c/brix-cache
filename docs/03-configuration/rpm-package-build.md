@@ -416,7 +416,7 @@ xrdfs root://localhost:1095 ls /
 | GSI: `proxy certificate rejected` | Proxy not RFC 3820 — regenerate with `utils/make_proxy.py` |
 | `Permission denied` on data directory | `nginx` user cannot read/write `/srv/brix/data`; fix ownership (§4) |
 | `hostkey.pem: permission denied` | `nginx` group cannot read the key; fix with `chmod 440 / chgrp nginx` (§3.3) |
-| SELinux denying nginx reading the key | `sudo semanage fcontext -a -t cert_t '/etc/grid-security(/.*)?'` + `restorecon -Rv /etc/grid-security` |
+| SELinux denying nginx reading the key | Install `nginx-mod-brix-cache-selinux` (labels `/etc/grid-security` as `cert_t`) then `restorecon -Rv /etc/grid-security`; full guide: docs/05-operations/selinux-hardening.md |
 
 ### Reading nginx error logs
 

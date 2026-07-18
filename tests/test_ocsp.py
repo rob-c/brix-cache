@@ -73,6 +73,51 @@ class TestOCSPHTTPSImplementation:
 
 
 # ---------------------------------------------------------------------------
+# Response-size cap guardrails (A-6 / T2)
+# ---------------------------------------------------------------------------
+
+# The response read + cap enforcement live in ocsp_request.c (do_ocsp_request);
+# the ceiling constant lives in the shared ocsp_internal.h.
+_CRYPTO_DIR = Path(__file__).resolve().parents[1] / "src" / "auth" / "crypto"
+OCSP_REQUEST_SOURCE = _CRYPTO_DIR / "ocsp_request.c"
+OCSP_INTERNAL_HEADER = _CRYPTO_DIR / "ocsp_internal.h"
+
+
+class TestOCSPResponseSizeCap:
+    """A-6: the responder reply must be read under a hard byte ceiling so an
+    untrusted / MITM'd responder cannot stream an unbounded body into the
+    worker (T2 memory-growth DoS during the revocation read)."""
+
+    @pytest.fixture(scope="class")
+    def source(self):
+        return OCSP_REQUEST_SOURCE.read_text(encoding="utf-8")
+
+    @pytest.fixture(scope="class")
+    def header(self):
+        return OCSP_INTERNAL_HEADER.read_text(encoding="utf-8")
+
+    def test_cap_is_defined_and_applied(self, source, header):
+        # success: the shared ceiling exists and is pinned onto the request ctx.
+        assert "#define OCSP_MAX_RESPONSE_BYTES  (64 * 1024)" in header
+        assert "OCSP_set_max_response_length(rctx, OCSP_MAX_RESPONSE_BYTES)" \
+            in source
+
+    def test_over_cap_response_is_freed_not_returned(self, source):
+        # error: a failed/over-cap read frees any partial OCSP_RESPONSE and
+        # returns NULL rather than handing a truncated body up the stack.
+        assert "if (rc <= 0 || resp == NULL)" in source
+        assert "OCSP_RESPONSE_free(resp)" in source
+
+    def test_no_uncapped_oneshot_read(self, source):
+        # security-negative: the old one-shot OCSP_sendreq_bio() (which reads
+        # under only OpenSSL's internal default cap) must be gone — the bounded
+        # request-context loop is the sole read path.
+        assert "OCSP_sendreq_bio(" not in source
+        assert "OCSP_sendreq_new(" in source
+        assert "OCSP_sendreq_nbio(" in source
+
+
+# ---------------------------------------------------------------------------
 # Mock OCSP responder
 # ---------------------------------------------------------------------------
 

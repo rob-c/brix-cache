@@ -142,9 +142,9 @@ def _ensure_gateway(run: LiveRun) -> None:
     """Start the prepared test gateway when :ROOT_PORT is not listening yet."""
     if _listening(ROOT_PORT):
         return
-    if NGINX_BIN.exists() and os.access(NGINX_BIN, os.X_OK) and TEST_CONF.is_file() and TEST_PKI_CERT.is_file():
+    if run.nginx.exists() and os.access(run.nginx, os.X_OK) and TEST_CONF.is_file() and TEST_PKI_CERT.is_file():
         _say(f"Starting nginx-xrootd (root:// + dashboard) from {TEST_CONF} ...")
-        run.call([NGINX_BIN, "-p", "/tmp/xrd-test", "-c", TEST_CONF], check=False)
+        run.call([run.nginx, "-p", "/tmp/xrd-test", "-c", TEST_CONF], check=False)
     else:
         _say("Preparing test environment + servers (first run)...")
         try:

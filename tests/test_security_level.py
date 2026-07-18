@@ -143,6 +143,7 @@ class TestSecurityLevel:
         finally:
             sock.close()
 
+    @pytest.mark.registry_servers("security-level-pedantic", "security-level-standard")
     def test_standard_protocol_advertises_security_level(self, security_nginx):
         info = security_nginx("standard")
         sock = _connect(info["port"])
@@ -154,6 +155,7 @@ class TestSecurityLevel:
         finally:
             sock.close()
 
+    @pytest.mark.registry_servers("security-level-pedantic", "security-level-standard")
     def test_pedantic_protocol_advertises_payload_signing(self, security_nginx):
         info = security_nginx("pedantic")
         sock = _connect(info["port"])

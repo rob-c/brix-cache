@@ -114,8 +114,11 @@ endif()
 # exports its symbols to the separately-loaded xrdhttp filter module.
 # --------------------------------------------------------------------------
 find_program(RPM_EXECUTABLE rpm)
-set(_default_optflags "-O2 -g -pipe -Wall -Werror=format-security -fstack-protector-strong -march=x86-64-v2")
-set(_default_ldflags  "-Wl,-z,relro -Wl,-z,now")
+# Keep the hardening set in step with the canonical nginx build in ./config
+# (FORTIFY + stack-clash + CET + format hardening); this fallback is only used
+# for non-RPM dev builds, where rpm %{optflags} is unavailable.
+set(_default_optflags "-O2 -g -pipe -Wall -Werror=format-security -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -march=x86-64-v2")
+set(_default_ldflags  "-Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack")
 if(RPM_EXECUTABLE)
     execute_process(COMMAND ${RPM_EXECUTABLE} --eval "%{optflags}"
         OUTPUT_VARIABLE _rpm_optflags OUTPUT_STRIP_TRAILING_WHITESPACE)

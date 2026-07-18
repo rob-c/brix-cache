@@ -443,7 +443,7 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 	 * A CSE bad-page list cannot arise here (bad pages take the accept-then-correct
 	 * path above, which needs a real fd); a staged upload is a clean sequential
 	 * stream, so any decoded buffer is committed as-is. */
-	if (ctx->files[st.idx].staged != NULL) {
+	if (ctx->files[st.idx].writer != NULL) {
 		if (brix_staged_append(ctx, c, st.idx, st.offset, st.flat,
 		                         st.flat_sz, &rc) != NGX_OK) {
 			return rc;   /* error already sent (sequential-append / IO) */

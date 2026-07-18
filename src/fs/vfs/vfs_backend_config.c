@@ -175,6 +175,50 @@ brix_vfs_backend_config_cache_store(const char *root_canon,
     e->inst = NULL;                            /* recompose on next resolve */
 }
 
+void
+brix_vfs_backend_config_cache_cold_store(const char *root_canon,
+    const brix_tier_cfg_t *cfg)
+{
+    brix_vfs_backend_entry_t *e;
+
+    if (cfg == NULL || !cfg->configured) {
+        return;
+    }
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    if (e == NULL) {
+        return;
+    }
+    e->cold_tier = *cfg;
+    e->inst = NULL;                            /* recompose on next resolve */
+}
+
+void
+brix_vfs_backend_config_cache_peers(const char *root_canon,
+    const char (*hosts)[256], const int *ports, int n, int self)
+{
+    brix_vfs_backend_entry_t *e;
+    int                        i;
+
+    if (hosts == NULL || ports == NULL || n <= 0 || self < 0 || self >= n) {
+        return;
+    }
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    if (e == NULL) {
+        return;
+    }
+    if (n > (int) (sizeof(e->peer_ring) / sizeof(e->peer_ring[0]))) {
+        n = (int) (sizeof(e->peer_ring) / sizeof(e->peer_ring[0]));
+    }
+    for (i = 0; i < n; i++) {
+        ngx_cpystrn((u_char *) e->peer_ring[i].host, (u_char *) hosts[i],
+                    sizeof(e->peer_ring[i].host));
+        e->peer_ring[i].port = ports[i];
+    }
+    e->n_peer_ring = n;
+    e->peer_self   = self;
+    e->inst = NULL;                            /* recompose on next resolve */
+}
+
 /* Endpoint (host,port) at `idx` of the http backend registered at
  * `root_canon` — index 0 is the primary, 1.. the T11 failover list. Returns
  * 0, or -1 past the end / not an http backend. Pointers alias the registry's

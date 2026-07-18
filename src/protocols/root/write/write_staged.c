@@ -3,44 +3,44 @@
  *
  * WHAT: The write/sync/close hooks for a root:// write handle whose backend LEAF
  *       advertises NO random write (BRIX_SD_CAP_RANDOM_WRITE) and has no pwrite
- *       slot — a whole-object store (sd_http and any driver whose write is a
+ *       slot — a whole-object store (sd_http/s3 and any driver whose write is a
  *       single commit-time PUT). brix_open_dispatch_staged put such a handle in
- *       STAGED mode (ctx->files[idx].staged != NULL, opened via the WebDAV/S3 PUT
- *       staged bridge with the per-user credential already resolved). This file
- *       APPENDS each kXR_write/pgwrite block to that staged handle and COMMITS the
- *       whole object on kXR_sync / kXR_close.
+ *       STAGED mode (ctx->files[idx].writer != NULL — a unified brix_vfs_writer
+ *       session opened with the per-user credential already resolved). This file
+ *       APPENDS each kXR_write/pgwrite block to that session and COMMITS the whole
+ *       object on kXR_sync / kXR_close.
  *
  * WHY:  The block-oriented root:// write model (open-for-write → write/pgwrite at
  *       offsets → sync/close → driver pwrite) requires a random-write driver; a
  *       whole-object backend cannot pwrite, so a root:// upload used to fail EROFS.
- *       WebDAV/S3 PUT already stream a block body into staged_write+staged_commit;
- *       this is the missing root:// equivalent, unblocking forwarding-matrix cells
- *       C RH gsi / C RH token (and backend-side A RH gsi).
+ *       GridFTP STOR and (via http_body) WebDAV/S3 PUT stream a block body through
+ *       the same unified brix_vfs_writer; this routes the root:// path through it
+ *       too, so every filesystem shares one verified-write call to the VFS layer.
  *
  * HOW:  Uploads are sequential appends, which is the only shape a whole-object
- *       store supports. brix_write_staged_buf enforces sequential-append: an
- *       incoming offset != the running expected offset is refused cleanly with
- *       kXR_Unsupported (never corrupting the object). A matching offset appends
- *       via brix_vfs_staged_write and advances the running offset. sync/close call
- *       brix_staged_commit_handle → brix_vfs_staged_commit (one whole-object PUT),
- *       which on success consumes the staged handle; brix_free_fhandle aborts an
- *       uncommitted handle so no partial object is published. No goto; each stage
+ *       store supports. brix_staged_append refuses an out-of-order offset cleanly
+ *       with kXR_Unsupported (comparing against brix_vfs_writer_expected_off before
+ *       corrupting the object), then appends via brix_vfs_writer_write. sync/close
+ *       call brix_staged_commit_handle → brix_vfs_writer_commit (one whole-object
+ *       PUT, plus the optional read-back CRC check when brix_verify_write is on),
+ *       which on success consumes the session; brix_free_fhandle aborts an
+ *       uncommitted session so no partial object is published. No goto; each stage
  *       is a small single-purpose function with explicit data flow.
  */
 
 #include "core/ngx_brix_module.h"
 #include "write.h"
-#include "fs/vfs/vfs.h"   /* brix_vfs_staged_write / _commit */
+#include "fs/vfs/vfs.h"   /* brix_vfs_writer_* (via vfs_ops.h) */
 
 /*
- * brix_staged_append — append `len` bytes at `offset` to the staged handle,
+ * brix_staged_append — append `len` bytes at `offset` to the write session,
  * WITHOUT sending a success reply (the caller chooses the reply frame: kXR_ok for
  * kXR_write, kXR_status for pgwrite).
  *
- * Enforces sequential append (offset == running expected offset); an out-of-order
- * offset is refused with kXR_Unsupported. On any failure the error reply is sent
- * here and *rc holds its return value. Returns NGX_OK when appended (no reply
- * sent yet); NGX_ERROR when the caller must return *rc immediately.
+ * Enforces sequential append (offset == the writer's expected offset); an
+ * out-of-order offset is refused with kXR_Unsupported. On any failure the error
+ * reply is sent here and *rc holds its return value. Returns NGX_OK when appended
+ * (no reply sent yet); NGX_ERROR when the caller must return *rc immediately.
  */
 ngx_int_t
 brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -52,9 +52,11 @@ brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     snprintf(detail, sizeof(detail), "%lld+%zu", (long long) offset, len);
 
     /* Sequential-append contract: a whole-object backend cannot honour a random
-     * offset. Refuse an out-of-order block cleanly rather than corrupting the
-     * object (genuinely random-offset writes stay unsupported). */
-    if (offset != (int64_t) file->staged_expected_off) {
+     * offset. Refuse an out-of-order block cleanly — checked against the writer's
+     * own cursor so the error is deterministic (kXR_Unsupported) rather than
+     * relying on the writer's EINVAL — before corrupting the object (genuinely
+     * random-offset writes stay unsupported). */
+    if (offset != (int64_t) brix_vfs_writer_expected_off(file->writer)) {
         brix_log_access(ctx, c, "WRITE", file->path, detail, 0,
                           kXR_Unsupported,
                           "random-offset write to whole-object backend unsupported", 0);
@@ -64,7 +66,7 @@ brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
         return NGX_ERROR;
     }
 
-    if (brix_vfs_staged_write(file->staged, buf, len, offset) != NGX_OK) {
+    if (brix_vfs_writer_write(file->writer, buf, len, offset) != NGX_OK) {
         const char *ioerr = strerror(errno);
         brix_log_access(ctx, c, "WRITE", file->path, detail, 0,
                           kXR_IOError, ioerr, 0);
@@ -73,7 +75,6 @@ brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
         return NGX_ERROR;
     }
 
-    file->staged_expected_off += (off_t) len;
     file->bytes_written       += len;
     ctx->totals.bytes_written += len;
     brix_rl_charge_ctx(ctx, len);
@@ -123,29 +124,32 @@ brix_write_staged(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * brix_staged_commit_handle — commit the whole staged object (one backend PUT).
- * The kXR_sync / kXR_close hook. Idempotent: once committed, a later call is a
- * no-op success (a client that syncs then closes). On failure sets *err_out and
- * returns NGX_ERROR leaving the staged handle intact (no partial publish).
+ * brix_staged_commit_handle — commit the whole staged object (one backend PUT,
+ * plus the read-back CRC check when brix_verify_write is on). The kXR_sync /
+ * kXR_close hook. Idempotent: once committed, a later call is a no-op success (a
+ * client that syncs then closes). On failure sets *err_out and returns NGX_ERROR;
+ * brix_vfs_writer_commit already unlinked any published-then-mismatched object, so
+ * no partial/corrupt object is left behind.
  */
 ngx_int_t
 brix_staged_commit_handle(brix_ctx_t *ctx, int idx, int *err_out)
 {
     brix_file_t *file = &ctx->files[idx];
 
-    if (file->staged == NULL || file->staged_committed) {
+    if (file->writer == NULL || file->staged_committed) {
         return NGX_OK;   /* nothing staged, or already published */
     }
 
-    if (brix_vfs_staged_commit(file->staged, 0 /* not excl */) != NGX_OK) {
+    if (brix_vfs_writer_commit(file->writer) != NGX_OK) {
         if (err_out != NULL) {
-            *err_out = errno;
+            *err_out = errno ? errno : EIO;
         }
         return NGX_ERROR;
     }
 
-    /* A successful commit consumed the driver staged handle inside the VFS; mark
-     * the handle committed so brix_free_fhandle does not abort/unlink it. */
+    /* A successful commit published (and optionally verified) the object and
+     * consumed the session's staged state; mark committed so brix_free_fhandle's
+     * abort is a no-op and no second commit runs. */
     file->staged_committed = 1;
     return NGX_OK;
 }

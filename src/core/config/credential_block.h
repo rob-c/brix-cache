@@ -39,6 +39,10 @@ typedef struct {
     ngx_str_t   token;           /* inline bearer token                           */
     ngx_str_t   token_file;      /* path to a bearer token (WLCG / SciToken)      */
     ngx_flag_t  token_forward;   /* on = delegate the CLIENT's token (C-3)        */
+    ngx_int_t   mode;            /* brix_cred_mode: how the consuming subsystem    */
+                                  /* presents this identity to the upstream        */
+                                  /* (select/passthrough/exchange/delegate/mint/   */
+                                  /* auto). NGX_CONF_UNSET ⇒ the consumer's default */
     ngx_flag_t  tls;             /* roots:// / https to the upstream              */
     ngx_str_t   vo;              /* optional VOMS FQAN                (C-3)        */
     ngx_str_t   s3_access_key;   /* S3 SigV4 access-key id      (s3:// backend)   */

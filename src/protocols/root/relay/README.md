@@ -26,7 +26,7 @@ framing.
 |---|---|
 | `relay.c` | connection takeover at the top of the stream handler, relay pump, stall detection |
 | `relay.h` | directive (`brix_transparent_proxy host:port`) + engagement contract |
-| `relay_guard.c` | maps decoded tap frames onto the pure-C guard core (opcode classification, kXR_error errnum) |
+| `relay_guard.c` | maps decoded tap frames onto the pure-C guard core (opcode classification, kXR_error errnum); `brix_relay_guard_handshake` also runs the first-bytes wire check so a client not speaking root (TLS/HTTP/SSH/junk) is dropped + logged `signal=notroot` before it reaches the backend |
 
 ## Invariants, security & gotchas
 

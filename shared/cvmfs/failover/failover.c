@@ -15,10 +15,11 @@ void cvmfs_failover_init(cvmfs_failover_t *fo, long reset_interval_s) {
 
 static int add_endpoint(cvmfs_fo_endpoint_t *arr, size_t *n, size_t cap,
                         const char *url, int group) {
-    if (*n >= cap || strlen(url) >= sizeof(arr[0].url)) return -1;
+    size_t len = strlen(url);
+    if (*n >= cap || len >= sizeof(arr[0].url)) return -1;
     cvmfs_fo_endpoint_t *e = &arr[*n];
     memset(e, 0, sizeof(*e));
-    strcpy(e->url, url);
+    memcpy(e->url, url, len + 1);                     /* bound proven above */
     e->group = group;
     (*n)++;
     return 0;
@@ -113,9 +114,17 @@ static void mark(cvmfs_fo_endpoint_t *e, int ok, long rtt_us, long now,
 
 void cvmfs_failover_record(cvmfs_failover_t *fo, const cvmfs_fo_route_t *route,
                            int ok, long rtt_us, long now) {
-    if (route->proxy >= 0 && (size_t) route->proxy < fo->n_proxies)
-        mark(&fo->proxies[route->proxy], ok, rtt_us, now,
-             fo->base_blacklist_s, fo->reset_interval_s, fo->ewma_alpha);
+    if (route->proxy >= 0 && (size_t) route->proxy < fo->n_proxies) {
+        cvmfs_fo_endpoint_t *p = &fo->proxies[route->proxy];
+        /* A "DIRECT" pseudo-proxy is not an endpoint — there is nothing to blame
+         * or blacklist on a failure (the fault belongs to the host). Blacklisting
+         * it starves select() of any live proxy and reports offline while healthy
+         * replicas remain, killing host failover entirely. Successes still clear
+         * its counters (harmless, keeps state tidy). */
+        if (ok || strcmp(p->url, "DIRECT") != 0)
+            mark(p, ok, rtt_us, now,
+                 fo->base_blacklist_s, fo->reset_interval_s, fo->ewma_alpha);
+    }
     if (route->host >= 0 && (size_t) route->host < fo->n_hosts)
         mark(&fo->hosts[route->host], ok, rtt_us, now,
              fo->base_blacklist_s, fo->reset_interval_s, fo->ewma_alpha);

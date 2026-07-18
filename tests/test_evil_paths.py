@@ -38,13 +38,13 @@ import shutil
 import socket
 import ssl
 import struct
-import subprocess
-import tempfile
 import time
 import uuid
 
 import pytest
 
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 from settings import (
     DATA_ROOT,
     TEST_ROOT,
@@ -84,6 +84,11 @@ from test_a_robustness import (
     kXR_mkdir,
     kXR_rm,
 )
+
+# The only server this module self-launches is the CMS data node in
+# TestCmsStateEvil (below), now driven through the phase-81 LifecycleHarness;
+# every other class probes the standing session fleet.
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 kXR_open = 3010
 kXR_new = 0x0001
@@ -599,11 +604,6 @@ class TestCmsStateEvil:
 
     @pytest.fixture(scope="class")
     def cms_node(self, evil_symlinks):
-        nginx_bin = os.environ.get("NGINX_BIN",
-                                   "/tmp/nginx-1.28.3/objs/nginx")
-        if not os.path.exists(nginx_bin):
-            pytest.skip("nginx binary not found for CMS data-node test")
-
         # mock manager listening socket
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -612,39 +612,24 @@ class TestCmsStateEvil:
         srv.listen(4)
         srv.settimeout(20)
 
-        prefix = tempfile.mkdtemp(prefix="cms_evil_")
-        os.makedirs(os.path.join(prefix, "logs"), exist_ok=True)
-        os.makedirs(os.path.join(prefix, "conf"), exist_ok=True)
-        data_port = _free_port()
-        conf = f"""
-daemon off;
-worker_processes 1;
-pid {prefix}/nginx.pid;
-error_log {prefix}/logs/error.log info;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {data_port};
-        brix_root on;
-        brix_storage_backend posix:{DATA_ROOT};
-        brix_allow_write on;
-        brix_cms_manager {url_host(HOST)}:{mgr_port};
-        brix_cms_interval 2;
-    }}
-}}
-"""
-        conf_path = os.path.join(prefix, "conf", "nginx.conf")
-        with open(conf_path, "w") as fh:
-            fh.write(conf)
+        harness = LifecycleHarness()
+        try:
+            harness.start(NginxInstanceSpec(
+                name="lc-evil-cms-node",
+                template="nginx_evil_cms_node.conf",
+                protocol="root", readiness="tcp",
+                data_root=DATA_ROOT,
+                template_values={"CMS_MANAGER": f"{url_host(HOST)}:{mgr_port}"}))
+        except Exception:
+            harness.close()
+            srv.close()
+            raise
 
-        proc = subprocess.Popen([nginx_bin, "-p", prefix, "-c", "conf/nginx.conf"],
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL)
         # accept the node's CMS client connection
         try:
             conn, _ = srv.accept()
         except socket.timeout:
-            proc.terminate()
+            harness.close()
             srv.close()
             pytest.skip("nginx CMS client never connected to mock manager")
 
@@ -667,11 +652,7 @@ stream {{
         except OSError:
             pass
         srv.close()
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        harness.close()
 
     def test_state_symlink_escape_no_have(self, cms_node, evil_symlinks):
         conn = cms_node
@@ -701,14 +682,6 @@ stream {{
             if fr is not None and fr[0] == CMS_RR_HAVE:
                 breaches.append(p)
         assert not breaches, f"CMS kYR_state '..' escapes returned kYR_have: {breaches}"
-
-
-def _free_port():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 # ===========================================================================

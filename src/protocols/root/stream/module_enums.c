@@ -82,6 +82,15 @@ ngx_conf_enum_t brix_security_levels[] = {
     { ngx_null_string,          0 }
 };
 
+/* D-1 — `brix_min_sec_level` session-posture floor (BRIX_MIN_SEC_*,
+ * handshake.h): a distinct axis from brix_security_level (request signing). */
+ngx_conf_enum_t brix_min_sec_levels[] = {
+    { ngx_string("none"),    0 },
+    { ngx_string("compat"),  1 },
+    { ngx_string("intense"), 2 },
+    { ngx_null_string,       0 }
+};
+
 /* GSI signed-DH policy [brix_gsi_signed_dh off|auto|require] (phase-48);
  * see the gsi_signed_dh field in src/types/config.h. */
 ngx_conf_enum_t brix_signed_dh_modes[] = {
@@ -99,4 +108,13 @@ ngx_conf_enum_t brix_io_uring_modes[] = {
     { ngx_string("on"),   BRIX_IO_URING_ON   },
     { ngx_string("auto"), BRIX_IO_URING_AUTO },
     { ngx_null_string,    0                    }
+};
+
+/* D-3: per-worker seccomp-BPF syscall filter mode (default off; audit is the
+ * risk-free convergence step, enforce kills execve/ptrace/process_vm_*). */
+ngx_conf_enum_t brix_seccomp_modes[] = {
+    { ngx_string("off"),     BRIX_SECCOMP_OFF     },
+    { ngx_string("audit"),   BRIX_SECCOMP_AUDIT   },
+    { ngx_string("enforce"), BRIX_SECCOMP_ENFORCE },
+    { ngx_null_string,       0                    }
 };

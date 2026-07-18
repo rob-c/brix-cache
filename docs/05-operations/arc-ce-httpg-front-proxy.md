@@ -66,24 +66,25 @@ things break when you put a stock nginx in front of it:
                                                   req. └──────────────────────────┘
 ```
 
-Identity plumbing on the back leg — stock nginx, no custom code:
+Identity plumbing on the back leg — one built-in variable, no per-user
+config:
 
 ```
-    verified front-leg leaf DN                       per-user credential file
- $ssl_client_s_dn_legacy                                     │
-    │                                                        ▼
-    │   map $ssl_client_s_dn_legacy $arc_cred {
-    │       default "";                                  # no match -> NO cred
-    └────►  "~^/DC=org/.../CN=alice(/CN=[0-9]+)*$"  /creds/x5h-3f1c….pem;
-            "~^/DC=org/.../CN=bob(/CN=[0-9]+)*$"    /creds/x5h-77ab….pem;
-        }
-        proxy_ssl_certificate     $arc_cred;   # same combined PEM serves
-        proxy_ssl_certificate_key $arc_cred;   # cert+chain AND key
+    verified front-leg TLS chain                     per-user credential file
+    │  (proxy levels skipped -> EEC DN)                          │
+    ▼                                                            ▼
+ $brix_delegated_cred  =  <cred-store>/x5h-<sha256(EEC DN)>.pem, expiry-
+    │                     checked; "" when absent/expired  (FAIL CLOSED)
+    ▼
+    proxy_ssl_certificate     $brix_delegated_cred;   # same combined PEM
+    proxy_ssl_certificate_key $brix_delegated_cred;   # cert+chain AND key
 ```
 
-The `(/CN=[0-9]+)*` tail matters: the front leg authenticates with a *proxy*,
-whose leaf DN is the user DN plus one `/CN=<serial>` level per delegation
-hop, and brix's GSI auth exposes that full leaf DN.
+The variable applies the delegation endpoint's own key derivation to the
+verified chain's **end-entity** DN (the front leg authenticates with an
+RFC 3820 *proxy*; its extra `/CN=<serial>` levels are skipped), so the file
+stored at delegation time is found without any hand-maintained DN map — a
+new user is picked up the moment they delegate, with no reload.
 
 ## 3. Fail-closed semantics (what fails where)
 
@@ -108,7 +109,7 @@ failures come back to the client as ARC's own answers.**
                 │ legitimate ARC path       an authenticated client.
                 ▼
  ┌─────────────────────────────┐   identity has no delegated credential:
- │ map -> $arc_cred            │   back leg connects with NO client cert
+ │ $brix_delegated_cred        │   back leg connects with NO client cert
  │ proxy_pass https://ARC      ├──────────► ARC refuses (its own 4xx/5xx)
  └──────────────┬──────────────┘            and THAT answer is relayed
                 │ delegated credential      verbatim to the client.
@@ -123,8 +124,8 @@ Design choices that make it fail closed rather than fail quiet:
 | Choice | Effect |
 |---|---|
 | `ssl_verify_client on` (not `optional`) | anonymous/untrusted clients die at nginx — the ARC-CE's attack surface is only ever exposed to CA-verified grid identities |
-| `map ... default ""` | **no static fallback credential exists in the config**; an un-delegated identity cannot ride anyone else's credential (an empty `proxy_ssl_certificate` sends no client cert at all) |
-| `proxy_ssl_verify on` + `proxy_ssl_trusted_certificate` | the gateway refuses to hand user credentials to an impostor backend |
+| `$brix_delegated_cred` is `""` on any miss | **no static fallback credential exists anywhere**; an un-delegated identity — or an expired proxy — cannot ride anyone else's credential (an empty `proxy_ssl_certificate` sends no client cert at all) |
+| `proxy_ssl_verify on` + `brix_proxy_ssl_capath` | the gateway refuses to hand user credentials to an impostor backend |
 | `brix_guard` before `proxy_pass` | scanner junk never consumes an ARC connection |
 
 ## 4. Delegation: how a user's credential gets to the gateway
@@ -173,23 +174,24 @@ http {
     client_body_temp_path /var/run/brix-arc/tmp;
     proxy_temp_path       /var/run/brix-arc/tmp;
 
-    # Verified front-leg identity (proxy leaf DN, oneline form) -> that
-    # user's delegated credential.  default "" = FAIL CLOSED: no match
-    # means the back leg carries no credential and ARC refuses.
-    map $ssl_client_s_dn_legacy $arc_cred {
-        default "";
-        "~^/DC=org/DC=nordugrid/DC=ARC/O=TestCA/CN=alice(/CN=[0-9]+)*$"
-            /dev/shm/brix-creds/x5h-3f1c9a...(alice-hash).pem;
-        "~^/DC=org/DC=nordugrid/DC=ARC/O=TestCA/CN=bob(/CN=[0-9]+)*$"
-            /dev/shm/brix-creds/x5h-77ab02...(bob-hash).pem;
-    }
+    # Per-user credential lookup is built in: $brix_delegated_cred maps the
+    # verified front-leg identity (EEC DN) to its stored, unexpired
+    # delegated credential — "" on any miss = FAIL CLOSED (the back leg
+    # then carries no credential and ARC refuses).  No map block, no
+    # per-user config, no reload when a new user delegates.
 
     server {
         # ── front leg: httpg, FAIL-CLOSED ────────────────────────────────
         listen 8443 ssl;
         ssl_certificate        /etc/grid-security/hostcert.pem;
         ssl_certificate_key    /etc/grid-security/hostkey.pem;
-        ssl_client_certificate /etc/grid-security/certificates/grid-ca.pem;
+        # Production hosts have no bundle file, only the IGTF hashed dir.
+        # brix_client_certificate_folder auto-picks the hostcert issuer's
+        # <hash>.0 file out of the dir (replaces ssl_client_certificate —
+        # must come AFTER ssl_certificate); brix_ssl_client_capath then
+        # trusts the WHOLE hashed dir for client verification:
+        brix_client_certificate_folder /etc/grid-security/certificates;
+        brix_ssl_client_capath         /etc/grid-security/certificates;
         ssl_verify_client      on;          # no cert / untrusted cert
         ssl_verify_depth       10;          #   -> rejected here, never proxied
         brix_webdav_proxy_certs on;         # accept RFC 3820 proxy chains
@@ -200,7 +202,9 @@ http {
             brix_webdav on;
             brix_export /var/lib/brix-arc/export;
             brix_allow_write on;            # REQUIRED: read-only 403s the PUT
-            brix_webdav_cafile /etc/grid-security/certificates/grid-ca.pem;
+            # Hashed-dir form of brix_webdav_cafile — same trust source as
+            # the TLS front leg, no bundle file needed:
+            brix_webdav_cadir /etc/grid-security/certificates;
             brix_webdav_auth required;
             # Optional: defaults to /dev/shm/brix-creds — a RAM-backed
             # (tmpfs) store created 0700 at config time, so delegated
@@ -223,9 +227,11 @@ http {
                                                 # from Host; arcget breaks
                                                 # without this
             # back leg presents THE USER'S delegated credential:
-            proxy_ssl_certificate         $arc_cred;
-            proxy_ssl_certificate_key     $arc_cred;
-            proxy_ssl_trusted_certificate /etc/grid-security/certificates/grid-ca.pem;
+            proxy_ssl_certificate         $brix_delegated_cred;
+            proxy_ssl_certificate_key     $brix_delegated_cred;
+            # Hashed-dir trust for the back leg (replaces the file-only
+            # proxy_ssl_trusted_certificate — no bundle file needed):
+            brix_proxy_ssl_capath /etc/grid-security/certificates;
             proxy_ssl_verify on;                # never leak creds to an
             proxy_ssl_name arc-ce.internal;     # impostor backend
             proxy_ssl_server_name on;
@@ -234,14 +240,16 @@ http {
 }
 ```
 
-Map entries are mechanical to generate — for each user, escape the DN for
-regex and derive the store filename:
+There is no per-user configuration to generate: the delegation endpoint
+stores each credential under `x5h-<sha256(EEC DN)>.pem` and
+`$brix_delegated_cred` re-derives exactly that key from the verified TLS
+chain at request time. To predict a user's store filename (e.g. for
+provisioning checks):
 
 ```python
-import hashlib, re
+import hashlib
 dn = "/DC=org/DC=nordugrid/DC=ARC/O=TestCA/CN=alice"
-key = "x5h-" + hashlib.sha256(dn.encode()).hexdigest()[:32]
-print(f'"~^{re.escape(dn)}(/CN=[0-9]+)*$" /dev/shm/brix-creds/{key}.pem;')
+print("x5h-" + hashlib.sha256(dn.encode()).hexdigest()[:32] + ".pem")
 ```
 
 ## 6. Building the test cluster from scratch
@@ -318,10 +326,13 @@ done
 ### 6.6 Configure and start the gateway
 
 Render §5's config with front port 18443, backend port
-18444, host cert/key from 6.4, `ssl_client_certificate`/cafile/trusted = the
-`$CA` file, and one map entry per user
-(DN = `/DC=org/DC=nordugrid/DC=ARC/O=TestCA/CN=<user>`; filename from the
-snippet in §5). Then:
+18444, and host cert/key from 6.4 — no per-user entries exist. The testbed
+has a single `$CA` file rather than an IGTF hashed dir: either build one
+(`mkdir certs && cp $CA certs/$(openssl x509 -subject_hash -noout -in $CA).0`)
+and point `brix_client_certificate_folder`, `brix_ssl_client_capath`,
+`brix_webdav_cadir`, and `brix_proxy_ssl_capath` at it, or replace those with
+`ssl_client_certificate $CA` / `brix_webdav_cafile $CA` /
+`proxy_ssl_trusted_certificate $CA`. Then:
 
 ```bash
 objs/nginx -t -c $PWD/nginx.conf && objs/nginx -c $PWD/nginx.conf
@@ -432,7 +443,7 @@ Job submission, the full path:
    │ POST /arex/rest/ │                        │                   │
    │ 1.0/jobs (xRSL)  │                        │                   │
    ├─────────────────►│ guard: path OK         │                   │
-   │                  │ map: alice's DN ──────►│ x5h-<alice>.pem   │
+   │                  │ $brix_delegated_cred ─►│ x5h-<alice>.pem   │
    │                  │                        │ (cert+chain+KEY)  │
    │                  │ mTLS to ARC, client cert = alice's         │
    │                  │ delegated proxy; Host preserved            │
@@ -467,9 +478,9 @@ The three failure lanes, side by side:
 | delegation PUT → 403, nginx error page, no delegation log line | delegation location lacks `brix_allow_write on` (read-only export refuses the PUT before delegation dispatch) |
 | delegation PUT → 403 with a `GSI auth OK dn=".../CN=<serial>"` log line | upload was authenticated with the **proxy**; use the EEC cert/key (§4) |
 | arcsub OK but arcget/arcstat hit the backend directly or 404 | `proxy_set_header Host $http_host` missing — A-REX builds session hrefs from Host |
-| back leg 502/SSL errors | `proxy_ssl_name`/`proxy_ssl_trusted_certificate` don't match the ARC host cert (with the docker image: run it `--hostname localhost` and trust the regenerated test CA, **not** the IGTF bundle) |
+| back leg 502/SSL errors | `proxy_ssl_name`/`brix_proxy_ssl_capath` don't match the ARC host cert (with the docker image: run it `--hostname localhost` and trust the regenerated test CA's hashed dir, **not** the IGTF one) |
 | everything on the container 40x's after a while | the image's baked-in test CA was expired at first start and you skipped §6.2, or the regenerated certs expired — rerun `arcctl test-ca ...` |
-| authenticated user's ARC requests fail with no credential | that user never delegated (or the delegated proxy expired) — check `creds/x5h-*.pem` exists, is fresh, and the map regex matches the *full leaf* DN including `(/CN=[0-9]+)*` |
+| authenticated user's ARC requests fail with no credential | that user never delegated, or the delegated proxy expired — check `creds/x5h-*.pem` exists and is fresh (an expired file is logged at `info` as `brix_delegated_cred: ... expired — re-delegation required`) |
 | `docker run -p` fails with a `/forwards/expose` 500 (WSL2) | transient WSL port-forward flake — pick another host port |
 
 ## 9. Limits and honest caveats
@@ -478,9 +489,9 @@ The three failure lanes, side by side:
   to the gateway but achieves nothing at ARC. That is the intended
   fail-closed behaviour, not a bug — but it means client onboarding includes
   the one-time (per-proxy-lifetime) delegation step from §6.7.
-- **The map is static config.** Adding a user means adding a map entry and
-  reloading nginx (`nginx -s reload` is hitless). Auto-discovery of the
-  credential dir would need dynamic config generation around nginx.
+- **User onboarding is zero-config.** `$brix_delegated_cred` resolves the
+  credential store at request time, so a new user is served the moment their
+  delegation lands — no map entry, no reload.
 - **T8 sends the proxy's private key over the (EEC-authenticated, encrypted)
   front leg.** Where that is unacceptable, use the T4 two-step form — same
   endpoint, GridSite-shaped, key never crosses the wire; see the

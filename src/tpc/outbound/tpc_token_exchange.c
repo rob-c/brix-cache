@@ -23,6 +23,7 @@
 #include "tpc/outbound/tpc_token_internal.h"
 #include "auth/token/file.h"
 #include "core/compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
+#include "core/compat/cred_stage.h"   /* private 0700 credential staging (A-5)  */
 
 #include <stdio.h>
 #include <string.h>
@@ -30,6 +31,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/wait.h>
+#include <openssl/crypto.h>           /* OPENSSL_cleanse */
 
 #define TPC_TOKEN_MAX_LEN  65536
 
@@ -69,24 +71,24 @@ tpc_rfc8693_read_subject(brix_tpc_pull_t *t, char *subject_token,
  * stages it in a private temp file, returning the temp path in body_file.
  * Returns 0 on success, -1 with err_msg/xrd_error=kXR_IOError on temp-file
  * failure.
- * WHY: Staging the body in an mkstemp file (unpredictable name, exclusive
- * create) instead of on curl's command line keeps the bearer/subject token out
- * of the process listing (proc cmdline). The caller unlinks body_file on every
- * exit path.
+ * WHY: Staging the body in a 0600 file (unpredictable name, exclusive create)
+ * in a private 0700 dir instead of on curl's command line keeps the
+ * bearer/subject token out of the process listing (proc cmdline). The caller
+ * unlinks body_file on every exit path.
  * HOW: ngx_snprintf the grant_type/subject_token/resource/audience/scope body;
- * mkstemp a /tmp template; on success write the body and close the fd, copying
- * the resolved path into body_file. subject_token is a JWT (URL-safe base64), so
- * it is form-safe without URL-encoding. */
+ * hand the exact formatted length to the shared brix_cred_stage_write(), which
+ * stages it in the per-uid /dev/shm/brix-creds.<euid> tmpfs dir (never
+ * world-traversable /tmp — fail-closed) and returns the resolved path.
+ * subject_token is a JWT (URL-safe base64), so it is form-safe without
+ * URL-encoding. */
 static int
 tpc_rfc8693_stage_body(brix_tpc_pull_t *t, const char *subject_token,
                        char *body_file, size_t body_file_sz)
 {
     char body_buf[4096];
-    char tmpl[NGX_MAX_PATH];
-    int  body_fd;
-    ssize_t nw;
+    u_char *p;
 
-    ngx_snprintf((u_char *) body_buf, sizeof(body_buf),
+    p = ngx_snprintf((u_char *) body_buf, sizeof(body_buf),
                  "grant_type=urn:ietf:params:oauth:grant-type:"
                  "token-exchange"
                  "&subject_token=%s"
@@ -98,22 +100,23 @@ tpc_rfc8693_stage_body(brix_tpc_pull_t *t, const char *subject_token,
                  t->src_host,
                  t->token_scope);
 
-    ngx_snprintf((u_char *) tmpl, sizeof(tmpl),
-                 "/tmp/tpc_token_body_XXXXXX");
-    body_fd = mkstemp(tmpl);
-    if (body_fd == -1) {
+    /* A-5: stage in the shared private 0700 tmpfs facility, fail-closed. */
+    if (brix_cred_stage_write("tpc_token_body_", body_buf,
+                              (size_t) (p - (u_char *) body_buf),
+                              body_file, body_file_sz) != 0)
+    {
+        OPENSSL_cleanse(body_buf, sizeof(body_buf));
         snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC token: temp file creation failed: %s", strerror(errno));
+                 "TPC token: cannot stage credential body privately (%s) — "
+                 "refusing to fall back to world-readable /tmp",
+                 strerror(errno));
         t->xrd_error = kXR_IOError;
         return -1;
     }
 
-    (void) body_file_sz;
-    ngx_memcpy(body_file, tmpl, strlen(tmpl) + 1);
-
-    nw = write(body_fd, body_buf, strlen(body_buf));
-    (void) nw;
-    close(body_fd);
+    /* The live subject token has been persisted to the 0600 file; scrub the
+     * heap copy so it does not linger in worker memory (shared with A-4). */
+    OPENSSL_cleanse(body_buf, sizeof(body_buf));
 
     return 0;
 }
@@ -187,20 +190,20 @@ tpc_rfc8693_run_curl(brix_tpc_pull_t *t, char **curl_argv,
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC token: token-exchange subprocess failed "
                  "(pipe/fork or signal)");
-        unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
+        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
         t->xrd_error = kXR_ServerError;
         return -1;
     }
     if (ec != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC token: token exchange failed (curl exit %d)", ec);
-        unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
+        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
         t->xrd_error = kXR_AuthFailed;
         return -1;
     }
 
     /* Success: body file no longer needed; remove before parsing the reply. */
-    unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
+    unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
     return 0;
 }
 

@@ -18,19 +18,18 @@ wrong polynomial/encoding on any surface turns this red.
 
 import base64
 import os
-import socket
 import struct
 import subprocess
-import time
 import urllib.error
 import urllib.request
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
+from settings import HOST, BIND_HOST, NGINX_BIN, free_port
+from server_registry import NginxInstanceSpec
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCRC64 = os.path.join(REPO, "client", "bin", "xrdcrc64")
 
@@ -64,75 +63,35 @@ assert crc64xz_hex(b"123456789") == "995dc9bbdf1939fa"
 assert _crc64(b"123456789", _NVME_POLY) == 0xAE8B14860A799888
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
+@pytest.fixture
+def srv(lifecycle, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
 
-    d = tmp_path_factory.mktemp("crc64")
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    data = d / "data"
+    data = tmp_path / "data"
     data.mkdir()
     (data / "probe.txt").write_bytes(b"crc64 probe payload\n")
 
-    s3_port = _free_port()
-    dav_port = _free_port()
-    root_port = _free_port()
     # S3 and WebDAV each occupy a whole server at location / (the bucket / path is
-    # the first URL segment — an /s3/-style prefix would not be stripped).
-    conf = render_config("nginx_crc64.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         ROOT_PORT=root_port,
-                         S3_PORT=s3_port,
-                         WEBDAV_PORT=dav_port,
-                         DATA_DIR=data)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
+    # the first URL segment — an /s3/-style prefix would not be stripped).  root://
+    # is the primary listener; S3/WebDAV ride secondary ports.
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-crc64",
+        template="nginx_lc_crc64.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+        extra_ports={"S3_PORT": free_port(HOST), "WEBDAV_PORT": free_port(HOST)},
+        reason="cross-protocol crc64: S3 + WebDAV + root against a shared anon "
+               "POSIX backend"))
+    s3_port = ep.extra_ports["S3_PORT"]
+    dav_port = ep.extra_ports["WEBDAV_PORT"]
 
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + chk.stderr)
-
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if (not _wait_port(s3_port) or not _wait_port(dav_port)
-            or not _wait_port(root_port)):
-        proc.terminate()
-        pytest.skip("crc64 test servers did not start")
-
-    yield {
+    return {
         "s3": f"http://{HOST}:{s3_port}/testbucket",
         "dav": f"http://{HOST}:{dav_port}",
-        "root": f"root://{HOST}:{root_port}",
+        "root": f"root://{HOST}:{ep.port}",
         "data": str(data),
     }
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _req(method, url, data=None, headers=None):

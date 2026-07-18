@@ -330,6 +330,7 @@ def _skip_unless_admin_enabled():
 # Group A — admin API over IPv6 (bracket-aware URI parse)        [GATING]      #
 # =========================================================================== #
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_ipv6_admin_instance_startup():
     """SMOKE: the ipv6-mgr HTTP endpoint answers over [::1] (any HTTP status is
     fine — proves the AF_INET6 listener is up)."""
@@ -338,6 +339,7 @@ def test_ipv6_admin_instance_startup():
     assert status in (200, 401, 403, 404), status
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_no_bearer_token_admitted_from_loopback():
     """AUTH-MODEL: the ipv6-mgr config authorizes the admin API via a CIDR
     allowlist (``brix_admin_allow ::1/128``) in OR-mode and seeds NO secret
@@ -363,6 +365,7 @@ def test_admin_no_bearer_token_admitted_from_loopback():
     _admin("DELETE", f"/cluster/servers/[::1]/{port}")
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_wrong_bearer_token_still_admitted_from_loopback():
     """AUTH-MODEL: with the OR-mode CIDR allowlist and no secret configured, a
     *wrong* bearer secret is irrelevant — the request is still admitted because
@@ -379,6 +382,7 @@ def test_admin_wrong_bearer_token_still_admitted_from_loopback():
     _admin("DELETE", f"/cluster/servers/[::1]/{port}")
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_api_register_ipv6_host_json_body():
     """REGRESSION: registering a bare ``::1`` host via the JSON body is accepted
     (the hostname whitelist allows ':' for IPv6 literals) and round-trips bare in
@@ -404,6 +408,7 @@ def test_admin_api_register_ipv6_host_json_body():
     _admin("DELETE", f"/cluster/servers/[::1]/{port}")
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_api_register_ipv6_host_via_uri():
     """GATING (api_admin.c:395): POST /cluster/servers/[2001:db8::1]/PORT — the
     bracketed host segment in the request URI is accepted, the brackets are
@@ -428,6 +433,7 @@ def test_admin_api_register_ipv6_host_via_uri():
     _admin("DELETE", f"/cluster/servers/{host_uri}/{port}")
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_api_drain_ipv6_server_uri_bracket_parse():
     """GATING: register ::1, then POST /cluster/servers/[::1]/PORT/drain — the
     bracketed URI is parsed, brackets stripped, and brix_srv_blacklist matches
@@ -454,6 +460,7 @@ def test_admin_api_drain_ipv6_server_uri_bracket_parse():
     _admin("DELETE", f"/cluster/servers/[::1]/{port}")
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_api_undrain_ipv6_server_uri_bracket_parse():
     """GATING: a v4-mapped bracketed literal [::ffff:127.0.0.1] in the URI is
     bracket-stripped and round-trips to the bare registry host for drain then
@@ -484,6 +491,7 @@ def test_admin_api_undrain_ipv6_server_uri_bracket_parse():
     _admin("DELETE", f"/cluster/servers/{host_uri}/{port}")
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_api_remove_ipv6_server_uri():
     """GATING: DELETE /cluster/servers/[2001:db8::42]/PORT — the bracketed host is
     stripped for the canonical-host lookup and the bare entry is removed (absent
@@ -508,6 +516,7 @@ def test_admin_api_remove_ipv6_server_uri():
         "removed ::-host still present in snapshot", servers)
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_api_all_cluster_operations_ipv6_hosts():
     """GATING: full lifecycle register -> snapshot -> drain -> undrain -> remove
     using bracketed [::1] URIs end-to-end, asserting consistent bracket handling
@@ -535,6 +544,7 @@ def test_admin_api_all_cluster_operations_ipv6_hosts():
     assert _find_server(servers, "::1", port) is None, servers
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_admin_api_ipv6_host_validation_rejects_malformed():
     """SECURITY-NEG: a shell-injection-y / malformed host is rejected (400
     invalid_field) by the whitelist, never sanitised — same fail-closed behaviour
@@ -551,6 +561,7 @@ def test_admin_api_ipv6_host_validation_rejects_malformed():
 # Group B — rate limiting keyed by IPv6 client IP               [REGRESSION]   #
 # =========================================================================== #
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_ratelimit_ipv6_stream_smoke_or_throttle():
     """REGRESSION: drive repeated rate-limited opcodes (kXR_open) from a single
     IPv6 client on the stream instance.  ratelimit_keys.c builds the bucket key
@@ -576,6 +587,7 @@ def test_ratelimit_ipv6_stream_smoke_or_throttle():
         s.close()
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_ratelimit_ipv6_stat_not_wedged():
     """REGRESSION: kXR_stat is exempt from rate limiting; many stats in a row from
     the IPv6 peer never return kXR_wait (and the IPv6 peer key never errors)."""
@@ -589,6 +601,7 @@ def test_ratelimit_ipv6_stat_not_wedged():
         s.close()
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_ratelimit_ipv6_no_raw_address_in_metric_labels():
     """REGRESSION / invariant #8: after driving IPv6 stream traffic, scraping
     /metrics over [::1] must not surface a raw IPv6 client address in any label —
@@ -665,6 +678,7 @@ def _assert_no_raw_ipv6_in_metric_labels(text):
                 f"raw IPv6 literal in label {key} of {name}: {block!r}")
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_metrics_ipv6_endpoint_scrapeable():
     """REGRESSION: GET /metrics over [::1] returns 200 text/plain with Prometheus
     HELP/TYPE headers — the metrics writer serves correctly on an AF_INET6
@@ -679,6 +693,7 @@ def test_metrics_ipv6_endpoint_scrapeable():
     assert "# HELP " in text and "# TYPE " in text, "missing Prometheus headers"
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_metrics_ipv6_no_raw_address_in_labels():
     """REGRESSION / invariant #8: NO metric label value over [::1] contains a raw
     IPv6 address (neither ``::1`` nor any ``[..]`` bracketed literal)."""
@@ -690,6 +705,7 @@ def test_metrics_ipv6_no_raw_address_in_labels():
     _assert_no_raw_ipv6_in_metric_labels(body.decode("utf-8", "replace"))
 
 
+@pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
 def test_metrics_ipv6_label_cardinality_bounded():
     """REGRESSION / invariant #8: every metric label *value* is drawn from the
     bounded low-cardinality character set (alnum + ``_ . - /`` and ``r/s``-style

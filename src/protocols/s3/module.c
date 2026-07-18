@@ -115,6 +115,17 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
         if (s3_merge_export(cf, conf) != NGX_CONF_OK) {
             return NGX_CONF_ERROR;
         }
+        /* E-1: an S3 export with neither a SigV4 access key nor WLCG token auth
+         * accepts every request unauthenticated. Warn always; refuse strict. */
+        if (!conf->token_enable && conf->access_key.len == 0
+            && brix_shared_security_gate(cf, conf->common.strict_security,
+                   "S3 export accepts unauthenticated requests "
+                   "(no brix_s3_access_key and brix_s3_token off)",
+                   "brix_s3_access_key/brix_s3_secret_key or brix_s3_token")
+               != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
     }
 
     return NGX_CONF_OK;

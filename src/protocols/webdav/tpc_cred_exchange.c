@@ -16,6 +16,7 @@
 #include "core/compat/log_diag.h"
 #include "tpc/common/credential.h"
 #include "core/compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
+#include "core/compat/cred_stage.h"   /* private 0700 credential staging (A-5)  */
 
 #include <nginx.h>
 #include <ngx_core.h>
@@ -30,6 +31,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <fcntl.h>
+#include <openssl/crypto.h>           /* OPENSSL_cleanse */
 
 
 /**
@@ -59,10 +61,10 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     int argc = 0;
     char body_buf[2048];
     char body_file[NGX_MAX_PATH];
-    int body_fd;
+    u_char *body_end;
 
     /* Build the POST body. */
-    ngx_snprintf((u_char *) body_buf, sizeof(body_buf),
+    body_end = ngx_snprintf((u_char *) body_buf, sizeof(body_buf),
                   "grant_type=urn:ietf:params:oauth:grant-type:"
                   "token-exchange"
                   "&subject_token=%s"
@@ -71,21 +73,22 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
                   "&scope=%s",
                   subject_token, source_url, source_url, scope);
 
-    /* Write body to a temp file (curl --data @file). */
-    ngx_snprintf((u_char *) body_file, sizeof(body_file),
-                 "/tmp/tpc_cred_body_XXXXXX");
-    body_fd = mkstemp(body_file);
-    if (body_fd == -1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "tpc_cred(rfc8693): temp file creation failed");
+    /* A-5: stage the body (carrying the live subject token) in the shared
+     * private 0700 tmpfs facility for curl --data @file, never in
+     * world-traversable /tmp; fail closed if a private dir can't be secured. */
+    if (brix_cred_stage_write("tpc_cred_body_", body_buf,
+                              (size_t) (body_end - (u_char *) body_buf),
+                              body_file, sizeof(body_file)) != 0)
+    {
+        OPENSSL_cleanse(body_buf, sizeof(body_buf));
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
+                      "tpc_cred(rfc8693): cannot stage credential body "
+                      "privately — refusing world-readable /tmp fallback");
         return NGX_ERROR;
     }
 
-    {
-        ssize_t nw = write(body_fd, body_buf, strlen(body_buf));
-        (void) nw;
-    }
-    close(body_fd);
+    /* The subject token is now persisted to the 0600 file; scrub the heap copy. */
+    OPENSSL_cleanse(body_buf, sizeof(body_buf));
 
     /* Build curl argv. */
     curl_argv[argc++] = (char *) "curl";
@@ -128,19 +131,19 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
             ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
                           "tpc_cred(rfc8693): curl subprocess failed "
                           "(pipe/fork or signal)");
-            unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
+            unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
             return NGX_ERROR;
         }
         if (ec != 0) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "tpc_cred(rfc8693): curl exited %d: %s", ec, buf);
-            unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
+            unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
             return NGX_ERROR;
         }
     }
 
     /* Clean up temp file. */
-    unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
+    unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
 
     /* Parse JSON response for access_token. */
     return tpc_cred_parse_token_response(r, buf, token_out);

@@ -15,68 +15,57 @@ artifacts:
 Run: PYTHONPATH=tests pytest tests/test_mu_stage_modes.py -v   (no root needed)
 """
 import os
-import socket
 import stat
-import subprocess
-import time
 
 import pytest
 import requests
 
-from mu_authz_lib import creds, fleet, ports, principals
+from mu_authz_lib import creds, ports, principals
+from server_registry import NginxInstanceSpec
 
-_PORT = ports.MU.WEBDAV_STAGE
-_URL = f"https://{ports.MU.HOST}:{_PORT}"
-
-
-def _port_open(p):
-    s = socket.socket()
-    s.settimeout(0.5)
-    try:
-        s.connect((ports.MU.HOST, p))
-        return True
-    except OSError:
-        return False
-    finally:
-        s.close()
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
 def _mode(path):
     return stat.S_IMODE(os.stat(path).st_mode)
 
 
+def _spec():
+    """A single GSI WebDAV write node, driven by the registry lifecycle harness.
+
+    Its export is the shared MU data root so the on-disk mode assertions inspect
+    the same tree the server writes; the PKI paths are the cast built by the
+    ``cast`` fixture (deterministic locations, populated before the server boots).
+    """
+    return NginxInstanceSpec(
+        name="lc-mu-stage-webdav",
+        template="nginx_mu_stage_modes_webdav.conf",
+        protocol="https",
+        readiness="webdav",
+        data_root=ports.MU.DATA_ROOT,
+        template_values={
+            "CERT": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
+            "KEY": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
+            "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
+        },
+        reason="MU WebDAV write node: staging temp-file mode verification.",
+    )
+
+
 @pytest.fixture(scope="module")
-def stage_env():
+def cast():
+    """Build the MU PKI/principal cast once for the module (idempotent)."""
     principals.build_cast()
+
+
+@pytest.fixture
+def stage_env(lifecycle, cast):
     os.makedirs(os.path.join(ports.MU.DATA_ROOT, "stage"), exist_ok=True)
-    for dd in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR, os.path.join(ports.MU.LOG_DIR, "nginx_tmp")):
-        os.makedirs(dd, exist_ok=True)
-    subst = fleet._base_subst()
-    src = os.path.join(fleet._CFG_SRC, "webdav_stage_noimp.conf")
-    text = open(src).read()
-    for k, v in subst.items():
-        text = text.replace(k, v)
-    dst = os.path.join(ports.MU.CONFIG_DIR, "webdav_stage_noimp.conf")
-    with open(dst, "w") as f:
-        f.write(text)
-    pidf = os.path.join(ports.MU.MU_ROOT, "webdav_stage.pid")
-    subprocess.run([fleet.NGINX, "-c", dst, "-g", f"pid {pidf};"], check=True, capture_output=True)
-    deadline = time.time() + 15
-    while time.time() < deadline and not _port_open(_PORT):
-        time.sleep(0.2)
-    if not _port_open(_PORT):
-        raise TimeoutError(f"webdav stage server never listened on {_PORT}")
-    try:
-        yield _URL
-    finally:
-        try:
-            os.kill(int(open(pidf).read().strip()), 15)
-        except (ProcessLookupError, ValueError, FileNotFoundError):
-            pass
+    return lifecycle.start(_spec())
 
 
 @pytest.fixture(scope="module")
-def alice_proxy():
+def alice_proxy(cast):
     cert = os.path.join(ports.MU.PKI_DIR, "user", "alice_usercert.pem")
     key = os.path.join(ports.MU.PKI_DIR, "user", "alice_userkey.pem")
     return creds.gen_gsi_proxy(cert, key, "stage_alice")
@@ -85,8 +74,8 @@ def alice_proxy():
 def test_completed_put_commits_at_client_mode(stage_env, alice_proxy):
     """A completed PUT publishes the object at its client-intended 0644 — the temp's private
     0600 must NOT leak onto the committed namespace file (that would break VO-shared reads)."""
-    url = stage_env
-    dest = os.path.join(ports.MU.DATA_ROOT, "stage", "committed.bin")
+    url = stage_env.url
+    dest = os.path.join(stage_env.data_root, "stage", "committed.bin")
     if os.path.exists(dest):
         os.remove(dest)
     r = requests.put(url + "/stage/committed.bin", data=b"C" * 4096,
@@ -101,8 +90,8 @@ def test_completed_put_commits_at_client_mode(stage_env, alice_proxy):
 def test_inflight_resume_partial_is_private_then_publishes(stage_env, alice_proxy):
     """An in-flight resumable-PUT partial is 0600 (a peer mapped uid cannot read the in-progress
     upload); once completed the object is published at 0644."""
-    url = stage_env
-    stage_dir = os.path.join(ports.MU.DATA_ROOT, "stage")
+    url = stage_env.url
+    stage_dir = os.path.join(stage_env.data_root, "stage")
     final = os.path.join(stage_dir, "resumable.bin")
     if os.path.exists(final):
         os.remove(final)

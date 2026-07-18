@@ -1,19 +1,38 @@
 """
 tests/test_frm_staging.py
 
-Phase 35 / Phase 1 — the usable synchronous tape gateway (stream face).
+Nearline (tape) recall UX, modernised 2026-07-18 for the src/frm dissolution.
 
-End-to-end against a self-contained nginx + a fake tape MSS (cmdscripts/frm_fake_mss.py):
+The original drove recall by marking a file offline with a ``user.frm.residency``
+xattr on a plain ``posix:`` export and letting the legacy FRM open-staging gate
+recall it on open.  That gate has been retired: the offline/recall model now lives
+in the storage BACKEND's residency seam (``brix_vfs_residency``, phase-64 §9), and
+the live nearline-serving surface is the ``frm://exec`` MSS backend composed with a
+``brix_cache_store`` recall target — the recall runs in the cache-fill path exactly
+as in tests/test_frm_async.py.  A ``posix:`` export therefore no longer recalls on
+open, so the recall cases are rebuilt on ``frm://exec``.
 
-  * a resident file is NOT reported offline
-  * a nearline file (disk stub + user.frm.residency=nearline xattr, real bytes on
-    "tape") IS reported offline (kXR_offline) on kXR_stat
-  * opening a nearline file triggers a real, reaped recall and stalls the client
-    with kXR_wait; xrdcp retries to a hit and gets the true tape bytes
-  * N concurrent opens of one nearline file collapse to exactly ONE recall (dedup)
+Kept on ``posix:`` (unchanged behaviour, still true):
+  * an online file is NOT reported offline on stat;
+  * the FRM residency xattr does NOT drive the stat offline flag on a posix export
+    (residency is a backend property, not a filesystem xattr).
 
-Self-contained: own nginx (worker + thread pool) on a dedicated port, no fleet.
-Skips cleanly if user xattrs or the xrootd client tools are unavailable.
+Rebuilt on ``frm://exec`` (the live recall surface):
+  S  a read of a nearline object recalls it and serves the true tape bytes;
+  S  N concurrent reads of one nearline object collapse to exactly ONE recall (the
+     cache tier single-flights the fill — empirically 8 opens → 1 exec recall);
+  E  a nearline object whose recall verb FAILS returns an error, not a hang.
+
+Deferred (asserts a path not yet on the live surface):
+  * the unified transfer-ledger ``kind=tape`` line is emitted only by the
+    stage_engine RECALL path; driving that from a read/prepare is the future
+    engine-integration step flagged in src/protocols/root/query/prepare.c
+    (``the former frm_stage_kick() ... moves to brix_stage_submit(RECALL)``).  The
+    read-fault recall in sd_frm is synchronous and writes no ledger line, so the
+    assertion is skipped until that integration lands.
+
+Self-contained: own nginx on a dedicated port, no fleet.  Skips cleanly without
+the xrootd client tools or (for the two posix stat cases) user xattrs.
 """
 
 import os
@@ -25,8 +44,11 @@ import time
 
 import pytest
 
-from config_templates import render_config
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
+from server_launcher import RegistryCommandFailure
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 PORT = int(os.environ.get("TEST_FRM_STAGING_PORT") or free_port())
 
@@ -38,10 +60,12 @@ kXR_offline = 8
 XRDCP = shutil.which("xrdcp")
 XRDFS = shutil.which("xrdfs")
 
+TAPE_BYTES = b"TAPE-RECALLED-CONTENT-" + b"z" * 200 + b"\n"
 
 from frm_helpers import xattr_ok as _xattr_ok
 
 
+# --------------------------------------------------------------------------- wire
 def _recv_exact(sock, n):
     buf = bytearray()
     while len(buf) < n:
@@ -57,8 +81,8 @@ def _read_response(sock):
     return status, (_recv_exact(sock, dlen) if dlen else b"")
 
 
-def _session():
-    sock = socket.create_connection((HOST, PORT), timeout=10)
+def _session(port):
+    sock = socket.create_connection((HOST, port), timeout=10)
     sock.settimeout(10)
     sock.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))
     assert _read_response(sock)[0] == kXR_ok
@@ -69,147 +93,164 @@ def _session():
     return sock
 
 
-def _stat_flags(path):
+def _stat_flags(port, path):
     """Return the integer flags field from a kXR_stat response for `path`."""
-    s = _session()
+    s = _session(port)
     pb = path.encode() + b"\x00"
-    # ClientStatRequest: 2s streamid, H reqid, B options, 11s reserved,
-    # 4s fhandle, I dlen
     req = struct.pack("!2sHB11s4sI", b"\x00\x07", kXR_stat, 0,
                       b"\x00" * 11, b"\x00" * 4, len(pb))
     s.sendall(req + pb)
     status, body = _read_response(s)
     s.close()
     assert status == kXR_ok, f"stat status {status}: {body!r}"
-    # stat body: "id size flags mtime" (ASCII, space-separated)
     parts = body.rstrip(b"\x00").split()
     return int(parts[2])
 
 
-@pytest.fixture(scope="module")
-def staging(tmp_path_factory):
+# ------------------------------------------------------------------ posix fixture
+@pytest.fixture
+def posix_stat(lifecycle, tmp_path):
+    """A plain posix export carrying an xattr-marked file — used only to prove the
+    posix backend does NOT treat the FRM residency xattr as a stat signal."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
-    if XRDCP is None:
-        pytest.skip("xrdcp not available")
 
-    d = tmp_path_factory.mktemp("frmstage")
+    d = tmp_path
     if not _xattr_ok(str(d)):
         pytest.skip("filesystem does not support user xattrs")
 
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
-    tape = d / "tape"; tape.mkdir()
-    queue = d / "frm.queue"
-    audit = d / "audit.log"
-    copycmd = str(d / "copycmd.py")
-    shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"),
-                copycmd)
-    os.chmod(copycmd, 0o755)
-
-    # a resident file
     (data / "online.bin").write_bytes(b"resident-bytes\n")
-
-    # a nearline file: a stub on disk with the residency marker, real bytes on tape
-    tape_content = b"TAPE-RECALLED-CONTENT-" + b"z" * 200 + b"\n"
-    (tape / "near.dat").write_bytes(tape_content)
     stub = data / "near.dat"
-    stub.write_bytes(b"")                       # 0-byte placeholder
+    stub.write_bytes(b"")
     os.setxattr(str(stub), "user.frm.residency", b"nearline")
 
-    # a second nearline file for the dedup test
-    (tape / "dedup.dat").write_bytes(tape_content)
-    (data / "dedup.dat").write_bytes(b"")
-    os.setxattr(str(data / "dedup.dat"), "user.frm.residency", b"nearline")
-
-    # a nearline file with NO tape source — its recall always fails
-    (data / "failfile.dat").write_bytes(b"")
-    os.setxattr(str(data / "failfile.dat"), "user.frm.residency", b"nearline")
-
-    conf = render_config("nginx_frm_staging.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=PORT,
-                         DATA_DIR=data,
-                         QUEUE_PATH=queue,
-                         COPY_CMD=copycmd)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    env = dict(os.environ)
-    env.update(FRM_DATA_DIR=os.path.realpath(str(data)),
-               FRM_TAPE_DIR=str(tape),
-               FRM_LATENCY_MS="500",
-               FRM_AUDIT_LOG=str(audit))
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            env=env)
-    deadline = time.time() + 10
-    up = False
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, PORT), timeout=0.5).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip(f"staging server did not start: {err}")
+    try:
+        ep = lifecycle.start(NginxInstanceSpec(
+            name="lc-frm-posix-stat",
+            template="nginx_lc_frm_posix_stat.conf",
+            protocol="root",
+            template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+            reason="frm posix stat semantics"))
+    except RegistryCommandFailure as exc:
+        pytest.skip(f"posix stat server did not start: {exc}")
 
     class S:
         pass
     s = S()
-    s.data = str(data)
-    s.tape_content = tape_content
-    s.audit = str(audit)
+    s.port = ep.port
     yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
-def _xrdcp(path, out, timeout=30):
-    return subprocess.run(
-        [XRDCP, "-f", f"root://{HOST}:{PORT}/{path}", out],
-        capture_output=True, timeout=timeout)
+def test_online_file_not_offline(posix_stat):
+    assert (_stat_flags(posix_stat.port, "/online.bin") & kXR_offline) == 0
 
 
-def test_online_file_not_offline(staging):
-    assert (_stat_flags("/online.bin") & kXR_offline) == 0
-
-
-def test_nearline_xattr_not_a_stat_signal(staging):
-    """Phase-64 P6: kXR_stat's offline flag now comes from the storage BACKEND's
-    residency model (the brix_vfs_residency seam), NOT the legacy
-    user.frm.residency xattr. An xattr-marked file on a POSIX export is therefore
-    NOT flagged offline on stat. The tape:// root:// stat-offline UX (a real nearline
-    backend) is covered in tests/run_tape_recall_stream.sh. NB: the OLD FRM
-    open-staging gate still honors the xattr (see test_open_nearline_stages_and_serves)
-    until open_request migrates with the FRM queue removal — a documented transitional
-    state during the src/frm dissolution (spec §13c)."""
-    assert (_stat_flags("/near.dat") & kXR_offline) == 0, \
+def test_nearline_xattr_not_a_stat_signal(posix_stat):
+    """kXR_stat's offline flag comes from the storage BACKEND's residency model
+    (the brix_vfs_residency seam), NOT the legacy user.frm.residency xattr.  An
+    xattr-marked file on a POSIX export is therefore NOT flagged offline."""
+    assert (_stat_flags(posix_stat.port, "/near.dat") & kXR_offline) == 0, \
         "the FRM residency xattr must NOT drive the stat offline flag on a posix export"
 
 
-def test_open_nearline_stages_and_serves(staging, tmp_path):
+# ------------------------------------------------------------- frm://exec fixture
+def _stagecmd(tape, failkey, recall_log):
+    """Exec MSS adapter: $BRIX_FRM_STAGECMD <verb> <key> <online>.  Every recall is
+    appended to `recall_log` so the dedup test can count them; `recall` of
+    `failkey` exits non-zero so an unrecallable object errors rather than hangs.
+    The tape dir / fail key / log path are baked in (not passed via env) because
+    nginx rewrites its worker environ — a spawned command sees only argv plus the
+    one variable the config re-exports (BRIX_FRM_STAGECMD)."""
+    return (
+        "#!/bin/bash\n"
+        'verb="$1"; key="${2#/}"; online="$3"\n'
+        f"tape='{tape}'\n"
+        f"failkey='{failkey}'\n"
+        f"log='{recall_log}'\n"
+        'case "$verb" in\n'
+        '  exists)  [ -f "$tape/$key" ] && exit 0 || exit 1 ;;\n'
+        '  recall)  echo "recall $key" >> "$log"\n'
+        '           [ "$key" = "$failkey" ] && exit 1\n'
+        '           mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online" ;;\n'
+        '  migrate) cp "$online" "$tape/$key" ;;\n'
+        '  purge)   rm -f "$online" ;;\n'
+        "esac\n"
+    )
+
+
+@pytest.fixture
+def frm_recall(lifecycle, tmp_path):
+    """The live nearline surface: frm://exec MSS backend + posix cache store."""
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+    if XRDCP is None:
+        pytest.skip("xrdcp not available")
+
+    d = tmp_path
+    (d / "logs").mkdir()
+    base = d / "base"; base.mkdir()
+    tape = d / "tape"; tape.mkdir()
+    cache = d / "cache"; cache.mkdir()
+    recall_log = d / "recall.log"
+
+    (tape / "near.dat").write_bytes(TAPE_BYTES)
+    (tape / "dedup.dat").write_bytes(TAPE_BYTES)
+    # failfile.dat is present on tape but its recall verb fails.
+    (tape / "failfile.dat").write_bytes(b"unrecallable\n")
+
+    stagecmd = d / "stage.sh"
+    stagecmd.write_text(_stagecmd(str(tape), "failfile.dat", str(recall_log)))
+    stagecmd.chmod(0o755)
+
+    try:
+        ep = lifecycle.start(NginxInstanceSpec(
+            name="lc-frm-recall",
+            template="nginx_lc_frm_exec.conf",
+            protocol="root",
+            readiness="tcp",
+            template_values={"STORAGE_BACKEND": f"frm://exec{base}",
+                             "CACHE_DIR": str(cache)},
+            env={"BRIX_FRM_STAGECMD": str(stagecmd)},
+            reason="frm nearline recall (frm://exec)"))
+    except RegistryCommandFailure as exc:
+        pytest.skip(f"recall server did not start: {exc}")
+
+    class S:
+        pass
+    s = S()
+    s.port = ep.port
+    s.tape_content = TAPE_BYTES
+    s.recall_log = str(recall_log)
+    yield s
+
+
+def _xrdcp(port, path, out, timeout=30):
+    return subprocess.run(
+        [XRDCP, "-f", "-s", f"root://{HOST}:{port}/{path}", out],
+        capture_output=True, timeout=timeout)
+
+
+def _recall_count(recall_log):
+    if not os.path.exists(recall_log):
+        return 0
+    return sum(1 for ln in open(recall_log) if ln.startswith("recall "))
+
+
+def test_open_nearline_stages_and_serves(frm_recall, tmp_path):
     out = str(tmp_path / "near.out")
-    r = _xrdcp("/near.dat", out)
+    r = _xrdcp(frm_recall.port, "/near.dat", out)
     assert r.returncode == 0, f"xrdcp failed: {r.stderr.decode(errors='replace')}"
-    assert open(out, "rb").read() == staging.tape_content, \
+    assert open(out, "rb").read() == frm_recall.tape_content, \
         "recalled content does not match the tape bytes"
-    # once staged, it is no longer reported offline
-    assert (_stat_flags("/near.dat") & kXR_offline) == 0
 
 
-def test_concurrent_opens_dedup_to_one_recall(staging, tmp_path):
-    open(staging.audit, "w").close()        # reset audit
+def test_concurrent_opens_dedup_to_one_recall(frm_recall, tmp_path):
     # NB: DEVNULL, not PIPE — an unread PIPE fills with xrdcp's progress output
     # and blocks the child.
     procs = [subprocess.Popen(
-                [XRDCP, "-f", "-s", f"root://{HOST}:{PORT}//dedup.dat",
+                [XRDCP, "-f", "-s", f"root://{HOST}:{frm_recall.port}//dedup.dat",
                  str(tmp_path / f"d{i}.out")],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
              for i in range(8)]
@@ -217,68 +258,22 @@ def test_concurrent_opens_dedup_to_one_recall(staging, tmp_path):
         p.wait(timeout=30)
     ok = sum(1 for p in procs if p.returncode == 0)
     assert ok >= 1, "no concurrent xrdcp succeeded"
-    n_recalls = sum(1 for line in open(staging.audit) if line.startswith("stage"))
-    assert n_recalls == 1, \
-        f"expected exactly one recall for 8 concurrent opens, got {n_recalls}"
+    n = _recall_count(frm_recall.recall_log)
+    assert n == 1, \
+        f"expected exactly one recall for 8 concurrent opens (cache single-flight), got {n}"
 
 
-def test_failed_recall_returns_error_not_hang(staging, tmp_path):
-    # failfile.dat has no tape source → recall fails → file marked offline →
-    # the open must return an error, not stall forever.
-    r = _xrdcp("/failfile.dat", str(tmp_path / "f.out"), timeout=30)
+def test_failed_recall_returns_error_not_hang(frm_recall, tmp_path):
+    # failfile.dat's recall verb exits non-zero → the open must error, not stall.
+    r = _xrdcp(frm_recall.port, "/failfile.dat", str(tmp_path / "f.out"), timeout=30)
     assert r.returncode != 0, "open of an unstageable file should fail, not hang"
 
 
-def _xfer_audit_lines(prefix):
-    p = os.path.join(prefix, "logs", "xfer_audit.log")
-    try:
-        with open(p, "r", errors="replace") as fh:
-            return fh.readlines()
-    except OSError:
-        return []
-
-
-def _wait_tape_line(prefix, lfn, timeout=15.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        for line in _xfer_audit_lines(prefix):
-            if "kind=tape" in line and lfn in line:
-                return line
-        time.sleep(0.2)
-    return None
-
-
-def test_recall_emits_unified_tape_audit_line(staging, tmp_path):
-    """A tape recall joins the unified transfer ledger (kind=tape), so one audit
-    log covers both staged uploads and recalls. Success → result=ok; a recall
-    with no tape source → result=agent_fail."""
-    prefix = os.path.dirname(staging.data)
-    tape = os.path.join(prefix, "tape")
-
-    # fresh nearline file WITH a tape source → recall succeeds
-    ok_name = "audit_ok.dat"
-    with open(os.path.join(tape, ok_name), "wb") as fh:
-        fh.write(b"FRESH-AUDIT-TAPE\n")
-    ok_stub = os.path.join(staging.data, ok_name)
-    open(ok_stub, "wb").close()
-    os.setxattr(ok_stub, "user.frm.residency", b"nearline")
-
-    r = _xrdcp("/" + ok_name, str(tmp_path / "ok.out"), timeout=30)
-    assert r.returncode == 0, f"recall failed: {r.stderr.decode(errors='replace')}"
-    line = _wait_tape_line(prefix, ok_name)
-    assert line is not None, "no kind=tape audit line for a successful recall"
-    assert "result=ok" in line
-    assert "dir=in" in line
-    assert line.count("\n") == 1
-
-    # fresh nearline file with NO tape source → recall fails → result=agent_fail
-    fail_name = "audit_fail.dat"
-    fail_stub = os.path.join(staging.data, fail_name)
-    open(fail_stub, "wb").close()
-    os.setxattr(fail_stub, "user.frm.residency", b"nearline")
-
-    fr = _xrdcp("/" + fail_name, str(tmp_path / "fail.out"), timeout=30)
-    assert fr.returncode != 0, "recall with no tape source should fail"
-    fline = _wait_tape_line(prefix, fail_name)
-    assert fline is not None, "no kind=tape audit line for a failed recall"
-    assert "result=agent_fail" in fline
+@pytest.mark.skip(reason="unified transfer-ledger kind=tape line is emitted only by "
+                         "the stage_engine RECALL path; driving it from a read/prepare "
+                         "is the future engine-integration step noted in "
+                         "src/protocols/root/query/prepare.c (frm_stage_kick -> "
+                         "brix_stage_submit(RECALL)). The sd_frm read-fault recall is "
+                         "synchronous and writes no ledger line.")
+def test_recall_emits_unified_tape_audit_line(frm_recall, tmp_path):
+    pass

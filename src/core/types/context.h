@@ -88,7 +88,7 @@ typedef struct {
  * the slot structs above and after this TU's prerequisite includes. */
 #include "ctx_structs.h"
 
-typedef struct {
+typedef struct brix_ctx_s {
     ngx_stream_session_t  *session;  /* nginx session; gives us c, pool, log */
     brix_state_t         state;    /* drives the read/write event callbacks */
 

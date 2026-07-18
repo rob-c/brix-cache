@@ -197,7 +197,7 @@ openssl verify -CAfile /tmp/xrd-test/pki/ca/ca.pem /tmp/xrd-test/pki/server/host
 
 | Issue | Potential Cause | Fix |
 |---|---|---|
-| `Address already in use` | A previous test session didn't clean up or another service is on a test port. | Run `./tests/manage_test_servers.sh stop` or `pkill nginx`. |
+| `Address already in use` | A previous test session didn't clean up or another service is on a test port. | Run `(cd tests && python3 -m cmdscripts.manage_test_servers stop-all)` or `pkill nginx`. |
 | `ModuleNotFoundError: No module named 'XRootD'` | XRootD Python bindings are missing. | `pip install xrootd` |
 | `ModuleNotFoundError: No module named 'pki_helpers'` | `PYTHONPATH` is not set correctly. | Run `PYTHONPATH=tests pytest ...` or run from the project root. |
 | Tests skip with `nginx binary not found` | `TEST_NGINX_BIN` is wrong. | Set `export TEST_NGINX_BIN=/path/to/your/nginx/objs/nginx`. |
@@ -271,10 +271,10 @@ pytest tests/test_vo_acl.py -v -s 2>&1 | head -100
 pytest tests/test_throughput.py -v -p no:timeout
 ```
 
-### Force-stop all test processes
+### Stop all test processes
 
 ```bash
-tests/manage_test_servers.sh force-stop
+(cd tests && python3 -m cmdscripts.manage_test_servers stop-all)
 ```
 
 ---
@@ -287,7 +287,8 @@ tests/manage_test_servers.sh force-stop
 | `tests/pki_helpers.py` | `blitz_test_pki()`: CA + server cert + user cert generation |
 | `tests/settings.py` | All ports, paths, and binary locations |
 | `tests/server_control.py` | `start_nginx_instance()` and `start_brix_instance()` |
-| `tests/manage_test_servers.sh` | Bash lifecycle script: start/stop/restart/status |
+| `tests/fleet_specs.py` | Declarative fleet catalogue (every instance is a `NginxInstanceSpec`) |
+| `tests/cmdscripts/manage_test_servers.py` | Pure-Python fleet CLI: `start-all`/`stop-all`/`restart`/`status`/`start-dedicated` |
 | `tests/configs/nginx_shared.conf` | Main nginx config template (all standard listeners) |
 | `tests/configs/` | Per-feature nginx config templates |
 | `utils/make_proxy.py` | RFC 3820 GSI proxy generation (Python, no openssl CLI) |

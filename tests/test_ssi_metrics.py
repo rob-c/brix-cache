@@ -10,49 +10,30 @@ Run:
 """
 import os
 import re
-import socket
-import subprocess
-import time
 import urllib.request
 
 import pytest
 
-from config_templates import render_config
 from settings import NGINX_BIN, BIND_HOST, free_port
+from server_registry import NginxInstanceSpec
 from test_ssi_wire import _handshake_login, _open_ssi, _write_request, _query_wait
 
+pytestmark = pytest.mark.uses_lifecycle_harness
 
-@pytest.fixture(scope="module")
-def ssi_metrics_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
+
+@pytest.fixture()
+def ssi_metrics_server(lifecycle):
+    if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip("nginx binary not found")
-    prefix = str(tmp_path_factory.mktemp("ssi_metrics"))
-    data = os.path.join(prefix, "data")
-    os.makedirs(data, exist_ok=True)
-    sport, mport = free_port(), free_port()
-    cfg = os.path.join(prefix, "nginx.conf")
-    with open(cfg, "w") as f:
-        f.write(render_config(
-            "nginx_ssi_metrics.conf",
-            BASE_DIR=prefix,
-            DATA_DIR=data,
-            STREAM_PORT=sport,
-            METRICS_PORT=mport,
-        ))
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", cfg], capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"config rejected: {chk.stderr[-300:]}")
-    subprocess.run([NGINX_BIN, "-c", cfg], capture_output=True)
-    for _ in range(40):
-        try:
-            socket.create_connection((BIND_HOST, sport), timeout=0.5).close()
-            break
-        except OSError:
-            time.sleep(0.1)
-    else:
-        pytest.skip("ssi metrics nginx did not start")
-    yield sport, mport
-    subprocess.run([NGINX_BIN, "-c", cfg, "-s", "stop"], capture_output=True)
+    mport = free_port()
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-ssi-metrics",
+        template="nginx_lc_ssi_metrics.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST},
+        extra_ports={"METRICS_PORT": mport},
+        reason="SSI stream listener + http /metrics scrape target"))
+    return ep.port, ep.extra_ports["METRICS_PORT"]
 
 
 def _scrape(mport):

@@ -19,6 +19,7 @@ CVMFS_CORE_DEPS = [
     "shared/cvmfs/signature/whitelist.c",
     "shared/cvmfs/signature/verify.c",
     "shared/cvmfs/config/repo.c",
+    "shared/cvmfs/object/object.c",
     "shared/cvmfs/failover/failover.c",
 ]
 
@@ -37,8 +38,19 @@ CVMFS_CLIENT_DEPS = [
     "shared/cache/cas_store.c",
 ]
 
+CVMFS_WALK_DEPS = [
+    "shared/cvmfs/walk/walk.c",
+    "shared/cvmfs/fetch/fetch.c",
+    "shared/cvmfs/object/object.c",
+    "shared/cvmfs/failover/failover.c",
+    "shared/cvmfs/catalog/catalog.c",
+    "shared/cvmfs/grammar/hash.c",
+    "shared/cache/cas_store.c",
+]
+
 BRIXCVMFS_CORE_DEPS = [
     "shared/cvmfs/client/client.c",
+    "shared/cvmfs/walk/walk.c",
     "shared/cvmfs/fetch/fetch.c",
     "shared/cvmfs/object/object.c",
     "shared/cvmfs/failover/failover.c",
@@ -52,6 +64,11 @@ BRIXCVMFS_CORE_DEPS = [
     "shared/cvmfs/config/cvmfs_conf.c",
     "shared/cache/cas_store.c",
     "shared/net/proxy_env.c",
+    # phase-86: brixcvmfs now pools its libcurl handles through brix_cpool.
+    "client/lib/net/cpool.c",
+    "client/lib/core/types/status.c",
+    "shared/xrdproto/build/kxr_names.o",
+    "shared/xrdproto/build/error_mapping.o",
 ]
 
 
@@ -88,12 +105,18 @@ def _compile_brixcvmfs(binary: Path) -> subprocess.CompletedProcess | str:
             "-Wall",
             "-Wextra",
             "-Werror",
+            "-DXRDPROTO_NO_NGX",
+            "-I",
+            "client/lib",
+            "-I",
+            "src",
             "-I",
             "shared",
             *cflags,
             "client/apps/fs/brixcvmfs.c",
             *BRIXCVMFS_CORE_DEPS,
             *libs,
+            "-pthread",
             "-lcurl",
             "-lsqlite3",
             "-lcrypto",
@@ -118,6 +141,7 @@ def core_unit(base: Path) -> tuple[bool, str]:
             "shared/cvmfs/cvmfs_core_unittest.c",
             *CVMFS_CORE_DEPS,
             "-lcrypto",
+            "-lz",
         ],
         cwd=REPO_ROOT,
     )
@@ -149,6 +173,30 @@ def client_unit(base: Path) -> tuple[bool, str]:
         return result(False, f"compile CVMFS client unit failed: {_tail(built)}")
     ran = run([str(binary)], cwd=REPO_ROOT)
     return result(ran.returncode == 0, f"CVMFS client unit exited {ran.returncode}: {_tail(ran)}")
+
+
+def walk_unit(base: Path) -> tuple[bool, str]:
+    binary = base / "cvmfs_walk_ut"
+    built = compile_binary(
+        binary,
+        [
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-I",
+            "shared",
+            "shared/cvmfs/walk/walk_unittest.c",
+            *CVMFS_WALK_DEPS,
+            "-lsqlite3",
+            "-lcrypto",
+            "-lz",
+        ],
+        cwd=REPO_ROOT,
+    )
+    if built.returncode != 0:
+        return result(False, f"compile CVMFS walk unit failed: {_tail(built)}")
+    ran = run([str(binary)], cwd=REPO_ROOT)
+    return result(ran.returncode == 0, f"CVMFS walk unit exited {ran.returncode}: {_tail(ran)}")
 
 
 def brixcvmfs_build(base: Path) -> tuple[bool, str]:
@@ -279,6 +327,7 @@ def brixcvmfs_check(base: Path) -> tuple[bool, str]:
 RUNNERS = {
     "core": core_unit,
     "client": client_unit,
+    "walk": walk_unit,
     "build": brixcvmfs_build,
     "check": brixcvmfs_check,
 }

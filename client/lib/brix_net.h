@@ -391,6 +391,14 @@ int  brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
 int  brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
                       int verify, const char *ca_dir, brix_dirent **ents,
                       size_t *n, brix_status *st);
+/* Pooled keep-alive variants (Phase-86): the FUSE driver's getattr/readdir path.
+ * `pool` is a brix_cpool of brix_webmeta (one origin+identity per pool); each
+ * call reuses a persistent connection instead of connect/close per op. 0 / -1. */
+struct brix_cpool;   /* fwd: full type in net/cpool.h */
+int  brix_web_stat_pooled(struct brix_cpool *pool, const char *path,
+                          brix_statinfo *si, brix_status *st);
+int  brix_web_readdir_pooled(struct brix_cpool *pool, const char *path,
+                             brix_dirent **ents, size_t *n, brix_status *st);
 /* An open-for-read web file whose pread issues a Range GET over a PERSISTENT
  * keep-alive connection (resilient: reconnect + re-issue on a dropped link). */
 typedef struct brix_webfile brix_webfile;

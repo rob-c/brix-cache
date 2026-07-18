@@ -12,7 +12,7 @@
  * WHY: aws-chunked bodies carry chunk framing that must be stripped; a combined
  *   "aws-chunked,gzip" would be stored still-compressed (silent corruption), so
  *   it is rejected with the same 400 the non-chunked codec path uses.
- * HOW: always terminal — either aborts the staged file and finalizes a codec
+ * HOW: always terminal — either aborts the write session and finalizes a codec
  *   error, or hands off to s3_put_streaming (which finalizes asynchronously).
  */
 static void
@@ -25,11 +25,11 @@ s3put_stream_aws_chunked(s3put_state_t *st)
      * undecoded bytes — the same invariant the non-chunked path enforces with
      * 400 below.  Plain aws-chunked (no inner coding) continues normally. */
     if (s3_aws_chunked_has_inner_coding(st->r)) {
-        brix_vfs_staged_abort(st->staged, 1);
+        brix_vfs_writer_abort(st->writer);
         s3_put_finalize_codec_error(st->r, NGX_HTTP_BAD_REQUEST);
         return;
     }
-    s3_put_streaming(st->r, st->cf, st->staged, (const char *) st->fs_path,
+    s3_put_streaming(st->r, st->cf, st->writer, (const char *) st->fs_path,
                      st->body_mode);
 }
 
@@ -42,7 +42,7 @@ s3put_stream_aws_chunked(s3put_state_t *st)
  * WHY: an unknown / not-compiled-in encoding must never be stored undecoded —
  *   it is a 400 client error, decided once here.
  * HOW: returns NGX_OK (st->put_codec set, defaulting to IDENTITY); returns
- *   NGX_DONE after aborting the staged file and finalizing a 400.
+ *   NGX_DONE after aborting the write session and finalizing a 400.
  */
 static ngx_int_t
 s3put_select_codec(s3put_state_t *st)
@@ -56,7 +56,7 @@ s3put_select_codec(s3put_state_t *st)
         if (d == NULL || !d->available) {
             /* Unknown / not-compiled-in Content-Encoding: never store the
              * undecoded bytes — reject as a client error (400), not 500. */
-            brix_vfs_staged_abort(st->staged, 1);
+            brix_vfs_writer_abort(st->writer);
             s3_put_finalize_codec_error(st->r, NGX_HTTP_BAD_REQUEST);
             return NGX_DONE;
         }
@@ -104,14 +104,14 @@ s3put_stream_offload(s3put_state_t *st)
 
     task = ngx_thread_task_alloc(st->r->pool, sizeof(s3_put_aio_t));
     if (task == NULL) {
-        brix_vfs_staged_abort(st->staged, 1);
+        brix_vfs_writer_abort(st->writer);
         s3_put_finalize_error(st->r);
         return NGX_DONE;
     }
 
     t = task->ctx;
     t->r          = st->r;
-    t->staged     = st->staged;
+    t->writer     = st->writer;
     t->len        = st->body_summary.bytes;
     t->body_mode  = st->body_mode;
     t->body_bytes = st->body_bytes;
@@ -128,7 +128,7 @@ s3put_stream_offload(s3put_state_t *st)
     brix_task_bind(task, s3_put_aio_thread, s3_put_aio_done);
 
     if (ngx_thread_task_post(st->cf->common.thread_pool, task) != NGX_OK) {
-        brix_vfs_staged_abort(st->staged, 1);
+        brix_vfs_writer_abort(st->writer);
         s3_put_finalize_error(st->r);
         return NGX_DONE;
     }
@@ -146,7 +146,7 @@ s3put_stream_offload(s3put_state_t *st)
  * WHY: reached only when the async offload declined (encoded body, empty body,
  *   or no thread pool); maps a decode failure to the right S3 client error.
  * HOW: returns NGX_OK on a successful write; returns NGX_DONE after aborting the
- *   staged file and finalizing the mapped error (413/400 codec, else 500).
+ *   write session and finalizing the mapped error (413/400 codec, else 500).
  */
 static ngx_int_t
 s3put_stream_sync(s3put_state_t *st)
@@ -155,23 +155,31 @@ s3put_stream_sync(s3put_state_t *st)
     ngx_int_t decode_status = 0;
 
     if (st->put_codec != BRIX_CODEC_IDENTITY) {
-        wrc = brix_http_body_decode_to_fd(st->r, brix_vfs_staged_fd(st->staged),
-                                            (const char *) st->fs_path,
-                                            st->put_codec,
-                                            BRIX_DECODE_MAX_OUTPUT,
-                                            &st->body_summary,
-                                            &decode_status);
+        ngx_fd_t wfd = brix_vfs_writer_fd(st->writer);
+
+        /* Codec decode writes through a raw fd; a driver-backed object session
+         * has none (NGX_INVALID_FILE) — reject with 501 rather than corrupt. */
+        if (wfd == NGX_INVALID_FILE) {
+            errno = ENOSYS;
+            wrc = NGX_ERROR;
+            decode_status = NGX_HTTP_NOT_IMPLEMENTED;
+        } else {
+            wrc = brix_http_body_decode_to_fd(st->r, wfd,
+                                                (const char *) st->fs_path,
+                                                st->put_codec,
+                                                BRIX_DECODE_MAX_OUTPUT,
+                                                &st->body_summary,
+                                                &decode_status);
+        }
     } else {
-        wrc = brix_http_body_write_to_fd(st->r, brix_vfs_staged_fd(st->staged),
-                                            (const char *) st->fs_path,
-                                            &st->body_summary);
+        wrc = brix_http_body_write_to_writer(st->r, st->writer);
     }
 
     if (wrc == NGX_OK) {
         return NGX_OK;
     }
 
-    brix_vfs_staged_abort(st->staged, 1);
+    brix_vfs_writer_abort(st->writer);
     /* Map a decode failure to a clean S3 client error (413 bomb / 400
      * malformed); a genuine I/O failure (decode_status 0 or 5xx) stays
      * a 500. */
@@ -208,7 +216,7 @@ s3put_stream_body(s3put_state_t *st)
     ngx_int_t rc;
 
     if (brix_http_body_summary(st->r, &st->body_summary) != NGX_OK) {
-        brix_vfs_staged_abort(st->staged, 1);
+        brix_vfs_writer_abort(st->writer);
         s3_put_finalize_error(st->r);
         return NGX_DONE;
     }
@@ -289,7 +297,7 @@ void
 s3put_commit_and_headers(s3put_state_t *st)
 {
     if (s3_commit_put(st->r, st->r->connection->log,
-                      st->cf->common.root_canon, st->staged,
+                      st->cf->common.root_canon, st->writer,
                       (const char *) st->fs_path) != NGX_OK)
     {
         if (s3_put_commit_conflict(st->r)) {

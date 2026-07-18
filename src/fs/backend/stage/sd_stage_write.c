@@ -160,8 +160,23 @@ sd_stage_open_writeback(brix_sd_instance_t *inst, sd_stage_inst_state *is,
 /* ---- write-back byte-I/O (only reached for objects opened for write above) ------ */
 
 /* Flush the buffered stage object to the backend through the one staging engine.
- * Persists the stage buffer first (fsync), then FLUSHes store→source by key. On
- * success clears the dirty flag; on failure keeps the stage copy for retry. */
+ * Persists the stage buffer first (fsync), then FLUSHes store→source by key.
+ *
+ * The flush MODE is a property of the tier (BRIX_WT_MODE_ASYNC comes from the
+ * `brix_stage_flush async` directive on this stage decorator), so this routing is
+ * defined by the backend, not global: a plain/sync stage export flushes inline as
+ * before; only an async (tape write-back) tier defers.
+ *
+ * ASYNC (tape write-back): the whole object is durable on the stage store after
+ * the fsync above, so the flush is submitted to the async staging queue and the
+ * close/fsync returns immediately. The scheduler drains it store→source and drops
+ * the stage copy on success; a transient origin failure leaves a FAILED record in
+ * the durable journal (last_errno stamped) and the restart reconcile re-drives it
+ * from the export anchor (o.export_root). The owner cred rides on the opts so the
+ * deferred flush authenticates as the original user.
+ *
+ * SYNC: flush inline and reflect the result; on success clear dirty, on failure
+ * keep the stage copy for retry. */
 static ngx_int_t
 sd_stage_wb_flush(sd_stage_wb_state *wb)
 {
@@ -174,6 +189,23 @@ sd_stage_wb_flush(sd_stage_wb_state *wb)
     if (!wb->dirty) {
         return NGX_OK;
     }
+
+    if (is->policy.flush_mode == BRIX_WT_MODE_ASYNC) {
+        brix_stage_opts_t o;
+
+        ngx_memzero(&o, sizeof(o));
+        o.async       = 1;
+        o.export_root = (is->root_canon[0] != '\0') ? is->root_canon : NULL;
+        o.cred        = (wb->cred.key[0] != '\0') ? &wb->cred : NULL;
+        /* phase74-fp: FLUSH moves bytes FROM the stage `store` TO the backend
+         * `source`, so store is the src and source the dst — same verified
+         * src/dst order as sd_stage_staged_commit's async submit. */
+        (void) brix_stage_submit(BRIX_STAGE_FLUSH, is->store, wb->key,  /* NOLINT(readability-suspicious-call-argument) */
+                                   is->source, wb->key, &o);
+        wb->dirty = 0;                   /* handed off to the durable queue */
+        return NGX_OK;
+    }
+
     rc = brix_stage_run_inline_cred(BRIX_STAGE_FLUSH, is->store, wb->key,
                                      is->source, wb->key,
                                      (wb->cred.key[0] != '\0') ? &wb->cred : NULL);

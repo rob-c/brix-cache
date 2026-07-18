@@ -16,6 +16,30 @@
 #include "fs/cache/cache_internal.h"   /* brix_cache_state_root (effective sidecar tree) */
 #include "core/config/export_guard.h"  /* brix_assert_dir_outside_export (hard guard) */
 
+#include <stdlib.h>                    /* strtol (F8 peer-ring port parse)   */
+#include <string.h>                    /* strrchr                            */
+
+/* brix_pblock_write_opts_sidecar — persist a pblock `?tail` query string as the
+ * one-line <root>/pblock.opts sidecar the pblock driver parses at instance init
+ * (Phase-83 static opts). Best-effort at config finalise: the root dir already
+ * exists (mkdir ran first). Kept here (not in the sqlite-gated pblock driver) so
+ * it links regardless of BRIX_HAVE_SQLITE. */
+static void
+brix_pblock_write_opts_sidecar(const char *root, const char *tail)
+{
+    char  path[4096];
+    FILE *f;
+
+    (void) snprintf(path, sizeof(path), "%s/pblock.opts", root);
+    f = fopen(path, "we");
+    if (f == NULL) {
+        return;
+    }
+    (void) fputs(tail != NULL ? tail : "", f);
+    (void) fputc('\n', f);
+    (void) fclose(f);
+}
+
 /* Directive setter for a tier store-URL directive: arg[1] = the store URL (into the
  * ngx_str_t at cmd->offset); args[2..] = trailing credential=/block_size= params
  * (into the ngx_array_t* at the field offset carried in cmd->post). See header. */
@@ -100,7 +124,30 @@ brix_storage_backend_posix_root(ngx_http_brix_shared_conf_t *common)
             common->root.len  = sb->len  - base + 1;
         }
         sb->len = sizeof("pblock") - 1;              /* the bare "pblock" driver */
-        (void) brix_mkdir_recursive((const char *) common->root.data, 0755);
+
+        /* Phase-83 static opts: a `?tail` query string on the root
+         * (pblock:///srv/x?lab=1&caps=-sendfile) selects the lab gate + caps/mem
+         * knobs. Strip it BEFORE mkdir/root_canon (which would otherwise create a
+         * literal '?' directory / canonicalise it away) by NUL-terminating the
+         * root at '?', then stash the tail as the <root>/pblock.opts sidecar the
+         * driver reads at init. No tail ⇒ no sidecar ⇒ lab OFF (production path). */
+        {
+            u_char *q = memchr(common->root.data, '?', common->root.len);
+
+            if (q != NULL) {
+                const char *tail = (const char *) (q + 1);
+
+                *q = '\0';                           /* truncate root at '?' */
+                common->root.len = (size_t) (q - common->root.data);
+                (void) brix_mkdir_recursive((const char *) common->root.data,
+                                            0755);
+                brix_pblock_write_opts_sidecar(
+                    (const char *) common->root.data, tail);
+            } else {
+                (void) brix_mkdir_recursive((const char *) common->root.data,
+                                            0755);
+            }
+        }
     }
 }
 
@@ -131,6 +178,157 @@ brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common)
     return 0;
 }
 
+/* Load the CVMFS repo master public key PEM named by `path` into the cache
+ * policy (phase-85 F1). Config-time, cf->pool-owned (cycle lifetime — workers
+ * inherit the pointer through the registered policy copy). The file may hold
+ * several concatenated PEM keys (CVMFS key rotation); content is validated by
+ * the OpenSSL PEM parser at verify time, here only shape-checked. [emerg] on
+ * any failure — a verifying proxy with an unloadable trust anchor must not
+ * start. */
+static ngx_int_t
+brix_tier_load_master_key(ngx_conf_t *cf, const ngx_str_t *path,
+    brix_cache_policy_t *pol)
+{
+    char       pathz[1024];
+    u_char    *buf;
+    ssize_t    n;
+    off_t      size;
+    ngx_fd_t   fd;
+    ngx_file_info_t  fi;
+
+    if (path->len >= sizeof(pathz)) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cvmfs_verify_manifest: key path too long");
+        return NGX_ERROR;
+    }
+    ngx_cpystrn((u_char *) pathz, path->data, path->len + 1);
+
+    fd = open(pathz, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: config-domain trust-anchor PEM (not export storage) */
+    if (fd == -1) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+            "brix_cvmfs_verify_manifest: cannot open \"%s\"", pathz);
+        return NGX_ERROR;
+    }
+    if (ngx_fd_info(fd, &fi) == -1
+        || (size = ngx_file_size(&fi)) <= 0 || size > 65536)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cvmfs_verify_manifest: \"%s\" is empty, unreadable "
+            "or larger than 64KB", pathz);
+        (void) close(fd);
+        return NGX_ERROR;
+    }
+    buf = ngx_palloc(cf->pool, (size_t) size + 1);
+    if (buf == NULL) {
+        (void) close(fd);
+        return NGX_ERROR;
+    }
+    n = read(fd, buf, (size_t) size);   /* vfs-seam-allow: config-domain trust-anchor PEM (not export storage) */
+    (void) close(fd);
+    if (n != (ssize_t) size) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+            "brix_cvmfs_verify_manifest: short read on \"%s\"", pathz);
+        return NGX_ERROR;
+    }
+    buf[size] = '\0';
+    if (ngx_strstr(buf, "BEGIN PUBLIC KEY") == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cvmfs_verify_manifest: \"%s\" holds no PEM public key",
+            pathz);
+        return NGX_ERROR;
+    }
+    pol->cvmfs_master_pub     = buf;
+    pol->cvmfs_master_pub_len = (size_t) size;
+    return NGX_OK;
+}
+
+/* Parse + validate the brix_cache_peers ring (phase-85 F8) and record it on
+ * the backend registry. Each member token is "host:port"; this node's own slot
+ * is "self=host:port" (the mesh needs every node to carry the IDENTICAL list so
+ * rendezvous ownership agrees, so self is marked, never omitted). Operator
+ * errors — malformed authority, no/duplicate self, fewer than 2 members, more
+ * than 16 — are [emerg], failing nginx -t. */
+static ngx_int_t
+brix_tier_register_cache_peers(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common)
+{
+    char        hosts[16][256];
+    int         ports[16];
+    int         self = -1;
+    ngx_str_t  *tok = common->cache_peers->elts;
+    ngx_uint_t  i;
+
+    if (common->cache_peers->nelts < 2) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_peers: a mesh needs at least 2 ring members "
+            "(self=host:port plus one sibling)");
+        return NGX_ERROR;
+    }
+    if (common->cache_peers->nelts > 16) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_peers: at most 16 ring members supported");
+        return NGX_ERROR;
+    }
+
+    for (i = 0; i < common->cache_peers->nelts; i++) {
+        char       buf[300];
+        char      *auth = buf;
+        char      *colon;
+        long       port;
+
+        if (tok[i].len >= sizeof(buf)) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cache_peers: member \"%V\" is too long", &tok[i]);
+            return NGX_ERROR;
+        }
+        ngx_memcpy(buf, tok[i].data, tok[i].len);
+        buf[tok[i].len] = '\0';
+
+        if (ngx_strncmp(auth, "self=", sizeof("self=") - 1) == 0) {
+            if (self >= 0) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "brix_cache_peers: more than one self= member");
+                return NGX_ERROR;
+            }
+            self = (int) i;
+            auth += sizeof("self=") - 1;
+        }
+        colon = strrchr(auth, ':');
+        if (colon == NULL || colon == auth || colon[1] == '\0') {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cache_peers: member \"%V\" is not host:port", &tok[i]);
+            return NGX_ERROR;
+        }
+        port = strtol(colon + 1, NULL, 10);
+        if (port < 1 || port > 65535) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cache_peers: member \"%V\" has an invalid port",
+                &tok[i]);
+            return NGX_ERROR;
+        }
+        *colon = '\0';
+        if (ngx_strlen(auth) >= sizeof(hosts[0])) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cache_peers: member \"%V\" host is too long", &tok[i]);
+            return NGX_ERROR;
+        }
+        ngx_cpystrn((u_char *) hosts[i], (u_char *) auth, sizeof(hosts[i]));
+        ports[i] = (int) port;
+    }
+
+    if (self < 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_peers: mark this node's own ring slot with "
+            "self=host:port");
+        return NGX_ERROR;
+    }
+
+    brix_vfs_backend_config_cache_peers(common->root_canon,
+        (const char (*)[256]) hosts, ports,
+        (int) common->cache_peers->nelts, self);
+    return NGX_OK;
+}
+
 /* Parse the cache_store URL and record its tier cfg + read-through policy on the
  * backend registry. Split out of brix_tier_register_stores so each function's
  * branching stays within the readability gate. Operator errors are [emerg]. */
@@ -151,6 +349,12 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
     ngx_memzero(&pol, sizeof(pol));
     pol.enabled       = 1;
     pol.max_file_size = common->cache_max_object;
+    /* Read-fill admission (bridged from the srv conf at finalisation): deny/allow
+     * prefixes + include regex gate the composable sd_cache fill for parity with
+     * write-through and the legacy cache_origin admit. NULL => no filter. */
+    pol.deny_prefixes  = common->cache_deny_prefixes;
+    pol.allow_prefixes = common->cache_allow_prefixes;
+    pol.include_regex  = common->cache_include_re;
     pol.evict_at      = common->cache_evict_at;
     pol.evict_to      = common->cache_evict_to;
     pol.meta_mode     = (int) common->cache_meta_mode;
@@ -173,6 +377,24 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
         return NGX_ERROR;
     }
     pol.cvmfs_manifest_ttl = common->cache_manifest_ttl;
+    pol.cvmfs_offline_ttl  = common->cache_offline_ttl;
+    /* phase-85 F1: brix_cvmfs_verify_manifest — load the repo master public
+     * key(s) once at config time; the fill spine verifies every MANIFEST-class
+     * fill's signature chain against it before publish. Same posix-store
+     * constraint as cvmfs-cas (the verify reads the staged part path). */
+    if (common->cache_cvmfs_master_key.len > 0) {
+        if (ngx_strcmp(cfg.driver, "posix") != 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cvmfs_verify_manifest requires a local posix "
+                "cache store (got \"%s\")", cfg.driver);
+            return NGX_ERROR;
+        }
+        if (brix_tier_load_master_key(cf, &common->cache_cvmfs_master_key,
+                                        &pol) != NGX_OK)
+        {
+            return NGX_ERROR;              /* [emerg] already logged */
+        }
+    }
     if (common->cache_quarantine_dir.len > 0) {
         ngx_cpystrn((u_char *) pol.quarantine_dir,
                     common->cache_quarantine_dir.data,
@@ -180,6 +402,27 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
                             sizeof(pol.quarantine_dir)));
     }
     brix_vfs_backend_config_cache_store(common->root_canon, &cfg, &pol);
+
+    /* Phase-85 F7: the optional cold tier under the cache — its own store URL,
+     * governed by the hot cache's policy (no separate knobs). */
+    if (common->cache_cold_store.len > 0) {
+        brix_tier_cfg_t   ccfg;
+        brix_tier_parse_t ctp = { cf, &ccfg, err, sizeof(err) };
+
+        if (brix_tier_parse_store(&ctp, &common->cache_cold_store,
+                common->cache_cold_store_args, BRIX_TIER_CACHE) != NGX_OK)
+        {
+            return NGX_ERROR;                  /* [emerg] already logged */
+        }
+        brix_vfs_backend_config_cache_cold_store(common->root_canon, &ccfg);
+    }
+
+    /* Phase-85 F8: the sibling-mesh ring under the cache tier. */
+    if (common->cache_peers != NULL
+        && brix_tier_register_cache_peers(cf, common) != NGX_OK)
+    {
+        return NGX_ERROR;                      /* [emerg] already logged */
+    }
     return NGX_OK;
 }
 
@@ -209,6 +452,23 @@ brix_tier_register_stores(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
                 "brix_cache_store (the recall target); add a cache tier");
             return NGX_ERROR;
         }
+    }
+
+    /* Phase-85 F7: a cold tier is meaningless without the hot cache it sits
+     * under — reject at config time rather than silently ignoring it. */
+    if (common->cache_cold_store.len > 0 && common->cache_store.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_cold_store requires brix_cache_store (the hot tier)");
+        return NGX_ERROR;
+    }
+
+    /* Phase-85 F8: the sibling mesh fills INTO the cache tier — meaningless
+     * without one. */
+    if (common->cache_peers != NULL && common->cache_store.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_peers requires brix_cache_store (the mesh fills "
+            "the cache tier)");
+        return NGX_ERROR;
     }
 
     if (common->cache_store.len > 0

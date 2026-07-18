@@ -198,12 +198,14 @@ def _tpc_attempt(port, src_url, dst_filename="/tpc_dst_test.dat"):
 class TestSSRFDefaultPolicy:
     """Default: tpc_allow_local=off, tpc_allow_private=on."""
 
+    @pytest.mark.registry_server("tpc-ssrf-default")
     def test_loopback_ipv4_rejected(self, nginx_default):
         port = nginx_default["port"]
         status, err = _tpc_attempt(port, "root://127.0.0.1//test.txt")
         assert status == kXR_error, "expected kXR_error, got %d" % status
         assert "prohibited" in err, "error should mention 'prohibited': %r" % err
 
+    @pytest.mark.registry_server("tpc-ssrf-default")
     def test_loopback_localhost_name_rejected(self, nginx_default):
         # 'localhost' resolves to 127.0.0.1 (or ::1) — both are blocked by default
         port = nginx_default["port"]
@@ -213,6 +215,7 @@ class TestSSRFDefaultPolicy:
             "expected SSRF or connection-refused: %r" % err
         )
 
+    @pytest.mark.registry_server("tpc-ssrf-default")
     def test_link_local_ipv4_rejected(self, nginx_default):
         port = nginx_default["port"]
         # 169.254.0.1 is link-local — blocked by default
@@ -220,6 +223,7 @@ class TestSSRFDefaultPolicy:
         assert status == kXR_error, "expected kXR_error, got %d" % status
         assert "prohibited" in err, "expected prohibited: %r" % err
 
+    @pytest.mark.registry_server("tpc-ssrf-default")
     def test_rfc1918_10_allowed_by_default(self, nginx_default):
         # 10.x.x.x is RFC-1918 private — allowed by default
         # Since there's no actual server, we expect connection error (not SSRF rejection)
@@ -231,12 +235,14 @@ class TestSSRFDefaultPolicy:
             "RFC-1918 10/8 should be allowed by default, got: %r" % err
         )
 
+    @pytest.mark.registry_server("tpc-ssrf-default")
     def test_rfc1918_192168_allowed_by_default(self, nginx_default):
         port = nginx_default["port"]
         status, err = _tpc_attempt(port, "root://192.168.255.1//test.txt")
         assert status == kXR_error
         assert "prohibited" not in err, "192.168/16 should be allowed: %r" % err
 
+    @pytest.mark.registry_server("tpc-ssrf-default")
     def test_rfc1918_172_allowed_by_default(self, nginx_default):
         port = nginx_default["port"]
         status, err = _tpc_attempt(port, "root://172.31.0.1//test.txt")
@@ -251,6 +257,7 @@ class TestSSRFDefaultPolicy:
 class TestSSRFAllowLocalPolicy:
     """With tpc_allow_local on, loopback is no longer SSRF-blocked."""
 
+    @pytest.mark.registry_server("tpc-ssrf-allow-local")
     def test_loopback_not_ssrf_blocked_when_allow_local(self, nginx_allow_local):
         port = nginx_allow_local["port"]
         status, err = _tpc_attempt(port, "root://127.0.0.1//test.txt")
@@ -260,12 +267,14 @@ class TestSSRFAllowLocalPolicy:
             "loopback should not be prohibited with allow_local on: %r" % err
         )
 
+    @pytest.mark.registry_server("tpc-ssrf-allow-local")
     def test_link_local_not_ssrf_blocked_when_allow_local(self, nginx_allow_local):
         port = nginx_allow_local["port"]
         status, err = _tpc_attempt(port, "root://169.254.1.1//test.txt")
         assert status == kXR_error
         assert "prohibited" not in err, "link-local should pass SSRF with allow_local: %r" % err
 
+    @pytest.mark.registry_server("tpc-ssrf-allow-local")
     def test_private_still_allowed(self, nginx_allow_local):
         port = nginx_allow_local["port"]
         status, err = _tpc_attempt(port, "root://10.0.0.1//test.txt")
@@ -280,24 +289,28 @@ class TestSSRFAllowLocalPolicy:
 class TestSSRFDenyPrivatePolicy:
     """With tpc_allow_private off, RFC-1918 addresses are blocked."""
 
+    @pytest.mark.registry_server("tpc-ssrf-deny-private")
     def test_rfc1918_10_rejected(self, nginx_deny_private):
         port = nginx_deny_private["port"]
         status, err = _tpc_attempt(port, "root://10.0.0.1//test.txt")
         assert status == kXR_error
         assert "prohibited" in err, "10/8 should be prohibited with allow_private off: %r" % err
 
+    @pytest.mark.registry_server("tpc-ssrf-deny-private")
     def test_rfc1918_192168_rejected(self, nginx_deny_private):
         port = nginx_deny_private["port"]
         status, err = _tpc_attempt(port, "root://192.168.1.1//test.txt")
         assert status == kXR_error
         assert "prohibited" in err, "192.168/16 should be prohibited: %r" % err
 
+    @pytest.mark.registry_server("tpc-ssrf-deny-private")
     def test_rfc1918_172_rejected(self, nginx_deny_private):
         port = nginx_deny_private["port"]
         status, err = _tpc_attempt(port, "root://172.16.0.1//test.txt")
         assert status == kXR_error
         assert "prohibited" in err, "172.16/12 should be prohibited: %r" % err
 
+    @pytest.mark.registry_server("tpc-ssrf-deny-private")
     def test_loopback_still_rejected(self, nginx_deny_private):
         # loopback is governed by allow_local (off by default), not allow_private
         port = nginx_deny_private["port"]
@@ -305,6 +318,7 @@ class TestSSRFDenyPrivatePolicy:
         assert status == kXR_error
         assert "prohibited" in err, "loopback should still be prohibited: %r" % err
 
+    @pytest.mark.registry_server("tpc-ssrf-deny-private")
     def test_public_ip_not_ssrf_blocked(self, nginx_deny_private):
         # A non-private, non-loopback address: should NOT be SSRF-rejected
         # (will fail with DNS/connect error, but not "prohibited")

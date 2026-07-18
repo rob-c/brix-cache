@@ -348,6 +348,58 @@ brix_http_body_write_to_staged(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+ngx_int_t
+brix_http_body_write_to_writer(ngx_http_request_t *r, brix_vfs_writer_t *w)
+{
+    ngx_chain_t *cl;
+    off_t        off = 0;
+
+    if (r == NULL || w == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (r->request_body == NULL) {
+        return NGX_OK;
+    }
+
+    for (cl = r->request_body->bufs; cl != NULL; cl = cl->next) {
+        ngx_buf_t *b = cl->buf;
+
+        if (b == NULL) {
+            continue;
+        }
+
+        if (b->in_file) {
+            if (b->file == NULL || b->file->fd == NGX_INVALID_FILE
+                || b->file_last < b->file_pos)
+            {
+                errno = EINVAL;
+                return NGX_ERROR;
+            }
+            if (b->file_last > b->file_pos) {
+                size_t len = (size_t) (b->file_last - b->file_pos);
+
+                if (brix_vfs_writer_write_fd(w, b->file->fd, b->file_pos, len,
+                                             off) != NGX_OK)
+                {
+                    return NGX_ERROR;
+                }
+                off += (off_t) len;
+            }
+
+        } else if (b->pos < b->last) {
+            size_t len = (size_t) (b->last - b->pos);
+
+            if (brix_vfs_writer_write(w, b->pos, len, off) != NGX_OK) {
+                return NGX_ERROR;
+            }
+            off += (off_t) len;
+        }
+    }
+
+    return NGX_OK;
+}
+
 /*
  * brix_http_body_read_all - copy the entire body into one pool buffer.
  *

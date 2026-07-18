@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 import shutil
 import signal
+import sys
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
@@ -15,8 +16,11 @@ def nproc() -> str:
 
 
 def brutal_teardown(test_root: Path) -> list[tuple[bool, str]]:
-    manage = REPO_ROOT / "tests" / "manage_test_servers.sh"
-    run([str(manage), "stop-all"], cwd=REPO_ROOT, env={"TEST_ROOT": str(test_root)})
+    run(
+        [sys.executable, "-m", "cmdscripts.manage_test_servers", "stop-all"],
+        cwd=REPO_ROOT / "tests",
+        env={"TEST_ROOT": str(test_root)},
+    )
     killed = 0
     for proc_name in ("nginx", "xrootd", "krb5kdc", "kadmind"):
         pgrep = run(["pgrep", "-x", proc_name], cwd=REPO_ROOT)

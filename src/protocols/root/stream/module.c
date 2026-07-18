@@ -22,6 +22,7 @@
 #include "net/manager/health_check.h" /* BRIX_HC_TYPE_* */
 #include "net/mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
 #include "net/ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
+#include "core/negcache/negcache.h"   /* E-4: brix_negcache_backoff setter */
 #include "auth/impersonate/lifecycle.h" /* Phase 40: impersonation directives */
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "core/config/credential_block.h" /* §14 brix_credential block directive */
@@ -345,6 +346,14 @@ ngx_command_t ngx_stream_brix_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, ocsp.soft_fail),
+      NULL },
+
+    /* A-6 item 2: hard-fail a nonce-less OCSP response (replay guard); opt-in. */
+    { ngx_string("brix_ocsp_require_nonce"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, ocsp.require_nonce),
       NULL },
 
     { ngx_string("brix_ocsp_stapling"),

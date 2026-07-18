@@ -210,6 +210,29 @@ brix_vfs_backend_mode(brix_vfs_ctx_t *vctx)
     return vctx->deleg_live->mode;
 }
 
+/* ---- brix_vfs_backend_accepts_proxy ----------------------------------------
+ *
+ * WHAT: Report whether the ctx's resolved leaf backend consumes a forwarded
+ *       X.509 proxy PEM.
+ *
+ * WHY:  A protocol that forwards a captured proxy by default (the gsiftp→xrootd
+ *       gateway) must not bind a proxy bag on a backend that cannot use one — the
+ *       cred gate would then deny (EACCES) a request that should have served on
+ *       the service credential. Gating the bind on this predicate keeps the
+ *       default-on delegation scoped to proxy-capable backends (xroot, s3).
+ *
+ * HOW:  brix_sd_cred_accept on the resolved leaf; NULL-safe (default-POSIX
+ *       resolves to a NULL sd whose accept mask is 0). */
+int
+brix_vfs_backend_accepts_proxy(brix_vfs_ctx_t *vctx)
+{
+    if (vctx == NULL || vctx->sd == NULL) {
+        return 0;
+    }
+    return (brix_sd_cred_accept(brix_vfs_ns_leaf(vctx->sd))
+            & BRIX_SD_CRED_PROXY_PEM) ? 1 : 0;
+}
+
 /* ---- brix_vfs_deleg_snapshot -----------------------------------------------
  *
  * WHAT: Copy out the ctx's bound delegation mode + bearer bytes so a derived

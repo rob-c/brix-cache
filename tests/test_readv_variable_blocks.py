@@ -17,18 +17,18 @@ Run:
 """
 
 import os
-import socket
 import subprocess
-import tempfile
-import time
 import shutil
 
 import pytest
 
-from config_templates import render_config
+from settings import HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
 
 # Reuse the proven static-link probes from the libbrix test.
 from test_libbrix import _codec_link_libs, _krb5_link_libs, _uring_link_libs
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = os.path.join(REPO, "client")
@@ -37,19 +37,10 @@ SHARED = os.path.join(REPO, "shared", "xrdproto")
 DEMO_SRC = os.path.join(CLIENT, "examples", "brix_readv_demo.c")
 LIBXRDC = os.path.join(CLIENT, "libbrix.a")
 LIBXRDPROTO = os.path.join(SHARED, "libxrdproto.a")
-NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 CC = os.environ.get("CC", "cc")
 
 FILE_BYTES = 5 * 1024 * 1024
 CAP = 1024 * 1024                 # brix_readv_segment_size 1m
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 @pytest.fixture(scope="module")
@@ -72,49 +63,20 @@ def demo_bin(tmp_path_factory):
     return out
 
 
-@pytest.fixture(scope="module")
-def server1m():
-    if not os.path.isfile(NGINX_BIN):
-        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
-    prefix = tempfile.mkdtemp(prefix="readv_var_")
-    data, logs, confd = (os.path.join(prefix, d) for d in ("data", "logs", "conf"))
-    for d in (data, logs, confd):
-        os.makedirs(d, exist_ok=True)
+@pytest.fixture()
+def server1m(lifecycle, tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
     payload = os.urandom(FILE_BYTES)
-    with open(os.path.join(data, "big.bin"), "wb") as fh:
-        fh.write(payload)
-    port = _free_port()
-    with open(os.path.join(confd, "nginx.conf"), "w") as fh:
-        fh.write(render_config(
-            "nginx_readv_variable_blocks.conf",
-            PORT=port,
-            DATA_DIR=data,
-            LOG_DIR=logs,
-        ))
-    env = dict(os.environ)
-    env.pop("LD_LIBRARY_PATH", None)
-    proc = subprocess.Popen([NGINX_BIN, "-p", prefix, "-c", "conf/nginx.conf"], env=env)
-    up = False
-    for _ in range(60):
-        try:
-            socket.create_connection(("127.0.0.1", port), timeout=1).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        proc.terminate()
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.fail(f"nginx never came up on :{port}")
-    try:
-        yield {"url": f"root://127.0.0.1:{port}", "payload": payload}
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except Exception:
-            proc.kill()
-        shutil.rmtree(prefix, ignore_errors=True)
+    (data / "big.bin").write_bytes(payload)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-readv-var1m",
+        template="nginx_lc_readv.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "READV_SEG": "1m"},
+        reason="variable/capped readv blocks against a 1m brix_readv_segment_size"))
+    return {"url": f"root://{HOST}:{ep.port}", "payload": payload}
 
 
 def _run_demo(demo_bin, url, segs, outfile):

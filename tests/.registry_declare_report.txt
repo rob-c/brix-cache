@@ -1,0 +1,2 @@
+server-declaration gate: 1 test(s) reference a fleet server they do not declare — add @pytest.mark.registry_server(<name>) for each:
+  tests/test_vo_acl.py::TestCmsProxy::test_stat_cms_dir (line 370) uses undeclared server(s): vo-acl

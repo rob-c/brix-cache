@@ -91,6 +91,31 @@
 #define BRIX_IO_URING_RESTRICT_KERNEL_MINOR 10
 
 /*
+ * seccomp-BPF worker syscall filter (hyper-hardening-plan §D-3).
+ *
+ * A per-worker syscall allowlist installed at the tail of init_process, after
+ * every setup syscall has run, so only the steady-state serving set must be
+ * enumerated.  Mode enum (stored in ngx_stream_brix_srv_conf_t.seccomp, set via
+ * an ngx_conf_enum_t slot; the strictest value across enabled server blocks wins
+ * for the process):
+ *   OFF     = no filter installed (default — strictly opt-in).
+ *   AUDIT   = filter loaded with a log-only default action: allowlisted syscalls
+ *             run silently, everything else is ALLOWED but logged to the kernel
+ *             audit log (SECCOMP … audit records).  Converges the set risk-free.
+ *   ENFORCE = allowlisted syscalls run; the named-dangerous set (execve/execveat/
+ *             ptrace/process_vm_*) is KILLED; any other non-allowlisted syscall
+ *             fails EPERM (fail-safe: a missed entry degrades one call, it does
+ *             not crash the worker).
+ *
+ * Requires a build with libseccomp (config sets -DBRIX_HAVE_SECCOMP); without it
+ * AUDIT/ENFORCE fail closed at init (the worker refuses to run rather than serve
+ * unfiltered while the operator believes it is filtered).
+ */
+#define BRIX_SECCOMP_OFF                    0
+#define BRIX_SECCOMP_AUDIT                  1
+#define BRIX_SECCOMP_ENFORCE                2
+
+/*
  * Output-queue depth (Phase 29 pipelining; runtime-configurable).
  *
  * The per-connection output ring (brix_ctx_t.out_ring) and read-buffer pool

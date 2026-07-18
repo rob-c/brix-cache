@@ -24,7 +24,7 @@
 
 typedef struct {
     ngx_http_request_t   *r;
-    brix_vfs_staged_t  *staged;
+    brix_vfs_writer_t    *writer;
     size_t                len;
     ssize_t               nwritten;
     int                   io_errno;
@@ -36,7 +36,7 @@ typedef struct {
 
 typedef struct {
     ngx_http_request_t   *r;
-    brix_vfs_staged_t  *staged;
+    brix_vfs_writer_t    *writer;
     char                  fs_path[PATH_MAX];
     char                  root_canon[PATH_MAX];
     uint64_t              expected;
@@ -69,7 +69,7 @@ typedef struct {
     ngx_http_request_t       *r;
     ngx_http_s3_loc_conf_t   *cf;
     const u_char             *fs_path;
-    brix_vfs_staged_t        *staged;
+    brix_vfs_writer_t        *writer;
     brix_codec_id_t           put_codec;
     size_t                    body_bytes;
     ngx_uint_t                body_mode;
@@ -85,7 +85,7 @@ ngx_int_t s3put_stream_body(s3put_state_t *st);
 void s3put_commit_and_headers(s3put_state_t *st);
 
 /* put_finalize.c */
-ngx_int_t s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon, brix_vfs_staged_t *staged, const char *final_path);
+ngx_int_t s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon, brix_vfs_writer_t *writer, const char *final_path);
 int s3_put_commit_conflict(ngx_http_request_t *r);
 
 /* put_aio.c */
@@ -107,14 +107,14 @@ int s3_put_checksum_failed(ngx_http_request_t *r, const char *fs_path, const cha
 void s3_put_finalize_client_error(ngx_http_request_t *r, int status, const char *code, const char *message);
 
 /* put_chunk.c */
-void s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon, const char *fs_path, brix_vfs_staged_t *staged, const s3_chunk_trailer_t *trailer, uint64_t expected, ngx_uint_t body_mode);
-void s3_chunk_decode_failed(ngx_http_request_t *r, const char *root_canon, brix_vfs_staged_t *staged, int http_status);
+void s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon, const char *fs_path, brix_vfs_writer_t *writer, const s3_chunk_trailer_t *trailer, uint64_t expected, ngx_uint_t body_mode);
+void s3_chunk_decode_failed(ngx_http_request_t *r, const char *root_canon, brix_vfs_writer_t *writer, int http_status);
 void s3_chunk_aio_thread(void *data, ngx_log_t *log);
 void s3_build_chunk_verify(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, s3_chunk_verify_t *v);
 void s3_chunk_aio_done(ngx_event_t *ev);
 
 /* put.c */
-void s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, brix_vfs_staged_t *staged, const char *fs_path, ngx_uint_t body_mode);
+void s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, brix_vfs_writer_t *writer, const char *fs_path, ngx_uint_t body_mode);
 void s3_put_body_inner(ngx_http_request_t *r);
 
 #endif /* BRIX_S3_PUT_INTERNAL_H */

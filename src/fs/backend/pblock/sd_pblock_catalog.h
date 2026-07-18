@@ -56,6 +56,9 @@ typedef struct {
     uint32_t mode;
     uint32_t uid;
     uint32_t gid;
+    char     xform[16];   /* F12/F13: per-file transform kind name ("crypt"/
+                           * "zstd"), "" = raw. Recorded at create; the export's
+                           * configured transform holds the key/codec. */
 } pblock_meta;
 
 /* Catalog-internal identity registry (`ids` table): stable synthetic numeric
@@ -138,6 +141,15 @@ pblock_catalog_iter *pblock_catalog_opendir(pblock_catalog *cat,
 /* Write the next child's basename into name[cap]: 0 = filled, 1 = end, -1/errno. */
 int pblock_catalog_readdir(pblock_catalog_iter *it, char *name, size_t cap);
 void pblock_catalog_closedir(pblock_catalog_iter *it);
+
+/* Flat enumeration over every catalog row (files and directories), independent
+ * of the namespace tree — backs the driver's catalog-enumerate verb (F14). cb is
+ * fired once per row in path order; a non-zero return aborts the scan (that code
+ * is returned to the caller). Returns 0 (full or cb-aborted scan) or -1/errno. */
+typedef int (*pblock_catalog_enum_cb)(void *ctx, const char *path, int is_dir,
+                                      int64_t size, int64_t mtime);
+int pblock_catalog_enumerate(pblock_catalog *cat, pblock_catalog_enum_cb cb,
+                             void *ctx);
 
 /* xattr CRUD keyed by (path, name), POSIX semantics: every call fails with
  * ENOENT when `path` has no objects row (no orphan xattr rows). get/list return

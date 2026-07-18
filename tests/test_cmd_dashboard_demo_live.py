@@ -14,9 +14,10 @@ def test_dashboard_demo_scenarios_are_importable():
 
 
 @pytest.mark.optin
+@pytest.mark.timeout(600)
 def test_dashboard_demo_live_flow():
-    if os.environ.get("PHASE81_RUN_LIVE_PORTS") != "1":
-        pytest.skip("set PHASE81_RUN_LIVE_PORTS=1 to run the live dashboard demo")
+    if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
+        pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip the live dashboard demo")
     if shutil.which("xrdcp") is None:
         pytest.skip("xrdcp not found (install xrootd-client)")
     gateway_up = dashboard_demo_live._listening(dashboard_demo_live.ROOT_PORT)

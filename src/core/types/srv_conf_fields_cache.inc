@@ -127,6 +127,28 @@
     ngx_uint_t  security_level;  /* [brix_security_level none|compatible|standard|intense|pedantic]
                                      kXR_secNone=0 .. kXR_secPedantic=4; 0 = no enforcement */
 
+    /* ---- D-1: session-posture floor (distinct axis from security_level) ---- */
+    ngx_uint_t  min_sec_level;   /* [brix_min_sec_level none|compat|intense] BRIX_MIN_SEC_*;
+                                     0 = no floor. compat requires a TLS session; intense also
+                                     requires a non-anonymous identity. Enforced post-handshake
+                                     in brix_min_sec_enforce (handshake/policy.c). */
+
+    /* ---- D-2: opt-in opaque (CGI) schema enforcement ---- */
+    ngx_flag_t  opaque_strict;   /* [brix_opaque_strict on|off] off = byte-hygiene only.
+                                     on = additionally type-check oss.asize (unsigned int) and
+                                     reject an opaque key outside the recognized namespace
+                                     vocabulary, at brix_open_precheck (read/open_request.c). */
+
+    /* ---- D-3: per-worker seccomp-BPF syscall filter ---- */
+    ngx_uint_t  seccomp;  /* [brix_seccomp off|audit|enforce] BRIX_SECCOMP_*; process-
+                             global — strictest across enabled blocks installed once per
+                             worker at init_process (src/core/seccomp/seccomp.c). */
+
+    /* ---- E-4: negative-path backoff (stat/locate-harvest throttle) ---- */
+    brix_negcache_conf_t  negcache;  /* [brix_negcache_backoff off|<thr> <win_s> <wait_s>]
+                                        threshold==0 → disabled. Cross-worker SHM
+                                        state in src/core/negcache/negcache.c. */
+
     /* ---- in-protocol TLS upgrade (kXR_ableTLS) ---- */
     ngx_flag_t  tls;      /* [brix_tls on|off] — advertise kXR_haveTLS */
     ngx_flag_t  tls_ktls; /* [brix_ktls on|off] — SSL_OP_ENABLE_KTLS so TLS reads

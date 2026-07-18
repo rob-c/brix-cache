@@ -114,6 +114,18 @@ int brix_cas_put(brix_cas_store_t *s, const char *key, const void *data, size_t 
     return 0;
 }
 
+int brix_cas_del(brix_cas_store_t *s, const char *key) {
+    char rel[640];
+    struct stat st;
+    if (cas_obj_rel(s, key, rel, sizeof(rel)) < 0) { errno = EINVAL; return -1; }
+    int base = cas_base(s);
+    if (fstatat(base, rel, &st, 0) != 0 || !S_ISREG(st.st_mode)) return -1;
+    if (unlinkat(base, rel, 0) != 0) return -1;
+    s->cur_bytes -= (long) st.st_size;
+    if (s->cur_bytes < 0) s->cur_bytes = 0;
+    return 0;
+}
+
 /* ---- fd-based tree walk (uniform across modes) -------------------------- */
 
 typedef void (*cas_walk_fn)(int subdir_fd, const char *fname, const struct stat *st, void *ud);

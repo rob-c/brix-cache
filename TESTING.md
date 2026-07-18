@@ -22,7 +22,7 @@ unset TEST_OWN_FLEET                       # attach-mode: don't wipe/own the fle
 sudo systemctl stop xrootd@brix.service cmsd@brix-mgr.service
 
 # 2. bring the fleet up once (detached; ~10–15 min on 4 cores; idle load then ~0.7)
-tests/manage_test_servers.sh start-all
+(cd tests && python3 -m cmdscripts.manage_test_servers start-all)
 
 # 3. run the fast set — conftest attaches to the running fleet.
 #    -n3 keeps the load < 8 on a 4-core box (see §5).
@@ -33,7 +33,7 @@ python -m pytest tests/ --ignore=tests/userns \
 A single file, for a quick check: `python -m pytest tests/test_readv.py -q`.
 
 > **Running as root is no longer required** (§6c is superseded). The above is the
-> convenient path on this box; the *faithful* one is `tests/run_suite_unprivileged.sh`
+> convenient path on this box; the *faithful* one is `tests/run_suite_unprivileged.py`
 > (§5a), which runs pytest and the whole fleet as one unprivileged user. Root
 > workers (via the `user root;` injection, §4b) bypass every permission check, so
 > the ownership/permission suites — `test_conf_xrdcl_fs` chmod parity in
@@ -231,7 +231,7 @@ background job that outlives the launcher.
 
 ### 5a. Unprivileged mode — TEST USER == SERVER USER
 
-`tests/run_suite_unprivileged.sh` runs pytest, the nginx master+workers **and** the
+`tests/run_suite_unprivileged.py` runs pytest, the nginx master+workers **and** the
 reference xrootd as one unprivileged user. That single property is what makes
 ownership and permission behaviour REAL instead of root-bypassed.
 
@@ -242,9 +242,9 @@ root. That split is why root-only failure modes — §6g.4 and §6g.5 especially
 survived into a "green" tree: nobody had run the two postures against each other.
 
 ```bash
-tests/run_suite_unprivileged.sh --fast                     # as root: sync, chown, drop
-BRIX_TEST_USER=nobody tests/run_suite_unprivileged.sh --fast
-BRIX_TEST_TREE=/srv/brix-test tests/run_suite_unprivileged.sh --fast
+tests/run_suite_unprivileged.py --fast                     # as root: sync, chown, drop
+BRIX_TEST_USER=nobody tests/run_suite_unprivileged.py --fast
+BRIX_TEST_TREE=/srv/brix-test tests/run_suite_unprivileged.py --fast
 ```
 
 Two modes, auto-detected:
@@ -336,7 +336,7 @@ solved, and root is a convenience, not a requirement:
 
 | the blocker | resolution |
 |---|---|
-| the repo is under `/root` (0750), so a non-root user can't reach it | `run_suite_unprivileged.sh` syncs the checkout to a neutral tree the user owns (§5a). `/root` keeps its 0750 — no ACL, no `o+x`. |
+| the repo is under `/root` (0750), so a non-root user can't reach it | `run_suite_unprivileged.py` syncs the checkout to a neutral tree the user owns (§5a). `/root` keeps its 0750 — no ACL, no `o+x`. |
 | unprivileged nginx workers can't write the root-owned test dirs | `_open_export_for_worker` (`tests/lib/nginx.sh`) opens the fleet's own exports under a root harness — the treatment `_ref_launch` already gave the reference xrootd's export. Unprivileged, the worker simply owns them. |
 
 Consequences root still drags in, and why you should prefer §5a:
@@ -476,7 +476,7 @@ a libradosstriper dependency.
 | XrdHttp `all.role`/cms hang + thread pool (§6g.2, §6f) | `tests/configs/xrootd_xrdhttp.conf` |
 | XrdHttp public-only CA view (§6g.3) | `tests/lib/xrdhttp.sh` |
 | worker-writable fleet exports (§6g.4, §6c) | `tests/lib/nginx.sh` |
-| unprivileged runner (§5a) | `tests/run_suite_unprivileged.sh` |
+| unprivileged runner (§5a) | `tests/run_suite_unprivileged.py` |
 | ceph tool source closure (§6h) | `client/Makefile`, `tests/ceph/run_rescue_tools.sh` |
 
 ---

@@ -67,6 +67,7 @@ def _session_no_cert():
 # 1. Success — VOMS extraction gracefully skipped; GSI auth still passes
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("webdav-voms")
 def test_success_no_voms_attrs():
     """Proxy cert with no VOMS attributes: VOMS extraction returns NGX_DECLINED.
 
@@ -102,6 +103,7 @@ def test_success_no_voms_attrs():
 # 2. Error — no client certificate → request rejected
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("webdav-voms")
 def test_error_no_client_cert():
     """Requests without a client cert must be rejected even when vomsdir is set.
 
@@ -120,6 +122,7 @@ def test_error_no_client_cert():
 # 3. Security-neg — self-signed cert not trusted by CA → rejected
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("webdav-voms")
 def test_security_neg_untrusted_cert():
     """A self-signed cert must be rejected; vomsdir must not bypass CA check.
 

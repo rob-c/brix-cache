@@ -1,35 +1,52 @@
 """
-test_frm_control_locality.py — control-dir residency locality semantics.
+test_frm_control_locality.py — MSS residency locality semantics.
 
-Completes the materialize-to-scratch follow-up #2. With BRIX_FRM_CONTROL_DIR
-set, residency markers live in a local POSIX control mount (a flat hashed stub),
-not as an xattr on the export object. The probe must then resolve a missing
-marker correctly: the object is ONLINE only if it actually exists in storage,
-else LOST — NOT a blanket "no stub ⇒ online".
+Rewritten 2026-07-18 onto the live tape://exec backend that replaced the removed
+control-dir xattr-stub residency model.  Residency is now driven by the exec MSS
+adapter and reported through the real WLCG Tape REST surface (POST
+/api/v1/archiveinfo), which maps the probe to {exists, onDisk, locality}:
 
-Driven through the real WLCG Tape REST surface (POST /api/v1/archiveinfo), which
-maps the probe to {exists, onDisk, locality}:
-  * resident object, no stub      → exists, onDisk, ONLINE
-  * nearline stub in control dir   → exists, !onDisk, NEARLINE
-  * object absent, no stub         → exists=false, NONE   (the fix; was ONLINE)
+  * object materialised in the online buffer  → exists, onDisk, ONLINE
+  * object on tape only (`exists` verb == 0)   → exists, !onDisk, NEARLINE
+  * object nowhere (`exists` verb != 0)        → exists=false, NONE
 
-Self-provisioned http WebDAV + FRM; skips without xattrs.
+The load-bearing property is unchanged from the original test's intent: a
+not-resident object is only reported present when it truly exists on the backend,
+never a blanket "no marker ⇒ online".
+
+Self-provisioned http WebDAV + tape://exec; skips cleanly without nginx.
 """
 
 import json
 import os
-import socket
-import subprocess
-import time
 import urllib.error
 import urllib.request
 
 import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from server_registry import NginxInstanceSpec
+from server_launcher import RegistryCommandFailure
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
-from frm_helpers import xattr_ok as _xattr_ok, res_stub_path as _fnv_stub
+def _stagecmd(tape):
+    """Minimal exec MSS adapter: $BRIX_FRM_STAGECMD <verb> <key> <online>.  Only
+    the `exists` residency verb matters for archiveinfo (no recall is issued); the
+    tape dir is baked in (nginx rewrites its environ, so a spawned command sees
+    only argv + BRIX_FRM_STAGECMD)."""
+    return (
+        "#!/bin/bash\n"
+        'verb="$1"; key="${2#/}"; online="$3"\n'
+        f"tape='{tape}'\n"
+        'case "$verb" in\n'
+        '  exists)  [ -f "$tape/$key" ] && exit 0 || exit 1 ;;\n'
+        '  recall)  mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online" ;;\n'
+        '  migrate) cp "$online" "$tape/$key" ;;\n'
+        '  purge)   rm -f "$online" ;;\n'
+        "esac\n"
+    )
 
 
 def _post(http_port, path, obj, timeout=5):
@@ -45,102 +62,49 @@ def _post(http_port, path, obj, timeout=5):
         return None, str(e).encode()
 
 
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
+@pytest.fixture
+def srv(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
-    d = tmp_path_factory.mktemp("frmctl")
-    if not _xattr_ok(str(d)):
-        pytest.skip("filesystem does not support user xattrs")
+    d = tmp_path
 
-    (d / "logs").mkdir()
-    data = d / "data"; data.mkdir()
-    control = d / "control"; control.mkdir()
-    queue = d / "frm.queue"
-    stream_port = free_port()
-    http_port = free_port()
+    base = d / "base"; base.mkdir()
+    online = base / ".online"; online.mkdir()
+    tape = d / "tape"; tape.mkdir()
+    export = d / "export"; export.mkdir()
+    cache = d / "cache"; cache.mkdir()
 
-    realdata = os.path.realpath(str(data))
-    # resident object (no stub anywhere)
-    (data / "online.dat").write_bytes(b"resident\n")
-    # nearline: export placeholder + a control-dir stub carrying the marker
-    (data / "near.dat").write_bytes(b"")
-    near_stub = _fnv_stub(str(control), os.path.join(realdata, "near.dat"))
-    open(near_stub, "wb").close()
-    os.setxattr(near_stub, "user.frm.residency", b"nearline")
-    # /gone.dat: deliberately absent on the export, with no control stub
+    # ONLINE: materialised in the online buffer <base>/.online/<key>.
+    (online / "online.dat").write_bytes(b"resident\n")
+    # NEARLINE: on tape only (the `exists` verb finds it), not in the online buffer.
+    (tape / "near.dat").write_bytes(b"nearline bytes\n")
+    # /gone.dat: nowhere — not in the online buffer, not on tape → ABSENT/NONE.
 
-    conf = f"""
-worker_processes 1;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{stream_port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_allow_write on;
-        brix_frm on;
-        brix_frm_queue_path {queue};
-        brix_frm_stagecmd /bin/true;
-        brix_frm_control_dir {control};
-    }}
-}}
-http {{
-    access_log off;
-    client_body_temp_path {d}/logs/cbt;
-    proxy_temp_path {d}/logs/pt;
-    fastcgi_temp_path {d}/logs/ft;
-    uwsgi_temp_path {d}/logs/ut;
-    scgi_temp_path {d}/logs/st;
-    server {{
-        listen {BIND_HOST}:{http_port};
-        location / {{
-            brix_webdav on;
-            brix_storage_backend posix:{data};
-            brix_webdav_auth none;
-            brix_allow_write on;
-            brix_webdav_tape_rest on;
-        }}
-    }}
-}}
-daemon off;
-master_process off;
-"""
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    deadline = time.time() + 10
-    up = False
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, http_port), timeout=0.5).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip("server did not start: %s" % err[-300:])
+    stagecmd = d / "stage.sh"
+    stagecmd.write_text(_stagecmd(str(tape)))
+    stagecmd.chmod(0o755)
+
+    spec = NginxInstanceSpec(
+        name="lc-frm-control-locality",
+        template="nginx_lc_frm_control_locality.conf",
+        protocol="http",
+        template_values={"BIND_HOST": BIND_HOST,
+                         "BASE_DIR": str(base),
+                         "EXPORT_DIR": str(export),
+                         "CACHE_DIR": str(cache)},
+        env={"BRIX_FRM_STAGECMD": str(stagecmd)},
+        reason="frm control-locality")
+    try:
+        ep = lifecycle.start(spec)
+    except RegistryCommandFailure:
+        pytest.skip("nginx build lacks the brix_frm* directive surface "
+                    "(removed 2026-06-30)")
 
     class S:
         pass
     s = S()
-    s.http_port = http_port
+    s.http_port = ep.port
     yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _locality(srv, paths):

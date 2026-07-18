@@ -62,10 +62,21 @@ brix_kxr_from_errno(int err)
         return kXR_NoMemory;
 
     case ENOSPC:
+#ifdef EDQUOT
+    case EDQUOT:
+#endif
         return kXR_NoSpace;
 
     case EINVAL:
         return kXR_ArgInvalid;
+
+    case EBUSY:
+        /* A mandatory lease/lock refusal (pblock F15, cache fill lock): the
+         * honest "try again once the holder releases" code. NOT EAGAIN — on a
+         * read open EAGAIN means "nearline recall in flight" and is answered
+         * with kXR_wait, which a lock refusal must never be (the client would
+         * retry a lock that may never clear on its own schedule). */
+        return kXR_FileLocked;
 
     case ENOTSUP:      /* backend has no such op (VFS NULL-slot, object stores) */
     case ENOSYS:

@@ -178,6 +178,86 @@ brix_relay_guard_init(brix_relay_guard_t *g, int enable,
     g->ip[ip_len] = '\0';
 }
 
+/* ---- First-bytes wire check: is this even a root:// client? ----
+ *
+ * WHAT: runs the pure-C handshake classifier over the opening
+ *   client->upstream bytes. A genuine kXR handshake (or its still-incomplete
+ *   zero-prefix) is let through; anything else sets the drop flag and emits
+ *   one signal=notroot audit line naming the wire (tls/http/ssh/junk).
+ *
+ * WHY: the tap sink only classifies DECODED kXR frames — a client that never
+ *   speaks root produces no frame and would reach the backend unclassified.
+ *   This closes the "who is knocking on the root port" gap the tap cannot see,
+ *   and does it before the first chunk is forwarded.
+ *
+ * HOW: 1. One-shot: skip when disabled, already dropped, or already decided.
+ *      2. Accumulate the opening bytes (the pump hands each recv() chunk
+ *         separately, so a handshake split across TCP segments must be
+ *         reassembled here before classifying — fail-open on fragmentation).
+ *      3. Classify; defer (return, leaving hs_seen unset) while a zero-prefix
+ *         is still shorter than the signature — the next chunk retries.
+ *      4. Root -> latch the verdict and let the pump forward normally.
+ *      5. Non-root -> drop + audit; the wire token rides the (sanitized) path.
+ */
+void
+brix_relay_guard_handshake(brix_relay_guard_t *g,
+    const unsigned char *buf, size_t len)
+{
+    guard_wire_t     wire;
+    int              need_more;
+    guard_request_t  req;
+    const char      *tok;
+    char             raw_tok[64];
+    char             san_tok[64];
+    size_t           tok_len;
+    size_t           take;
+
+    if (!g->enable || g->drop || g->hs_seen) {
+        return;
+    }
+
+    /* Accumulate up to the 20-byte signature across fragmented chunks. */
+    take = sizeof(g->hs_buf) - g->hs_len;
+    if (take > len) {
+        take = len;
+    }
+    if (take > 0) {
+        ngx_memcpy(g->hs_buf + g->hs_len, buf, take);
+        g->hs_len += (unsigned char) take;
+    }
+
+    wire = guard_classify_handshake(g->hs_buf, g->hs_len, &need_more);
+    if (wire == GUARD_WIRE_ROOT && need_more) {
+        return;                     /* zero-prefix so far: wait for more bytes */
+    }
+    g->hs_seen = 1;                 /* verdict reached: never re-check */
+
+    if (wire == GUARD_WIRE_ROOT) {
+        return;                     /* genuine kXR client -> forward normally */
+    }
+
+    tok     = guard_wire_str(wire);
+    tok_len = ngx_strlen(tok);
+    if (tok_len > sizeof(raw_tok) - 1) {
+        tok_len = sizeof(raw_tok) - 1;
+    }
+    ngx_memcpy(raw_tok, tok, tok_len);
+    raw_tok[tok_len] = '\0';
+
+    req.ip           = g->ip;
+    req.proto        = "root";
+    req.op           = GUARD_OP_HANDSHAKE;
+    req.path_len     = brix_sanitize_log_string(raw_tok, san_tok,
+                                                 sizeof(san_tok));
+    req.path         = san_tok;
+    req.cred_present = 0;
+    req.outcome      = OUTCOME_PENDING;
+    req.status_code  = 0;
+
+    g->drop = 1;                    /* the pump tears the relay down */
+    relay_guard_audit(g, &req, GUARD_R_NOTROOT);
+}
+
 /* ---- Tap sink: classify one decoded frame ----
  *
  * WHAT: C2U request frames run the pre-verdict (signature/grammar) and set

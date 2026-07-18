@@ -30,12 +30,13 @@ from pathlib import Path
 
 import pytest
 
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+from settings import free_port
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = "/usr/bin/xrdcp"          # STOCK client (knows GSI delegation)
-SRC_PORT, DST_PORT = 21262, 21263
 USER_DN = "/O=F6Test/CN=F6 User"
 GW_DN = "/O=F6Test/CN=tpc-gateway"
 
@@ -56,13 +57,12 @@ def _wait(port, tries=100):
     return False
 
 
-@pytest.fixture(scope="module")
-def gate(tmp_path_factory):
+@pytest.fixture
+def gate(lifecycle, tmp_path_factory):
     if not _have("xrootd", "openssl", "xrdgsiproxy") or not os.path.exists(XRDCP):
         pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
-    if not os.path.exists(NGINX):
-        pytest.skip("nginx not built")
 
+    src_port = free_port()
     base = tmp_path_factory.mktemp("f6gate")
     ca, certs, srv, usr, data = (
         base / d for d in ("ca", "certs", "srv", "usr", "data"))
@@ -142,7 +142,7 @@ def gate(tmp_path_factory):
     # ---- stock GSI source: delegation requested + DN logged ----
     src_cfg = base / "xrootd.cfg"
     src_cfg.write_text(
-        f"xrd.port {SRC_PORT}\n"
+        f"xrd.port {src_port}\n"
         "all.export /data\n"
         f"oss.localroot {base}\n"
         "xrootd.seclib libXrdSec.so\n"
@@ -155,41 +155,45 @@ def gate(tmp_path_factory):
     # xrootd -n <name> inserts the instance name as a subdir of the -l directory,
     # so `-l base/brix.log -n src` writes to base/src/brix.log.
     src_log = base / "src" / "xrootd.log"
-    _run(["bash", "-c", f"fuser -k {SRC_PORT}/tcp 2>/dev/null"])
+    _run(["bash", "-c", f"fuser -k {src_port}/tcp 2>/dev/null"])
     src = subprocess.Popen(["xrootd", "-c", str(src_cfg),
                             "-l", str(base / "xrootd.log"), "-n", "src"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait(SRC_PORT):
+    if not _wait(src_port):
         src.terminate()
         pytest.skip("stock GSI source did not come up")
 
-    # ---- OUR nginx destination: GSI inbound + (reserved) delegation ----
-    dst_cfg = base / "dst.conf"
-    dst_cfg.write_text(render_config("nginx_tpc_delegation_dest.conf",
-                                     BASE_DIR=base,
-                                     PORT=DST_PORT,
-                                     DATA_DIR=base / "dstdata",
-                                     CERT_FILE=srv / "hostcert.pem",
-                                     KEY_FILE=srv / "hostkey.pem",
-                                     CA_FILE=ca / "ca.pem"))
-    (base / "dstdata").mkdir(exist_ok=True)
-    _run(["bash", "-c", f"fuser -k {DST_PORT}/tcp 2>/dev/null"])
-    dst = subprocess.Popen([NGINX, "-c", str(dst_cfg), "-p", str(base)],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait(DST_PORT):
+    # ---- OUR nginx destination: GSI inbound + delegation (registry-managed) ----
+    dstdata = base / "dstdata"
+    dstdata.mkdir(exist_ok=True)
+    try:
+        dst = lifecycle.start(NginxInstanceSpec(
+            name="lc-tpc-delegation-dest",
+            template="nginx_tpc_delegation_dest.conf",
+            protocol="root",
+            readiness="tcp",
+            data_root=str(dstdata),
+            template_values={
+                "CERT_FILE": str(srv / "hostcert.pem"),
+                "KEY_FILE": str(srv / "hostkey.pem"),
+                "CA_FILE": str(ca / "ca.pem"),
+            },
+            reason="F6 GSI TPC delegation destination (captures + forwards proxy).",
+        ))
+    except Exception:
         src.terminate()
-        dst.terminate()
-        pytest.skip("nginx dest did not come up")
+        raise
 
     ctx = {"base": str(base), "fqdn": fqdn, "src_log": src_log,
+           "src_port": src_port, "dst_port": dst.port,
+           "dst_logs": os.path.join(dst.prefix, "logs"),
            "env": dict(penv, X509_USER_PROXY=str(uproxy))}
     yield ctx
-    for p in (dst, src):
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+    src.terminate()
+    try:
+        src.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        src.kill()
 
 
 def _src_log(gate):
@@ -201,7 +205,7 @@ def test_stock_gsi_source_logs_dn(gate):
     """GREEN: the gate's DN-assertion mechanism — a user-proxy GSI download is
     authenticated and the source logs the user's Subject DN."""
     out = Path(gate["base"]) / "got.txt"
-    r = _run([XRDCP, "-f", f"root://{gate['fqdn']}:{SRC_PORT}//data/hello.txt",
+    r = _run([XRDCP, "-f", f"root://{gate['fqdn']}:{gate['src_port']}//data/hello.txt",
               str(out)], env=gate["env"])
     assert r.returncode == 0 and out.exists(), f"GSI download failed: {r.stderr}"
     time.sleep(0.5)
@@ -214,7 +218,7 @@ def test_stock_source_captures_delegation(gate):
     client delegates its proxy and the source captures it."""
     out = Path(gate["base"]) / "got_dlg.txt"
     env = dict(gate["env"], XrdSecGSIDELEGPROXY="2")
-    r = _run([XRDCP, "-f", f"root://{gate['fqdn']}:{SRC_PORT}//data/hello.txt",
+    r = _run([XRDCP, "-f", f"root://{gate['fqdn']}:{gate['src_port']}//data/hello.txt",
               str(out)], env=env)
     assert r.returncode == 0 and out.exists(), f"delegated download failed: {r.stderr}"
     time.sleep(0.5)
@@ -249,10 +253,10 @@ def test_dest_captures_delegated_proxy(gate):
     # Connect by fqdn (matches the dest cert CN) so the client does not fall back
     # to DNS, which would forbid delegation.
     r = _run([XRDCP, "-f", "--tpc", "delegate", "only",
-              f"root://{gate['fqdn']}:{SRC_PORT}//data/hello.txt",
-              f"root://{gate['fqdn']}:{DST_PORT}//cap.txt"], env=gate["env"])
+              f"root://{gate['fqdn']}:{gate['src_port']}//data/hello.txt",
+              f"root://{gate['fqdn']}:{gate['dst_port']}//cap.txt"], env=gate["env"])
     time.sleep(0.5)
-    errlog = Path(gate["base"]) / "dst-err.log"
+    errlog = Path(gate["dst_logs"]) / "dst-err.log"
     log = errlog.read_text(errors="replace") if errlog.exists() else ""
     assert "captured delegated proxy" in log, (
         f"nginx dest did not capture the delegated proxy (xrdcp rc={r.returncode}: "
@@ -281,8 +285,8 @@ def test_dest_pulls_as_user_via_delegation(gate):
     # Mark the log boundary so we only inspect THIS transfer's DNs.
     before = len(_src_log(gate))
     r = _run([XRDCP, "-f", "--tpc", "delegate", "only",
-              f"root://{gate['fqdn']}:{SRC_PORT}//data/hello.txt",
-              f"root://{gate['fqdn']}:{DST_PORT}//pulled.txt"], env=gate["env"])
+              f"root://{gate['fqdn']}:{gate['src_port']}//data/hello.txt",
+              f"root://{gate['fqdn']}:{gate['dst_port']}//pulled.txt"], env=gate["env"])
     time.sleep(0.5)
     after = _src_log(gate)[before:]
     assert out.exists() and out.read_text() == "f6 delegation gate\n", \

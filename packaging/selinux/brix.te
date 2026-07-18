@@ -1,0 +1,132 @@
+policy_module(brix, 1.0.0)
+
+########################################
+#
+# BriX-Cache SELinux policy (targeted).
+#
+# The gateway is the distribution nginx binary plus the BriX dynamic modules,
+# so at runtime it is confined by the stock httpd_t domain.  This module does
+# NOT introduce a new process domain; it extends httpd_t with exactly the
+# extra permissions the BriX data plane needs and defines dedicated types for
+# the BriX network ports and on-disk data so a hardened host does not have to
+# fall back to the broad httpd booleans (httpd_can_network_connect,
+# httpd_unified, ...) or permissive mode.
+#
+# Port labels (assigned by the RPM %post via semanage, see the spec):
+#   tcp 1094, 1095   root:// cleartext + TLS listeners, and outbound origin
+#                    connections for the cache/stage tiers and native TPC
+#   tcp 9001         S3 listener (stock policy assigns this to tor_port_t,
+#                    hence the semanage -m override in %post)
+#   tcp 9100         Prometheus metrics listener (stock policy assigns this
+#                    to hplip_port_t, same override)
+# 443 and 8443 (WebDAV) are already http_port_t, which httpd_t may bind.
+# Sites listening on other ports add them with:
+#   semanage port -a -t brix_port_t -p tcp <port>
+#
+# File labels (see brix.fc; the legacy nginx-xrootd spellings of the first
+# three trees stay labelled for pre-rebrand deployments):
+#   /var/lib/brix-cache(/.*)?      brix_var_lib_t   export root + stage dir
+#   /var/cache/brix-cache(/.*)?    brix_cache_t     proxy/fill cache tree
+#   /etc/brix-cache(/.*)?          httpd_config_t   JWKS + auxiliary config
+#   /etc/grid-security(/.*)?       cert_t           host cert/key, IGTF CAs,
+#                                                   CRLs, VOMS dirs
+# Sites exporting from a different tree label it the same way:
+#   semanage fcontext -a -t brix_var_lib_t '/srv/xrootd(/.*)?'
+#   restorecon -Rv /srv/xrootd
+# and a stage dir on fast storage:
+#   semanage fcontext -a -t brix_var_lib_t '/mnt/fastcache/xrd-stage(/.*)?'
+#
+
+########################################
+#
+# Declarations
+#
+
+# BriX listener/origin ports (root://, S3, metrics; see header comment).
+type brix_port_t;
+corenet_port(brix_port_t)
+
+# Export root + stage dir for partial uploads (/var/lib/brix-cache).
+type brix_var_lib_t;
+files_type(brix_var_lib_t)
+
+# Cache tree (/var/cache/brix-cache), kept distinct from the export root so
+# a site can put the cache on scratch storage with its own label if desired.
+type brix_cache_t;
+files_type(brix_cache_t)
+
+gen_require(`
+	type httpd_t;
+')
+
+########################################
+#
+# httpd_t (nginx master + workers + impersonate broker)
+#
+
+# Listeners on the BriX ports, and outbound connections to remote origins
+# speaking root:// on the same ports (cache/stage tiers, native TPC).
+allow httpd_t brix_port_t:tcp_socket { name_bind name_connect };
+
+# Data plane: full ownership of the export root, stage partials, and cache
+# tree, including mmap (checksum-at-rest, xmeta records) — sendfile and
+# kTLS transmit only need read.
+manage_dirs_pattern(httpd_t, brix_var_lib_t, brix_var_lib_t)
+manage_files_pattern(httpd_t, brix_var_lib_t, brix_var_lib_t)
+manage_lnk_files_pattern(httpd_t, brix_var_lib_t, brix_var_lib_t)
+allow httpd_t brix_var_lib_t:file map;
+
+manage_dirs_pattern(httpd_t, brix_cache_t, brix_cache_t)
+manage_files_pattern(httpd_t, brix_cache_t, brix_cache_t)
+manage_lnk_files_pattern(httpd_t, brix_cache_t, brix_cache_t)
+allow httpd_t brix_cache_t:file map;
+
+# Impersonation broker + multiuser ownership:
+#   setuid/setgid          per-request setresuid/setresgid identity switches
+#   setcap (process)       capset() shedding everything but SETUID/SETGID at
+#                          broker startup, and imp_worker_drop_caps() in the
+#                          workers
+#   chown/fowner/fsetid    staged uploads and pblock objects are chown'd to
+#                          the mapped grid user after commit
+#   dac_override/
+#   dac_read_search        serving/staging files under per-user 0700 trees
+#                          while the worker still runs as the nginx user
+allow httpd_t self:capability { setuid setgid chown fowner fsetid dac_override dac_read_search };
+allow httpd_t self:process setcap;
+
+# Grid credentials: hostcert/hostkey, IGTF CA store, CRLs, VOMS lsc/vomsdir —
+# /etc/grid-security is labelled cert_t by brix.fc.
+miscfiles_read_generic_certs(httpd_t)
+
+# Outbound data/control connections:
+#   http_port_t      WebDAV/HTTP-TPC pulls and https origins (443, 8443)
+#   kerberos ports   krb5 auth against the site KDC
+corenet_tcp_connect_http_port(httpd_t)
+corenet_tcp_connect_kerberos_port(httpd_t)
+
+# sd_ceph / sd_cephfs_ro RADOS backends: mon (3300/6789) + OSD/MDS
+# (6800-7300).  The EL base policy has no corenet interface for these and
+# ceph_port_t only exists where the ceph contrib module is loaded, so
+# require it optionally: the rule applies on hosts with the ceph module and
+# is skipped elsewhere.  On hosts without it, Ceph mon/OSD ports are
+# unreserved_port_t — label them brix_port_t if the backend is in use:
+#   semanage port -a -t brix_port_t -p tcp 3300
+optional_policy(`
+	gen_require(`
+		type ceph_port_t;
+	')
+	allow httpd_t ceph_port_t:tcp_socket name_connect;
+')
+
+# The WebDAV HTTP-TPC handler fork/execs curl(1) (bin_t, no domain
+# transition — curl inherits httpd_t and the connect rules above).
+corecmd_exec_bin(httpd_t)
+
+# NOTE io_uring: the io_uring backends are strictly opt-in (brix_io_uring on)
+# and default OFF.  Sites that enable them on EL9+ additionally need:
+#   allow httpd_t self:io_uring { sqpoll };
+#   allow httpd_t self:anon_inode create_file_perms-equivalent ([io_uring]);
+# These are not included here because the io_uring object classes do not
+# exist in the EL8 base policy and would break the module build there; an
+# opt-in site can load them as a tiny local module (audit2allow will emit
+# exactly the two rules above).

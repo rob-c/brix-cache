@@ -226,6 +226,7 @@ def reference_root_tpc():
 
 
 class TestNginxRootTPC:
+    @pytest.mark.registry_server("root-tpc")
     def test_query_config_tpc_reports_supported(self, nginx_root):
         result = _query_tpc(nginx_root.url)
 
@@ -234,6 +235,7 @@ class TestNginxRootTPC:
             f"expected tpc=1 but got: {_query_output(result)!r}"
         )
 
+    @pytest.mark.registry_server("root-tpc")
     def test_tpc_only_between_nginx_root_endpoints(self, nginx_root):
         content = b"native root tpc between two nginx endpoints\n"
         src_name = _logical_name("root_tpc_nginx_src")
@@ -256,6 +258,7 @@ class TestNginxRootTPC:
             _unlink(src_path)
             _unlink(dst_path)
 
+    @pytest.mark.registry_server("root-tpc")
     def test_tpc_first_between_nginx_root_endpoints(self, nginx_root):
         content = b"native root tpc first succeeds via tpc\n"
         src_name = _logical_name("root_tpc_first_src")
@@ -280,6 +283,7 @@ class TestNginxRootTPC:
 
 
 class TestReferenceXrootdToNginxRootTPC:
+    @pytest.mark.registry_server("root-tpc")
     def test_tpc_only_brix_source_to_nginx_destination(
         self, nginx_root, reference_root_tpc
     ):
@@ -304,6 +308,7 @@ class TestReferenceXrootdToNginxRootTPC:
             _unlink(src_path)
             _unlink(dst_path)
 
+    @pytest.mark.registry_server("root-tpc")
     def test_tpc_only_nginx_source_to_brix_destination(
         self, nginx_root, reference_root_tpc
     ):
@@ -328,6 +333,7 @@ class TestReferenceXrootdToNginxRootTPC:
             _unlink(src_path)
             _unlink(dst_path)
 
+    @pytest.mark.registry_server("root-tpc")
     def test_tpc_first_brix_to_nginx(
         self, nginx_root, reference_root_tpc
     ):
@@ -395,6 +401,7 @@ class TestNativeClientRootTPC:
             _unlink(src_path)
             _unlink(dst_path)
 
+    @pytest.mark.registry_server("root-tpc")
     def test_native_tpc_nginx_to_nginx(self, nginx_root):
         """Control: the nginx↔nginx rendezvous keeps working."""
         self._roundtrip(nginx_root, nginx_root,
@@ -405,6 +412,7 @@ class TestNativeClientRootTPC:
         self._roundtrip(reference_root_tpc, reference_root_tpc,
                         b"native client tpc stock to stock\n", "ntpc_xx")
 
+    @pytest.mark.registry_server("root-tpc")
     def test_native_tpc_nginx_source_to_brix_destination(
         self, nginx_root, reference_root_tpc
     ):
@@ -412,6 +420,7 @@ class TestNativeClientRootTPC:
         self._roundtrip(nginx_root, reference_root_tpc,
                         b"native client tpc nginx to stock\n", "ntpc_nx")
 
+    @pytest.mark.registry_server("root-tpc")
     def test_native_tpc_brix_source_to_nginx_destination(
         self, nginx_root, reference_root_tpc
     ):
@@ -419,6 +428,7 @@ class TestNativeClientRootTPC:
         self._roundtrip(reference_root_tpc, nginx_root,
                         b"native client tpc stock to nginx\n", "ntpc_xn")
 
+    @pytest.mark.registry_server("root-tpc")
     def test_native_tpc_missing_source_fails_cleanly(
         self, nginx_root, reference_root_tpc
     ):

@@ -49,8 +49,11 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
-from config_templates import render_config
+from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST, free_port
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 BIGFILE_MB = 32
 SHIM_DELAY_US = int(os.environ.get("XRD_RACE_DELAY_US", "15000"))
@@ -300,64 +303,18 @@ def _build_shim(workdir):
     return so, ""
 
 
-def _render_config(prefix, datadir, root_port, metrics_port, s3_port, webdav_port):
-    return render_config("nginx_evil_actor_v2.conf",
-                         PREFIX=prefix,
-                         DATA_DIR=datadir,
-                         BIND_HOST=BIND_HOST,
-                         ROOT_PORT=root_port,
-                         METRICS_PORT=metrics_port,
-                         S3_PORT=s3_port,
-                         WEBDAV_PORT=webdav_port)
+def _shim_env(shim, tsandir, workdir):
+    """Build the worker-gated race-shim launch environment for the nginx spec.
 
-
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
-    if REMOTE_SERVER:
-        pytest.skip("self-contained; not REMOTE")
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx not built at %s" % NGINX_BIN)
-    if shutil.which("pgrep") is None or shutil.which("cc") is None:
-        pytest.skip("pgrep + cc required")
-
-    prefix = tempfile.mkdtemp(prefix="evil2-")
-    datadir = os.path.join(prefix, "data")
-    tsandir = os.path.join(prefix, "tsan")
-    for d in (os.path.join(prefix, "logs"), datadir, tsandir):
-        os.makedirs(d, exist_ok=True)
-
-    shim, err = _build_shim(prefix)
-    if shim is None:
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("could not build race shim: %s" % err[-300:])
-
-    big = os.path.join(datadir, "big.bin")
-    chunk = bytes((i * 31 + 7) & 0xFF for i in range(65536))
-    with open(big, "wb") as f:
-        for _ in range(BIGFILE_MB * 16):
-            f.write(chunk)
-    for nm in ("shared.bin", "w.bin", "xp.bin"):
-        with open(os.path.join(datadir, nm), "wb") as f:
-            f.write(chunk * 8)
-
-    root_port, metrics_port, s3_port, webdav_port = _free_ports(4)
-    for p in (root_port, metrics_port, s3_port, webdav_port):
-        if _reachable(p):
-            shutil.rmtree(prefix, ignore_errors=True)
-            pytest.skip("port %d in use" % p)
-
-    conf = _render_config(prefix, datadir, root_port, metrics_port,
-                          s3_port, webdav_port)
-    conf_path = os.path.join(prefix, "nginx.conf")
-    open(conf_path, "w").write(conf)
-    pidfile = os.path.join(prefix, "logs", "nginx.pid")
-
-    env = dict(os.environ)
-    pre = env.get("LD_PRELOAD", "")
-    # A sanitizer-instrumented shim must be preceded by the sanitizer RUNTIME in
-    # LD_PRELOAD ("ASan runtime does not come first"). The real versioned .so
-    # (libasan.so.6, not the linker-script libasan.so) is whatever the binary
-    # under test already links — read it straight out of ldd.
+    A sanitizer-instrumented shim must be preceded by the sanitizer RUNTIME in
+    LD_PRELOAD ("ASan runtime does not come first"). The real versioned .so
+    (libasan.so.6, not the linker-script libasan.so) is whatever the binary
+    under test already links — read it straight out of ldd. Returned as a plain
+    dict that the launcher merges onto os.environ for `nginx -t`, launch, and
+    stop, so the shim (and its delay/options) survive the whole lifecycle.
+    """
+    env: dict[str, str] = {}
+    pre = os.environ.get("LD_PRELOAD", "")
     san_rt = ""
     if SHIM_SAN in ("address", "thread"):
         want = "libasan.so" if SHIM_SAN == "address" else "libtsan.so"
@@ -374,7 +331,7 @@ def srv(tmp_path_factory):
     env["LD_PRELOAD"] = " ".join(x for x in (san_rt, pre, shim) if x)
     env["XRD_RACE_DELAY_US"] = str(SHIM_DELAY_US)
     if SHIM_SAN == "thread":
-        supp = os.path.join(prefix, "tsan.supp")
+        supp = os.path.join(workdir, "tsan.supp")
         open(supp, "w").write(
             "race:ngx_atomic_\nrace:^brix_metrics_\nrace:ngx_thread_pool_cycle\n"
             "race:ngx_time_update\nrace:ngx_event_\ncalled_from_lib:libssl\n"
@@ -384,44 +341,86 @@ def srv(tmp_path_factory):
                                % (supp, tsandir))
     elif SHIM_SAN == "address":
         env["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=1:halt_on_error=1"
+    return env
 
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", prefix, "-c", conf_path],
-                         capture_output=True, text=True, env=env)
-    if chk.returncode != 0:
-        tail = (chk.stderr or chk.stdout).strip()[-400:]
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("nginx rejected config: %s" % tail)
-    run = subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path],
-                         capture_output=True, text=True, env=env)
-    if run.returncode != 0 or not _wait_port(root_port):
-        tail = (run.stderr or run.stdout).strip()[-400:]
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("nginx did not start: %s" % tail)
 
-    s = _Srv(prefix, conf_path, pidfile,
-             (root_port, metrics_port, s3_port, webdav_port), datadir, tsandir)
-    s.master = _master_pid(pidfile)
+@pytest.fixture(scope="module")
+def srv():
+    if REMOTE_SERVER:
+        pytest.skip("self-contained; not REMOTE")
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx not built at %s" % NGINX_BIN)
+    if shutil.which("pgrep") is None or shutil.which("cc") is None:
+        pytest.skip("pgrep + cc required")
+
+    # Our own scratch tree (data + shim + tsan reports); the nginx prefix, config,
+    # pidfile and logs are owned by the registry (LifecycleHarness) under its
+    # endpoint.prefix.  We only seed/own the datadir and the sanitizer artifacts.
+    workdir = tempfile.mkdtemp(prefix="evil2-")
+    datadir = os.path.join(workdir, "data")
+    tsandir = os.path.join(workdir, "tsan")
+    for d in (datadir, tsandir):
+        os.makedirs(d, exist_ok=True)
+
+    shim, err = _build_shim(workdir)
+    if shim is None:
+        shutil.rmtree(workdir, ignore_errors=True)
+        pytest.skip("could not build race shim: %s" % err[-300:])
+
+    big = os.path.join(datadir, "big.bin")
+    chunk = bytes((i * 31 + 7) & 0xFF for i in range(65536))
+    with open(big, "wb") as f:
+        for _ in range(BIGFILE_MB * 16):
+            f.write(chunk)
+    for nm in ("shared.bin", "w.bin", "xp.bin"):
+        with open(os.path.join(datadir, nm), "wb") as f:
+            f.write(chunk * 8)
+
+    env = _shim_env(shim, tsandir, workdir)
+
+    # The 3-worker root:// server plus metrics/s3/webdav planes are driven through
+    # the registry (LifecycleHarness): {PORT} is the root:// front and the other
+    # three planes arrive as extra_ports; the harness renders nginx_evil_actor_v2.conf,
+    # runs `nginx -t` and launches with the shim env, and reaps master+workers on
+    # close().  Crash/TSan detection is unchanged — it reads the master pid from
+    # endpoint.pidfile and scans endpoint.prefix/logs (+ our tsandir).
+    harness = LifecycleHarness()
+    try:
+        endpoint = harness.start(NginxInstanceSpec(
+            name="evil-actor-v2",
+            template="nginx_evil_actor_v2.conf",
+            protocol="root",
+            data_root=datadir,
+            extra_ports={"METRICS_PORT": free_port(),
+                         "S3_PORT": free_port(),
+                         "WEBDAV_PORT": free_port()},
+            readiness="tcp",
+            template_values={"BIND_HOST": BIND_HOST},
+            env=env,
+        ))
+    except Exception as exc:
+        harness.close()
+        shutil.rmtree(workdir, ignore_errors=True)
+        pytest.skip("nginx did not start: %s" % str(exc)[-400:])
+
+    ports = (endpoint.port, endpoint.extra_ports["METRICS_PORT"],
+             endpoint.extra_ports["S3_PORT"], endpoint.extra_ports["WEBDAV_PORT"])
+    s = _Srv(endpoint.prefix, endpoint.config, endpoint.pidfile,
+             ports, datadir, tsandir)
+    s.master = _master_pid(endpoint.pidfile)
     if not s.master or not _alive(s.master):
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        shutil.rmtree(prefix, ignore_errors=True)
+        harness.close()
+        shutil.rmtree(workdir, ignore_errors=True)
         pytest.skip("master pid never appeared")
     print("\n[evil2] master=%d root=%d metrics=%d s3=%d webdav=%d shim=%s delay=%dus workers=%s"
-          % (s.master, root_port, metrics_port, s3_port, webdav_port,
+          % (s.master, ports[0], ports[1], ports[2], ports[3],
              SHIM_SAN or "plain", SHIM_DELAY_US,
              _workers(s.master)))
     try:
         yield s
     finally:
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        time.sleep(0.3)
-        if s.master and _alive(s.master):
-            try: os.kill(s.master, 9)
-            except OSError: pass
-        shutil.rmtree(prefix, ignore_errors=True)
+        harness.close()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 # --------------------------- P1: cross-connection bind handle races ----------

@@ -1,6 +1,7 @@
 #include "config.h"
 #include "net/manager/redir_cache.h"
 #include "fs/xfer/stage_waiter.h"
+#include "core/negcache/negcache.h"
 #include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"
 #include "core/compat/lifecycle_timing.h"
@@ -273,6 +274,18 @@ postconf_stage_waiter(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
         return NGX_ERROR;
     }
 
+    /* E-4: register the negative-path backoff SHM zone once if any enabled
+     * server opted into brix_negcache_backoff (threshold > 0). */
+    for (i = 0; i < cmcf->servers.nelts; i++) {
+        xcf = postconf_srv_conf(cscfp, i);
+        if (xcf->common.enable && xcf->negcache.threshold > 0) {
+            if (brix_negcache_configure(cf) != NGX_OK) {
+                return NGX_ERROR;
+            }
+            break;
+        }
+    }
+
     return NGX_OK;
 }
 
@@ -340,6 +353,71 @@ postconf_impersonation(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
 }
 
 /*
+ * E-2 (CWE-290): host-based auth (brix_host_allow) trusts the connection's
+ * peer address. On a `listen ... proxy_protocol` socket that peer address is
+ * whatever the immediate client claims in the PROXY header, so a spoofed
+ * header would satisfy a host allowlist — unless a trusted-proxy allowlist
+ * (set_real_ip_from, from the realip module) constrains who may send one.
+ *
+ * This build ships without the realip module, so no trusted-proxy allowlist
+ * can be expressed and the combination is unconditionally unsafe. Refuse it at
+ * config time (fail nginx -t) rather than serve a silently spoofable ACL.
+ *
+ * Walk every parsed listen address; for each with proxy_protocol set, resolve
+ * the server blocks bound to it and reject if any carries a host allowlist.
+ */
+static ngx_int_t
+postconf_proxy_protocol_host_acl(ngx_conf_t *cf,
+    ngx_stream_core_main_conf_t *cmcf)
+{
+    ngx_stream_conf_port_t       *port;
+    ngx_stream_conf_addr_t       *addr;
+    ngx_stream_core_srv_conf_t  **saddr;
+    ngx_stream_brix_srv_conf_t   *xcf;
+    ngx_uint_t                     p, a, s;
+
+    if (cmcf->ports == NULL) {
+        return NGX_OK;
+    }
+
+    port = cmcf->ports->elts;
+    for (p = 0; p < cmcf->ports->nelts; p++) {
+
+        addr = port[p].addrs.elts;
+        for (a = 0; a < port[p].addrs.nelts; a++) {
+
+            if (!addr[a].opt.proxy_protocol) {
+                continue;
+            }
+
+            saddr = addr[a].servers.elts;
+            for (s = 0; s < addr[a].servers.nelts; s++) {
+
+                xcf = ngx_stream_conf_get_module_srv_conf(saddr[s],
+                                                          ngx_stream_brix_module);
+
+                if (xcf->host_allow == NULL || xcf->host_allow->nelts == 0) {
+                    continue;
+                }
+
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "brix: refusing insecure configuration — brix_host_allow "
+                    "on a \"listen %V proxy_protocol\" socket trusts the "
+                    "PROXY-header peer address, which the immediate client can "
+                    "forge; this build has no realip module, so no "
+                    "set_real_ip_from trusted-proxy allowlist can restrict it. "
+                    "Remove proxy_protocol from that listen, or drop "
+                    "brix_host_allow and authenticate another way",
+                    &addr[a].opt.addr_text);
+                return NGX_ERROR;
+            }
+        }
+    }
+
+    return NGX_OK;
+}
+
+/*
  * Everything above succeeded, so the configuration is valid. Print a
  * friendly per-endpoint summary (visible in `nginx -t` output and at
  * startup) so a first-time admin can confirm what each root:// block
@@ -402,6 +480,13 @@ ngx_stream_brix_postconfiguration(ngx_conf_t *cf)
      * directives when VOMS is unavailable.
      */
     (void) brix_voms_init(cf->log);
+
+    /* E-2: reject brix_host_allow layered over a proxy_protocol listener
+     * (spoofable peer address, no realip trusted-proxy allowlist in this
+     * build). Fail-closed before any runtime object is built. */
+    if (postconf_proxy_protocol_host_acl(cf, cmcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     if (postconf_prepare_servers(cf, cmcf, cscfp) != NGX_OK) {
         return NGX_ERROR;

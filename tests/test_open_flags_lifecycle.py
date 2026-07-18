@@ -304,6 +304,7 @@ class TestOpenFlagSemantics:
     """Each open flag is asserted against the documented handler behavior, with
     a sanity op afterwards proving the connection survived."""
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_new_on_existing_itexists(self, wr_stack):
         """kXR_new on an EXISTING path maps to O_EXCL -> EEXIST -> already-exists.
 
@@ -327,6 +328,7 @@ class TestOpenFlagSemantics:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_delete_truncates_to_zero(self, wr_stack):
         """kXR_delete on an existing file maps to O_CREAT|O_TRUNC: the file is
         truncated to zero length on open."""
@@ -344,6 +346,7 @@ class TestOpenFlagSemantics:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_apnd_appends(self, wr_stack):
         """kXR_open_apnd maps to O_WRONLY|O_APPEND: a write lands at EOF,
         preserving existing content regardless of the requested offset."""
@@ -367,6 +370,7 @@ class TestOpenFlagSemantics:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_mkpath_creates_parents(self, wr_stack):
         """kXR_mkpath creates missing parent directories before the create."""
         rel = "/mkpath_a/mkpath_b/leaf.bin"
@@ -387,6 +391,7 @@ class TestOpenFlagSemantics:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_mkpath_absent_without_flag(self, wr_stack):
         """Without kXR_mkpath, a create under a missing parent must fail
         cleanly (ENOENT -> kXR_NotFound), not silently create dirs."""
@@ -406,6 +411,7 @@ class TestOpenFlagSemantics:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_retstat_returns_inline_stat(self, ro_data, anon):
         """kXR_retstat appends a null-terminated stat string after the 12-byte
         ServerOpenBody; the size field must match the on-disk file size."""
@@ -429,6 +435,7 @@ class TestOpenFlagSemantics:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_invalid_flag_combo_apnd_delete(self, wr_stack):
         """kXR_open_apnd|kXR_delete is a contradictory combination (append vs
         truncate).  The handler must produce a deterministic, clean result —
@@ -466,6 +473,7 @@ class TestPoscLifecycle:
     the final name, while a disconnect/abort unlinks the temp and leaves NO
     final file (open_resolved_file.c + close.c + fd_table.c free_fhandle)."""
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_posc_clean_close_persists(self, wr_stack):
         rel = "/posc_clean.bin"
         final = _wr_full(wr_stack, rel)
@@ -488,6 +496,7 @@ class TestPoscLifecycle:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_posc_abort_leaves_no_final_file(self, wr_stack):
         """A POSC open that is written to but never cleanly closed (the client
         just drops the connection) must leave NO final file: the staging temp
@@ -547,6 +556,7 @@ class TestPoscLifecycle:
 
 class TestHandleLifecycle:
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_handle_exhaustion_clean_error(self, wr_stack):
         """Opening more than BRIX_MAX_FILES (16) handles on one session must
         return a clean kXR_ServerError ('too many open files'), not crash; and
@@ -587,6 +597,7 @@ class TestHandleLifecycle:
                     pass
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_double_close_rejected(self, wr_stack):
         """Closing a handle twice: the first close succeeds, the second must be
         rejected with kXR_FileNotOpen (the slot's fd is now -1)."""
@@ -607,6 +618,7 @@ class TestHandleLifecycle:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("open-flags-lifecycle")
     def test_readonly_handle_write_rejected(self, ro_data, anon):
         """Opening a file read-only (kXR_open_read) then issuing kXR_write must
         be rejected with kXR_NotAuthorized — the writable capability flag was

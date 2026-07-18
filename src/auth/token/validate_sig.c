@@ -137,10 +137,16 @@ token_check_header(const brix_token_validate_args_t *a, const xrdjwt_seg *seg,
  *
  * WHAT: Exact-matches hdr->kid against the loaded JWKS key ids; when no key
  *       matches but exactly one key is loaded, that key is used (legacy
- *       single-key leniency). Returns the key or NULL (mismatch logged).
- * WHY:  Key selection by kid is the RFC 7515 §4.1.4 path; the single-key
- *       fallback preserves long-standing behavior for deployments whose JWKS
- *       predates kid discipline.
+ *       key). Returns the matched key or NULL (mismatch logged).
+ * WHY:  Key selection by kid is the RFC 7515 §4.1.4 path. An asserted kid is
+ *       authoritative: it MUST name a key present in the JWKS. The former
+ *       single-key fallback (unmatched kid → use the sole loaded key anyway)
+ *       let a self-inconsistent kid slip through, so the kid was not truly
+ *       authoritative — the signature still gated, but the resolved key did
+ *       not match the client's own assertion (hyper-hardening D-5). A legit
+ *       single-key deployment either asserts the correct kid (exact match) or
+ *       omits kid entirely (handled by the caller's rotation-grace trial), so
+ *       nothing spec-faithful depends on the fallback.
  * HOW:  Linear scan (JWKS sets are tiny); the failure log sanitizes the
  *       attacker-controlled kid before it reaches the error log.
  */
@@ -155,9 +161,6 @@ token_select_key_by_kid(const brix_token_validate_args_t *a, const token_hdr_t *
             pkey = a->keys[i].pkey;
             break;
         }
-    }
-    if (pkey == NULL && a->key_count == 1) {
-        pkey = a->keys[0].pkey;   /* preserve legacy single-key leniency */
     }
     if (pkey == NULL) {
         char safe_kid[256];

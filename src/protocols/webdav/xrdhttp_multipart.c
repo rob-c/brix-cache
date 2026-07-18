@@ -373,7 +373,7 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
     if (brix_http_parse_range_vector(r->headers_in.range->value.data + 6,
                                        r->headers_in.range->value.len - 6,
                                        sb->st_size, &opts,
-                                       ranges, &nranges) != NGX_OK
+                                       ranges, &nranges, NULL) != NGX_OK
         || nranges == 0)
     {
         /* All ranges unsatisfiable. */

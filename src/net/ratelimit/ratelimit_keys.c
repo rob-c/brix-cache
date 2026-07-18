@@ -33,6 +33,21 @@ rl_key_dn_hash(const u_char *dn, size_t dn_len, char *out, size_t out_sz)
 }
 
 /*
+ * Emit a "sub:<hash>" key for a WLCG/JWT token subject.  Same reasoning as the
+ * DN hash: a token `sub` claim can be an opaque id or (for some IdPs) an email,
+ * so it is never embedded verbatim in a key that surfaces in dashboard/metrics
+ * snapshots — it is FNV-1a32-hashed to a fixed 8 hex digits, bounding the key
+ * length and keeping the low-cardinality/no-PII invariant the DN key already
+ * observes.
+ */
+static void
+rl_key_sub_hash(const u_char *sub, size_t sub_len, char *out, size_t out_sz)
+{
+    uint32_t h = brix_rl_hash((const char *) sub, sub_len);
+    ngx_snprintf((u_char *) out, out_sz, "sub:%08xD%Z", h);
+}
+
+/*
  * Stream-plane key builder: derive the "<type>:<value>" rbtree key for `rule`
  * from the connection's brix_ctx_t identity.  Each branch implements the
  * Phase 25 invariant-5 fallback: when the principal lacks the requested
@@ -74,6 +89,15 @@ brix_rl_key_stream(brix_rl_rule_t *rule, brix_ctx_t *ctx,
         } else {
             rl_key_dn_hash((u_char *) ctx->login.dn, ngx_strlen(ctx->login.dn),
                            out, out_sz);
+        }
+        break;
+
+    case BRIX_RL_KEY_SUBJECT:
+        if (ctx->identity == NULL || ctx->identity->subject.len == 0) {
+            ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->login.peer_ip);
+        } else {
+            rl_key_sub_hash(ctx->identity->subject.data,
+                            ctx->identity->subject.len, out, out_sz);
         }
         break;
 
@@ -176,6 +200,15 @@ rl_key_http_derive(brix_rl_rule_t *rule, const rl_key_req_t *req,
 
     case BRIX_RL_KEY_DN:
         rl_key_http_dn(req, out, out_sz);
+        return NGX_OK;
+
+    case BRIX_RL_KEY_SUBJECT:
+        if (req->id == NULL || req->id->subject.len == 0) {
+            ngx_snprintf((u_char *) out, out_sz, "ip:%V%Z", req->ip);
+        } else {
+            rl_key_sub_hash(req->id->subject.data, req->id->subject.len,
+                            out, out_sz);
+        }
         return NGX_OK;
 
     case BRIX_RL_KEY_VOLUME:

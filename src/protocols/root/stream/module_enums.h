@@ -15,8 +15,10 @@ extern ngx_conf_enum_t brix_authdb_format_modes[];
 extern ngx_conf_enum_t brix_authdb_audit_modes[];
 extern ngx_conf_enum_t brix_hc_types[];
 extern ngx_conf_enum_t brix_security_levels[];
+extern ngx_conf_enum_t brix_min_sec_levels[];
 extern ngx_conf_enum_t brix_signed_dh_modes[];
 extern ngx_conf_enum_t brix_io_uring_modes[];
+extern ngx_conf_enum_t brix_seccomp_modes[];
 extern ngx_conf_enum_t brix_signing_policy_modes[];
 extern ngx_conf_enum_t brix_crl_modes[];
 

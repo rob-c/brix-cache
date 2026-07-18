@@ -351,6 +351,7 @@ class TestNativeTpcIpv6BracketRoundTrip:
     registry/display URL rebuild).  Raw-wire because PyXRootD mishandles
     root://[::1] literals."""
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_native_tpc_ipv6_bracketed_source_open_accepted(self):
         """GATING (parse round-trip): a kXR_open carrying a *bracketed* IPv6 TPC
         source "root://[::1]:PORT//test.txt" is parsed successfully — i.e. it is
@@ -382,6 +383,7 @@ class TestNativeTpcIpv6BracketRoundTrip:
                 f"unexpected TPC-open failure for bracketed IPv6 source: {err!r}"
             )
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_native_tpc_ipv6_v6_to_v6_round_trip(self):
         """GATING (end-to-end rebuild): drive the full open+sync v6→v6 pull on
         ipv6-stream and confirm the destination file is byte-exact.  Reaching a
@@ -439,6 +441,7 @@ class TestNativeTpcIpv6SsrfNegatives:
     loopback / v4-mapped-loopback source is still rejected — the bracket fix did
     not punch an SSRF hole."""
 
+    @pytest.mark.registry_servers("ipv6-stream", "tpc-ssrf-default")
     def test_ssrf_ipv6_loopback_source_rejected(self):
         """SECURITY-NEG: TPC pull from "root://[::1]:PORT//test.txt" against an
         allow_local=off server is rejected as a prohibited (loopback) address.
@@ -454,6 +457,7 @@ class TestNativeTpcIpv6SsrfNegatives:
             f"[::1] loopback source must be SSRF-prohibited, got: {err!r}"
         )
 
+    @pytest.mark.registry_servers("ipv6-stream", "tpc-ssrf-default")
     def test_ssrf_ipv6_v4mapped_loopback_source_rejected(self):
         """SECURITY-NEG: "root://[::ffff:127.0.0.1]:PORT//test.txt" must also be
         rejected — net_target.c classifies a v4-mapped address (IN6_IS_ADDR_
@@ -472,6 +476,7 @@ class TestNativeTpcIpv6SsrfNegatives:
             f"got: {err!r}"
         )
 
+    @pytest.mark.registry_servers("ipv6-stream", "tpc-ssrf-default")
     def test_ssrf_rejection_is_not_a_parse_error(self):
         """SECURITY-NEG (control): the rejection above is the SSRF policy firing
         on a *correctly parsed* bracketed IPv6 host — not an accidental parse
@@ -504,6 +509,7 @@ class TestWebdavTpcIpv6Copy:
     config, so these gate on reachability and assert on the *shape* of the
     response — never a flaky transfer outcome."""
 
+    @pytest.mark.registry_server("ipv6-webdav")
     def test_webdav_tpc_copy_ipv6_source_header_accepted(self):
         """GATING: a COPY pull with "Source: <scheme>://[::1]:PORT/test.txt" is
         NOT rejected as a malformed URL (HTTP 400) on account of the bracketed
@@ -548,6 +554,7 @@ class TestWebdavTpcIpv6Copy:
             f"unexpected COPY status {code} for bracketed IPv6 source"
         )
 
+    @pytest.mark.registry_server("ipv6-webdav")
     def test_webdav_tpc_copy_ipv6_destination_header_accepted(self):
         """GATING (push): a COPY push with "Destination: <scheme>://[::1]:PORT/..."
         plus a "Credential:" header (which is what flags an HTTP-TPC push, see
@@ -589,6 +596,7 @@ class TestWebdavTpcIpv6Copy:
             f"unexpected COPY-push status {code} for bracketed IPv6 destination"
         )
 
+    @pytest.mark.registry_server("ipv6-webdav")
     def test_webdav_tpc_copy_non_https_ipv6_destination_rejected(self):
         """SECURITY-NEG / REGRESSION: a COPY push to an explicit plaintext
         "http://[::1]:9999/..." egress is rejected (400) — the bracket fix did

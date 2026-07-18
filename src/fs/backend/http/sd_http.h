@@ -101,6 +101,14 @@ void brix_sd_http_destroy(brix_sd_instance_t *inst);
 void sd_http_force_primary_set(int on);
 
 void sd_http_set_ranks(brix_sd_instance_t *inst, const int *ranks, int n);
+/* Penalise the endpoint that answered the most recent read (is->cur_ep) after
+ * its bytes FAILED integrity verification (cvmfs-cas / manifest signature).
+ * A verify mismatch is not a transport failure, so it never raised the
+ * endpoint's health score — without this the fill's EBADMSG retry re-picks the
+ * same corrupt origin. Bumps the DECAYING fail_score (self-healing, unlike a
+ * permanent rank demotion) so the next retry rotates to a clean endpoint.
+ * No-op on a non-http instance or when no origin has answered yet. */
+void sd_http_penalize_last_origin(brix_sd_instance_t *inst);
 int  sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256],
                            int *ports, int max);
 int  sd_http_n_endpoints(brix_sd_instance_t *inst);

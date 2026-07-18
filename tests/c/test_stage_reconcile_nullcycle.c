@@ -70,6 +70,8 @@ ngx_int_t brix_sd_stage_reflush(void *inst, const char *key, const void *cred)
 /* brix_sd_ucred_resolve: added by stage_engine.c (never reached for corrupt recs) */
 ngx_int_t brix_sd_ucred_resolve(const char *dir, const char *key, void *out)
 { (void) dir; (void) key; (void) out; g_unexpected_stub++; return NGX_ERROR; }
+/* brix_sd_ucred_wipe: erases the resolved secret after a flush (stage_engine.c) */
+void brix_sd_ucred_wipe(void *cred) { (void) cred; }
 void brix_xfer_finish(int kind, const char *dir, const char *src,
     const char *dst, size_t bytes, int result, int err, void *log)
 { (void) kind; (void) dir; (void) src; (void) dst; (void) bytes;

@@ -47,6 +47,17 @@
 #define BRIX_OCSP_TIMEOUT_SECS  5
 
 /*
+ * OCSP_MAX_RESPONSE_BYTES — hard ceiling on the responder's reply size.  OCSP
+ * fetches are usually plaintext HTTP (MITM-able) and the responder is untrusted
+ * until its signature is checked; without a byte cap a hostile or MITM'd
+ * responder can stream an unbounded body and drive worker memory growth / DoS
+ * (T2) during the revocation read.  A legitimate OCSP response is a few KiB, so
+ * 64 KiB is generous headroom.  Enforced in do_ocsp_request() via
+ * OCSP_set_max_response_length() on the request context.
+ */
+#define OCSP_MAX_RESPONSE_BYTES  (64 * 1024)
+
+/*
  * ocsp_url_t — parsed components of an OCSP responder URL.
  *
  * WHAT: Fixed-capacity home for the host, path, port, and scheme extracted
@@ -116,12 +127,18 @@ void ocsp_conn_free(ocsp_conn_t *c);
 
 /* Defined in ocsp_request.c — build the OCSP request (id + nonce), POST it to
  * the responder at url, and return the parsed response (caller frees via
- * OCSP_RESPONSE_free()).  Returns NULL on any network or protocol error. */
+ * OCSP_RESPONSE_free()).  Returns NULL on any network or protocol error.
+ * On success *req_out receives the request that carries the anti-replay nonce
+ * (caller frees via OCSP_REQUEST_free()) so check_ocsp_response() can match the
+ * nonce; on any failure *req_out is set NULL and the request is freed here. */
 OCSP_RESPONSE *do_ocsp_request(ngx_log_t *log, const char *url,
-    X509 *leaf, X509 *issuer, OCSP_CERTID *id);
+    X509 *leaf, X509 *issuer, OCSP_CERTID *id, OCSP_REQUEST **req_out);
 
 /* Defined in ocsp_request.c — verify an OCSP response (status / signature vs
  * store / nonce vs req_for_nonce) and return the cert status: 0 GOOD, -1 REVOKED
- * or invalid, 1 UNKNOWN. */
+ * or invalid, 1 UNKNOWN.  When require_nonce is non-zero, a response that omits
+ * the nonce the request carried is treated as a hard failure (replay defence),
+ * not a warning (A-6 item 2). */
 int check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
-    X509_STORE *store, OCSP_CERTID *id, OCSP_REQUEST *req_for_nonce);
+    X509_STORE *store, OCSP_CERTID *id, OCSP_REQUEST *req_for_nonce,
+    int require_nonce);

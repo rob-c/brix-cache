@@ -122,6 +122,7 @@ def _put(host, key, headers, body):
                         data=body, timeout=15)
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_valid_chunk_signatures_accepted(signed_host):
     key = f"chunksig_{uuid.uuid4().hex}"
     chunks = [b"hello ", b"streaming ", b"world"]
@@ -139,6 +140,7 @@ def test_valid_chunk_signatures_accepted(signed_host):
             os.remove(path)
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_tampered_chunk_signature_rejected(signed_host):
     key = f"chunksig_{uuid.uuid4().hex}"
     chunks = [b"hello ", b"streaming ", b"world"]

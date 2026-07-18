@@ -114,6 +114,100 @@ guard_grammar_ok(const guard_ruleset_t *rs, guard_op_class_t op,
     return 0;
 }
 
+/* ---- Does buf open with an HTTP request line? ----
+ *
+ * WHAT: returns 1 if buf[0..len) begins with a recognized HTTP method token
+ *   followed by a space (GET/POST/HEAD/PUT/OPTIONS/DELETE/CONNECT/TRACE/PATCH).
+ *
+ * WHY: a web scanner knocking on a root:// port opens with an HTTP request
+ *   line; naming it in the audit tells the operator exactly what probed them.
+ *
+ * HOW: 1. Match each method's leading bytes plus the trailing space so a
+ *         binary frame that merely starts with those letters is not misread.
+ */
+static int
+is_http_line(const unsigned char *buf, size_t len)
+{
+    static const char *const verbs[] = {
+        "GET ", "POST ", "HEAD ", "PUT ", "OPTIONS ", "DELETE ",
+        "CONNECT ", "TRACE ", "PATCH "
+    };
+    size_t v;
+
+    for (v = 0; v < sizeof(verbs) / sizeof(verbs[0]); v++) {
+        size_t vlen = strlen(verbs[v]);
+        if (len >= vlen && memcmp(buf, verbs[v], vlen) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* ---- Wire-level handshake classifier ----
+ *
+ * WHAT: inspects the first bytes of a fresh connection on a root:// port and
+ *   decides whether they are the kXR client handshake. Returns GUARD_WIRE_ROOT
+ *   for a genuine (or still-incomplete-but-consistent) kXR opening, otherwise
+ *   the best-effort identity of the non-root client (TLS/HTTP/SSH/empty/junk).
+ *
+ * WHY: the tap-based guard only sees DECODED kXR frames; a client that never
+ *   speaks root — a TLS ClientHello, an HTTP scanner, an SSH bannergrab, raw
+ *   junk — produces no frame and would otherwise sail through to the backend.
+ *   This is the "who is knocking on the root port" classifier operators want.
+ *
+ * HOW: 1. A real kXR client opens with ClientInitHandShake: 12 zero bytes,
+ *         then fourth == htonl(4) (bytes 12..15 == 00 00 00 04); fifth is left
+ *         unchecked so odd-but-real clients still forward.
+ *      2. Reject the instant an available leading byte breaks the zero-prefix;
+ *         defer (*need_more) only while every byte seen stays consistent and
+ *         the 20-byte signature is not yet complete.
+ *      3. A non-root opening is identified for the audit line: TLS record
+ *         (0x16 0x03), HTTP method line, "SSH-" banner, empty, else junk.
+ */
+guard_wire_t
+guard_classify_handshake(const unsigned char *buf, size_t len, int *need_more)
+{
+    size_t lead, i;
+
+    *need_more = 0;
+
+    if (len == 0) {
+        return GUARD_WIRE_EMPTY;
+    }
+
+    /* Step 1+2: is the opening consistent with the kXR zero-prefix? */
+    lead = len < 12 ? len : 12;
+    for (i = 0; i < lead; i++) {
+        if (buf[i] != 0) {
+            break;                      /* zero-prefix broken -> not root */
+        }
+    }
+    if (i == lead) {                    /* every leading byte zero so far */
+        if (len < 16) {
+            *need_more = 1;             /* zero-prefix, fourth not yet in */
+            return GUARD_WIRE_ROOT;
+        }
+        /* fourth is now present; fifth is deliberately unchecked, so the
+         * 16-byte prefix is the whole verdict — final either way. */
+        if (buf[12] == 0 && buf[13] == 0 && buf[14] == 0 && buf[15] == 4) {
+            return GUARD_WIRE_ROOT;     /* genuine kXR ClientInitHandShake */
+        }
+        return GUARD_WIRE_JUNK;         /* 16+ zero-led bytes, fourth != 4 */
+    }
+
+    /* Step 3: name the non-root client for the operator. */
+    if (buf[0] == 0x16 && len >= 2 && buf[1] == 0x03) {
+        return GUARD_WIRE_TLS;          /* TLS handshake record, version 3.x */
+    }
+    if (is_http_line(buf, len)) {
+        return GUARD_WIRE_HTTP;
+    }
+    if (len >= 4 && memcmp(buf, "SSH-", 4) == 0) {
+        return GUARD_WIRE_SSH;
+    }
+    return GUARD_WIRE_JUNK;
+}
+
 /* ---- Pre-backend verdict: bounce or allow ----
  *
  * WHAT: classifies a request before it reaches the backend. Returns

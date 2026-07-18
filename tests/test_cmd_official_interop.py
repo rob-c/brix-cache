@@ -26,10 +26,11 @@ def _fleet_anon_listening() -> bool:
 
 
 @pytest.mark.optin
+@pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", ["noauth", "host", "stress"])
 def test_official_interop_scenario(scenario: str):
-    if os.environ.get("PHASE81_RUN_LIVE_PORTS") != "1":
-        pytest.skip("set PHASE81_RUN_LIVE_PORTS=1 to run official interop live scenarios")
+    if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
+        pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip official interop live scenarios")
     missing = official_interop._missing_tools()
     if missing:
         pytest.skip(f"XRootD client tools missing: {', '.join(missing)}")
@@ -39,9 +40,10 @@ def test_official_interop_scenario(scenario: str):
 
 
 @pytest.mark.optin
+@pytest.mark.timeout(600)
 def test_cross_compatible_lanes():
-    if os.environ.get("PHASE81_RUN_LIVE_PORTS") != "1":
-        pytest.skip("set PHASE81_RUN_LIVE_PORTS=1 to run the cross-compatible pytest lanes")
+    if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
+        pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip the cross-compatible pytest lanes")
     if shutil.which("xrootd") is None:
         pytest.skip("stock xrootd server not installed (needed for the xrootd backend lane)")
     assert official_interop.cross_compatible() == 0

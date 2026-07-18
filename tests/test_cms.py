@@ -167,6 +167,7 @@ def cms_nginx():
 class TestCmsLogin:
     """Verify that the cms-test nginx registers with the real CMS manager."""
 
+    @pytest.mark.registry_servers("cms-test", "cms-test-mgr")
     def test_cms_connection_established(self, cms_nginx):
         """The CMS manager must have at least one ESTABLISHED connection from
         the cms-test nginx data server.
@@ -177,6 +178,7 @@ class TestCmsLogin:
             "the cms-test nginx may not have registered with the CMS manager"
         )
 
+    @pytest.mark.registry_servers("cms-test", "cms-test-mgr")
     def test_cms_server_responds_to_brix_ping(self, cms_nginx):
         """After CMS registration the nginx cms-test server must serve
         XRootD requests normally.
@@ -190,6 +192,7 @@ class TestCmsLogin:
 
 class TestCmsPingPong:
 
+    @pytest.mark.registry_servers("cms-test", "cms-test-mgr")
     def test_server_stays_healthy_after_heartbeat_cycle(self, cms_nginx):
         """The cms-test nginx must remain responsive after 8 seconds of CMS
         heartbeat traffic (covering ~4 brix_cms_interval=2 cycles).
@@ -205,6 +208,7 @@ class TestCmsPingPong:
 class TestCmsAvail:
     """Verify that the CMS connection is maintained after heartbeat cycles."""
 
+    @pytest.mark.registry_servers("cms-test", "cms-test-mgr")
     def test_cms_connection_maintained_after_heartbeat(self, cms_nginx):
         """The CMS connection must still be ESTABLISHED after the heartbeat
         cycle in TestCmsPingPong has run.
@@ -222,6 +226,7 @@ class TestCmsAvail:
 
 class TestCmsReconnect:
 
+    @pytest.mark.registry_servers("cms-test", "cms-test-mgr")
     def test_cms_connection_maintained(self, cms_nginx):
         count = _count_established_to(cms_nginx["cms_port"])
         assert count >= 1, "no CMS connection found"

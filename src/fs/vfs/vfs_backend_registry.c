@@ -179,6 +179,62 @@ brix_vbr_wrap_cache_tier(brix_sd_instance_t *top,
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
             "brix: read-cache tier (%s) composed over \"%s\"",
             e->cache_tier.driver, e->root_canon);
+
+        /* Phase-85 F7: build + attach the optional cold store tier. Degraded
+         * (build failure) means hot-tier-only — the export still serves. */
+        if (e->cold_tier.configured) {
+            brix_sd_instance_t *cold = brix_tier_build(&e->cold_tier, log);
+
+            if (cold != NULL) {
+                brix_sd_cache_set_cold(dec, cold);
+                ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                    "brix: cold cache tier (%s) attached under \"%s\"",
+                    e->cold_tier.driver, e->root_canon);
+            } else {
+                ngx_log_error(NGX_LOG_ERR, log, 0,
+                    "brix: cold cache tier build failed for \"%s\" - "
+                    "running hot tier only", e->root_canon);
+            }
+        }
+
+        /* Phase-85 F8: build the sibling-mesh ring. Each non-self member
+         * becomes an http fill source over the same tier grammar the stores
+         * use; a member whose build fails stays NULL (its keys fall through
+         * to the origin) — the mesh degrades, never blocks the export. */
+        if (e->n_peer_ring > 0) {
+            brix_sd_cache_peer_t  peers[BRIX_SD_CACHE_MAX_PEERS];
+            brix_tier_cfg_t       pcfg;
+            int                     i;
+
+            ngx_memzero(peers, sizeof(peers));
+            for (i = 0; i < e->n_peer_ring; i++) {
+                (void) snprintf(peers[i].label, sizeof(peers[i].label),
+                    "%s:%d", e->peer_ring[i].host, e->peer_ring[i].port);
+                if (i == e->peer_self) {
+                    continue;              /* own slot: never self-fetch */
+                }
+                ngx_memzero(&pcfg, sizeof(pcfg));
+                pcfg.role = BRIX_TIER_CACHE;
+                ngx_cpystrn((u_char *) pcfg.driver, (u_char *) "http",
+                    sizeof(pcfg.driver));
+                ngx_cpystrn((u_char *) pcfg.host,
+                    (u_char *) e->peer_ring[i].host, sizeof(pcfg.host));
+                pcfg.port       = e->peer_ring[i].port;
+                pcfg.configured = 1;
+                peers[i].inst = brix_tier_build(&pcfg, log);
+                if (peers[i].inst == NULL) {
+                    ngx_log_error(NGX_LOG_ERR, log, 0,
+                        "brix: mesh sibling %s build failed for \"%s\" - "
+                        "its keys fall through to the origin",
+                        peers[i].label, e->root_canon);
+                }
+            }
+            brix_sd_cache_set_peers(dec, peers, e->n_peer_ring, e->peer_self);
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "brix: sibling mesh (%d members, self=%s) attached under "
+                "\"%s\"", e->n_peer_ring, peers[e->peer_self].label,
+                e->root_canon);
+        }
         return dec;
     }
     return top;

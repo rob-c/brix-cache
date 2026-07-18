@@ -31,10 +31,10 @@ import time
 
 import pytest
 
-from config_templates import render_config
-from settings import HOST, BIND_HOST, HOST6, BIND_HOST6, url_host
+from server_registry import NginxInstanceSpec
+from settings import HOST, BIND_HOST6, HOST6, url_host, free_port
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,14 +45,6 @@ XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 _CLEAN_ENV = {k: v for k, v in os.environ.items()}
 for _k in ("X509_USER_PROXY", "X509_CERT_DIR", "BEARER_TOKEN", "BEARER_TOKEN_FILE"):
     _CLEAN_ENV.pop(_k, None)
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 def _port_up(host, port, family=socket.AF_INET):
@@ -75,30 +67,6 @@ def _have_ipv6_loopback():
         return False
 
 
-def _start_nginx(root, data, listens):
-    """Write+start an anon-stream nginx listening on each "addr:port" in *listens*
-    (all sharing one data root). Returns the conf path; raises pytest.skip on -t."""
-    listen_lines = "\n".join(f"        listen {a};" for a in listens)
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_xrddiag_remote_doctor_anon.conf",
-        BASE_DIR=root,
-        LISTEN_LINES=listen_lines,
-        DATA_DIR=data,
-    ))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                       capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    return conf
-
-
-def _stop_nginx(conf):
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
-
-
 @pytest.fixture(scope="module")
 def doctor():
     """Build xrddiag once; skip cleanly without a compiler / nginx."""
@@ -113,27 +81,29 @@ def doctor():
     return XRDDIAG
 
 
-@pytest.fixture(scope="module")
-def anon(doctor, tmp_path_factory):
+@pytest.fixture
+def anon(lifecycle, doctor, tmp_path_factory):
     """A single anon server bound on v4 (and v6 ::1 when available, on the same
     port) so the v4/v6-asymmetry detector can be exercised."""
-    root = tmp_path_factory.mktemp("rdoctor")
-    data = root / "data"
+    data = tmp_path_factory.mktemp("rdoctor") / "data"
     data.mkdir()
     (data / "big.bin").write_bytes(os.urandom(4 * 1024 * 1024))
     (data / "small.txt").write_bytes(b"hello\n")
-    port = _free_port()
-    listens = [f"{BIND_HOST}:{port}"]
+    # Fix the port up front so the ::1 listen can share it with the v4 listen.
+    port = free_port()
     v6 = _have_ipv6_loopback()
-    if v6:
-        listens.append(f"[{BIND_HOST6}]:{port}")
-    conf = _start_nginx(root, data, listens)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    yield {"port": port, "v6": v6}
-    _stop_nginx(conf)
+    v6_listen = f"listen [{BIND_HOST6}]:{port};" if v6 else ""
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-rdoctor-anon",
+        template="nginx_xrddiag_remote_doctor_anon.conf",
+        port=port,
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+        template_values={"V6_LISTEN": v6_listen},
+        reason="Anon root:// on v4 (+::1 same port) for the remote-doctor battery.",
+    ))
+    yield {"port": ep.port, "v6": v6}
 
 
 def _run(*args, timeout=60):
@@ -261,52 +231,37 @@ def test_remote_doctor_pii_free(anon):
 # active diagnosis — exercise subsystems, classify symptom → root cause
 # ==========================================================================
 
-def _start_server(root, data, port, writable):
-    """Start an anon stream server on a free port; writable adds allow_write."""
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_xrddiag_remote_doctor_stream.conf",
-        BASE_DIR=root,
-        BIND_HOST=BIND_HOST,
-        PORT=port,
-        DATA_DIR=data,
-        ALLOW_WRITE_LINE="        brix_allow_write on;\n" if writable else "",
+def _start_stream(lifecycle, name, data, writable):
+    """Start an anon stream server; writable adds allow_write. Returns endpoint."""
+    return lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_xrddiag_remote_doctor_stream.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+        template_values={"ALLOW_WRITE_LINE":
+                         "brix_allow_write on;" if writable else ""},
+        reason="Anon root:// export for active remote-doctor diagnosis probes.",
     ))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                       capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    return conf
 
 
-@pytest.fixture(scope="module")
-def rw_server(doctor, tmp_path_factory):
+@pytest.fixture
+def rw_server(lifecycle, doctor, tmp_path_factory):
     """A writable (allow_write on) anon export — the write probe must go green."""
-    root = tmp_path_factory.mktemp("rdoctor_rw")
-    data = root / "data"
+    data = tmp_path_factory.mktemp("rdoctor_rw") / "data"
     data.mkdir()
     (data / "f.bin").write_bytes(os.urandom(256 * 1024))
-    port = _free_port()
-    conf = _start_server(root, data, port, writable=True)
-    yield {"port": port, "data": data}
-    _stop_nginx(conf)
+    ep = _start_stream(lifecycle, "lc-rdoctor-rw", data, writable=True)
+    yield {"port": ep.port, "data": data}
 
 
-@pytest.fixture(scope="module")
-def empty_server(doctor, tmp_path_factory):
+@pytest.fixture
+def empty_server(lifecycle, doctor, tmp_path_factory):
     """A readable but empty export root — the namespace probe must warn."""
-    root = tmp_path_factory.mktemp("rdoctor_empty")
-    data = root / "data"
+    data = tmp_path_factory.mktemp("rdoctor_empty") / "data"
     data.mkdir()
-    port = _free_port()
-    conf = _start_server(root, data, port, writable=False)
-    yield {"port": port}
-    _stop_nginx(conf)
+    ep = _start_stream(lifecycle, "lc-rdoctor-empty", data, writable=False)
+    yield {"port": ep.port}
 
 
 def _diagnosis(blob):
@@ -414,8 +369,8 @@ def _authsuite_diag(blob):
     return {d["probe"]: d for d in doc["endpoints"][0]["diagnosis"]}
 
 
-@pytest.fixture(scope="module")
-def sss_server(doctor, tmp_path_factory):
+@pytest.fixture
+def sss_server(lifecycle, doctor, tmp_path_factory):
     """An auth-REQUIRED (SSS) server — used to prove anonymous access is denied."""
     if subprocess.run(["make", "-C", CLIENT_DIR, "xrdsssadmin-brix"],
                       capture_output=True).returncode != 0 or not os.path.exists(_SSSADMIN):
@@ -430,26 +385,16 @@ def sss_server(doctor, tmp_path_factory):
                        capture_output=True, text=True)
     if r.returncode != 0:
         pytest.skip(f"xrdsssadmin add failed: {r.stdout}{r.stderr}")
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_xrddiag_remote_doctor_sss.conf",
-        BASE_DIR=root,
-        BIND_HOST=BIND_HOST,
-        PORT=port,
-        DATA_DIR=data,
-        KEYTAB=kt,
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-rdoctor-sss",
+        template="nginx_xrddiag_remote_doctor_sss.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+        template_values={"KEYTAB": kt},
+        reason="SSS-required root:// for the anon-access-denied auth-suite probe.",
     ))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed (sss):\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    yield {"port": port, "keytab": kt}
-    _stop_nginx(conf)
+    yield {"port": ep.port, "keytab": kt}
 
 
 @pytest.fixture(scope="module")
@@ -467,35 +412,24 @@ def token_issuer():
     return ti
 
 
-@pytest.fixture(scope="module")
-def token_server(doctor, token_issuer, tmp_path_factory):
+@pytest.fixture
+def token_server(lifecycle, doctor, token_issuer, tmp_path_factory):
     """A bearer-token server (RSA JWKS) — used for forged/expired/scope probes."""
-    root = tmp_path_factory.mktemp("rd_tok")
-    data = root / "data"
+    data = tmp_path_factory.mktemp("rd_tok") / "data"
     data.mkdir()
     (data / "probe.txt").write_bytes(b"hi\n")
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_xrddiag_remote_doctor_token.conf",
-        BASE_DIR=root,
-        BIND_HOST=BIND_HOST,
-        PORT=port,
-        DATA_DIR=data,
-        JWKS_PATH=token_issuer.jwks_path,
-        ISSUER=token_issuer.issuer,
-        AUDIENCE=token_issuer.audience,
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-rdoctor-token",
+        template="nginx_xrddiag_remote_doctor_token.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+        template_values={"JWKS_PATH": token_issuer.jwks_path,
+                         "ISSUER": token_issuer.issuer,
+                         "AUDIENCE": token_issuer.audience},
+        reason="Bearer-token root:// (RSA JWKS) for the auth-suite forged/expired/scope probes.",
     ))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed (token):\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    yield {"port": port, "issuer": token_issuer}
-    _stop_nginx(conf)
+    yield {"port": ep.port, "issuer": token_issuer}
 
 
 def test_authsuite_off_by_default(anon):

@@ -166,6 +166,7 @@ class TestUpstreamRedirect:
     """nginx correctly forwards kXR_redirect / kXR_wait / kXR_waitresp /
     kXR_error responses from an upstream XRootD redirector to the client."""
 
+    @pytest.mark.registry_servers("cluster-ds", "real-upstream-redirect")
     def test_locate_redirected(self, real_redirect_nginx):
         """Upstream cluster-redir returns kXR_redirect → client receives it.
 
@@ -197,6 +198,7 @@ class TestUpstreamRedirect:
         assert redir_port == CLUSTER_DS_PORT, \
             f"expected redirect to port {CLUSTER_DS_PORT}, got {redir_port}"
 
+    @pytest.mark.registry_server("stub-upstream-wait")
     def test_locate_wait_then_redirect(self, upstream_wait_nginx):
         """Upstream returns kXR_wait(1) then kXR_redirect on the same
         connection; nginx keeps the upstream read event armed during the wait
@@ -212,6 +214,7 @@ class TestUpstreamRedirect:
         assert struct.unpack(">I", body[:4])[0] == 2094
         assert body[4:].decode() == "retry.example.org"
 
+    @pytest.mark.registry_server("stub-upstream-waitresp")
     def test_locate_waitresp_then_redirect(self, upstream_waitresp_nginx):
         """Upstream returns kXR_waitresp (async hold) then kXR_redirect;
         client receives both frames in order."""
@@ -229,6 +232,7 @@ class TestUpstreamRedirect:
         assert struct.unpack(">I", body[:4])[0] == 3094
         assert body[4:].decode() == "async.example.org"
 
+    @pytest.mark.registry_server("upstream-error")
     def test_upstream_error_forwarded(self, upstream_error_nginx):
         """Upstream kXR_error is forwarded to the client.
 
@@ -253,6 +257,7 @@ class TestUpstreamAuth:
     """nginx correctly handles token-auth challenges and gotoTLS on the
     outbound upstream connection."""
 
+    @pytest.mark.registry_server("stub-upstream-auth")
     def test_upstream_token_auth_success(self, upstream_auth_nginx):
         """Upstream issues kXR_authmore; nginx sends the ztn JWT from
         brix_upstream_token_file; upstream accepts; redirect forwarded."""
@@ -289,6 +294,7 @@ class TestUpstreamAuth:
         assert sent_token == token_content, \
             f"sent token mismatch: {sent_token!r} != {token_content!r}"
 
+    @pytest.mark.registry_server("stub-upstream-auth-nofile")
     def test_upstream_token_auth_no_file_aborts(self, upstream_auth_nofile_nginx):
         """Upstream issues kXR_authmore but nginx has no token file
         configured; nginx must abort and return kXR_error to the client."""
@@ -301,6 +307,7 @@ class TestUpstreamAuth:
         assert status == kXR_error, \
             f"expected kXR_error when token_file not set, got {status}"
 
+    @pytest.mark.registry_server("stub-upstream-gotorls")
     def test_upstream_gotorls_no_tls_configured_aborts(self, upstream_gotorls_nginx):
         """Upstream signals kXR_gotoTLS but nginx has brix_upstream_tls off;
         nginx must abort — no credentials may travel over a cleartext channel."""

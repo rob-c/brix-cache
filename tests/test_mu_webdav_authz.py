@@ -15,35 +15,44 @@ decision) and proves both:
 Run: PYTHONPATH=tests pytest tests/test_mu_webdav_authz.py -v   (no root needed)
 """
 import os
-import socket
-import subprocess
-import time
 from types import SimpleNamespace
 
 import pytest
 
-from mu_authz_lib import creds, fleet, ports, principals
+from mu_authz_lib import creds, ports, principals
 from mu_authz_lib.adapters import measure_webdav
+from server_registry import NginxInstanceSpec
 
-_PORT = ports.MU.WEBDAV_AUTHZ
-_URL = f"https://{ports.MU.HOST}:{_PORT}"
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
-def _port_open(p):
-    s = socket.socket()
-    s.settimeout(0.5)
-    try:
-        s.connect((ports.MU.HOST, p))
-        return True
-    except OSError:
-        return False
-    finally:
-        s.close()
+def _spec():
+    return NginxInstanceSpec(
+        name="lc-mu-webdav-authz",
+        template="nginx_mu_webdav_authz.conf",
+        protocol="https",
+        readiness="webdav",
+        data_root=ports.MU.DATA_ROOT,
+        template_values={
+            "CERT": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
+            "KEY": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
+            "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
+            "VOMSDIR": ports.MU.VOMSDIR,
+            "CA_DIR": ports.MU.CA_DIR,
+            "AUTHDB": ports.MU.AUTHDB,
+        },
+        reason="MU WebDAV read node: native authdb + VO-ACL read parity.",
+    )
 
 
 @pytest.fixture(scope="module")
-def webdav_authz_env():
+def cast():
+    """Build the MU PKI/principal cast once for the module (idempotent)."""
     principals.build_cast()
+
+
+@pytest.fixture
+def webdav_authz_env(lifecycle, cast):
     for sub in ("cms", "restricted", "private"):
         d = os.path.join(ports.MU.DATA_ROOT, sub)
         os.makedirs(d, exist_ok=True)
@@ -53,34 +62,7 @@ def webdav_authz_env():
     with open(ports.MU.AUTHDB, "w") as f:
         # authdb grants any authenticated reader on /cms and /restricted; nothing else.
         f.write("u * /cms rl\nu * /restricted rl\n")
-    for dd in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR, os.path.join(ports.MU.LOG_DIR, "nginx_tmp")):
-        os.makedirs(dd, exist_ok=True)
-
-    subst = fleet._base_subst()
-    subst["{AUTHDB}"] = ports.MU.AUTHDB
-    src = os.path.join(fleet._CFG_SRC, "webdav_authz_noimp.conf")
-    text = open(src).read()
-    for k, v in subst.items():
-        text = text.replace(k, v)
-    dst = os.path.join(ports.MU.CONFIG_DIR, "webdav_authz_noimp.conf")
-    with open(dst, "w") as f:
-        f.write(text)
-
-    pidf = os.path.join(ports.MU.MU_ROOT, "webdav_authz.pid")
-    subprocess.run([fleet.NGINX, "-c", dst, "-g", f"pid {pidf};"],
-                   check=True, capture_output=True)
-    deadline = time.time() + 15
-    while time.time() < deadline and not _port_open(_PORT):
-        time.sleep(0.2)
-    if not _port_open(_PORT):
-        raise TimeoutError(f"webdav authz server never listened on {_PORT}")
-    try:
-        yield _URL
-    finally:
-        try:
-            os.kill(int(open(pidf).read().strip()), 15)
-        except (ProcessLookupError, ValueError, FileNotFoundError):
-            pass
+    return lifecycle.start(_spec())
 
 
 def _proxy(name, vo=None):
@@ -95,7 +77,7 @@ def _proxy(name, vo=None):
 def test_webdav_authdb_path_scoping(webdav_authz_env, op):
     """Native authdb read gate: an authenticated reader is served under a granted subtree
     (/cms) but REFUSED outside it (/private) — for GET, HEAD, and PROPFIND."""
-    url = webdav_authz_env
+    url = webdav_authz_env.url
     alice = _proxy("alice")
 
     assert measure_webdav(url, "/cms/secret.dat", op, principal=alice).decision == "ALLOW", \
@@ -108,7 +90,7 @@ def test_webdav_authdb_path_scoping(webdav_authz_env, op):
 def test_webdav_vo_acl_read(webdav_authz_env, op):
     """VO ACL read gate (VOMS extraction fix): on /restricted (require_vo cms), a VO=cms
     reader is served but a VO=atlas reader is refused 403 — for GET, HEAD, and PROPFIND."""
-    url = webdav_authz_env
+    url = webdav_authz_env.url
     alice = _proxy("alice", vo="cms")     # VO cms — admitted by require_vo /restricted cms
     bob = _proxy("bob", vo="atlas")       # VO atlas — refused
 

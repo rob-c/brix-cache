@@ -72,6 +72,8 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->metrics_slot = -1;
     conf->rootfd       = -1;
     conf->security_level = NGX_CONF_UNSET_UINT;
+    conf->min_sec_level = NGX_CONF_UNSET_UINT;
+    conf->opaque_strict = NGX_CONF_UNSET;
     conf->tls          = NGX_CONF_UNSET;
     conf->tls_ktls     = NGX_CONF_UNSET;
     conf->gsi_keypool_size = NGX_CONF_UNSET_UINT;
@@ -125,6 +127,10 @@ brix_create_srv_storage(ngx_stream_brix_srv_conf_t *conf)
     conf->memory_budget            = NGX_CONF_UNSET;
     conf->readv_segment_size       = NGX_CONF_UNSET_SIZE;
     conf->io_uring                 = NGX_CONF_UNSET_UINT;
+    conf->seccomp                  = NGX_CONF_UNSET_UINT;
+    conf->negcache.threshold       = NGX_CONF_UNSET_UINT;
+    conf->negcache.window_ms       = NGX_CONF_UNSET_UINT;
+    conf->negcache.backoff_s       = NGX_CONF_UNSET_UINT;
     conf->io_uring_queue_depth     = NGX_CONF_UNSET;
     conf->io_uring_admin           = NGX_CONF_UNSET;
     conf->io_uring_restrict        = NGX_CONF_UNSET;
@@ -229,6 +235,7 @@ brix_create_srv_proxy_net(ngx_stream_brix_srv_conf_t *conf)
     brix_proxy_conf_init(&conf->proxy);
     conf->upstream_addr = NULL;
     conf->upstream_tls = NGX_CONF_UNSET;
+    conf->upstream_ssl_verify = NGX_CONF_UNSET;
 #if (NGX_SSL)
     conf->upstream_tls_ctx = NULL;
 #endif

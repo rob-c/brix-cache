@@ -173,6 +173,10 @@ class TestFileWrite:
         assert data == content
         f.close()
 
+    @pytest.mark.skipif(
+        CROSS_BACKEND == "xrootd",
+        reason="rejecting reads on a write-only handle is nginx-xrootd-specific (stock xrootd allows it)",
+    )
     def test_read_from_write_only_file_fails(self):
         """Reading from a file opened write-only must be rejected."""
         f = anon_file()

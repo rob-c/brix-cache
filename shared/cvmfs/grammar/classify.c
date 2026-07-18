@@ -22,6 +22,14 @@ static int is_cas_suffix(char c) {
     return c == 'C' || c == 'H' || c == 'X' || c == 'M' || c == 'L' || c == 'P';
 }
 
+/* A digest's total hex length is standard iff it is one CVMFS ever publishes:
+ * 40 (sha1/rmd160), 64 (sha256), 96 (sha384), 128 (sha512). No official hash
+ * has any other length, so an in-range odd length (e.g. 41 = 40 hex + a folded
+ * lowercase 'c') is not CVMFS traffic and must be rejected. */
+static int cas_hexlen_standard(size_t t) {
+    return t == 40 || t == 64 || t == 96 || t == 128;
+}
+
 /* "<2hex>/<hex...>[suffix]" after ".../data/". Returns 0 on valid CAS. */
 static int parse_cas(const char *p, size_t n, cvmfs_url_info_t *out) {
     size_t hexn;
@@ -30,7 +38,7 @@ static int parse_cas(const char *p, size_t n, cvmfs_url_info_t *out) {
         return -1;
     p += 3; n -= 3;
     for (hexn = 0; hexn < n && hexlc(p[hexn]); hexn++) { /* count hex run */ }
-    if (hexn + 2 < 40 || hexn + 2 > 128)     /* sha1=40 .. shake128 etc.  */
+    if (!cas_hexlen_standard(hexn + 2))      /* sha1=40/sha256=64/384/512 */
         return -1;
     if (hexn == n) {
         out->cas_suffix = 0;

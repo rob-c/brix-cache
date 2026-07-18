@@ -187,6 +187,11 @@ relay_pump(brix_relay_t *r, ngx_connection_t *from, ngx_connection_t *to,
 
         n = from->recv(from, buf, BRIX_RELAY_BUF);
         if (n > 0) {
+            if (from == r->client) {
+                /* First client bytes: reject a peer not speaking root before
+                 * it is forwarded (the tap only sees decoded kXR frames). */
+                brix_relay_guard_handshake(&r->guard, buf, (size_t) n);
+            }
             brix_tap_stream_feed(dec, buf, (size_t) n);   /* tap once */
             if (brix_relay_guard_should_drop(&r->guard)) {
                 return NGX_ERROR;      /* BOUNCE: never forward this chunk */

@@ -237,4 +237,24 @@ ngx_int_t brix_sd_ucred_resolve(const char *dir, const char *key,
 ngx_int_t brix_sd_ucred_select(const char *dir, const brix_identity_t *id,
     brix_sd_ucred_t *out);
 
+/*
+ * brix_sd_ucred_wipe — cleanse the secret-bearing fields of a resolved
+ * credential once the caller has finished with it.
+ *
+ * WHAT: OPENSSL_cleanse()s the fields that carry live secret material —
+ *       bearer[], s3_sk[], ceph_keyring[] — so the token/secret does not
+ *       linger on the worker stack or heap after consumption.  Non-secret
+ *       fields (principal, key, path, s3_ak, s3_region, ceph_user) and the
+ *       kind flags are left intact for post-use logging; NULL is a no-op.
+ *
+ * WHY:  Defense-in-depth (T4): minimize secret residency so a later
+ *       stack/heap info-leak or a core dump cannot read back a credential
+ *       that should have been erased on use.  Pairs with the reader-side
+ *       cleanse in ucred_read_token/_s3/_keyring.
+ *
+ * HOW:  Cleanse each secret field unconditionally (the field is zero-length
+ *       when its kind is not populated, so cleansing is harmless).
+ */
+void brix_sd_ucred_wipe(brix_sd_ucred_t *cred);
+
 #endif /* BRIX_FS_BACKEND_UCRED_H */

@@ -62,10 +62,14 @@ main(void)
         .caps = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE,
     };
 
-    brix_sd_instance_t i_ro = { .driver = &ro };
-    brix_sd_instance_t i_rw = { .driver = &rw };
-    brix_sd_instance_t i_be = { .driver = &bearer_only };
-    brix_sd_instance_t i_px = { .driver = &proxy_only };
+    /* brix_sd_caps() is instance-scoped (Phase-83 per-export cap masking): it
+     * reads inst->caps, not inst->driver->caps.  The real instance factory seeds
+     * inst->caps = driver->caps at create time; hand-built instances must mirror
+     * that or every capability query reads 0. */
+    brix_sd_instance_t i_ro = { .driver = &ro, .caps = ro.caps };
+    brix_sd_instance_t i_rw = { .driver = &rw, .caps = rw.caps };
+    brix_sd_instance_t i_be = { .driver = &bearer_only, .caps = bearer_only.caps };
+    brix_sd_instance_t i_px = { .driver = &proxy_only, .caps = proxy_only.caps };
 
     /* catalog mutation (mkdir/rename) — CAP_DIRS_WRITE */
     CHECK(brix_sd_supports(&i_rw, BRIX_SD_CAP_DIRS_WRITE) == NGX_OK,

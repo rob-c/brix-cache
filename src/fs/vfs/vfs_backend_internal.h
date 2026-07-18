@@ -73,6 +73,22 @@ typedef struct {
      * sd_stage / sd_cache decorators. */
     brix_tier_cfg_t      cache_tier;
     brix_cache_policy_t  cache_policy;
+    brix_tier_cfg_t      cold_tier;    /* phase-85 F7: optional cold store under
+                                        * the cache tier (attach via
+                                        * brix_sd_cache_set_cold at compose).
+                                        * Deliberately NOT cloned for T14
+                                        * synthetic per-upstream entries. */
+    /* phase-85 F8 sibling mesh: the ring member list (validated at tier
+     * registration). Every node in the mesh carries the IDENTICAL list so
+     * rendezvous ownership agrees; peer_self is this node's own slot (no
+     * instance is ever built for it). Like cold_tier, deliberately NOT
+     * cloned for T14 synthetic per-upstream entries. */
+    struct {
+        char host[256];
+        int  port;
+    }                     peer_ring[16];
+    int                   n_peer_ring;   /* 0 = no mesh */
+    int                   peer_self;     /* index of this node in peer_ring */
     brix_tier_cfg_t      stage_tier;
     brix_stage_policy_t  stage_policy;
     brix_sd_instance_t *inst;          /* lazily built per worker, or NULL */

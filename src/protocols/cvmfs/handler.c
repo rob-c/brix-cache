@@ -16,9 +16,11 @@
 #include "fs/path/path.h"                  /* brix_sanitize_log_string */
 #include "core/compat/error_mapping.h"
 #include "core/http/etag.h"
+#include "core/http/http_file_response.h"      /* brix_http_add_etag_header */
 #include "core/http/http_conditionals.h"
 #include "core/http/http_headers.h"
 #include "core/http/sesslog_conn.h"
+#include "fs/backend/cache/sd_cache.h"     /* brix_sd_cache_fill_needs_offload */
 #include "fs/vfs/vfs.h"
 #include "fs/vfs/vfs_backend_registry.h"
 #include "observability/dashboard/dashboard.h"
@@ -106,18 +108,26 @@ cvmfs_build_fs_path(ngx_http_request_t *r, const char *root,
 }
 
 /* WHAT: fill a shared serve-opts struct with the fixed cvmfs GET descriptor
- *       (anonymous public read, weak etag).
+ *       (anonymous public read, weak etag) plus the per-location compress flag.
  * WHY:  both serve sites (offload and ranged) need the identical options; one
- *       initializer keeps them in lockstep and the values frozen.
- * HOW:  zeroes then sets the four constant fields. */
+ *       initializer keeps them in lockstep and the values frozen. The compress
+ *       flag (phase-85 F12) is the shared `brix_compress` that WebDAV/S3 already
+ *       thread into their serve opts — cvmfs simply never opted in, so cvmfs
+ *       GETs never transcoded. Off by default => byte-frozen parity; on => the
+ *       shared negotiate path serves the client's best Accept-Encoding codec.
+ *       Integrity is untouched: F1's CAS verify runs at fill time against the
+ *       stored object, and this outbound Content-Encoding is a transparent,
+ *       reversible wire transform that never alters the bytes on disk.
+ * HOW:  zeroes then sets the constant fields and the caller's compress flag. */
 static void
-cvmfs_serve_opts_init(brix_http_serve_opts_t *opts)
+cvmfs_serve_opts_init(brix_http_serve_opts_t *opts, ngx_flag_t compress)
 {
     ngx_memzero(opts, sizeof(*opts));
     opts->xfer_proto = BRIX_XFER_PROTO_CVMFS;
     opts->op_name    = "GET";
     opts->identity   = "anonymous";
     opts->etag_flags = BRIX_ETAG_WEAK;
+    opts->compress   = compress;
 }
 
 /* WHAT: run the two off-loop steps of a tier read — socket-wire serve, then a
@@ -142,7 +152,7 @@ cvmfs_tier_serve_or_fill(ngx_http_request_t *r,
     ngx_int_t                   rc;
 
     /* socket-wire backends can't open/read on the event loop */
-    cvmfs_serve_opts_init(&sopts);
+    cvmfs_serve_opts_init(&sopts, lcf->common.compress);
 
     /* cvmfs is a transparent, anonymous public cache (no per-user
      * identity or backend credential concept applies) - vctx passed as
@@ -155,6 +165,15 @@ cvmfs_tier_serve_or_fill(ngx_http_request_t *r,
     }
     if (rc == NGX_ERROR) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* remote miss → the fill would hit the origin; charge the requester's
+     * QoS class first (phase-85 F9). Local hits never reach this gate. */
+    if (lcf->qos != NULL && brix_sd_cache_fill_needs_offload(sd, key)) {
+        rc = brix_cvmfs_qos_check(r, lcf);
+        if (rc != NGX_DECLINED) {
+            return rc;                       /* 429 - fill budget exhausted */
+        }
     }
 
     /* miss → one coalesced off-loop fill, re-entering this handler on land */
@@ -184,7 +203,8 @@ cvmfs_tier_serve_or_fill(ngx_http_request_t *r,
  *       serve pipeline. */
 static ngx_int_t
 cvmfs_tier_open_respond(ngx_http_request_t *r,
-    ngx_http_brix_cvmfs_ctx_t *ctx, brix_vfs_ctx_t *vctx, const char *path)
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx,
+    brix_vfs_ctx_t *vctx, const char *path)
 {
     brix_vfs_file_t *fh;
     brix_vfs_stat_t  vst;
@@ -212,6 +232,13 @@ cvmfs_tier_open_respond(ngx_http_request_t *r,
         brix_vfs_close(fh, r->connection->log);
         r->headers_out.status           = NGX_HTTP_NOT_MODIFIED;
         r->headers_out.content_length_n = 0;
+        /* RFC 9110 §15.4.5: a 304 must carry the same validators the 200 would
+         * (the serve pipeline's weak ETag + Last-Modified from vst), else a
+         * cache cannot update its stored representation's metadata. Mirror the
+         * BRIX_ETAG_WEAK path brix_http_set_file_headers takes on the 200. */
+        r->headers_out.last_modified_time = vst.mtime;
+        (void) brix_http_add_etag_header(r, vst.mtime, vst.size,
+                                          BRIX_ETAG_WEAK, 1);
         ngx_http_send_header(r);
         return ngx_http_send_special(r, NGX_HTTP_LAST);
     }
@@ -226,7 +253,7 @@ cvmfs_tier_open_respond(ngx_http_request_t *r,
         brix_http_serve_opts_t   opts;
         brix_http_serve_result_t result;
 
-        cvmfs_serve_opts_init(&opts);
+        cvmfs_serve_opts_init(&opts, lcf->common.compress);
         rc = brix_http_serve_file_ranged(r, fh, &vst, path, &opts, &result);
     }
     return rc;
@@ -285,7 +312,7 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
         return rc;
     }
 
-    return cvmfs_tier_open_respond(r, ctx, &vctx, path);
+    return cvmfs_tier_open_respond(r, lcf, ctx, &vctx, path);
 }
 
 /* WHAT: close out the session-log record for this request — result line plus,

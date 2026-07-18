@@ -209,10 +209,16 @@ def _make_rotated_issuer(token_dir):
     pub = new_key.public_key()
     nums = pub.public_numbers()
 
+    # The kid MUST match what the issuer actually stamps into the token header:
+    # TokenIssuer._sign_jwt always uses TokenIssuer.DEFAULT_KID, so a rotated JWKS
+    # advertising a different kid ("rotated-key-1") is never selected under the
+    # D-5 strict-kid JWKS matching hardening — the validator no longer falls back
+    # to trying every key by material.  This test rotates the KEY MATERIAL (fresh
+    # RSA pair) under the same kid, which is the real hot-refresh contract.
     new_jwks = {
         "keys": [{
             "kty": "RSA",
-            "kid": "rotated-key-1",
+            "kid": TokenIssuer.DEFAULT_KID,
             "use": "sig",
             "alg": "RS256",
             "n": int_to_b64url(nums.n),
@@ -268,6 +274,7 @@ class TestJwksHotRefresh:
 
     # --- success path ---
 
+    @pytest.mark.registry_server("jwks-refresh")
     def test_original_key_accepted_before_rotation(self, jwks_refresh_server):
         """Baseline: token signed with original key is accepted at startup."""
         srv = jwks_refresh_server
@@ -276,6 +283,7 @@ class TestJwksHotRefresh:
             f"token auth with original key failed (status={status})"
         )
 
+    @pytest.mark.registry_server("jwks-refresh")
     def test_jwks_hot_refresh_new_key(self, jwks_refresh_server):
         """Token signed with rotated key is accepted after refresh interval fires."""
         srv = jwks_refresh_server
@@ -295,6 +303,7 @@ class TestJwksHotRefresh:
 
     # --- error path ---
 
+    @pytest.mark.registry_server("jwks-refresh")
     def test_jwks_keeps_old_keys_on_parse_error(self, jwks_refresh_server):
         """Corrupted JWKS file: old keys remain valid; no crash or lock-up."""
         srv = jwks_refresh_server
@@ -326,6 +335,7 @@ class TestJwksHotRefresh:
 
     # --- security / negative path ---
 
+    @pytest.mark.registry_server("jwks-refresh")
     def test_jwks_old_key_rejected_after_rotation(self, jwks_refresh_server):
         """After key rotation, tokens signed with the OLD key must be rejected."""
         srv = jwks_refresh_server

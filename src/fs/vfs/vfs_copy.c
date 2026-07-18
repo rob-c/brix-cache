@@ -101,6 +101,7 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
         && brix_sd_stat_maybe_cred(leaf, d, &dst_st,
                use_cred ? &cred : NULL) == NGX_OK)
     {
+        brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
         return brix_vfs_copy_fail(ctx, src, EEXIST, start);
     }
 
@@ -108,6 +109,7 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
         ? brix_sd_server_copy_maybe_cred(leaf, s, d, &copied,
                use_cred ? &cred : NULL)
         : (errno = ENOTSUP, NGX_ERROR);
+    brix_sd_ucred_wipe(&store);       /* secret consumed by copy; erase (A-4/T4) */
     saved_errno = (rc == NGX_OK) ? 0 : errno;
     brix_vfs_observe_ctx_op(ctx, src, BRIX_METRIC_OP_COPY, NULL,
                               rc == NGX_OK ? (size_t) copied : 0, rc,

@@ -1,10 +1,10 @@
 /*
  * tier_directives.h — X-macro for the phase-64 composable tier grammar
- * directive table (<pfx>{cache_store,stage,stage_store,stage_flush,
- * cache_max_object,cache_evict_at,cache_evict_to,cache_index_cache,
- * cache_meta,cache_slice_size}).
+ * directive table (<pfx>{cache_store,cache_cold_store,stage,stage_store,
+ * stage_flush,cache_max_object,cache_evict_at,cache_evict_to,
+ * cache_index_cache,cache_meta,cache_slice_size}).
  *
- * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the ten
+ * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the eleven
  *       ngx_command_t initializers every protocol module declares for its
  *       tier grammar, all writing into the embedded
  *       ngx_http_brix_shared_conf_t `common` preamble.
@@ -48,6 +48,13 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       conf_off,                                                               \
       offsetof(conf_t, common.cache_store),                                   \
       (void *) offsetof(conf_t, common.cache_store_args) },                   \
+    { ngx_string(pfx "cache_cold_store"), /* <store-url> [credential=] — phase-85 \
+                                           * F7 cold tier under cache_store */ \
+      (ctx) | NGX_CONF_TAKE1234,                                              \
+      brix_conf_set_store_slot,                                               \
+      conf_off,                                                               \
+      offsetof(conf_t, common.cache_cold_store),                              \
+      (void *) offsetof(conf_t, common.cache_cold_store_args) },              \
     { ngx_string(pfx "stage"),         /* on|off: enable the write-stage tier */ \
       (ctx) | NGX_CONF_FLAG,                                                  \
       ngx_conf_set_flag_slot,                                                 \

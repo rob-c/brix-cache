@@ -35,6 +35,7 @@ typedef struct {
     unsigned char       manifest_buf[65536];
     size_t              manifest_len;
     cvmfs_manifest_t    manifest;
+    unsigned char       manifest_stage[65536]; /* refresh staging: verified-then-commit */
 
     char                catalog_tmp[512];      /* tmp_dir for spilled catalogs */
     char                root_catalog_tmp[512]; /* root catalog's spill file */
@@ -46,6 +47,14 @@ typedef struct {
     long                last_refresh;          /* last manifest re-verify */
     long                last_reap;             /* last quota reap tick */
     long                ttl;                   /* manifest TTL secs */
+
+    /* Reproducibility pin: when set, the mount serves exactly pin_root and
+     * refresh never swaps catalogs; a verified upstream advance is recorded as
+     * drift for the FUSE layer to surface. */
+    cvmfs_hash_t        pin_root;
+    int                 pin_set;
+    int                 pin_drift;             /* latest verified upstream root != pin */
+    char                pin_drift_hex[48];     /* that upstream root's hex */
 
     unsigned char       scratch[8u * 1024u * 1024u];   /* transport landing */
 } cvmfs_client_t;
@@ -69,6 +78,12 @@ void cvmfs_client_umount(cvmfs_client_t *cl);
 /* Resolve a repo-root-relative path (root = "/") to its dirent, following nested
  * catalog transitions. Returns 1 found, 0 absent, -1 error. */
 int cvmfs_client_resolve(cvmfs_client_t *cl, const char *path, cvmfs_dirent_t *out, long now);
+
+/* List directory `path`, following nested-catalog transitions (a mountpoint's
+ * children live in its nested catalog). Invokes `cb` per entry. Returns the
+ * entry count, or <0 on error. */
+int cvmfs_client_readdir(cvmfs_client_t *cl, const char *path,
+                         cvmfs_readdir_cb cb, void *ud, long now);
 
 /* Read up to `len` bytes at `offset` from file `path` into `buf`; *outlen gets
  * the bytes read (0 at/after EOF). Handles chunked files transparently. Returns 0
@@ -94,8 +109,21 @@ void cvmfs_client_reap_tick(cvmfs_client_t *cl, long now);
 int cvmfs_client_getxattr(cvmfs_client_t *cl, const char *path, const char *name,
                           char *out, size_t outlen, long now);
 
-/* The NUL-separated list of magic attribute names available on any path. Returns
- * the total byte length (which may exceed outlen; then out is left untouched). */
-int cvmfs_client_listxattr(char *out, size_t outlen);
+/* The NUL-separated list of magic attribute names applicable to `path` (files
+ * additionally carry user.hash / user.nchunks). Returns the total byte length
+ * (which may exceed outlen; then out is left untouched). */
+int cvmfs_client_listxattr(cvmfs_client_t *cl, const char *path,
+                           char *out, size_t outlen, long now);
+
+/* Pin the mount to an exact root-catalog hash ("<hex>[-algo]"). Call BEFORE
+ * cvmfs_client_mount. The trust chain still verifies in full each mount/refresh;
+ * the root catalog is then fetched BY THE PIN (the CAS fetch is hash-verified,
+ * so a tampered pin target is refused) and refresh never swaps it.
+ * Returns 0, or -1 on an unparsable hash. */
+int cvmfs_client_pin_root(cvmfs_client_t *cl, const char *hex);
+
+/* Drift probe: returns 1 when the latest VERIFIED upstream manifest advertises
+ * a root catalog different from the pin (its hex is written into out), else 0. */
+int cvmfs_client_pin_drift(cvmfs_client_t *cl, char *out, size_t outlen);
 
 #endif /* BRIX_CVMFS_CLIENT_H */

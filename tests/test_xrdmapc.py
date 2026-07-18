@@ -120,6 +120,7 @@ def test_map_verify_only_advertised(anon):
 # cluster redirector (optional — skips when the fleet is down)
 # --------------------------------------------------------------------------
 
+@pytest.mark.registry_server("cluster-redir")
 def test_map_cluster_redirector(anon):
     if not _port_up(SERVER_HOST, CLUSTER_REDIR_PORT):
         pytest.skip("cluster redirector not running")
@@ -153,6 +154,7 @@ def test_redirect_trace_accepted_no_op(anon):
     assert "redirect[" not in p.stdout, p.stdout
 
 
+@pytest.mark.registry_server("cluster-redir")
 def test_redirect_trace_hops_via_cluster(anon):
     """Through the cluster redirector, --redirect-trace emits a per-hop line on
     stderr (the data server) without disturbing stdout."""

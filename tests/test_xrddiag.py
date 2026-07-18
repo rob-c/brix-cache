@@ -35,9 +35,14 @@ from settings import (
     SERVER_HOST,
     url_host,
 )
-from config_templates import render_config
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(120)
+# The self-contained netdiag/doctor servers stand up through the phase-81
+# registry (LifecycleHarness); the marker keeps this suite out of the
+# registry-lint direct-launch scope.  The rest of the module drives the
+# session fleet.
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDDIAG = os.path.join(REPO, "client", "bin", "xrddiag")
@@ -125,6 +130,7 @@ def test_bench_streams_variant(xrddiag):
 # topology
 # --------------------------------------------------------------------------
 
+@pytest.mark.registry_server("cluster-redir")
 def test_topology_cluster_redirector(xrddiag):
     if not _port_up(SERVER_HOST, CLUSTER_REDIR_PORT):
         pytest.skip("cluster redirector not running")
@@ -220,49 +226,37 @@ def test_diag_flags_stderr_only(xrddiag):
 # WS-F: bench networking diagnostics (§15.3) — self-contained anon server
 # --------------------------------------------------------------------------
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-
-
-@pytest.fixture(scope="module")
-def netdiag_server(tmp_path_factory):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+def _require_xrddiag():
     if not os.path.exists(NATIVE_XRDDIAG):
         proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "xrddiag"],
                               capture_output=True, text=True, timeout=180)
         if proc.returncode != 0 or not os.path.exists(NATIVE_XRDDIAG):
             pytest.skip("xrddiag build failed")
-    root = tmp_path_factory.mktemp("netdiag")
-    data = root / "data"
-    data.mkdir()
-    (data / "big.bin").write_bytes(os.urandom(1024 * 1024))
-    port = _free_port_local()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_stream_posix_anon.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  PORT=port,
-                                  DATA_DIR=data,
-                                  WORKER_CONNECTIONS=256))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
+
+
+def _anon_server(name, seed_name, seed_bytes):
+    """Stand up a self-contained writable anon root:// server through the
+    registry harness, seed a single object into its export tree, and return
+    ``(harness, port)``."""
+    harness = LifecycleHarness()
+    endpoint = harness.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_stream_posix_anon.conf",
+        protocol="root",
+        readiness="tcp",
+        template_values={"BIND_HOST": BIND_HOST, "WORKER_CONNECTIONS": 256},
+    ))
+    with open(os.path.join(endpoint.data_root, seed_name), "wb") as fh:
+        fh.write(seed_bytes)
+    return harness, endpoint.port
+
+
+@pytest.fixture(scope="module")
+def netdiag_server():
+    _require_xrddiag()
+    harness, port = _anon_server("xrddiag-netdiag", "big.bin", os.urandom(1024 * 1024))
     yield port
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
-
-
-def _free_port_local():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    harness.close()
 
 
 def test_bench_netdiag_block(netdiag_server):
@@ -304,37 +298,11 @@ def test_bench_netdiag_pii_free(netdiag_server):
 # --------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
-def doctor_server(tmp_path_factory):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    if not os.path.exists(NATIVE_XRDDIAG):
-        proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "xrddiag"],
-                              capture_output=True, text=True, timeout=180)
-        if proc.returncode != 0 or not os.path.exists(NATIVE_XRDDIAG):
-            pytest.skip("xrddiag build failed")
-    root = tmp_path_factory.mktemp("doctor")
-    data = root / "data"
-    data.mkdir()
-    (data / "obj.bin").write_bytes(os.urandom(800000))
-    port = _free_port_local()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_stream_posix_anon.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  PORT=port,
-                                  DATA_DIR=data,
-                                  WORKER_CONNECTIONS=256))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
+def doctor_server():
+    _require_xrddiag()
+    harness, port = _anon_server("xrddiag-doctor", "obj.bin", os.urandom(800000))
     yield port
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    harness.close()
 
 
 def test_check_posc_and_handle_limits(doctor_server):

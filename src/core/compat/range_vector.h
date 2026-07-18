@@ -51,6 +51,22 @@ typedef struct {
 } brix_range_vector_opts_t;
 
 /*
+ * brix_range_fail_e — why a component was rejected (RFC 9110 §14.2).
+ *
+ * A caller that does NOT drop unsatisfiable ranges needs to tell the two
+ * rejection classes apart: a MALFORMED ranges-specifier (bad grammar — the
+ * server SHOULD ignore the header and serve the full 200 body) versus a
+ * well-formed but UNSATISFIABLE range (in bounds-of-grammar, out of
+ * bounds-of-file — the server answers 416). The single-range HTTP parser
+ * (range.c) uses this to match official Stratum-1 (Apache) interop.
+ */
+typedef enum {
+    BRIX_RANGE_FAIL_NONE = 0,       /* no rejection (return was NGX_OK)     */
+    BRIX_RANGE_FAIL_MALFORMED,      /* grammar/parse error -> ignore -> 200 */
+    BRIX_RANGE_FAIL_UNSATISFIABLE   /* well-formed, out of bounds -> 416     */
+} brix_range_fail_e;
+
+/*
  * brix_http_parse_range_vector — parse a HTTP byte-ranges header value.
  *
  * data/len:  the header value WITHOUT the leading "bytes=" prefix.
@@ -60,13 +76,15 @@ typedef struct {
  * opts:      parsing policy (see brix_range_vector_opts_t above).
  * ranges:    caller-supplied array of at least opts->max_ranges entries.
  * nranges:   set to the number of valid ranges stored.
+ * fail:      optional (may be NULL); on an NGX_ERROR return, classified as
+ *            MALFORMED or UNSATISFIABLE per the first rejecting component.
  *
  * Returns NGX_OK on success (nranges may be 0 if all ranges were dropped).
  * Returns NGX_ERROR if opts->drop_unsatisfiable is 0 and a bad range is seen.
  */
 ngx_int_t brix_http_parse_range_vector(const u_char *data, size_t len,
     off_t file_size, const brix_range_vector_opts_t *opts,
-    brix_byte_range_t *ranges, ngx_uint_t *nranges);
+    brix_byte_range_t *ranges, ngx_uint_t *nranges, brix_range_fail_e *fail);
 
 /*
  * brix_range_vector_validate_total — sum total response bytes, check cap.

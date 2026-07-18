@@ -262,7 +262,13 @@ brix_http_fill_attach(brix_http_cache_fill_ctx_t *t,
     ngx_http_request_t *r, brix_http_cache_reenter_pt reenter,
     void *reenter_data)
 {
-    brix_http_fill_waiter_t *w = calloc(1, sizeof(*w));
+    /* padded to ngx_connection_t: with --with-debug, ngx_add_timer's debug
+     * line casts ev->data (== w, via w->hold) to a connection to read ->fd;
+     * keep that read in-bounds (zeroed) instead of past the allocation. */
+    size_t wsz = sizeof(brix_http_fill_waiter_t) > sizeof(ngx_connection_t)
+                     ? sizeof(brix_http_fill_waiter_t)
+                     : sizeof(ngx_connection_t);
+    brix_http_fill_waiter_t *w = calloc(1, wsz);
     ngx_pool_cleanup_t        *cln;
 
     if (w == NULL) {

@@ -182,12 +182,60 @@ pblock_fill_sd_stat(const pblock_meta *m, const char *path,
  * across the object's block files. blk0_fd (>=0) is reused for block 0; higher
  * blocks (and block 0 when blk0_fd<0) are opened O_RDWR|O_CREAT transiently.
  * Returns bytes written, or -1/errno when nothing was written. */
+/* pblock_xform_write — read-modify-write path for a transform-configured export.
+ * Every block (including block 0) is a headered file the block-0 fd never serves,
+ * so the persistent fd is ignored; each touched block is loaded whole, overlaid
+ * with the new bytes, and re-encoded. Returns bytes written or -1/errno. */
+static ssize_t
+pblock_xform_write(const pblock_state_t *st, const char *blob_id, int64_t bs,
+    const void *buf, size_t len, off_t off)
+{
+    const char    *p = buf;
+    size_t         done = 0;
+    unsigned char *scratch = malloc((size_t) bs);
+
+    if (scratch == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    while (done < len) {
+        int64_t  idx  = (off + (off_t) done) / bs;
+        int64_t  boff = (off + (off_t) done) % bs;
+        size_t   room = (size_t) (bs - boff);
+        size_t   chunk = len - done < room ? len - done : room;
+        char     bp[PATH_MAX];
+        uint32_t llen, nl;
+
+        if (pblock_block_path(st, blob_id, idx, bp, sizeof(bp)) != 0
+            || pblock_xform_block_load(&st->xform, idx, bp, scratch, bs, &llen)
+               != 0)
+        {
+            break;
+        }
+        memcpy(scratch + boff, p + done, chunk);
+        nl = (uint32_t) (boff + (int64_t) chunk);
+        if (llen > nl) {
+            nl = llen;
+        }
+        if (pblock_xform_block_store(&st->xform, idx, bp, scratch, nl, bs) != 0) {
+            break;
+        }
+        done += chunk;
+    }
+    free(scratch);
+    return done ? (ssize_t) done : -1;
+}
+
 ssize_t
 pblock_write_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
     int blk0_fd, const void *buf, size_t len, off_t off)
 {
     const char *p = buf;
     size_t      done = 0;
+
+    if (pblock_xform_active(&st->xform)) {
+        return pblock_xform_write(st, blob_id, bs, buf, len, off);
+    }
 
     while (done < len) {
         int64_t idx  = (off + (off_t) done) / bs;
@@ -238,12 +286,52 @@ pblock_write_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
  * already clamped len to the file size), striped across block files. blk0_fd
  * (>=0) is reused for block 0. Missing blocks and short blocks read back as
  * zeros (holes). Returns bytes produced, or -1/errno. */
+/* pblock_xform_read — decode path for a transform-configured export: load each
+ * touched block whole (holes and short blocks zero-fill) and copy out the wanted
+ * sub-range. Returns bytes produced or -1/errno. */
+static ssize_t
+pblock_xform_read(const pblock_state_t *st, const char *blob_id, int64_t bs,
+    void *buf, size_t len, off_t off)
+{
+    char          *p = buf;
+    size_t         done = 0;
+    unsigned char *scratch = malloc((size_t) bs);
+
+    if (scratch == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    while (done < len) {
+        int64_t  idx  = (off + (off_t) done) / bs;
+        int64_t  boff = (off + (off_t) done) % bs;
+        size_t   room = (size_t) (bs - boff);
+        size_t   chunk = len - done < room ? len - done : room;
+        char     bp[PATH_MAX];
+        uint32_t llen;
+
+        if (pblock_block_path(st, blob_id, idx, bp, sizeof(bp)) != 0
+            || pblock_xform_block_load(&st->xform, idx, bp, scratch, bs, &llen)
+               != 0)
+        {
+            break;
+        }
+        memcpy(p + done, scratch + boff, chunk);
+        done += chunk;
+    }
+    free(scratch);
+    return done ? (ssize_t) done : (len == 0 ? 0 : -1);
+}
+
 ssize_t
 pblock_read_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
     int blk0_fd, void *buf, size_t len, off_t off)
 {
     char  *p = buf;
     size_t done = 0;
+
+    if (pblock_xform_active(&st->xform)) {
+        return pblock_xform_read(st, blob_id, bs, buf, len, off);
+    }
 
     while (done < len) {
         int64_t idx  = (off + (off_t) done) / bs;

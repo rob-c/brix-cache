@@ -17,18 +17,15 @@ and skips cleanly if the native client is not built.
 import hashlib
 import os
 import subprocess
-import time
 
 import pytest
 
-from settings import NGINX_BIN  # noqa: E402
-from config_templates import render_config
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
-
-P_PB = 21143                        # private port, clear of the fleet + 21142
 
 # account → (password, VO CSV or None for a legacy 3-field pwd-file entry)
 ACCOUNTS = {
@@ -38,28 +35,11 @@ ACCOUNTS = {
     "dave":  ("dave-pw-4",  None),
 }
 
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 
 def _run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=120, **kw)
-
-
-def _free_port(port):
-    subprocess.run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"],
-                   capture_output=True)
-    for _ in range(20):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode != 0:
-            return
-        time.sleep(0.1)
-
-
-def _wait_listen(proc, port, what):
-    for _ in range(60):
-        assert proc.poll() is None, f"{what} exited before binding {port}"
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return
-        time.sleep(0.1)
-    proc.terminate()
-    raise AssertionError(f"{what} did not come up on {port}")
 
 
 def _pwd_hash(password, salt):
@@ -83,9 +63,7 @@ def pb_server(tmp_path_factory):
 
     base = tmp_path_factory.mktemp("pbpwd")
     export = base / "export"
-    logs = base / "logs"
     export.mkdir()
-    logs.mkdir()
 
     salt = bytes(range(8))
     lines = ["# multi-account pwd db (4th field = VO list)"]
@@ -97,24 +75,17 @@ def pb_server(tmp_path_factory):
     pwdfile = base / "pwd.db"
     pwdfile.write_text("\n".join(lines) + "\n")
 
-    cfg = base / "nginx.conf"
-    cfg.write_text(render_config("nginx_pblock_pwd.conf",
-                                 LOG_DIR=logs,
-                                 PID_FILE=base / "nginx.pid",
-                                 PORT=P_PB,
-                                 EXPORT_DIR=export,
-                                 PWD_FILE=pwdfile))
-
-    _free_port(P_PB)
-    proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg)],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    _wait_listen(proc, P_PB, "pblock+pwd nginx")
-    yield {"url": f"root://127.0.0.1:{P_PB}", "export": export}
-    proc.terminate()
+    harness = LifecycleHarness()
     try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+        ep = harness.start(NginxInstanceSpec(
+            name="lc-pblock-pwd",
+            template="nginx_pblock_pwd.conf",
+            protocol="root", readiness="tcp",
+            data_root=str(export),
+            template_values={"PWD_FILE": str(pwdfile)}))
+        yield {"url": f"root://127.0.0.1:{ep.port}", "export": export}
+    finally:
+        harness.close()
 
 
 def _upload(server, user, remote, content, tmp_path):

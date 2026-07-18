@@ -524,6 +524,9 @@ brix_http_serve_offload_remote(ngx_http_request_t *r,
     args.opts       = opts;
     args.metrics_cb = metrics_cb;
     serve_offload_fill_ctx(t, r, &args, tmp_fd, &rc);
+    /* The resolved secret is now detached-copied into the task ctx buffers;
+     * erase the gate's stack copy so it does not outlive the submit (A-4/T4). */
+    brix_sd_ucred_wipe(&rc.ustore);
 
     brix_task_bind(task, serve_offload_thread, serve_offload_done);
     task->event.log = r->connection->log;

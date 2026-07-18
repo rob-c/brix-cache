@@ -1,114 +1,105 @@
-"""Render + start/stop the paired MU fleet (spec §8.1). Each server is a standalone nginx
-instance: a cache-OFF `direct` server (the authoritative oracle) and a cache-ON `cache`
-server per protocol. Live start/stop needs privilege; render_configs + url are usable
-unprivileged.
+"""Render + start/stop the paired MU fleet (spec §8.1).
+
+Registry-lifecycle rewrite (phase-81): every server is a dynamically-ported
+``NginxInstanceSpec`` rendered from a committed ``configs/multiuser/*.conf``
+template and driven through a ``LifecycleHarness`` — no nginx config is
+hand-rolled and no nginx process is launched directly.  Ports are allocated
+dynamically on first ``start()`` and written back onto ``ports.MU`` so the
+``url()`` seam and every consumer that reads ``ports.MU.*`` transparently see
+the live port; the assignment is remembered so ``apply_policy``/``revoke``
+reloads (stop→start) keep each endpoint stable.
+
+Live start/stop needs privilege (real accounts + setuid); the whole suite is
+root-gated in conftest_mu.py.  ``render_configs`` + ``url`` are usable
+unprivileged (config generation happens lazily at ``start()``).
 """
-import glob
 import os
-import socket
-import subprocess
-import time
+
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
 from . import creds, ports
 
-NGINX = os.environ.get("TEST_MU_NGINX", "/tmp/nginx-1.28.3/objs/nginx")
-_CFG_SRC = os.path.join(os.path.dirname(__file__), "..", "configs", "multiuser")
 _svc_s3 = creds.s3_key_for("svc")
 
+# (template, ports.MU attribute, protocol).  Order is load-bearing: the anonymous
+# origin must be up before the cache node that fills from it over root://.
+_SERVERS = [
+    ("multiuser/root_origin_noimp.conf",      "ORIGIN_NOIMP", "root"),
+    ("multiuser/root_cache_noimp.conf",       "CACHE_NOIMP",  "root"),
+    ("multiuser/root_direct_authz_noimp.conf", "DIRECT_AUTHZ", "root"),
+    ("multiuser/sidecar_root_anon.conf",      "SIDECAR_ROOT", "root"),
+    ("multiuser/webdav_authz_noimp.conf",     "WEBDAV_AUTHZ", "https"),
+    ("multiuser/webdav_stage_noimp.conf",     "WEBDAV_STAGE", "https"),
+]
 
-def _base_subst() -> dict:
+_harness: "LifecycleHarness | None" = None
+_backends: dict = {}
+_assigned: "dict[str, int]" = {}  # ports.MU attr -> port (stable across reloads)
+
+
+def _common_values() -> dict:
+    """Placeholder values shared by every MU template (brace-less kwargs form).
+    The launcher supplies PORT / LOG_DIR / TMP_DIR / DATA_ROOT per instance."""
     return {
-        "{ROOT_DIRECT_PORT}": str(ports.MU.ROOT_DIRECT),
-        "{ROOT_CACHE_PORT}": str(ports.MU.ROOT_CACHE),
-        "{WEBDAV_DIRECT_PORT}": str(ports.MU.WEBDAV_DIRECT),
-        "{WEBDAV_CACHE_PORT}": str(ports.MU.WEBDAV_CACHE),
-        "{S3_DIRECT_PORT}": str(ports.MU.S3_DIRECT),
-        "{S3_CACHE_PORT}": str(ports.MU.S3_CACHE),
-        "{CVMFS_CACHE_PORT}": str(ports.MU.CVMFS_CACHE),
-        "{CACHE_NOIMP_PORT}": str(ports.MU.CACHE_NOIMP),
-        "{ORIGIN_NOIMP_PORT}": str(ports.MU.ORIGIN_NOIMP),
-        "{WEBDAV_AUTHZ_PORT}": str(ports.MU.WEBDAV_AUTHZ),
-        "{DIRECT_AUTHZ_PORT}": str(ports.MU.DIRECT_AUTHZ),
-        "{WEBDAV_STAGE_PORT}": str(ports.MU.WEBDAV_STAGE),
-        "{SIDECAR_ROOT_PORT}": str(ports.MU.SIDECAR_ROOT),
-        "{BIND_HOST}": ports.MU.HOST,
-        "{DATA_DIR}": ports.MU.DATA_ROOT,
-        "{CACHE_DIR}": ports.MU.CACHE_ROOT,
-        "{LOG_DIR}": ports.MU.LOG_DIR,
-        "{VOMSDIR}": ports.MU.VOMSDIR,
-        "{CA_DIR}": ports.MU.CA_DIR,
-        "{CA}": os.path.join(ports.MU.CA_DIR, "ca.pem"),
-        "{CERT}": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
-        "{KEY}": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
-        "{JWKS}": os.path.join(ports.MU.TOKENS_DIR, "jwks.json"),
-        "{S3_SVC_KEY}": _svc_s3[0],
-        "{S3_SVC_SECRET}": _svc_s3[1],
-        "{TMP_DIR}": os.path.join(ports.MU.LOG_DIR, "nginx_tmp"),
+        "BIND_HOST": ports.MU.HOST,
+        "DATA_DIR": ports.MU.DATA_ROOT,
+        "CACHE_DIR": ports.MU.CACHE_ROOT,
+        "VOMSDIR": ports.MU.VOMSDIR,
+        "CA_DIR": ports.MU.CA_DIR,
+        "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
+        "CERT": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
+        "KEY": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
+        "JWKS": os.path.join(ports.MU.TOKENS_DIR, "jwks.json"),
+        "S3_SVC_KEY": _svc_s3[0],
+        "S3_SVC_SECRET": _svc_s3[1],
+        "GRIDMAP": _backends.get("gridmap", ""),
+        "AUTHDB": _backends.get("authdb", ""),
+        "VO": _backends.get("vo", ""),
+        "S3KEYS": _backends.get("s3keys", ""),
     }
 
 
 def render_configs(backends: dict) -> None:
-    """Substitute placeholders into every configs/multiuser/*.conf and validate with nginx -t."""
-    for d in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR, ports.MU.DATA_ROOT, ports.MU.CACHE_ROOT,
-              os.path.join(ports.MU.LOG_DIR, "nginx_tmp")):
+    """Stash the policy-rendered backends and ensure the shared trees exist.
+    The actual per-server config render + ``nginx -t`` validation happens inside
+    the harness at ``start()`` (one prefix per instance)."""
+    global _backends
+    _backends = dict(backends)
+    for d in (ports.MU.DATA_ROOT, ports.MU.CACHE_ROOT, ports.MU.LOG_DIR):
         os.makedirs(d, exist_ok=True)
-    subst = _base_subst()
-    subst.update({"{GRIDMAP}": backends.get("gridmap", ""),
-                  "{AUTHDB}": backends.get("authdb", ""),
-                  "{VO}": backends.get("vo", ""),
-                  "{S3KEYS}": backends.get("s3keys", "")})
-    for src in sorted(glob.glob(os.path.join(_CFG_SRC, "*.conf"))):
-        text = open(src).read()
-        for k, v in subst.items():
-            text = text.replace(k, v)
-        dst = os.path.join(ports.MU.CONFIG_DIR, os.path.basename(src))
-        open(dst, "w").write(text)
-        pid = os.path.join(ports.MU.MU_ROOT, "nginx_t.pid")
-        r = subprocess.run([NGINX, "-t", "-c", dst, "-g", f"pid {pid};"],
-                           capture_output=True, text=True)
-        if r.returncode != 0:
-            raise AssertionError(f"nginx -t failed for {dst}:\n{r.stderr}")
-
-
-def _pidfile(name: str) -> str:
-    return os.path.join(ports.MU.MU_ROOT, f"{name}.pid")
 
 
 def start() -> None:
-    for src in sorted(glob.glob(os.path.join(ports.MU.CONFIG_DIR, "*.conf"))):
-        name = os.path.splitext(os.path.basename(src))[0]
-        subprocess.run([NGINX, "-c", src, "-g", f"pid {_pidfile(name)};"],
-                       check=True, capture_output=True)
+    global _harness
+    _harness = LifecycleHarness()
+    for template, attr, proto in _SERVERS:
+        values = _common_values()
+        # The cache node fills from the anonymous origin started just above.
+        values["ORIGIN_NOIMP_PORT"] = ports.MU.ORIGIN_NOIMP
+        endpoint = _harness.start(NginxInstanceSpec(
+            name=f"mu-{attr.lower()}",
+            template=template,
+            port=_assigned.get(attr),   # None => dynamic; pinned on reload
+            protocol=proto,
+            data_root=ports.MU.DATA_ROOT,
+            readiness="tcp",
+            template_values=values,
+        ))
+        _assigned[attr] = endpoint.port
+        setattr(ports.MU, attr, endpoint.port)
 
 
 def stop() -> None:
-    for pf in glob.glob(os.path.join(ports.MU.MU_ROOT, "*.pid")):
-        try:
-            os.kill(int(open(pf).read().strip()), 15)
-        except (ProcessLookupError, ValueError, FileNotFoundError):
-            pass
-        try:
-            os.remove(pf)
-        except FileNotFoundError:
-            pass
+    global _harness
+    if _harness is not None:
+        _harness.close()
+        _harness = None
 
 
 def wait_listening(timeout: int = 15) -> None:
-    deadline = time.time() + timeout
-    for p in ports.MU.enforcing_ports() + [ports.MU.ROOT_DIRECT, ports.MU.WEBDAV_DIRECT,
-                                           ports.MU.S3_DIRECT]:
-        while time.time() < deadline:
-            s = socket.socket()
-            s.settimeout(0.5)
-            try:
-                s.connect((ports.MU.HOST, p))
-                s.close()
-                break
-            except OSError:
-                s.close()
-                time.sleep(0.2)
-        else:
-            raise TimeoutError(f"MU port {p} never listened")
+    """No-op: the harness gates TCP readiness per instance at ``start()``."""
+    return None
 
 
 def url(proto: str, variant: str) -> str:

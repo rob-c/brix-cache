@@ -315,12 +315,10 @@ webdav_log_endpoint_warnings(ngx_conf_t *cf,
             "brix:   NOTE: x509/GSI is accepted but no CRL is configured — "
             "REVOKED certificates will be ACCEPTED (set brix_webdav_crl)");
     }
-    if (conf->common.allow_write && conf->auth != WEBDAV_AUTH_REQUIRED) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-            "brix:   NOTE: writes are enabled but authentication is not "
-            "required — anonymous clients may be able to create/modify/delete "
-            "files (set brix_webdav_auth required)");
-    }
+    /* The "writes enabled but auth not required" case is surfaced (and, under
+     * brix_strict_security, refused) by the E-1 gate in
+     * webdav_validate_auth_paths() — a single audit point, not a second warning
+     * here. */
     if (conf->auth == WEBDAV_AUTH_REQUIRED && !has_x509 && !has_token
         && !has_pwd && !conf->upstream_proxy)
     {

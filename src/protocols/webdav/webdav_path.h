@@ -21,9 +21,13 @@ ngx_int_t ngx_http_brix_webdav_resolve_path(ngx_http_request_t *r,
     const char *root_canon, char *out, size_t outsz);
 /* Resolve an already-decoded Destination path (COPY/MOVE target) under
  * root_canon.  Same as above but maps a non-existent parent to
- * NGX_HTTP_CONFLICT (409) per RFC 4918.  op_label/log are advisory. */
+ * NGX_HTTP_CONFLICT (409) per RFC 4918.  op_label/log are advisory.
+ * allow_internal: pass conf->common.cache_store_endpoint — non-zero on a trusted
+ * cache-store endpoint permits reserved sidecar names as the destination; 0
+ * everywhere else keeps them 404 (default-deny). */
 ngx_int_t webdav_resolve_destination_path(ngx_log_t *log, const char *op_label,
-    const char *root_canon, const char *decoded_path, char *out, size_t outsz);
+    const char *root_canon, const char *decoded_path, char *out, size_t outsz,
+    ngx_flag_t allow_internal);
 /* resolve_path + stat in one call: fills path[pathsz] and, if sb != NULL,
  * sb (via the VFS layer).  NGX_OK; 404 if missing, 500 on other stat error,
  * or the resolve error.  sb fields beyond size/mtime/ctime/mode/ino are zeroed. */

@@ -196,10 +196,12 @@ class TestMaliciousJwtHeaders:
 
     def test_kid_path_traversal_not_used_as_path(self, issuer):
         # kid selects a key from the in-memory JWKS array — it must NEVER be
-        # treated as a filesystem path (no open of /etc/passwd, no crash).  With
-        # a single configured key the non-matching kid falls back to that key,
-        # so this validly-signed token may authenticate — what matters is that
-        # the traversal kid leaks nothing and does not crash the handler.
+        # treated as a filesystem path (no open of /etc/passwd, no crash).  Since
+        # hyper-hardening D-5, an asserted kid that matches no loaded key is a hard
+        # reject even with a single configured key (no single-key fallback), so this
+        # token is refused; what this test asserts is the narrower safety property —
+        # the traversal kid leaks nothing and does not crash the handler.  (The
+        # reject itself is pinned by test_wlcg_token_conformance_edge E09/E10.)
         st, b = self._send_header(
             issuer, b'{"alg":"RS256","kid":"../../../../etc/passwd"}')
         assert st < 500, f"kid traversal crashed the handler (status={st})"

@@ -1,57 +1,44 @@
 /*
- * pool.c — a small thread-safe pool of brix_conn for concurrent callers.
+ * pool.c — brix_conn adapter over the generic brix_cpool engine.
  *
- * WHAT: brix_pool_create/checkout/checkin/destroy. A fixed array of N brix_conn,
- *       each lazily connected to the same endpoint; checkout hands a free,
- *       connected conn to one thread (blocking until one is free), checkin
- *       returns it (and, when the caller reports the op hit a connection-level
- *       error, drops the conn so the next checkout transparently reconnects).
- * WHY:  An brix_conn is one-request-in-flight and NOT thread-safe, so a
- *       multi-threaded consumer (the FUSE driver) needs several independent
- *       connections rather than one mutex-serialised global. The pool is the
- *       concurrency primitive that lets xrootdfs drop its forced single-thread.
- * HOW:  One mutex guards slot bookkeeping only (held briefly — never during the
- *       slow connect/op), a condvar wakes a waiter on checkin. Each slot owns its
- *       brix_conn; reconnect reuses brix_connect with the stored url+opts so a
- *       redirected/dropped conn returns to a clean session. No goto.
+ * WHAT: brix_pool_create/checkout/checkin/destroy — the same public API as
+ *       before (a pool of N brix_conn to one endpoint), now implemented as a
+ *       thin vtable adapter over lib/net/cpool.c so the binary root:// path and
+ *       the HTTP keep-alive metadata path share ONE pool implementation.
+ * WHY:  the pool's slot/mutex/condvar/health-drop bookkeeping is transport-
+ *       agnostic; only the connect/close and the connection type differ. Keeping
+ *       brix_pool behavior-identical means the core root:// path is unchanged.
+ * HOW:  a pool_ctx {url, opts} is the connect template stored INSIDE the heap
+ *       brix_pool (so the &p->ctx handed to brix_cpool is stable for the pool's
+ *       lifetime); the vtable wraps brix_connect/brix_close. No goto.
  *
  * Clean-room: composes the public libbrix connection API only.
  */
 #include "brix.h"
+#include "net/cpool.h"
 
-#include <pthread.h>
 #include <stdlib.h>
-#include <string.h>
 
-typedef struct {
-    brix_conn conn;
-    int       connected;   /* 1 once a successful connect/reconnect has run */
-    int       in_use;      /* checked out by a thread */
-} brix_pool_slot;
+typedef struct { brix_url url; brix_opts opts; } pool_ctx;   /* connect template */
 
-struct brix_pool {
-    brix_url        url;
-    brix_opts       opts;
-    int             n;
-    brix_pool_slot *slots;
-    pthread_mutex_t lock;
-    pthread_cond_t  avail;
+static int
+pool_conn_connect(void *conn, void *ctx, brix_status *st)
+{
+    pool_ctx *c = ctx;
+    return brix_connect((brix_conn *) conn, &c->url, &c->opts, st);
+}
+
+static void
+pool_conn_close(void *conn)
+{
+    brix_close((brix_conn *) conn);
+}
+
+static const brix_cpool_vtbl POOL_VT = {
+    sizeof(brix_conn), pool_conn_connect, pool_conn_close,
 };
 
-/* Bring a reserved (in_use) slot to a connected state; lock NOT held (connect is
- * slow and the slot is already reserved, so no other thread can touch it). */
-static int
-pool_slot_connect(brix_pool *p, brix_pool_slot *s, brix_status *st)
-{
-    if (s->connected) {
-        return 0;
-    }
-    if (brix_connect(&s->conn, &p->url, &p->opts, st) != 0) {
-        return -1;
-    }
-    s->connected = 1;
-    return 0;
-}
+struct brix_pool { brix_cpool *cp; pool_ctx ctx; };   /* ctx outlives cp */
 
 brix_pool *
 brix_pool_create(const brix_url *u, const brix_opts *o, int n, brix_status *st)
@@ -62,129 +49,47 @@ brix_pool_create(const brix_url *u, const brix_opts *o, int n, brix_status *st)
         brix_status_set(st, XRDC_EUSAGE, 0, "pool: bad arguments");
         return NULL;
     }
-    if (n > 256) {
-        n = 256;   /* sanity cap */
-    }
-
     p = calloc(1, sizeof(*p));
     if (p == NULL) {
         brix_status_set(st, XRDC_ESOCK, 0, "pool: out of memory");
         return NULL;
     }
-    p->slots = calloc((size_t) n, sizeof(*p->slots));
-    if (p->slots == NULL) {
-        free(p);
-        brix_status_set(st, XRDC_ESOCK, 0, "pool: out of memory");
-        return NULL;
-    }
-    p->url = *u;
+    p->ctx.url = *u;
     if (o != NULL) {
-        p->opts = *o;
+        p->ctx.opts = *o;
     }
-    p->n = n;
-    pthread_mutex_init(&p->lock, NULL);
-    pthread_cond_init(&p->avail, NULL);
-
-    /* Connect slot 0 eagerly so a bad endpoint / auth fails the mount up front;
-     * the remaining slots connect lazily on first use. */
-    p->slots[0].in_use = 1;
-    if (pool_slot_connect(p, &p->slots[0], st) != 0) {
-        p->slots[0].in_use = 0;
-        brix_pool_destroy(p);
+    p->cp = brix_cpool_create(&POOL_VT, &p->ctx, n, st);   /* &p->ctx: stable */
+    if (p->cp == NULL) {
+        free(p);
         return NULL;
     }
-    p->slots[0].in_use = 0;
     return p;
 }
 
 brix_conn *
 brix_pool_checkout(brix_pool *p, brix_status *st)
 {
-    brix_pool_slot *s = NULL;
-    int             i;
-
     if (p == NULL) {
         brix_status_set(st, XRDC_EUSAGE, 0, "pool: null");
         return NULL;
     }
-
-    pthread_mutex_lock(&p->lock);
-    for (;;) {
-        for (i = 0; i < p->n; i++) {
-            if (!p->slots[i].in_use) {
-                s = &p->slots[i];
-                s->in_use = 1;
-                break;
-            }
-        }
-        if (s != NULL) {
-            break;
-        }
-        pthread_cond_wait(&p->avail, &p->lock);   /* all busy: wait for a checkin */
-    }
-    pthread_mutex_unlock(&p->lock);
-
-    /* Connect/reconnect outside the lock (the slot is reserved). */
-    if (pool_slot_connect(p, s, st) != 0) {
-        pthread_mutex_lock(&p->lock);
-        s->in_use = 0;
-        pthread_cond_signal(&p->avail);
-        pthread_mutex_unlock(&p->lock);
-        return NULL;
-    }
-    return &s->conn;
+    return (brix_conn *) brix_cpool_checkout(p->cp, st);
 }
 
 void
 brix_pool_checkin(brix_pool *p, brix_conn *c, int healthy)
 {
-    int i;
-
-    if (p == NULL || c == NULL) {
-        return;
+    if (p != NULL) {
+        brix_cpool_checkin(p->cp, c, healthy);
     }
-
-    /* A connection-level failure (healthy==0) means this conn's socket/session is
-     * suspect — close it and clear `connected` so the next checkout reconnects on
-     * a clean session rather than handing back a dead socket. */
-    if (!healthy) {
-        for (i = 0; i < p->n; i++) {
-            if (&p->slots[i].conn == c) {
-                if (p->slots[i].connected) {
-                    brix_close(&p->slots[i].conn);
-                    p->slots[i].connected = 0;
-                }
-                break;
-            }
-        }
-    }
-
-    pthread_mutex_lock(&p->lock);
-    for (i = 0; i < p->n; i++) {
-        if (&p->slots[i].conn == c) {
-            p->slots[i].in_use = 0;
-            break;
-        }
-    }
-    pthread_cond_signal(&p->avail);
-    pthread_mutex_unlock(&p->lock);
 }
 
 void
 brix_pool_destroy(brix_pool *p)
 {
-    int i;
-
     if (p == NULL) {
         return;
     }
-    for (i = 0; i < p->n; i++) {
-        if (p->slots[i].connected) {
-            brix_close(&p->slots[i].conn);
-        }
-    }
-    pthread_mutex_destroy(&p->lock);
-    pthread_cond_destroy(&p->avail);
-    free(p->slots);
+    brix_cpool_destroy(p->cp);
     free(p);
 }

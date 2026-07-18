@@ -177,6 +177,7 @@ def server():
 #    (The HTTP analogue of the stream-plane X-Xrootd-Wait.)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_rate_limit_emits_429_and_retry_after(server):
     """A per-IP request-rate rule (rate=2r/s burst=2) must let the first couple
     of requests through, then return 429 with a Retry-After header (the
@@ -214,6 +215,7 @@ def test_rate_limit_emits_429_and_retry_after(server):
 # 2. Single-range 206: correct Content-Range and exact bytes.
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_single_range_206_content_range(server):
     """A single 'bytes=start-end' range returns 206 Partial Content with a
     Content-Range matching the requested window and the exact slice bytes."""
@@ -231,6 +233,7 @@ def test_single_range_206_content_range(server):
     _sanity_ok()
 
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_suffix_range_206(server):
     """A suffix range 'bytes=-N' returns the final N bytes as 206."""
     _sleep_off_throttle()
@@ -249,6 +252,7 @@ def test_suffix_range_206(server):
 # 3. Digest on a 206 range response.
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_digest_on_206_range(server):
     """A Want-Digest GET that ALSO carries a Range must still 206 and still
     attach a Digest: header (computed over the whole file via the fd-based
@@ -278,6 +282,7 @@ def test_digest_on_206_range(server):
 # 4. Want-Digest adler32 / md5 echoed as a Digest: header.
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_want_digest_adler32_echoed(server):
     """Want-Digest: adler32 → Digest: adler32=<hex> matching the local
     adler32 of the file content.  adler32 is the canonical XrdHttp checksum
@@ -294,6 +299,7 @@ def test_want_digest_adler32_echoed(server):
     _sanity_ok()
 
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_want_digest_md5_echoed(server):
     """Want-Digest: md5 → Digest: md5=<hex> matching the local md5.
 
@@ -337,6 +343,7 @@ def _parse_multipart_byteranges(body, boundary):
     return parts
 
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_overlapping_multirange_merged_or_full(server):
     """Two overlapping byte ranges must be served safely.  The documented
     options are: (a) a multipart/byteranges 206 in which every requested window
@@ -375,6 +382,7 @@ def test_overlapping_multirange_merged_or_full(server):
     _sanity_ok()
 
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_disjoint_multirange_parts(server):
     """A well-formed disjoint multi-range returns multipart/byteranges with each
     part's bytes exact (or the documented full-file fallback)."""
@@ -405,6 +413,7 @@ def test_disjoint_multirange_parts(server):
 # 6. HEAD vs GET header parity.
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_head_get_header_parity(server):
     """HEAD and GET must agree on the core metadata: status, Content-Length,
     Content-Type and (when Want-Digest is sent) the Digest header — HEAD just
@@ -434,6 +443,7 @@ def test_head_get_header_parity(server):
 # 7. PROPPATCH returns a client-compat status (NOT 501).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_proppatch_client_compatible_status(server):
     """methods_basic.c documents PROPPATCH as a minimal-compliance handler that
     drains the body and returns 207 Multi-Status (with 200 OK per property) so
@@ -463,6 +473,7 @@ def test_proppatch_client_compatible_status(server):
 # 8. Byte-exact PUT then GET round-trip (writable storage).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("xrdhttp-digest")
 def test_put_then_get_byte_exact(server):
     """A file written via PUT (allowed by brix_allow_write on) must read
     back byte-for-byte via GET, and its on-disk content must match too."""

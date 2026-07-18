@@ -1,6 +1,7 @@
 #include "evict_internal.h"
 #include "cache_storage.h"
 #include "meta.h"
+#include "fs/backend/cache/sd_cache.h"   /* phase-85 F7 cold-tier demote */
 
 /*
  * evict_policy.c — cache eviction policy driver (two-pass LRU by occupancy).
@@ -52,6 +53,9 @@ typedef struct {
     ngx_log_t                  *log;
     brix_cache_evict_list_t    *list;
     brix_cache_fs_usage_t      *usage;
+    brix_sd_instance_t         *decorator; /* composed sd_cache (tier grammar)
+                                            * or NULL — phase-85 F7 victims
+                                            * demote into its cold tier      */
     ngx_uint_t                  evicted_files;
     uint64_t                    evicted_bytes;
 } brix_cache_evict_ctx_t;
@@ -199,6 +203,21 @@ brix_cache_evict_one(brix_cache_evict_ctx_t *ec, size_t idx)
 {
     brix_cache_evict_list_t *list = ec->list;
 
+    /* Phase-85 F7: demote the victim into the cold store tier BEFORE removing
+     * the hot copy — space-pressure evicts only (write invalidation never
+     * routes through here). Best-effort: a failed demote still evicts (space
+     * relief wins; the origin refill preserves correctness). */
+    if (ec->decorator != NULL) {
+        const char *key = list->elts[idx].path
+                        + ngx_strlen(list->cache_root);
+
+        if (brix_sd_cache_demote(ec->decorator, key) == NGX_ERROR) {
+            ngx_log_error(NGX_LOG_WARN, ec->log, errno,
+                "brix: cold-tier demote failed for \"%s\" - evicting anyway",
+                key);
+        }
+    }
+
     brix_cache_evict_remove_object(list, idx);
     brix_cache_evict_remove_sidecars(list, idx);
 
@@ -280,6 +299,9 @@ brix_cache_purge_setup(brix_cache_evict_ctx_t *ec, const char *protect_path,
     list->protect_path = protect_path;
     list->inst = brix_cache_storage(conf);          /* store instance (removal) */
     list->cstore = brix_cache_storage_cstore(conf); /* enumerate via the adapter */
+    /* Phase-85 F7: the composed decorator (NULL for a legacy cache / no cold
+     * tier) — brix_cache_evict_one demotes each victim through it. */
+    ec->decorator = brix_cache_storage_decorator(conf);
     /* §14a: walk the PHYSICAL cache root (tier-aware — the posix cache_store dir
      * for the tier grammar, else cache_state_root/cache_root), so a pure tier
      * cache (advertised cache_root "/") still evicts from the real store dir. */

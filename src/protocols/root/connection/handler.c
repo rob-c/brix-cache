@@ -81,15 +81,23 @@ conn_set_immutable_labels(ngx_connection_t *c, brix_ctx_t *ctx)
 /*
  * WHAT: Mark all fd slots free and mint the 16-byte opaque session ID.
  * WHY : fd < 0 is the free-slot sentinel every handle path relies on; the
- *       session ID identifies this connection within the process.
- * HOW : Loop the fixed slot array, then pack time/pid/ptr/random into sessid.
- *       Not a CSPRNG value — just process-unique.
+ *       session ID identifies this connection within the process AND is later
+ *       presented back by kXR_bind/kXR_endsess as an unauthenticated bearer
+ *       (session.c: a matching sessid inherits the primary's auth state), so it
+ *       must be unpredictable — a guessed sessid would let a fresh connection
+ *       bind to another client's authenticated session (hyper-hardening D-4).
+ * HOW : Loop the fixed slot array, then draw all 16 bytes from the OpenSSL
+ *       CSPRNG. The former time|pid|ptr|ngx_random() packing was predictable
+ *       (ngx_random() is the non-cryptographic random(3)) and additionally
+ *       leaked a live heap pointer past ASLR. RAND_bytes failure means the
+ *       process entropy source is dead (TLS would be broken too), so we fail
+ *       closed: return NGX_ERROR and let the caller drop the connection rather
+ *       than emit a weak, forgeable session ID.
  */
-static void
+static ngx_int_t
 conn_init_slots_and_sessid(ngx_connection_t *c, brix_ctx_t *ctx)
 {
-    int      i;
-    uint32_t parts[4];
+    int  i;
 
     /* Sentinel value: fd < 0 means the slot is free. */
     for (i = 0; i < BRIX_MAX_FILES; i++) {
@@ -97,11 +105,14 @@ conn_init_slots_and_sessid(ngx_connection_t *c, brix_ctx_t *ctx)
         ctx->files[i].shared_handle_slot_hint = -1;  /* Phase 33 C2: no cache yet */
     }
 
-    parts[0] = (uint32_t) ngx_time();
-    parts[1] = (uint32_t) ngx_pid;
-    parts[2] = (uint32_t) (uintptr_t) c;
-    parts[3] = (uint32_t) ngx_random();
-    ngx_memcpy(ctx->login.sessid, parts, BRIX_SESSION_ID_LEN);
+    if (RAND_bytes(ctx->login.sessid, BRIX_SESSION_ID_LEN) != 1) {
+        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                      "brix: RAND_bytes failed minting session id — "
+                      "refusing connection (CSPRNG unavailable)");
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
 }
 
 /*
@@ -138,7 +149,10 @@ conn_init_ctx(ngx_stream_session_t *s, ngx_connection_t *c)
 #endif
 
     conn_set_immutable_labels(c, ctx);
-    conn_init_slots_and_sessid(c, ctx);
+    if (conn_init_slots_and_sessid(c, ctx) != NGX_OK) {
+        ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
+        return NULL;
+    }
 
     ngx_stream_set_ctx(s, ctx, ngx_stream_brix_module);
     return ctx;

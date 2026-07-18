@@ -12,4 +12,4 @@
 - NO `goto`; no new globals; never reimplement HELPERS. Stop after 2 identical failures; recovery 1 adjust · 2 ask · 3 revert+document; never leave code broken. Full text in extended guide.
 
 ## BUILD & TEST
-`make -j$(nproc)` incremental; re-`./configure --add-module=$REPO` only after source-list/`--with-*` changes — new `.c` files go in repo-root `./config`. Validate: `objs/nginx -t`. Tests: `PYTHONPATH=tests pytest tests/<file>.py -v`; fleet: `tests/manage_test_servers.sh start|restart|stop`; logs: `/tmp/xrd-test/logs/`.
+`make -j$(nproc)` incremental; re-`./configure --add-module=$REPO` only after source-list/`--with-*` changes — new `.c` files go in repo-root `./config`. Validate: `objs/nginx -t`. Tests: `PYTHONPATH=tests pytest tests/<file>.py -v`; fleet (pure-Python, `fleet_specs` catalogue via `RegistryLauncher`): `python3 -m cmdscripts.manage_test_servers start-all|restart|stop-all|status` (run from `tests/`); logs: `/tmp/xrd-test/logs/`.

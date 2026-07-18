@@ -84,6 +84,45 @@ brix_conf_set_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 /*
+ * brix_conf_set_peers — setter for "brix_cache_peers <member> <member> ..."
+ * (phase-85 F8 sibling mesh). Each member is "host:port", with this node's own
+ * ring slot written "self=host:port". The tokens are only COLLECTED here (into
+ * an ngx_str_t array on the shared preamble); shape validation — exactly one
+ * self=, ≥2 members, well-formed authorities — runs at tier registration where
+ * the [emerg] can name the export.
+ */
+static char *
+brix_conf_set_peers(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_brix_common_conf_t *c = conf;
+    ngx_str_t                    *value = cf->args->elts;
+    ngx_str_t                    *slot;
+    ngx_uint_t                    i;
+
+    (void) cmd;
+
+    if (c->common.cache_peers != NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_peers: duplicate directive — list every ring "
+            "member in one declaration");
+        return NGX_CONF_ERROR;
+    }
+    c->common.cache_peers = ngx_array_create(cf->pool, cf->args->nelts - 1,
+                                             sizeof(ngx_str_t));
+    if (c->common.cache_peers == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    for (i = 1; i < cf->args->nelts; i++) {
+        slot = ngx_array_push(c->common.cache_peers);
+        if (slot == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        *slot = value[i];
+    }
+    return NGX_CONF_OK;
+}
+
+/*
  * brix_cache_verify values on the HTTP plane.  Only the self-verifying
  * cvmfs-cas scheme is meaningful here today (best-effort/require need an
  * origin-digest hook the HTTP-plane fill does not carry); this mirrors the
@@ -220,6 +259,15 @@ static ngx_command_t  brix_http_common_commands[] = {
       offsetof(ngx_http_brix_common_conf_t, common.allow_write),
       NULL },
 
+    /* Read-back CRC verify for whole-object PUT (WebDAV/S3) routed through
+     * brix_vfs_writer; off by default. Never applies to ranged/partial PUT. */
+    { ngx_string("brix_verify_write"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.verify_write),
+      NULL },
+
     { ngx_string("brix_read_only"),
       BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -232,6 +280,16 @@ static ngx_command_t  brix_http_common_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.compress),
+      NULL },
+
+    /* E-1: refuse valid-but-dangerous configs at nginx -t rather than only
+     * warning (anonymous S3, unauthenticated WebDAV writes, anonymous
+     * dashboard). Off by default; see brix_shared_security_gate. */
+    { ngx_string("brix_strict_security"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.strict_security),
       NULL },
 
     { ngx_string("brix_access_log"),
@@ -255,6 +313,13 @@ static ngx_command_t  brix_http_common_commands[] = {
       offsetof(ngx_http_brix_common_conf_t, common.thread_pool_name),
       NULL },
 
+    { ngx_string("brix_cache_peers"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_1MORE,
+      brix_conf_set_peers,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
     { ngx_string("brix_cache_verify"),
       BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_enum_slot,
@@ -262,8 +327,8 @@ static ngx_command_t  brix_http_common_commands[] = {
       offsetof(ngx_http_brix_common_conf_t, common.cache_verify_mode),
       &brix_http_cache_verify_enum },
 
-    /* The 10 tier directives: brix_cache_store, brix_stage,
-     * brix_stage_store, brix_stage_flush, brix_cache_max_object,
+    /* The 11 tier directives: brix_cache_store, brix_cache_cold_store,
+     * brix_stage, brix_stage_store, brix_stage_flush, brix_cache_max_object,
      * brix_cache_evict_at, brix_cache_evict_to, brix_cache_index_cache,
      * brix_cache_meta, brix_cache_slice_size. */
     BRIX_TIER_DIRECTIVES("brix_", ngx_http_brix_common_conf_t,
@@ -356,11 +421,15 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(access_log);
     BRIX_ADOPT_STR(cache_store);
     BRIX_ADOPT_PTR(cache_store_args);
+    BRIX_ADOPT_STR(cache_cold_store);
+    BRIX_ADOPT_PTR(cache_cold_store_args);
+    BRIX_ADOPT_PTR(cache_peers);
     BRIX_ADOPT_STR(stage_store);
     BRIX_ADOPT_PTR(stage_store_args);
     BRIX_ADOPT_VAL(allow_write,       NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(read_only,         NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(compress,          NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(strict_security,   NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(session_log,       NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(stage_enable,      NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(stage_flush_async, NGX_CONF_UNSET_UINT);

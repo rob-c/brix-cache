@@ -4,9 +4,10 @@ Policy (docs/refactor/phase-81-test-server-registry.md §"registry lint"):
   * A test must not start/stop/reload nginx directly — it goes through the
     registry (`LifecycleHarness`, marked with ``pytest.mark.uses_lifecycle_harness``)
     or the session fleet.  Direct ``subprocess.run/Popen([NGINX, ...])`` is banned.
-  * No ``*.sh`` under ``tests/`` except the compat-fleet backend
-    (``manage_test_servers.sh``) and its sourced ``tests/lib/*.sh`` helpers.
-  * Test code must not reach around the registry by sourcing those shell helpers.
+  * No ``*.sh`` under ``tests/`` at all — the fleet is pure Python (the
+    declarative ``fleet_specs`` catalogue launched by ``RegistryLauncher``).
+  * Test code must not reach around the registry by shelling out to the
+    (now-deleted) ``manage_test_servers.sh`` / ``tests/lib/*.sh`` helpers.
 
 The direct-launch ban is enforced against a *strictly shrinking* backlog: files
 that still launch nginx directly are enumerated in ``LAUNCH_BACKLOG``.  The lint
@@ -31,7 +32,28 @@ INFRA_ALLOW = {
     "test_server_registry_lint.py",
 }
 
-_LAUNCH = re.compile(r"subprocess\.(?:run|Popen)\(\s*\[[^\]]*NGINX", re.S)
+# A direct launch is nginx-as-argv0: the binary reference (NGINX_BIN / NGINX /
+# a lowercase `nginx_bin` local, optionally attribute-qualified like
+# `settings.NGINX_BIN`) is the *first* element of the argv list handed to
+# subprocess.run/Popen.  Anchoring on argv0 is deliberate: a fleet-client test
+# that merely mentions an `NGINX_*_PORT` / `NGINX_URL` constant somewhere inside
+# an `xrdcp`/`curl` argv (e.g. `["xrdcp", f"root://…:{NGINX_ANON_PORT}//"]`) is
+# NOT launching nginx and must not be flagged — the previous `[^\]]*NGINX` scan
+# false-matched those.  The `cmdscripts/*.py` fleet config generators build argv
+# lists too but never call subprocess.run([NGINX…]) themselves, so the
+# subprocess anchor keeps them (the committed config source) out of scope.
+#
+# The argv tail up to the closing `]` is captured so a `nginx -t` invocation can
+# be told apart from a server launch: `nginx -t` only validates config syntax and
+# starts NO server, so it is neither a "direct launch" (nothing to leak/race) nor
+# a runnable inline-config server.  Config-syntax/negative tests that must assert
+# a directive is accepted or rejected at parse time legitimately feed a minimal
+# snippet to `nginx -t` and cannot be expressed as a committed runnable template.
+_LAUNCH = re.compile(
+    r"subprocess\.(?:run|Popen)\(\s*\[\s*(?:[A-Za-z_]\w*\.)?"
+    r"(?:NGINX_BIN|NGINX|nginx_bin)\b([^\]]*)\]",
+    re.S,
+)
 _MARKER = "uses_lifecycle_harness"
 
 # Documented, strictly-shrinking backlog of files that still launch nginx
@@ -42,92 +64,7 @@ _MARKER = "uses_lifecycle_harness"
 # per-uid export-tree ownership conflict with the registry's prefix-ownership
 # model — see the tracker's "Files requiring lifecycle-harness migration" note.
 LAUNCH_BACKLOG = frozenset({
-    "_cache_partial_helpers.py",
-    "_test_evil_actor_v3_helpers.py",
-    "_test_gsi_handshake_helpers.py",
-    "cms_mesh_lib.py",
-    "mu_authz_lib/fleet.py",
-    "official_interop_lib.py",
-    "resilience/run_http_reorder.py",
-    "resilience/servers.py",
-    "test_chaos_mixed_auth.py",
-    "test_checksum_on_write.py",
-    "test_client_gaps.py",
-    "test_cms_fast_settle.py",
-    "test_cms_resilience.py",
-    "test_cms_state_have_select.py",
-    "test_cms_wire_pup_conformance.py",
-    "test_cns.py",
-    "test_compression_fuse_resilience.py",
-    "test_compression_root_adversarial.py",
-    "test_conformance_topologies.py",
-    "test_crc64.py",
-    "test_delegation_t4_credential.py",
-    "test_dropin_byte_for_byte.py",
-    "test_e2e_proxy_matrix.py",
-    "test_evil_actor.py",
-    "test_evil_actor_v2.py",
-    "test_frm_async.py",
-    "test_frm_control_locality.py",
-    "test_frm_owner.py",
-    "test_frm_phase1_http.py",
-    "test_frm_phase4.py",
-    "test_frm_phase4_engines.py",
-    "test_frm_queue.py",
-    "test_frm_scratch.py",
-    "test_frm_staging.py",
-    "test_gohep_interop.py",
-    "test_ha_failover.py",
-    "test_integrity_matrix.py",
-    "test_libbrix.py",
-    "test_metadata_stress.py",
-    "test_mirror_upstream.py",
-    "test_mu_cache_serve_authz.py",
-    "test_mu_sidecar_config_guard.py",
-    "test_mu_sidecar_hidden.py",
-    "test_mu_stage_modes.py",
-    "test_mu_webdav_authz.py",
-    "test_native_xrdcp_xrdfs.py",
-    "test_native_xrdcp_xrdfs_b.py",
-    "test_p805_remote_authz_guard.py",
-    "test_pblock_pwd_multiuser.py",
-    "test_phase20_kv_shm.py",
-    "test_phase51_resilience.py",
-    "test_pmark.py",
-    "test_put_content_encoding.py",
-    "test_pwd_auth_multiproto.py",
-    "test_readv_segment_size.py",
-    "test_readv_variable_blocks.py",
-    "test_root_open_existence_oracle.py",
-    "test_s3_xrootd_gateway.py",
-    "test_security_redteam.py",
-    "test_shutdown_resume.py",
-    "test_slice_cache.py",
-    "test_ssi.py",
-    "test_ssi_config.py",
-    "test_ssi_metrics.py",
-    "test_ssi_wire.py",
-    "test_tape_rest.py",
-    "test_tpc_async_open.py",
-    "test_tpc_delegation.py",
-    "test_tpc_gsi_nginx_source.py",
-    "test_tpc_gsi_outbound.py",
-    "test_tpc_tls.py",
-    "test_upstream_auth_multiround.py",
-    "test_wlcg_audit_log.py",
-    "test_xfer_ledger.py",
-    "test_xfer_wt_journal.py",
-    "test_xfer_wt_replay.py",
-    "test_xrddiag.py",
-    "test_xrddiag_compare_davs.py",
-    "test_xrddiag_multiproto.py",
-    "test_xrddiag_remote_doctor.py",
-    "test_xrootd_conformance.py",
-    "test_xrootdfs_resilience.py",
     "userns/e2e_redteam.py",
-    "userns/test_impersonate_config.py",
-    "wlcg_conformance_fleet.py",
-    "wlcg_fleet.py",
 })
 
 
@@ -138,47 +75,51 @@ LAUNCH_BACKLOG = frozenset({
 # shrinking, like LAUNCH_BACKLOG.
 _INLINE_EVENTS = re.compile(r"events\s*\{")
 _INLINE_HTTP_STREAM = re.compile(r"(?:^|\W)(?:http|stream)\s*\{")
-INLINE_CONFIG_BACKLOG = frozenset({
-    # `test_evil_paths.py` embeds a stream{} CMS-node config heredoc and launches
-    # a throwaway nginx via a lowercase `nginx_bin` local, so the NGINX-token
-    # launch scan misses it — this is the offender only the inline scan catches.
-    # The rest also appear in LAUNCH_BACKLOG (they embed *and* launch directly);
-    # both allowlists must lose the entry when a file is migrated.
-    "test_chaos_mixed_auth.py",
-    "test_cms_resilience.py",
-    "test_cms_state_have_select.py",
-    "test_cms_wire_pup_conformance.py",
-    "test_conformance_topologies.py",
-    "test_dropin_byte_for_byte.py",
-    "test_evil_actor.py",
-    "test_evil_paths.py",
-    "test_frm_control_locality.py",
-    "test_frm_phase4_engines.py",
-    "test_frm_queue.py",
-    "test_frm_scratch.py",
-    "test_integrity_matrix.py",
-    "test_metadata_stress.py",
-    "test_mu_sidecar_config_guard.py",
-    "test_p805_remote_authz_guard.py",
-    "test_phase20_kv_shm.py",
-    "test_phase51_resilience.py",
-    "test_security_redteam.py",
-    "userns/test_impersonate_config.py",
-})
+INLINE_CONFIG_BACKLOG = frozenset()
+# Fully burned down: every test module that embedded an nginx config heredoc has
+# been migrated to a committed tests/configs/*.conf template driven through the
+# registry.  An entry here would have to both embed an inline config *and* be
+# unmarked; the shrink-only guard (test_inline_config_backlog_only_shrinks)
+# keeps this empty.
 
 
 def _rel(path):
     return path.relative_to(TESTS).as_posix()
 
 
+def _argv_is_validation(argv_tail):
+    """True when a captured nginx argv tail carries the `-t` config-test flag."""
+    return '"-t"' in argv_tail or "'-t'" in argv_tail
+
+
+def _server_launches(text):
+    """nginx-as-argv0 subprocess calls that START a server (i.e. NOT `nginx -t`)."""
+    return [m for m in _LAUNCH.finditer(text) if not _argv_is_validation(m.group(1))]
+
+
+def _validation_only(text):
+    """True when the module drives nginx solely for `nginx -t` config validation:
+    at least one `nginx -t` call and no server-starting nginx launch.  Such a
+    config-syntax/negative test embeds a minimal snippet on purpose and has no
+    runnable-template equivalent, so it is exempt from the inline-config ban."""
+    calls = list(_LAUNCH.finditer(text))
+    return bool(calls) and not _server_launches(text) and any(
+        _argv_is_validation(m.group(1)) for m in calls
+    )
+
+
 def _inline_config_modules():
-    """test_*.py modules that embed an nginx config and are not marker-exempt."""
+    """test_*.py modules that embed a *runnable* nginx config and are not exempt.
+
+    Marker-exempt (``uses_lifecycle_harness``) and pure `nginx -t` config-syntax
+    tests are excluded — the ban targets embedding a server config that a test
+    actually runs instead of rendering it from a committed template."""
     offenders = set()
     for path in PY_FILES:
         if path.name in INFRA_ALLOW or not path.name.startswith("test_"):
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        if _MARKER in text:
+        if _MARKER in text or _validation_only(text):
             continue
         if _INLINE_EVENTS.search(text) and _INLINE_HTTP_STREAM.search(text):
             offenders.add(_rel(path))
@@ -186,14 +127,17 @@ def _inline_config_modules():
 
 
 def _direct_launchers():
-    """Files that launch nginx directly and are not exempt via the marker."""
+    """Files that START nginx directly and are not exempt via the marker.
+
+    A `nginx -t` invocation validates config syntax and starts no server, so it
+    is not a direct launch — only server-starting calls count."""
     launchers = set()
     for path in PY_FILES:
         rel = _rel(path)
         if path.name in INFRA_ALLOW:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        if _LAUNCH.search(text) and _MARKER not in text:
+        if _server_launches(text) and _MARKER not in text:
             launchers.add(rel)
     return launchers
 
@@ -231,8 +175,9 @@ def test_launch_backlog_only_shrinks():
 
 
 def test_no_test_code_sources_shell_helpers():
-    """Test code must not reach around the registry by sourcing the fleet
-    shell helpers (manage_test_servers.sh / tests/lib/*.sh)."""
+    """Test code must not reach around the registry by shelling out to the
+    deleted fleet shell helpers (manage_test_servers.sh / tests/lib/*.sh) —
+    guards against reintroducing the bash fleet."""
     pattern = re.compile(
         r"""subprocess\.(?:run|Popen|call|check_call|check_output)\([^)]*"""
         r"""(?:manage_test_servers\.sh|lib/[\w./-]+\.sh)""",
@@ -272,16 +217,35 @@ def test_inline_config_backlog_only_shrinks():
     )
 
 
-def test_shell_tests_fully_ported_except_fleet_backend():
-    """Phase-81 endgame: every test shell has been ported to Python and deleted.
-    Only the compatibility fleet backend (manage_test_servers.sh) and its
-    sourced tests/lib/*.sh helpers may remain."""
-    present = {path.name for path in SH_FILES}
-    assert "manage_test_servers.sh" in present
-    allowed_dirs = {TESTS / "lib"}
-    strays = [
-        _rel(p)
-        for p in SH_FILES
-        if p.parent not in allowed_dirs and p.name != "manage_test_servers.sh"
-    ]
-    assert not strays, f"unported/undeleted shell scripts: {strays}"
+def test_no_two_specs_claim_the_same_fixed_port():
+    """No two distinct fleet services may pin the same fixed port.
+
+    Every fleet instance is pinned to a hardcoded ``settings.py`` port (so the
+    414 fixed-port test files stay valid).  A copy-paste slip that points two
+    *different* services at one port is invisible until start-all, where they
+    race for the socket — whoever binds first wins, the other dies with a
+    confusing bind error.  ``port_conflicts`` surfaces every such collision
+    statically from the declared specs, before anything launches.
+
+    Built from ``fleet_specs._all_specs()`` (pure spec construction) rather than
+    the live registry, so the check is independent of session registration and
+    never mutates it.  Within-spec reuse (a service re-exposing its own listen
+    port under an ``extra_ports`` key) is not a conflict — only cross-service."""
+    import fleet_specs
+    from server_registry import port_conflicts
+
+    conflicts = port_conflicts(fleet_specs._all_specs())
+    assert not conflicts, "fixed-port collisions between distinct services:\n" + "\n".join(
+        f"  port {port}: {', '.join(names)}" for port, names in sorted(conflicts.items())
+    )
+
+
+def test_no_shell_scripts_under_tests():
+    """Phase-81 endgame reached: the bash fleet is gone.
+
+    Orchestration is pure Python — the declarative ``fleet_specs`` catalogue
+    launched by ``RegistryLauncher`` (see ``cmdscripts/manage_test_servers.py``).
+    No ``*.sh`` may exist anywhere under ``tests/``; a stray one is a regression
+    back toward the shell fleet this migration deleted."""
+    strays = sorted(_rel(p) for p in SH_FILES)
+    assert not strays, f"shell scripts under tests/ — the fleet is pure Python now: {strays}"

@@ -7,6 +7,7 @@
 
 #include <ngx_thread_pool.h>
 
+#include <regex.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -141,6 +142,17 @@ typedef struct {
      * sensible defaults until the P2 legacy-removal big-bang). */
     ngx_str_t           cache_store;        /* brix_cache_store URL ("" = none)   */
     ngx_array_t        *cache_store_args;   /* its credential=/block_size= tokens    */
+    ngx_str_t           cache_cold_store;   /* brix_cache_cold_store URL ("" = none)
+                                             * — phase-85 F7 cold tier: eviction
+                                             * victims demote here; a miss promotes
+                                             * (verified) from here before origin. */
+    ngx_array_t        *cache_cold_store_args;
+    ngx_array_t        *cache_peers;        /* brix_cache_peers tokens (ngx_str_t[])
+                                             * — phase-85 F8 sibling mesh: the
+                                             * ring member list, one "host:port"
+                                             * per sibling with this node's own
+                                             * slot written "self=host:port".
+                                             * NULL = no mesh.                    */
     ngx_flag_t          stage_enable;       /* brix_stage on|off                  */
     ngx_str_t           stage_store;        /* brix_stage_store URL               */
     ngx_array_t        *stage_store_args;
@@ -155,9 +167,18 @@ typedef struct {
                                              * the cvmfs protocol only.           */
     ngx_str_t           cache_quarantine_dir; /* verify-mismatch evidence dir;
                                              * "" = unlink the failed part.       */
+    ngx_str_t           cache_cvmfs_master_key; /* phase-85 F1: path to the repo
+                                             * master public key PEM (may hold
+                                             * several concatenated keys). "" =
+                                             * no manifest signature verify.     */
     time_t              cache_manifest_ttl; /* phase-68 cvmfs: TTL stamped on
                                              * MANIFEST-class cache fills (secs;
                                              * 0 = no expiry stamping).           */
+    time_t              cache_offline_ttl;  /* phase-85 F10 cvmfs: through a
+                                             * total origin outage keep serving
+                                             * the last verified manifest this
+                                             * long past its fill; extends the
+                                             * 10x-TTL stale window (0 = off).   */
     time_t              cache_client_hold;  /* phase-68 T20: keep retrying a
                                              * failing fill this long while a
                                              * client waits, then 504+Retry-After
@@ -168,7 +189,22 @@ typedef struct {
     ngx_uint_t          cache_batch_cinfo;  /* brix_cache_batch_cinfo (0 off/1 on/2 auto) */
     size_t              cache_index_cache;  /* brix_cache_index_cache (L1 entries) */
     size_t              cache_slice_size;   /* brix_cache_slice_size (0 = whole-file) */
+    /* Read-cache admission (deny/allow prefix + include regex).  The directives
+     * live on the stream srv conf (they are stream-only and share the matcher
+     * with write-through); the protocol finaliser bridges the already-merged
+     * pointers here so the protocol-agnostic tier registration can build the
+     * composable sd_cache policy from them — read-fill parity with write-through
+     * and the legacy cache_origin admit (brix_cache_admit).  NULL when unset. */
+    ngx_array_t        *cache_deny_prefixes;  /* brix_wt_prefix_entry_t[] — blacklist */
+    ngx_array_t        *cache_allow_prefixes; /* brix_wt_prefix_entry_t[] — whitelist */
+    regex_t            *cache_include_re;      /* compiled include filter, or NULL     */
     ngx_flag_t          allow_write;        /* write permission flag               */
+    ngx_flag_t          verify_write;       /* brix_verify_write: fold a self-computed
+                                             * read-back CRC check into whole-object
+                                             * writes routed through brix_vfs_writer
+                                             * (root:// staged, WebDAV/S3 PUT). Off by
+                                             * default; never applies to partial/
+                                             * ranged (REST/Content-Range) writes.  */
     ngx_flag_t          read_only;          /* hard read-only switch: when on, the
                                              * finaliser forces allow_write off so
                                              * EVERY write op is rejected at the
@@ -180,6 +216,13 @@ typedef struct {
     ngx_flag_t          compress;           /* phase-42: outbound GET compression
                                              * (Accept-Encoding negotiated). Off by
                                              * default; bypasses sendfile when used. */
+    ngx_flag_t          strict_security;    /* [brix_strict_security on|off] (E-1)
+                                             * — refuse valid-but-dangerous configs
+                                             * at nginx -t instead of only warning:
+                                             * anonymous S3 (no SigV4/token verify),
+                                             * WebDAV writes without auth, anonymous
+                                             * dashboard, etc. Off by default (warn
+                                             * only); see brix_shared_security_gate. */
     ngx_str_t           access_log;         /* HTTP-plane brix_access_log path.
                                              * Empty/off disables sesslog emission
                                              * for HTTP protocols. Stream keeps its
@@ -196,6 +239,19 @@ typedef struct {
                                              * transparent no-op when the negotiated
                                              * cipher/kernel cannot offload. See
                                              * docs/.../ktls.md.                     */
+    ngx_flag_t          cache_store_endpoint; /* [brix_cache_store_endpoint on|off]
+                                             * default OFF. Marks this location as a
+                                             * trusted remote cache-STORE surface (a
+                                             * cache node's origin-facing endpoint),
+                                             * where internal sidecar names (.cinfo /
+                                             * .meta / stage markers) are legitimate
+                                             * request targets and so must be allowed
+                                             * for both read and create. Every normal
+                                             * client location leaves it OFF, keeping
+                                             * the reserved-name 404 guard in force
+                                             * (default-deny). Read at the WebDAV/S3
+                                             * path resolver and forwarded to
+                                             * brix_http_resolve_path_ex().           */
     ngx_str_t           thread_pool_name;   /* async I/O thread pool name          */
     ngx_thread_pool_t  *thread_pool;        /* resolved pool handle (runtime only) */
     int                 rootfd;             /* O_PATH fd on root_canon for openat2
@@ -223,13 +279,16 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
 {
     conf->enable             = NGX_CONF_UNSET;
     conf->allow_write        = NGX_CONF_UNSET;
+    conf->verify_write       = NGX_CONF_UNSET;
     conf->read_only          = NGX_CONF_UNSET;
     conf->compress           = NGX_CONF_UNSET;
+    conf->strict_security    = NGX_CONF_UNSET;
     conf->access_log.len     = 0;
     conf->access_log.data    = NULL;
     conf->access_log_file    = NULL;
     conf->session_log        = NGX_CONF_UNSET;
     conf->ktls               = NGX_CONF_UNSET;
+    conf->cache_store_endpoint = NGX_CONF_UNSET;
     conf->storage_staging    = NGX_CONF_UNSET;
     conf->cache_verify_mode  = NGX_CONF_UNSET_UINT;
     conf->thread_pool_name.len  = 0;
@@ -266,6 +325,10 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->cache_store.len    = 0;
     conf->cache_store.data   = NULL;
     conf->cache_store_args   = NULL;
+    conf->cache_cold_store.len  = 0;
+    conf->cache_cold_store.data = NULL;
+    conf->cache_cold_store_args = NULL;
+    conf->cache_peers        = NULL;
     conf->stage_enable       = NGX_CONF_UNSET;
     conf->stage_store.len    = 0;
     conf->stage_store.data   = NULL;
@@ -415,6 +478,35 @@ brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
 }
 
 /*
+ * brix_shared_security_gate() — E-1: a valid-but-dangerous config setting is
+ * loud at load and refused under strict mode.
+ *
+ * WHY: several configurations parse cleanly yet leave the export wide open —
+ * anonymous S3 (no SigV4/token verification), WebDAV writes with auth optional,
+ * an anonymous dashboard. Each is a legitimate choice for a closed lab and a
+ * foot-gun in production, so the default must be loud (an operator who never
+ * reads the config still sees the warning in the error log at every reload),
+ * and a site that wants the guarantee flips `brix_strict_security on` to turn
+ * every such setting into a hard `nginx -t` failure — fail-closed, opt-in.
+ *
+ * HOW: emit NGX_LOG_WARN (default) or NGX_LOG_EMERG (strict) naming the insecure
+ * setting `what` and the directive `remedy` that closes it. Return NGX_OK when
+ * the merge may proceed (warn-only) and NGX_ERROR when strict mode requires the
+ * caller to return NGX_CONF_ERROR. The caller owns the return so the diagnostic
+ * points at the offending location's own merge.
+ */
+static inline ngx_int_t
+brix_shared_security_gate(ngx_conf_t *cf, ngx_flag_t strict,
+    const char *what, const char *remedy)
+{
+    ngx_conf_log_error(strict ? NGX_LOG_EMERG : NGX_LOG_WARN, cf, 0,
+        "brix: insecure configuration — %s; set %s to close it%s",
+        what, remedy,
+        strict ? " (refused: brix_strict_security on)" : "");
+    return strict ? NGX_ERROR : NGX_OK;
+}
+
+/*
  * ngx_http_brix_shared_merge() — Merges shared preamble fields from parent to
  * child using standard nginx merge macros. Called at the top of each protocol's
  * merge_loc_conf function before protocol-specific merge logic runs.
@@ -453,8 +545,10 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
         }
     }
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
+    ngx_conf_merge_value(conf->verify_write, prev->verify_write, 0);
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
     ngx_conf_merge_value(conf->compress, prev->compress, 0);
+    ngx_conf_merge_value(conf->strict_security, prev->strict_security, 0);
     ngx_conf_merge_str_value(conf->access_log, prev->access_log, "");
     if (conf->access_log.len > 0
         && ngx_strcmp(conf->access_log.data, (u_char *) "off") != 0)
@@ -472,6 +566,10 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     }
     ngx_conf_merge_value(conf->session_log, prev->session_log, 1);
     ngx_conf_merge_value(conf->ktls, prev->ktls, 1);   /* default ON (offload-gated) */
+    /* Trusted cache-store surface: default OFF everywhere, so the reserved-name
+     * 404 guard stays in force on every normal client location (default-deny). */
+    ngx_conf_merge_value(conf->cache_store_endpoint,
+                         prev->cache_store_endpoint, 0);
     ngx_conf_merge_value(conf->storage_staging, prev->storage_staging, 0);
     ngx_conf_merge_str_value(conf->thread_pool_name, prev->thread_pool_name, "");
     ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
@@ -518,6 +616,13 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->cache_store, prev->cache_store, "");
     if (conf->cache_store_args == NULL) {
         conf->cache_store_args = prev->cache_store_args;
+    }
+    ngx_conf_merge_str_value(conf->cache_cold_store, prev->cache_cold_store, "");
+    if (conf->cache_cold_store_args == NULL) {
+        conf->cache_cold_store_args = prev->cache_cold_store_args;
+    }
+    if (conf->cache_peers == NULL) {
+        conf->cache_peers = prev->cache_peers;
     }
     ngx_conf_merge_value(conf->stage_enable, prev->stage_enable, 0);
     ngx_conf_merge_str_value(conf->stage_store, prev->stage_store, "");

@@ -31,6 +31,9 @@ CASES = [
     ("grammar", "198.51.100.7"),
     ("notfound", "203.0.113.9"),
     ("authfail", "192.0.2.5"),
+    ("notroot", "203.0.113.44"),
+    ("proxyabuse", "198.51.100.23"),
+    ("cvmfs_tamper", "203.0.113.77"),
 ]
 
 # fail2ban's <HOST> expands to an IPv4/IPv6/hostname group.

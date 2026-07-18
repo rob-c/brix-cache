@@ -16,40 +16,26 @@ Run:
 
 import hashlib
 import os
+import pathlib
 import shutil
-import socket
 import subprocess
-import time
 
 import pytest
 
-from settings import HOST, BIND_HOST
-from config_templates import render_config
+from settings import HOST, BIND_HOST, NGINX_BIN
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(120)
+# Each self-hosted server here stands up through the phase-81 registry
+# (LifecycleHarness) rather than launching nginx directly; the marker keeps this
+# suite out of the registry-lint direct-launch scope.
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
 XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _port_up(host, port):
-    try:
-        with socket.create_connection((host, port), timeout=1):
-            return True
-    except OSError:
-        return False
 
 
 def _build(*targets):
@@ -65,31 +51,20 @@ def _build(*targets):
 
 
 @pytest.fixture(scope="module")
-def rw_root(tmp_path_factory):
-    """A writable root:// (stream) server."""
+def rw_root():
+    """A writable root:// (stream) server, owned by the registry harness."""
     _build("xrdfs", "xrdcp")
-    root = tmp_path_factory.mktemp("cgaps")
-    data = root / "data"
-    data.mkdir()
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_stream_posix_anon.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  PORT=port,
-                                  DATA_DIR=data,
-                                  WORKER_CONNECTIONS=64))
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    yield {"port": port, "data": data, "root": root}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    harness = LifecycleHarness()
+    endpoint = harness.start(NginxInstanceSpec(
+        name="cgaps-rw-root",
+        template="nginx_stream_posix_anon.conf",
+        protocol="root",
+        readiness="tcp",
+        template_values={"BIND_HOST": BIND_HOST, "WORKER_CONNECTIONS": 64},
+    ))
+    data = endpoint.data_root
+    yield {"port": endpoint.port, "data": pathlib.Path(data)}
+    harness.close()
 
 
 def test_readv_scatter_gather(rw_root):
@@ -166,29 +141,18 @@ def test_recursive_copy_roundtrip(rw_root, tmp_path):
 
 
 @pytest.fixture(scope="module")
-def srr_server(tmp_path_factory):
+def srr_server():
     _build("xrddiag")
-    root = tmp_path_factory.mktemp("cgaps_srr")
-    data = root / "data"
-    data.mkdir()
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config("nginx_srr_self.conf",
-                                  BASE_DIR=root,
-                                  BIND_HOST=BIND_HOST,
-                                  PORT=port,
-                                  DATA_DIR=data))
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed (srr)")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    yield {"port": port}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    harness = LifecycleHarness()
+    endpoint = harness.start(NginxInstanceSpec(
+        name="cgaps-srr",
+        template="nginx_srr_self.conf",
+        protocol="http",
+        readiness="tcp",
+        template_values={"BIND_HOST": BIND_HOST},
+    ))
+    yield {"port": endpoint.port}
+    harness.close()
 
 
 def test_srr_consumer(srr_server):

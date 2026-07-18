@@ -28,23 +28,22 @@ Run:
 import os
 import socket
 import struct
-import subprocess
 import threading
 import time
 
 import pytest
 
-from settings import HOST, NGINX_BIN, SERVER_HOST, free_port
+from server_registry import NginxInstanceSpec
+from settings import SERVER_HOST, free_port
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 H = SERVER_HOST
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_cms_wire_pup")
 
-# Dedicated free OS ports unique to this file to avoid fleet collisions.
-# Each is allocated dynamically (or honours its env override) so the full P0
-# suite runs collision-free in one pytest invocation regardless of run order.
-NODE_DATA_PORT   = int(os.environ.get("TEST_CWP_NODE_DATA_PORT") or free_port())  # node's root:// listen
-MGR_PEER_PORT    = int(os.environ.get("TEST_CWP_MGR_PEER_PORT")  or free_port())  # Python manager peer
-CMS_SRV_PORT     = int(os.environ.get("TEST_CWP_CMS_SRV_PORT")   or free_port())  # nginx brix_cms_server
+# An arbitrary dPort advertised in the fake data-node LOGIN payloads the
+# server-side tests build; it need not be a real listening port.
+NODE_DATA_PORT = 41094
 
 
 # ---------------------------------------------------------------------------
@@ -335,153 +334,53 @@ class CmsManagerPeer:
 
 
 # ---------------------------------------------------------------------------
-# nginx process helpers
-# ---------------------------------------------------------------------------
-
-def _reachable(port, timeout=1.0):
-    try:
-        socket.create_connection((H, port), timeout=timeout).close()
-        return True
-    except OSError:
-        return False
-
-
-def _wait_port(port, timeout=15.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if _reachable(port, 0.5):
-            return True
-        time.sleep(0.2)
-    return False
-
-
-def _mkdirs(*paths):
-    for p in paths:
-        os.makedirs(p, exist_ok=True)
-
-
-def _node_conf(name, listen_port, mgr_port, data_dir, allow_write=True):
-    """A data-node nginx that serves root:// AND dials the Python manager peer.
-
-    brix_cms_manager makes the worker open a persistent CMS connection to the
-    peer and emit LOGIN + periodic LOAD; brix_cms_interval 2 keeps the
-    heartbeat tight so tests don't wait long.  brix_listen_port is advertised
-    as dPort in the LOGIN frame.
-    """
-    base = os.path.join(_DIR, name)
-    _mkdirs(base, os.path.join(base, "logs"))
-    write_line = "        brix_allow_write on;\n" if allow_write else ""
-    conf = os.path.join(base, f"{name}.conf")
-    with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 128; }}\n"
-            f"stream {{\n"
-            f"    server {{\n"
-            f"        listen 0.0.0.0:{listen_port};\n"
-            f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
-            f"{write_line}"
-            f"        brix_listen_port {listen_port};\n"
-            f"        brix_cms_manager {HOST}:{mgr_port};\n"
-            f"        brix_cms_paths /;\n"
-            f"        brix_cms_interval 2;\n"
-            f"    }}\n"
-            f"}}\n")
-    return conf
-
-
-def _cms_server_conf(name, listen_port, data_dir):
-    """An nginx CMS *server* (manager side) that accepts data-node CMS
-    connections — used as the frame *parser* under test (header sizing,
-    oversize-frame rejection, recv-boundary fragmentation)."""
-    base = os.path.join(_DIR, name)
-    _mkdirs(base, os.path.join(base, "logs"))
-    conf = os.path.join(base, f"{name}.conf")
-    with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 128; }}\n"
-            f"stream {{\n"
-            f"    server {{\n"
-            f"        listen 0.0.0.0:{listen_port};\n"
-            f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
-            f"        brix_manager_mode on;\n"
-            f"        brix_cms_server on;\n"
-            f"        brix_cms_server_interval 60;\n"
-            f"    }}\n"
-            f"}}\n")
-    return conf
-
-
-def _start_nginx(conf):
-    # Stop any instance left over from a prior run that shares this conf's pid
-    # file, so we never silently attach to a stale master still holding the
-    # listen port (which would defeat the bind and make the new master exit).
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-    time.sleep(0.3)
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        return False, chk.stderr[-400:]
-    started = subprocess.run([NGINX_BIN, "-c", conf], capture_output=True,
-                             text=True)
-    if started.returncode != 0:
-        return False, started.stderr[-400:]
-    return True, ""
-
-
-def _stop_nginx(conf):
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-
-
-# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def node_stack():
+@pytest.fixture
+def node_stack(lifecycle):
     """A Python manager peer + a dedicated nginx data-node that dials it.
 
     Yields the live peer with the node's first LOGIN/LOAD frames already
-    captured.  Skips if nginx is missing, the config is rejected (CMS support
-    not built), or the node never connects out.
+    captured (its real listen port is exposed as ``peer.node_port``).  Skips if
+    the node never connects out to the peer.
     """
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-
     data_dir = os.path.join(_DIR, "node_data")
-    _mkdirs(data_dir)
+    os.makedirs(data_dir, exist_ok=True)
     # A file that exists under the export root so kYR_state -> kYR_have works.
     with open(os.path.join(data_dir, "have_me.bin"), "wb") as f:
         f.write(b"resident-bytes" * 16)
 
+    mgr_port = free_port()
     try:
-        peer = CmsManagerPeer(MGR_PEER_PORT)
+        peer = CmsManagerPeer(mgr_port)
     except OSError as exc:
-        pytest.skip(f"could not bind CMS manager peer port {MGR_PEER_PORT}: {exc}")
-
-    conf = _node_conf("node", NODE_DATA_PORT, MGR_PEER_PORT, data_dir)
-    ok, err = _start_nginx(conf)
-    if not ok:
-        peer.close()
-        pytest.skip(f"node nginx config rejected (CMS client unsupported?): {err}")
+        pytest.skip(f"could not bind CMS manager peer port {mgr_port}: {exc}")
 
     try:
-        if not _wait_port(NODE_DATA_PORT):
-            pytest.skip("data-node nginx did not come up")
+        ep = lifecycle.start(NginxInstanceSpec(
+            name="lc-cms-wire-node",
+            template="nginx_cms_wire_node.conf",
+            protocol="root",
+            readiness="tcp",
+            data_root=data_dir,
+            template_values={"MANAGER_PORT": mgr_port},
+            reason="CMS wire/Pup conformance: outgoing encoder + incoming dispatch.",
+        ))
+    except Exception:
+        peer.close()
+        raise
+    peer.node_port = ep.port
+
+    try:
         if not peer.have_connection(timeout=20.0):
             pytest.skip("data-node never opened a CMS connection to the peer")
         yield peer
     finally:
-        _stop_nginx(conf)
         peer.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def login_frame(node_stack):
     """The captured LOGIN frame (streamid, code, modifier, payload)."""
     fr = node_stack.wait_for_code(CMS_RR_LOGIN, timeout=20.0)
@@ -490,7 +389,7 @@ def login_frame(node_stack):
     return fr
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def load_frame(node_stack):
     """The captured LOAD heartbeat frame."""
     fr = node_stack.wait_for_code(CMS_RR_LOAD, timeout=20.0)
@@ -499,23 +398,17 @@ def load_frame(node_stack):
     return fr
 
 
-@pytest.fixture(scope="module")
-def cms_server():
+@pytest.fixture
+def cms_server(lifecycle):
     """A dedicated nginx CMS *server* whose frame parser we probe directly."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    data_dir = os.path.join(_DIR, "srv_data")
-    _mkdirs(data_dir)
-    conf = _cms_server_conf("cmssrv", CMS_SRV_PORT, data_dir)
-    ok, err = _start_nginx(conf)
-    if not ok:
-        pytest.skip(f"cms-server nginx config rejected: {err}")
-    try:
-        if not _wait_port(CMS_SRV_PORT):
-            pytest.skip("cms-server nginx did not come up")
-        yield CMS_SRV_PORT
-    finally:
-        _stop_nginx(conf)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-cms-wire-server",
+        template="nginx_cms_wire_server.conf",
+        protocol="root",
+        readiness="tcp",
+        reason="CMS wire/Pup conformance: server-side frame parser.",
+    ))
+    return ep.port
 
 
 def _node_login_dialog(port, login_payload):
@@ -559,7 +452,7 @@ def _minimal_login_payload(dport, paths=b"r /"):
 class TestLoginPupEncoding:
     """The node's emitted LOGIN frame must match the real CmsLoginData layout."""
 
-    def test_login_four_string_tail_order(self, login_frame):
+    def test_login_four_string_tail_order(self, login_frame, node_stack):
         """Tail is exactly SID, Paths, ifList, envCGI — in that order, and the
         decode consumes the entire payload (no trailing bytes)."""
         _sid, code, _mod, payload = login_frame
@@ -567,8 +460,8 @@ class TestLoginPupEncoding:
         d = _decode_login(payload)
         # SID is "<host>:<port>" and must carry the advertised data port.
         assert b":" in d["sid"], f"SID not host:port form: {d['sid']!r}"
-        assert d["sid"].endswith(str(NODE_DATA_PORT).encode()), \
-            f"SID must end with dPort {NODE_DATA_PORT}: {d['sid']!r}"
+        assert d["sid"].endswith(str(node_stack.node_port).encode()), \
+            f"SID must end with dPort {node_stack.node_port}: {d['sid']!r}"
         # ifList + envCGI are emitted empty by the node.
         assert d["iflist"] == b""
         assert d["envcgi"] == b""

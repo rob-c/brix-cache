@@ -158,6 +158,60 @@ stage_journal_update_rec(const char *journal_dir, const brix_sreq_t *rec)
     (void) close(fd);
 }
 
+/* Stamp a decoded record FAILED (last_errno + finished_at) and re-persist it to
+ * the active journal slot. Shared tail of the two public FAILED helpers below;
+ * the record stays in the active journal so the scheduler / reconcile retry it. */
+static void
+stage_journal_persist_failed(const char *journal_dir, brix_sreq_t *rec,
+    int last_errno)
+{
+    rec->state       = BRIX_SREQ_FAILED;
+    rec->last_errno  = last_errno;
+    rec->finished_at = (int64_t) time(NULL);
+    stage_journal_update_rec(journal_dir, rec);
+}
+
+void
+stage_journal_mark_failed(const char *journal_dir, const char *reqid,
+    int last_errno)
+{
+    char        path[1200];
+    char        rbuf[sizeof(brix_sreq_t)];
+    brix_sreq_t rec;
+    int         fd;
+    ssize_t     n;
+
+    if (journal_dir == NULL || journal_dir[0] == '\0') {
+        return;
+    }
+    if ((size_t) snprintf(path, sizeof(path), "%s/%s.req",
+                          journal_dir, reqid) >= sizeof(path))
+    {
+        return;
+    }
+    fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return;                          /* record already removed / never written */
+    }
+    n = read(fd, rbuf, sizeof(rbuf));
+    (void) close(fd);
+    if (brix_sreq_decode(rbuf, (size_t) n, &rec) != NGX_OK) {
+        return;                          /* corrupt slot — leave it for reconcile */
+    }
+    stage_journal_persist_failed(journal_dir, &rec, last_errno);
+}
+
+void
+stage_journal_bump_failed(const char *journal_dir, brix_sreq_t *rec,
+    int last_errno)
+{
+    if (rec == NULL) {
+        return;
+    }
+    rec->attempts++;                     /* count this re-drive of a still-dead origin */
+    stage_journal_persist_failed(journal_dir, rec, last_errno);
+}
+
 /* Move the active journal record to <journal_dir>/deadletter/<reqid>.req,
  * creating the deadletter directory on demand (0700).
  *

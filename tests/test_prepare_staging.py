@@ -422,6 +422,7 @@ class TestPrepareStageCommand:
         return _establish_session(port)
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("prepare-command")
     def test_stage_flag_invokes_command(self):
         """kXR_prepare with kXR_stage flag must invoke brix_prepare_command
         with the resolved absolute paths of all staged files.
@@ -451,6 +452,7 @@ class TestPrepareStageCommand:
             f"unexpected staged path recorded: {content!r}"
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("prepare-command")
     def test_no_stage_flag_skips_command(self):
         """kXR_prepare WITHOUT kXR_stage must NOT invoke brix_prepare_command."""
         self._truncate_log()
@@ -471,6 +473,7 @@ class TestPrepareStageCommand:
             "brix_prepare_command was wrongly invoked (no kXR_stage flag)"
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("prepare-nocmd")
     def test_no_config_stage_silently_accepted(self):
         """kXR_stage with no brix_prepare_command configured must return
         kXR_ok — silently accepted with no error and no command invoked.
@@ -488,6 +491,7 @@ class TestPrepareStageCommand:
             f"status={status} body={body!r}"
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("prepare-command")
     def test_stage_noerrs_missing_file_collected(self):
         """kXR_prepare with kXR_stage|kXR_noerrs and a missing file must still
         return kXR_ok and pass the resolved (pre-staging) path to the command.
@@ -519,6 +523,7 @@ class TestPrepareStageCommand:
             f"unexpected path in command args: {content!r}"
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("prepare-command")
     def test_stage_cancel_skips_command(self):
         """kXR_prepare with kXR_cancel must return ok immediately (no-op) and
         must NOT invoke brix_prepare_command even if configured.
@@ -538,6 +543,7 @@ class TestPrepareStageCommand:
             "prepare_command was wrongly invoked on kXR_cancel request"
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("prepare-command")
     def test_coloc_flag_passed_to_command(self):
         """kXR_prepare with kXR_coloc flag must set BRIX_PREPARE_COLOC=1 for the command."""
         self._truncate_log()

@@ -67,6 +67,7 @@ from settings import (
     HOST,
     MANAGER_PORT,
     NGINX_BIN,
+    REGISTRY_ROOT,
     TEST_ROOT,
     url_host,
 )
@@ -75,7 +76,11 @@ from settings import (
 def _kill_nginx_dedicated(name: str) -> None:
     """Send SIGTERM to the pre-launched dedicated nginx instance by name."""
     import signal
-    pidfile = os.path.join(TEST_ROOT, "dedicated", name, "logs", "nginx.pid")
+    # The registry launcher writes each instance's pidfile under its own prefix
+    # (REGISTRY_ROOT/<name>/logs/nginx.pid) — the retired bash "dedicated/<name>"
+    # path never exists, so the SIGTERM was a no-op and the data server stayed up
+    # (redirector kept returning kXR_redirect after the "stop").
+    pidfile = os.path.join(REGISTRY_ROOT, name, "logs", "nginx.pid")
     if os.path.exists(pidfile):
         try:
             pid = int(open(pidfile).read().strip())
@@ -209,6 +214,7 @@ def _send_locate_and_recv(sock: socket.socket, path: str):
     return status, body
 
 
+@pytest.mark.registry_server("manager")
 def test_locate_redirect_basic(manager_nginx):
     info = manager_nginx
     host = HOST
@@ -335,9 +341,10 @@ def cluster():
     # test_no_redirect_after_dataserver_stops permanently kills cluster-ds;
     # restart it so the next test run finds port 11162 alive.
     import subprocess
-    _script = os.path.join(os.path.dirname(__file__), "manage_test_servers.sh")
+    import sys
     subprocess.run(
-        [_script, "start-dedicated", "cluster-ds"],
+        [sys.executable, "-m", "cmdscripts.manage_test_servers", "start-dedicated", "cluster-ds"],
+        cwd=os.path.dirname(__file__),
         capture_output=True,
         timeout=30,
     )
@@ -346,6 +353,7 @@ def cluster():
 class TestClusterProtocol:
     """kXR_protocol response advertises kXR_isManager when manager_mode is on."""
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_protocol_flags_include_is_manager(self, cluster):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
@@ -368,6 +376,7 @@ class TestClusterProtocol:
 class TestClusterLocate:
     """kXR_locate on the redirector returns kXR_redirect to the registered data server."""
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_locate_returns_redirect(self, cluster):
         sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_locate(sock, "/test.txt")
@@ -383,6 +392,7 @@ class TestClusterLocate:
             f"redirect port {got_port} != data server port {cluster['ds_port']}"
         )
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_locate_redirect_host_is_loopback(self, cluster):
         sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_locate(sock, "/test.txt")
@@ -397,6 +407,7 @@ class TestClusterLocate:
 class TestClusterOpen:
     """kXR_open (read) on the redirector returns kXR_redirect to the data server."""
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_open_read_returns_redirect(self, cluster):
         sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_open(sock, "/test.txt", kXR_open_read)
@@ -438,6 +449,7 @@ class TestClusterMutationRedirect:
     mutation (mkdir/rm) is redirected to the registered data node — it must NOT
     be executed against the redirector's own (empty) export."""
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_mkdir_returns_redirect(self, cluster):
         sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         try:
@@ -453,6 +465,7 @@ class TestClusterMutationRedirect:
             f"mkdir redirect port {got_port} != data server {cluster['ds_port']}"
         )
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_rm_returns_redirect(self, cluster):
         sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         try:
@@ -473,6 +486,7 @@ class TestClusterUnregister:
     NOTE: This class stops the data server permanently — it must be last.
     """
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_no_redirect_after_dataserver_stops(self, cluster):
         cluster["ds"]["stop"]()
         time.sleep(2.0)   # let nginx detect the dropped CMS connection
@@ -522,6 +536,7 @@ class TestClusterMultiPath:
     reject requests for '/physics' (not in the list).
     """
 
+    @pytest.mark.registry_servers("cluster-mp-ds", "cluster-mp-redir")
     def test_locate_first_prefix_redirects(self, cluster_multi_path):
         """locate /data/test.txt must return kXR_redirect."""
         sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
@@ -537,6 +552,7 @@ class TestClusterMultiPath:
             f"redirected to wrong port {got_port}"
         )
 
+    @pytest.mark.registry_servers("cluster-mp-ds", "cluster-mp-redir")
     def test_locate_second_prefix_redirects(self, cluster_multi_path):
         """locate /atlas/test.txt must also return kXR_redirect."""
         sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
@@ -550,6 +566,7 @@ class TestClusterMultiPath:
         got_port = struct.unpack(">I", body[:4])[0]
         assert got_port == cluster_multi_path["ds_port"]
 
+    @pytest.mark.registry_servers("cluster-mp-ds", "cluster-mp-redir")
     def test_locate_exact_prefix_token_redirects(self, cluster_multi_path):
         """locate /data (exactly the token without trailing slash) must redirect."""
         sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
@@ -561,6 +578,7 @@ class TestClusterMultiPath:
             f"exact-token locate /data expected redirect, got {status}"
         )
 
+    @pytest.mark.registry_servers("cluster-mp-ds", "cluster-mp-redir")
     def test_locate_unregistered_path_no_redirect(self, cluster_multi_path):
         """locate /physics/test.txt must NOT redirect (path not in /data:/atlas)."""
         sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
@@ -572,6 +590,7 @@ class TestClusterMultiPath:
             "redirector incorrectly redirected /physics which is not a registered prefix"
         )
 
+    @pytest.mark.registry_servers("cluster-mp-ds", "cluster-mp-redir")
     def test_locate_prefix_partial_match_not_redirected(self, cluster_multi_path):
         """/dataextended must NOT match the /data prefix (boundary check)."""
         sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
@@ -613,6 +632,7 @@ def cluster_multi_server():
 class TestClusterMultiServer:
     """Two registered data servers — locate must return one of them."""
 
+    @pytest.mark.registry_servers("cluster-ms-ds1", "cluster-ms-ds2", "cluster-ms-redir")
     def test_locate_returns_valid_server(self, cluster_multi_server):
         """locate /shared.txt must redirect to one of the two data servers."""
         c = cluster_multi_server
@@ -631,6 +651,7 @@ class TestClusterMultiServer:
             f"expected one of {c['ds1_port']} or {c['ds2_port']}"
         )
 
+    @pytest.mark.registry_servers("cluster-ms-ds1", "cluster-ms-ds2", "cluster-ms-redir")
     def test_repeated_locates_stay_valid(self, cluster_multi_server):
         """Multiple locate calls must all redirect to valid servers."""
         c = cluster_multi_server
@@ -648,6 +669,7 @@ class TestClusterMultiServer:
                 f"redirected to unexpected port {got_port}"
             )
 
+    @pytest.mark.registry_servers("cluster-ms-ds1", "cluster-ms-ds2", "cluster-ms-redir")
     def test_open_redirects_to_valid_server(self, cluster_multi_server):
         """kXR_open on the redirector with two servers must also redirect correctly."""
         c = cluster_multi_server
@@ -712,6 +734,7 @@ def cluster_multi_worker():
 class TestPerWorkerCMS:
     """Each nginx worker must open its own independent CMS connection."""
 
+    @pytest.mark.registry_servers("cluster-mw", "cluster-mw-mgr")
     def test_each_worker_connects_independently(self, cluster_multi_worker):
         """With worker_processes 2 and one CMS manager, expect 2 connections.
 
@@ -834,6 +857,7 @@ def three_tier():
 class TestThreeTierTopology:
     """Two-hop locate chain: client → meta → sub → leaf."""
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-meta", "cluster-3t-sub")
     def test_locate_follows_redirect_chain_to_sub(self, three_tier):
         """First locate at meta-manager must redirect to the sub-manager."""
         tt = three_tier
@@ -851,6 +875,7 @@ class TestThreeTierTopology:
             f"expected redirect to sub-manager port {tt['sub_port']}, got {hop1_port}"
         )
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-meta", "cluster-3t-sub")
     def test_locate_follows_redirect_chain_to_leaf(self, three_tier):
         """Second locate at sub-manager must redirect to the leaf data server."""
         tt = three_tier
@@ -868,6 +893,7 @@ class TestThreeTierTopology:
             f"expected redirect to leaf port {tt['leaf_port']}, got {leaf_port}"
         )
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-meta", "cluster-3t-sub")
     def test_full_two_hop_chain(self, three_tier):
         """Client follows both hops and lands at the leaf port."""
         tt = three_tier
@@ -917,6 +943,7 @@ class TestCmsSelectWake:
     """nginx suspends a client kXR_locate, escalates kYR_locate to the CMS stub,
     and resumes the client with a kXR_redirect once kYR_select arrives."""
 
+    @pytest.mark.registry_server("cluster-select")
     def test_locate_wakes_on_cms_select(self, cms_select):
         """kXR_locate must return kXR_redirect to the port advertised by kYR_select."""
         c = cms_select
@@ -979,6 +1006,7 @@ def cluster_full_registry():
 class TestRegistryFullCounter:
     """brix_registry_full_total increments when a data server cannot register."""
 
+    @pytest.mark.registry_servers("cluster-slots-ds1", "cluster-slots-ds2", "cluster-slots-ds3", "cluster-slots-ds4", "cluster-slots-redir")
     def test_registry_full_counter_nonzero(self, cluster_full_registry):
         """Prometheus metrics must show registry_full_total > 0 after overflow."""
         c = cluster_full_registry
@@ -1003,6 +1031,7 @@ class TestRegistryFullCounter:
             "expected > 0 after 4 servers tried to register into 3 slots"
         )
 
+    @pytest.mark.registry_servers("cluster-slots-ds1", "cluster-slots-ds2", "cluster-slots-ds3", "cluster-slots-ds4", "cluster-slots-redir")
     def test_registry_accepts_up_to_slot_limit(self, cluster_full_registry):
         """At most 3 slots filled → at least one server's locate succeeds."""
         c = cluster_full_registry
@@ -1043,6 +1072,7 @@ class TestKyrGone:
       4. Confirms locate no longer redirects to that server.
     """
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_path_unregistered_after_gone(self, cluster):
         """After kYR_gone for /gone-test, locate must stop redirecting there."""
         gone_port = CLUSTER_GONE_DS_PORT
@@ -1087,6 +1117,7 @@ class TestKyrGone:
                 f"redirector still sends to gone_port {gone_port} after kYR_gone"
             )
 
+    @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_other_paths_unaffected_by_gone(self, cluster):
         """kYR_gone for /gone-test2 must not remove /gone-other."""
         port_a = CLUSTER_GONE_DS_PORT_A
@@ -1150,6 +1181,7 @@ def cms_try():
 class TestCmsKyrTry:
     """kYR_try: nginx must redirect the client to the first entry in the list."""
 
+    @pytest.mark.registry_server("cluster-try")
     def test_locate_redirects_to_first_try_entry(self, cms_try):
         """kXR_locate returns kXR_REDIRECT pointing at the FIRST kYR_try entry.
 
@@ -1174,6 +1206,7 @@ class TestCmsKyrTry:
             f"{c['first_port']}, not second_port {c['second_port']}"
         )
 
+    @pytest.mark.registry_server("cluster-try")
     def test_second_entry_ignored(self, cms_try):
         """The second kYR_try entry must not be used for the redirect."""
         c = cms_try
@@ -1215,6 +1248,7 @@ def cms_escalation():
 class TestCmsEscalation:
     """Registry miss -> kYR_locate to parent -> kYR_select -> kXR_redirect."""
 
+    @pytest.mark.registry_servers("cluster-esc-leaf", "cluster-esc-sub")
     def test_three_tier_escalation_redirects_to_leaf(self, cms_escalation):
         c = cms_escalation
 

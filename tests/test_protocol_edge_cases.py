@@ -275,6 +275,10 @@ class TestSequentialRequests:
 class TestEndSession:
     """kXR_endsess should terminate the session cleanly."""
 
+    @pytest.mark.skipif(
+        CROSS_BACKEND == "xrootd",
+        reason="stock xrootd drops the socket on kXR_endsess; the reply-frame contract is nginx-xrootd-specific",
+    )
     def test_endsess_closes_session(self):
         """After endsess, subsequent requests should fail."""
         with _raw_session() as sock:
@@ -568,6 +572,10 @@ class TestQueryEdgeCases:
 
         assert status == kXR_ERROR
 
+    @pytest.mark.skipif(
+        CROSS_BACKEND == "xrootd",
+        reason="reference xrootd test fixture does not enable checksum queries by default",
+    )
     def test_checksum_via_api(self):
         """Checksum query via XRootD API should work on test.txt."""
         fs = client.FileSystem(ANON_URL)

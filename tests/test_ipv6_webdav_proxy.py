@@ -200,6 +200,7 @@ class TestProxyHostHeaderBracketing:
     Gates 36: src/protocols/webdav/proxy_config.c (config-parse) + proxy_pool.c (per-req).
     """
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_get_small_file(self):
         """GATING: GET through the proxy → 200 byte-exact; upstream Host bracketed."""
         marker = f"ipv6gateget_{uuid.uuid4().hex[:8]}.txt"
@@ -213,6 +214,7 @@ class TestProxyHostHeaderBracketing:
         self_host = _assert_proxy_sent_bracketed_host(marker)
         assert self_host == UPSTREAM_HOST_BRACKETED
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_put_small_file(self):
         """GATING: PUT through the proxy lands on the upstream; Host bracketed."""
         marker = f"ipv6gateput_{uuid.uuid4().hex[:8]}.txt"
@@ -231,6 +233,7 @@ class TestProxyHostHeaderBracketing:
 
         _assert_proxy_sent_bracketed_host(marker)
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_get_large_file(self):
         """GATING: 256 KiB GET byte-exact; Host bracketed on the upstream req."""
         marker = f"ipv6gatebig_{uuid.uuid4().hex[:8]}.bin"
@@ -244,6 +247,7 @@ class TestProxyHostHeaderBracketing:
 
         _assert_proxy_sent_bracketed_host(marker)
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_host_header_is_never_bare(self):
         """GATING: across several requests, the upstream never sees the bare
         IPv6 literal '::1:11245' in any Host field."""
@@ -266,6 +270,7 @@ class TestProxyHostHeaderBracketing:
                 f"proxy emitted bare IPv6 Host: {line!r}"
             )
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_config_parse_brackets_first_request(self):
         """GATING: the static config URL http://[::1]:11245 loaded (proxy is up),
         and the very first proxied request carries the bracketed Host — proving
@@ -291,6 +296,7 @@ class TestProxyFunctionalIPv6:
     """Functional WebDAV operations through the IPv6 proxy (work today once the
     instance is up; exercise the already-clean socket/resolution layer)."""
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_client_connect_ipv6_listen_success(self):
         """SMOKE: a raw GET to the proxy's [::1] listener returns correct content."""
         marker = f"ipv6connect_{uuid.uuid4().hex[:8]}.txt"
@@ -301,6 +307,7 @@ class TestProxyFunctionalIPv6:
         assert status == 200
         assert body == content
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_head_content_length(self):
         """SMOKE: HEAD through the proxy returns the upstream Content-Length."""
         marker = f"ipv6head_{uuid.uuid4().hex[:8]}.bin"
@@ -312,6 +319,7 @@ class TestProxyFunctionalIPv6:
         cl = headers.get("Content-Length") or headers.get("content-length")
         assert cl is not None and int(cl) == len(content)
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_delete_file(self):
         """SMOKE: DELETE through the proxy removes the file on the upstream."""
         marker = f"ipv6del_{uuid.uuid4().hex[:8]}.txt"
@@ -323,6 +331,7 @@ class TestProxyFunctionalIPv6:
         assert status in (200, 204), f"DELETE via proxy failed: {status}"
         assert not disk.exists(), "file still present on upstream after DELETE"
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_missing_file_returns_404(self):
         """SMOKE: a GET for a nonexistent path through the proxy is a clean 404."""
         status, _, _ = _request(
@@ -330,6 +339,7 @@ class TestProxyFunctionalIPv6:
         )
         assert status == 404, f"expected 404, got {status}"
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_put_then_get_roundtrip(self):
         """SMOKE: PUT then GET the same object through the proxy; byte-exact."""
         marker = f"ipv6rt_{uuid.uuid4().hex[:8]}.txt"
@@ -345,6 +355,7 @@ class TestProxyFunctionalIPv6:
         assert status == 200, f"GET-back failed: {status}"
         assert body == content, "PUT/GET roundtrip not byte-exact through proxy"
 
+    @pytest.mark.registry_servers("ipv6-proxy", "ipv6-upstream")
     def test_proxy_concurrent_clients(self):
         """REGRESSION: 3 concurrent IPv6 GETs return distinct content and the
         proxy emits a bracketed Host for each (no cross-talk / Host corruption)."""

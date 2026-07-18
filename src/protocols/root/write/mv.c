@@ -328,6 +328,9 @@ mv_execute(brix_ctx_t *ctx, ngx_connection_t *c,
 		case ENOTDIR:      kxr = kXR_FSError;    break; /* CONFLICT   */
 		case ENOTEMPTY:    kxr = kXR_ItExists;   break; /* NOT_EMPTY  */
 		case ENOSPC:       kxr = kXR_NoSpace;    break; /* NO_SPACE   */
+#ifdef EDQUOT
+		case EDQUOT:       kxr = kXR_NoSpace;    break; /* NO_SPACE   */
+#endif
 		case ENAMETOOLONG: kxr = kXR_ArgTooLong; break; /* TOO_LONG   */
 		default:           kxr = brix_kxr_from_errno(e); break;
 		}

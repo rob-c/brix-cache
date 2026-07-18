@@ -29,6 +29,16 @@
 /* brix_cvmfs_upstream_allow setter — appends EVERY argument to the allowlist. */
 char *cvmfs_conf_upstream_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
+/* Defined in secure.c -------------------------------------------------------
+ *
+ * brix_cvmfs_repo_authz setter (phase-85 F3) — appends one <repo|*> <cfg>
+ * gate entry; multi-occurrence. Registries are built at merge time. */
+char *cvmfs_conf_repo_authz(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
+/* brix_cvmfs_qos setter (phase-85 F9) — appends one <class> sub=<subject>|
+ * default fills=<n> fill-rate class entry; multi-occurrence. */
+char *cvmfs_conf_qos(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
 /* brix_cvmfs_origin_coords setter — one geographic origin position (multi). */
 char *ngx_http_brix_cvmfs_set_coords(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);

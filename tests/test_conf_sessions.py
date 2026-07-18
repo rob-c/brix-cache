@@ -155,6 +155,91 @@ def test_distinct_sessids_across_connections(srv):
             s2.close()
 
 
+# --------------------------------------------------------------------------- #
+# D-4 (hyper-hardening) — the issued sessid is a bearer for kXR_bind, so it must
+# be CSPRNG-minted and unforgeable.  We assert the contract only against OUR
+# server (stock's no-security anon login issues no sessid).
+# --------------------------------------------------------------------------- #
+def _bind_status(port, sessid):
+    """Handshake a fresh connection and kXR_bind the given sessid; return status."""
+    sec = _connect(port)
+    try:
+        assert _handshake(sec)[0] == kXR_ok
+        _bind(sec, sessid)
+        _, st, _ = _resp(sec)
+        return st
+    finally:
+        sec.close()
+
+
+def test_d4_valid_minted_sessid_binds(srv):
+    """success — a sessid the server actually issued binds a secondary channel.
+
+    Confirms the CSPRNG mint did not break the legitimate flow: the primary
+    logs in and registers its (random) sessid; a fresh connection presenting
+    that exact sessid via kXR_bind is accepted (kXR_ok + a pathid byte)."""
+    port = srv["our_port"]
+    s1, sess = _session(port)
+    try:
+        assert len(sess) == 16, "OUR server must issue a 16-byte sessid"
+        assert _bind_status(port, sess) == kXR_ok, \
+            "a genuine issued sessid must bind"
+    finally:
+        s1.close()
+
+
+def test_d4_forged_sessid_rejected(srv):
+    """security-negative — a sessid the server never issued is refused.
+
+    The bind path resolves the sessid against the in-process session registry;
+    a value not present there (random or all-zero) is rejected, so a guessed
+    sessid cannot bind onto another client's authenticated session.  We fire a
+    batch of independent random guesses plus the zero sessid — none may bind."""
+    import os as _os
+    port = srv["our_port"]
+    for _ in range(64):
+        st = _bind_status(port, _os.urandom(16))
+        assert st != kXR_ok, "a forged random sessid must not bind"
+    assert _bind_status(port, b"\x00" * 16) != kXR_ok, \
+        "the all-zero sessid must not bind"
+
+
+def test_d4_sessid_unpredictable_csprng(srv):
+    """error/regression — the minted sessid is CSPRNG, not structured.
+
+    The retired scheme packed time|pid|ptr|ngx_random() into the 16 bytes, so
+    the first 8 bytes (time word + pid word) were constant/near-constant across
+    every connection served by one worker — trivially predictable, and a heap
+    pointer leak besides.  Under RAND_bytes all 16 bytes are independent, so a
+    sample of sessids must be fully distinct AND their 8-byte prefix must carry
+    real entropy.  Both assertions FAIL loudly under the old packing (the prefix
+    would collapse to one value per worker) and hold under a CSPRNG."""
+    port = srv["our_port"]
+    N = 32
+    socks, sessids = [], []
+    try:
+        for _ in range(N):
+            s, sess = _session(port)
+            socks.append(s)
+            assert len(sess) == 16
+            sessids.append(bytes(sess))
+    finally:
+        for s in socks:
+            s.close()
+
+    assert len(set(sessids)) == N, "sessids repeated — not unique per connection"
+
+    # The former time|pid words lived in bytes 0..8; a CSPRNG makes them vary.
+    prefixes = {sid[0:8] for sid in sessids}
+    assert len(prefixes) >= N - 1, (
+        f"only {len(prefixes)}/{N} distinct sessid prefixes — the first 8 bytes "
+        "look structured (embedded time/pid), not CSPRNG-minted")
+    # No single byte position may be constant across the whole sample.
+    for pos in range(16):
+        assert len({sid[pos] for sid in sessids}) > 1, \
+            f"sessid byte {pos} is constant across {N} conns — not random"
+
+
 @pytest.mark.parametrize("op,mk", [
     ("stat", lambda s: _stat(s, "/hello.txt", sid=b"\x00\x22")),
     ("open", lambda s: s.sendall(struct.pack("!2sHHH12sI", b"\x00\x23", kXR_open,

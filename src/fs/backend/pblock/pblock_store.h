@@ -15,6 +15,7 @@
 
 #include "fs/backend/sd.h"            /* brix_sd_stat_t */
 #include "sd_pblock_catalog.h"        /* pblock_catalog, pblock_meta, PBLOCK_* */
+#include "pblock_xform.h"             /* F12/F13 per-block transform seam */
 
 #include <limits.h>                   /* PATH_MAX */
 #include <stdint.h>
@@ -26,6 +27,37 @@ typedef struct {
     char            data_dir[PATH_MAX];   /* <root>/data */
     int64_t         block_size;           /* default stripe size for new files */
     pblock_catalog *cat;                  /* <root>/catalog.db */
+    void           *lab;                  /* pblock_lab_state_t* (Phase-83);
+                                           * NULL ⇒ lab OFF, hot path skips it */
+    int             audit;                /* F17: 1 ⇒ append oplog rows at
+                                           * metadata boundaries (opts audit=1) */
+    int             csi;                  /* F3: 1 ⇒ per-block CRC32c integrity
+                                           * (csi table); verify on read, flush  *
+                                           * on close (opts csi=1)                */
+    int             quota;                /* F5: 1 ⇒ usage rollup + quota gates
+                                           * live (opts quota=/quota_inodes=)     */
+    int64_t         quota_bytes;          /* F5: export byte quota (0 = none)     */
+    int64_t         quota_inodes;         /* F5: export inode quota (0 = none)    */
+    int             nearline;             /* F4: 1 ⇒ tape-residency simulation
+                                           * (nearline table; opts nearline=1)    */
+    int             locks;                /* F15: 1 ⇒ mandatory lease enforcement
+                                           * (locks table; opts locks=1)          */
+    int             refs;                 /* F10: 1 ⇒ refcounted blobs + dedup
+                                           * (blobs table; opts dedup=1)          */
+    int             snap;                 /* F6: 1 ⇒ snapshots armed (implies refs;
+                                           * snapshots/snap_* tables; opts snap=1) */
+    int             open_files;           /* F6: live regular-file handle count on
+                                           * this export (atomic; snap gate only) —
+                                           * restore refuses (EBUSY) while > 0     */
+    int             versions;             /* F11: prior-blob generations kept on
+                                           * overwrite (0 = off; implies refs;
+                                           * versions table; opts versions=N)      */
+    int             trash;                /* F11: 1 ⇒ unlink moves to trash instead
+                                           * of freeing (implies refs; trash table;
+                                           * opts trash=1)                          */
+    pblock_xform_t  xform;                /* F12/F13: per-block transform (crypt/
+                                           * zstd). kind NONE ⇒ raw block files, hot
+                                           * path unchanged (opts xform=crypt:…/zstd)*/
 } pblock_state_t;
 
 /* ---- block-store engine (pblock_store.c) ---------------------------------- */

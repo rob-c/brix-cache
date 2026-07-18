@@ -24,9 +24,21 @@
 # to the thread-pool/epoll paths.
 %bcond_without uring
 
+# --- SELinux policy module (default ON; disable with rpmbuild --without selinux).
+# Ships packaging/selinux/brix.{te,fc,if} as the noarch -selinux subpackage so
+# the gateway runs under SELinux enforcing (hardened EL hosts) without
+# audit2allow one-offs, broad httpd booleans, or permissive mode.
+%bcond_without selinux
+%global selinuxtype targeted
+%global selinuxmodule brix
+# TCP ports labelled brix_port_t in the -selinux %%post: root:// cleartext +
+# TLS (1094/1095), S3 (9001), metrics (9100).  443/8443 are already
+# http_port_t.  Keep in sync with brix.te's header comment.
+%global brix_ports 1094 1095 9001 9100
+
 Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        21%{?dist}
+Release:        24%{?dist}
 Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
 
 # Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
@@ -55,6 +67,8 @@ BuildRequires:  krb5-devel
 BuildRequires:  libcom_err-devel
 BuildRequires:  libxcrypt-devel
 BuildRequires:  sqlite-devel
+# %%systemd_post/preun/postun + %%systemd_requires (brix-cvmfs-automount)
+BuildRequires:  systemd-rpm-macros
 # --- phase-42 optional compression codecs (off by default; see %%bcond above).
 # When enabled, ./configure links the lib and find-requires turns it into a
 # runtime dep automatically; when disabled, the codec reports available=0. ---
@@ -64,6 +78,7 @@ BuildRequires:  sqlite-devel
 %{?with_bzip2:BuildRequires:  bzip2-devel}
 %{?with_lz4:BuildRequires:  lz4-devel}
 %{?with_uring:BuildRequires:  liburing-devel}
+%{?with_selinux:BuildRequires:  selinux-policy-devel}
 # --- native client (brix-cache-client subpackage) extra link deps ---
 # fuse3-devel: the xrootdfs and brixMount FUSE mounts; libcom_err-devel above
 # resolves the -lcom_err pulled in by `pkg-config --libs krb5`; sqlite-devel
@@ -98,6 +113,12 @@ Requires:       curl
 # explicitly so Ceph support is a stated contract of this RPM.
 Requires:       librados2%{?_isa}
 Requires:       libradosstriper1%{?_isa}
+# Hardened hosts: install the SELinux policy module automatically whenever the
+# targeted policy is present (rich boolean dep — a no-op on SELinux-less
+# hosts, so the module package still installs cleanly there).
+%if %{with selinux}
+Requires:       (%{name}-selinux = %{version}-%{release} if selinux-policy-%{selinuxtype})
+%endif
 
 %description
 BriX-Cache: dynamic nginx modules that serve files over the native XRootD
@@ -108,22 +129,110 @@ management-listener and Prometheus metrics support.
 # Subpackage 2: native clean-room client tools (CLI + FUSE + LD_PRELOAD shim)
 # ---------------------------------------------------------------------------
 %package -n brix-cache-client
-Summary:        BriX-Cache clean-room native XRootD client tools (xrdcp, xrdfs, xrootdfs, ...)
+Summary:        BriX-Cache clean-room native XRootD client tools (xrdcp, xrdfs, ...)
 Provides:       nginx-xrootd-client = %{version}-%{release}
 Obsoletes:      nginx-xrootd-client < 0.1.0-5
-# fuse3: xrootdfs forks/execs fusermount3 at mount/unmount time —
-# a runtime dependency that find-requires (which only sees libfuse3.so) misses.
-# All other shared-library deps (openssl-libs, krb5-libs, libcom_err, zlib,
-# fuse3-libs) are picked up automatically from the ELF link records.
-Requires:       fuse3
+# 1.1.1-23: the two FUSE mounts split out into their own subpackages
+# (brix-xrootdfs-fuse, brix-cvmfs-fuse) so sites can deploy/test a mount tier
+# without the full CLI suite.  Recommends keeps the default `dnf install
+# brix-cache-client` surface unchanged while --setopt=install_weak_deps=False
+# (or a plain rpm -e) gives the slim CLI-only install.
+Recommends:     brix-xrootdfs-fuse = %{version}-%{release}
+Recommends:     brix-cvmfs-fuse = %{version}-%{release}
 
 %description -n brix-cache-client
 Native command-line XRootD clients built clean-room on the in-tree protocol
 core (libbrix + libxrdproto) with NO libXrdCl / libXrdSec dependency:
 xrdcp, xrdfs, xrd, xrdcksum and checksum personalities, xrdqstats, xrdprep,
 xrdgsiproxy, xrddiag, xrdmapc, xrdgsitest, xrdstorascan, mpxstats-brix,
-xrdsssadmin-brix and wait41-brix, plus xrootdfs, brixMount, and the
-libbrixposix_preload.so LD_PRELOAD POSIX shim.
+xrdsssadmin-brix and wait41-brix, plus the libbrixposix_preload.so LD_PRELOAD
+POSIX shim.  The FUSE mounts live in the brix-xrootdfs-fuse and
+brix-cvmfs-fuse subpackages (installed by default via weak deps).
+
+# ---------------------------------------------------------------------------
+# Subpackage 2a: the xrootdfs FUSE mount (root:// filesystem client)
+# ---------------------------------------------------------------------------
+%package -n brix-xrootdfs-fuse
+Summary:        BriX-Cache xrootdfs FUSE mount — a root:// endpoint as a local filesystem
+# fuse3: xrootdfs forks/execs fusermount3 at mount/unmount time — a runtime
+# dependency that find-requires (which only sees libfuse3.so) misses.
+Requires:       fuse3
+# File move out of brix-cache-client (xrootdfs + man page + completion):
+# force the old client to upgrade in the same transaction so the payloads
+# never overlap on disk.
+Conflicts:      brix-cache-client < 1.1.1-23
+
+%description -n brix-xrootdfs-fuse
+The xrootdfs FUSE mount: presents a root:// (XRootD-protocol) endpoint as a
+local POSIX filesystem, built clean-room on the in-tree protocol core with no
+libXrdCl/libXrdSec dependency.  One binary carries both drivers — the async
+default and the synchronous --legacy engine.  Split out of brix-cache-client
+so a mount-only node (batch worker, interactive login host) can deploy and
+test it without the full CLI suite.
+
+# ---------------------------------------------------------------------------
+# Subpackage 2b: the brixMount CVMFS FUSE client
+# ---------------------------------------------------------------------------
+%package -n brix-cvmfs-fuse
+Summary:        BriX-Cache brixMount FUSE client for cvmfs:// repositories
+# fuse3: brixMount forks/execs fusermount3 at mount/unmount time (same
+# find-requires blind spot as xrootdfs above).  sqlite backs the CVMFS
+# catalog reader but is linked, so find-requires picks it up.
+Requires:       fuse3
+# File move out of brix-cache-client (brixMount + man page + completion).
+Conflicts:      brix-cache-client < 1.1.1-23
+# Virtual: satisfied by brix-cvmfs-config OR any stock cvmfs-config-* package —
+# repositories mount zero-config once a provider ships /etc/cvmfs keys+domains.
+Recommends:     cvmfs-config
+
+%description -n brix-cvmfs-fuse
+brixMount: the native BriX CVMFS FUSE client.  Mounts cvmfs:// repositories
+(served by the BriX cvmfs:// site-cache protocol or stock stratum servers)
+with CAS verification and an optional writable overlay (cvmfs-rw), and also
+fronts the xrootdfs async driver via `brixMount xrootdfs <endpoint>`.  Split
+out of brix-cache-client so a cache/mount tier can deploy and test it
+standalone.
+
+# ---------------------------------------------------------------------------
+# Subpackage: /cvmfs automount stack (umbrella daemon service + mount helper)
+# ---------------------------------------------------------------------------
+%package -n brix-cvmfs-automount
+Summary:        Automount /cvmfs via the brixMount autofs umbrella daemon
+Requires:       brix-cvmfs-fuse = %{version}-%{release}
+Requires:       fuse3
+# The stock cvmfs RPM owns /sbin/mount.cvmfs, /etc/auto.cvmfs and the same
+# /cvmfs automount role — two providers of one namespace is nonsensical.
+Conflicts:      cvmfs
+%{?systemd_requires}
+
+%description -n brix-cvmfs-automount
+Lazily mounts CVMFS repositories under /cvmfs on first access using the native
+`brixMount autofs` umbrella daemon (no autofs/systemd map dependency; children
+mount in a farm under /var/lib/brixcvmfs/.mnt and appear as symlinks).  Also
+ships the classic integration points — /sbin/mount.cvmfs so `mount -t cvmfs`
+works, an /etc/auto.cvmfs program map for sites that prefer stock autofs, and
+a brixcvmfs@.service template for static per-repo mounts.  Enable with:
+    systemctl enable --now brixcvmfs-automount
+
+# ---------------------------------------------------------------------------
+# Subpackage: default CVMFS configuration + master public keys (noarch)
+# ---------------------------------------------------------------------------
+%package -n brix-cvmfs-config
+Summary:        Default CVMFS configuration and master keys for CVMFS-brix
+BuildArch:      noarch
+# Standard mutually-exclusive-providers pattern: the stock config packages
+# provide the same virtual and lay the same /etc/cvmfs files.
+Provides:       cvmfs-config = %{version}-%{release}
+Conflicts:      cvmfs-config-default
+Conflicts:      cvmfs-config-egi
+Conflicts:      cvmfs-config-osg
+
+%description -n brix-cvmfs-config
+Default domain configuration (cern.ch, egi.eu, opensciencegrid.org stratum-1
+sets) and the upstream-published master public keys, vendored byte-identical
+from the stock cvmfs-config-default package (provenance and fingerprints in
+/etc/cvmfs/keys/README.md).  Everything is %%config(noreplace): operator edits
+and rotated keys survive upgrades.
 
 # ---------------------------------------------------------------------------
 # Subpackage 3: the pytest integration/conformance test-suite + its python deps
@@ -148,6 +257,14 @@ Requires:       python3-urllib3
 # by the cross-backend / reference-daemon comparison tests; recommend rather than
 # hard-require it so the package installs where that repo is not enabled.
 Recommends:     python3-xrootd
+# The SELinux policy verification suite (tests/test_selinux_rpm.py, run as
+# root on a host with the -selinux subpackage installed) drives semodule/
+# restorecon (policycoreutils), matchpathcon (libselinux-utils), semanage
+# (policycoreutils-python-utils) and sesearch (setools-console).  Weak deps:
+# the rest of the suite runs without them and on SELinux-less hosts.
+Recommends:     libselinux-utils
+Recommends:     policycoreutils-python-utils
+Recommends:     setools-console
 
 %description -n brix-cache-tests
 The full pytest integration, conformance, and adversarial test-suite for
@@ -181,6 +298,33 @@ pure-Python variants (*.py, libexec-backed pymigrate package) with JSONL
 output and resumable state, and the offline rescue utilities
 xrdrados_rescue, xrdcephfs_rescue, and xrdceph_migrate. Source of truth:
 client/apps/ceph/ (build: make -C client ceph-tools).
+
+# ---------------------------------------------------------------------------
+# Subpackage 5: SELinux policy module (targeted)
+# ---------------------------------------------------------------------------
+%if %{with selinux}
+%package selinux
+Summary:        SELinux policy module (targeted) for the BriX-Cache gateway
+BuildArch:      noarch
+%{?selinux_requires}
+# semanage(8) for the brix_port_t port labelling in %%post/%%postun —
+# %%selinux_requires only pulls policycoreutils, which does not carry it.
+Requires(post):   policycoreutils-python-utils
+Requires(postun): policycoreutils-python-utils
+
+%description selinux
+SELinux targeted-policy module for BriX-Cache.  nginx (and therefore the BriX
+modules) runs confined as httpd_t; this module extends httpd_t with the BriX
+data plane — brix_port_t listeners/origins (root:// 1094/1095, S3 9001,
+metrics 9100), the brix_var_lib_t export/stage tree and brix_cache_t cache
+tree under /var/{lib,cache}/brix-cache (legacy /var/{lib,cache}/nginx-xrootd
+spellings stay labelled), cert_t on /etc/grid-security, the
+impersonation-broker setuid/setgid/capset rules, and outbound origin, Ceph,
+and Kerberos connections — so the gateway runs enforcing on a hardened host
+without broad httpd booleans.  Non-default export/stage paths: label them
+with `semanage fcontext -a -t brix_var_lib_t '<path>(/.*)?'` + restorecon;
+extra listener ports: `semanage port -a -t brix_port_t -p tcp <port>`.
+%endif
 
 %prep
 %autosetup -n %{upstream_name}-%{version}
@@ -217,6 +361,12 @@ for t in xrdceph_striper_migrate xrdceph_cephfs_to_striper \
     test -x client/bin/$t
 done
 
+# --- SELinux policy module (packaging/selinux/brix.{te,fc,if}) ---
+%if %{with selinux}
+make -f %{_datadir}/selinux/devel/Makefile -C packaging/selinux %{selinuxmodule}.pp
+bzip2 -9 -f packaging/selinux/%{selinuxmodule}.pp
+%endif
+
 %install
 # --- nginx dynamic modules ---
 # phase-47 W1: the dynamic build emits exactly TWO .so files: one combined
@@ -251,6 +401,21 @@ install -Dpm0644 contrib/grafana-dashboard.json \
 install -Dpm0644 contrib/prometheus-alerts.yml \
     %{buildroot}%{_datadir}/brix/prometheus-alerts.yml
 
+# Default export root + data dir (matches the hardened systemd unit's
+# ReadWritePaths; packaging/brix-cache.service).  Owning them here makes the
+# SELinux relabel deterministic at install time (brix.fc labels the tree
+# brix_var_lib_t) instead of depending on the operator's mkdir inheriting a
+# parent label.
+install -d %{buildroot}%{_sharedstatedir}/brix-cache/data
+
+# --- SELinux policy module (brix-cache -selinux) ---
+%if %{with selinux}
+install -Dpm0644 packaging/selinux/%{selinuxmodule}.pp.bz2 \
+    %{buildroot}%{_datadir}/selinux/packages/%{selinuxtype}/%{selinuxmodule}.pp.bz2
+install -Dpm0644 packaging/selinux/%{selinuxmodule}.if \
+    %{buildroot}%{_datadir}/selinux/devel/include/distributed/%{selinuxmodule}.if
+%endif
+
 # --- native client tools (brix-cache-client) ---
 # Use the in-tree install target so the RPM follows the current client tool set
 # (xrd/xrdcksum/xrdstorascan/brixMount/etc.) instead of a stale spec-local list.
@@ -258,6 +423,14 @@ make -C client install-bin \
     DESTDIR=%{buildroot} \
     PREFIX=%{_prefix} \
     LIBDIR=%{_libdir}
+
+# --- CVMFS automount stack + default config/keys ---
+# One canonical file list, maintained in the client Makefile (also used by the
+# portable deploy/cvmfs/install-automount.sh path for non-RPM hosts).
+make -C client install-automount \
+    DESTDIR=%{buildroot} \
+    PREFIX=%{_prefix} \
+    UNITDIR=%{_unitdir}
 
 # --- test-suite (brix-cache-tests, noarch data) ---
 install -d %{buildroot}%{_datadir}/brix
@@ -281,9 +454,57 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 # in %%files so brix-cache-client keeps the generic client surface while
 # brix-tools owns the Ceph/CephFS operator surface.
 
+%if %{with selinux}
+%pre selinux
+%selinux_relabel_pre -s %{selinuxtype}
+
+%post selinux
+%selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/%{selinuxtype}/%{selinuxmodule}.pp.bz2
+# Label the BriX listener/origin ports.  1094/1095 (root://) are unassigned
+# in the stock policy, so -a adds them; 9001 collides with tor_port_t and
+# 9100 with hplip_port_t, so those fall through to -m, which records a
+# local override.  Best-effort (|| :) so a site-managed port customisation
+# never fails the transaction.
+if test -x %{_sbindir}/selinuxenabled && %{_sbindir}/selinuxenabled; then
+    for p in %{brix_ports}; do
+        semanage port -a -t brix_port_t -p tcp "$p" 2>/dev/null || \
+            semanage port -m -t brix_port_t -p tcp "$p" 2>/dev/null || :
+    done
+fi
+
+%postun selinux
+if [ $1 -eq 0 ]; then
+    # Drop the port labels BEFORE unloading the module: semodule refuses to
+    # remove a module whose types are still referenced by local port
+    # customisations.  -d removes our -a additions and reverts our -m
+    # overrides to the stock policy assignment.
+    if test -x %{_sbindir}/selinuxenabled && %{_sbindir}/selinuxenabled; then
+        for p in %{brix_ports}; do
+            semanage port -d -p tcp "$p" 2>/dev/null || :
+        done
+    fi
+    %selinux_modules_uninstall -s %{selinuxtype} %{selinuxmodule}
+fi
+
+%posttrans selinux
+%selinux_relabel_post -s %{selinuxtype}
+%endif
+
+%post -n brix-cvmfs-automount
+%systemd_post brixcvmfs-automount.service
+
+%preun -n brix-cvmfs-automount
+%systemd_preun brixcvmfs-automount.service
+
+%postun -n brix-cvmfs-automount
+%systemd_postun_with_restart brixcvmfs-automount.service
+
 %files
 %license LICENSE
 %doc README.md docs/
+# Default export root; brix.fc labels it brix_var_lib_t on SELinux hosts.
+%dir %attr(0750,nginx,nginx) %{_sharedstatedir}/brix-cache
+%dir %attr(0750,nginx,nginx) %{_sharedstatedir}/brix-cache/data
 %{nginx_moddir}/ngx_stream_brix_module.so
 %{nginx_moddir}/ngx_http_brix_xrdhttp_filter_module.so
 %{nginx_modconfdir}/mod-xrootd.conf
@@ -313,10 +534,7 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_bindir}/mpxstats-brix
 %{_bindir}/xrdsssadmin-brix
 %{_bindir}/xrdstorascan
-%{_bindir}/xrootdfs
-%{_bindir}/brixMount
 %{_libdir}/libbrixposix_preload.so
-%{_mandir}/man1/brixMount.1*
 %{_mandir}/man1/mpxstats-brix.1*
 %{_mandir}/man1/wait41-brix.1*
 %{_mandir}/man1/xrd.1*
@@ -336,7 +554,6 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_mandir}/man1/xrdqstats.1*
 %{_mandir}/man1/xrdsssadmin-brix.1*
 %{_mandir}/man1/xrdstorascan.1*
-%{_mandir}/man1/xrootdfs.1*
 %{_mandir}/man7/brix-env.7*
 %{_datadir}/bash-completion/completions/xrd
 %{_datadir}/bash-completion/completions/xrdcp
@@ -346,10 +563,50 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_datadir}/bash-completion/completions/xrdprep
 %{_datadir}/bash-completion/completions/xrdgsiproxy
 %{_datadir}/bash-completion/completions/xrdsssadmin-brix
-%{_datadir}/bash-completion/completions/brixMount
 %{_datadir}/bash-completion/completions/xrdstorascan
-%{_datadir}/bash-completion/completions/xrootdfs
 %{_datadir}/zsh/site-functions/_brix-client
+
+%files -n brix-xrootdfs-fuse
+%license LICENSE
+%{_bindir}/xrootdfs
+%{_mandir}/man1/xrootdfs.1*
+%{_datadir}/bash-completion/completions/xrootdfs
+
+%files -n brix-cvmfs-fuse
+%license LICENSE
+%{_bindir}/brixMount
+%{_mandir}/man1/brixMount.1*
+%{_datadir}/bash-completion/completions/brixMount
+
+%files -n brix-cvmfs-automount
+%license LICENSE
+/sbin/mount.cvmfs
+%config(noreplace) %{_sysconfdir}/auto.cvmfs
+%config(noreplace) %{_sysconfdir}/auto.master.d/cvmfs.autofs
+%{_unitdir}/brixcvmfs-automount.service
+%{_unitdir}/brixcvmfs@.service
+%dir %attr(0700,root,root) %{_sharedstatedir}/brixcvmfs
+%dir /cvmfs
+
+%files -n brix-cvmfs-config
+%license LICENSE
+%dir %{_sysconfdir}/cvmfs
+%dir %{_sysconfdir}/cvmfs/default.d
+%dir %{_sysconfdir}/cvmfs/domain.d
+%dir %{_sysconfdir}/cvmfs/config.d
+%dir %{_sysconfdir}/cvmfs/keys
+%dir %{_sysconfdir}/cvmfs/keys/cern.ch
+%dir %{_sysconfdir}/cvmfs/keys/egi.eu
+%dir %{_sysconfdir}/cvmfs/keys/opensciencegrid.org
+%config(noreplace) %{_sysconfdir}/cvmfs/default.d/60-brix.conf
+%config(noreplace) %{_sysconfdir}/cvmfs/domain.d/cern.ch.conf
+%config(noreplace) %{_sysconfdir}/cvmfs/domain.d/egi.eu.conf
+%config(noreplace) %{_sysconfdir}/cvmfs/domain.d/opensciencegrid.org.conf
+%doc %{_sysconfdir}/cvmfs/config.d/README
+%doc %{_sysconfdir}/cvmfs/keys/README.md
+%config(noreplace) %{_sysconfdir}/cvmfs/keys/cern.ch/*.pub
+%config(noreplace) %{_sysconfdir}/cvmfs/keys/egi.eu/*.pub
+%config(noreplace) %{_sysconfdir}/cvmfs/keys/opensciencegrid.org/*.pub
 
 %files -n brix-cache-tests
 %license LICENSE
@@ -393,7 +650,90 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_datadir}/bash-completion/completions/xrdcephfs_rescue
 %{_datadir}/bash-completion/completions/xrdceph_migrate
 
+%if %{with selinux}
+%files selinux
+%license LICENSE
+%{_datadir}/selinux/packages/%{selinuxtype}/%{selinuxmodule}.pp.bz2
+%{_datadir}/selinux/devel/include/distributed/%{selinuxmodule}.if
+%ghost %verify(not md5 size mode mtime) %{_sharedstatedir}/selinux/%{selinuxtype}/active/modules/200/%{selinuxmodule}
+%endif
+
 %changelog
+* Fri Jul 17 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-24
+- New subpackage brix-cvmfs-automount: the native `brixMount autofs` umbrella
+  automounts /cvmfs on first access (children mount in a farm under
+  /var/lib/brixcvmfs/.mnt and appear as symlinks — no autofs kernel module,
+  no systemd map).  Ships brixcvmfs-automount.service, a brixcvmfs@.service
+  static-mount template, /sbin/mount.cvmfs (`mount -t cvmfs` compatible) and
+  an /etc/auto.cvmfs program map for stock-autofs sites.  Conflicts: cvmfs
+  (both own the /cvmfs automount role and /sbin/mount.cvmfs).
+- New noarch subpackage brix-cvmfs-config: default domain config (cern.ch,
+  egi.eu, opensciencegrid.org stratum-1 sets) + upstream master public keys
+  vendored byte-identical from cvmfs-config-default (provenance and sha256
+  fingerprints in /etc/cvmfs/keys/README.md).  Provides: cvmfs-config,
+  Conflicts with the stock cvmfs-config-* providers; everything
+  %%config(noreplace).  brix-cvmfs-fuse now Recommends: cvmfs-config.
+- Fix whitelist/manifest body-binding to stock CVMFS hash coverage: the
+  signed hash line covers the body up to but EXCLUDING the "--\n" separator
+  (verified against live stratum-1 artifacts); previously the verifier
+  included the separator and rejected every genuine repository with
+  trust/catalog error -5.
+
+* Fri Jul 17 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-23
+- Split the two FUSE mounts out of brix-cache-client into standalone
+  subpackages so a mount/cache tier can deploy and test them without the full
+  CLI suite: brix-xrootdfs-fuse (xrootdfs binary + man page + completion) and
+  brix-cvmfs-fuse (brixMount + man page + completion).  Each Requires fuse3
+  (fusermount3 is fork/exec'd, invisible to find-requires) and carries
+  Conflicts: brix-cache-client < 1.1.1-23 so the file move upgrades cleanly
+  in one transaction; brix-cache-client Recommends both, keeping the default
+  install surface unchanged (install_weak_deps=False for a CLI-only node) and
+  drops its own fuse3 dependency.
+- SELinux policy verification suite: tests/test_selinux_rpm.py (ships in
+  brix-cache-tests) — run as root on an SELinux host with the -selinux
+  subpackage installed:
+      cd /usr/share/brix && sudo python3 -m pytest tests/test_selinux_rpm.py
+  Asserts the brix module is loaded in the module store, the file-context
+  database and on-disk labels for /var/{lib,cache}/brix-cache (+ legacy
+  nginx-xrootd spellings), /etc/brix-cache and /etc/grid-security, the
+  brix_port_t labels on tcp 1094/1095/9001/9100, and the httpd_t allow rules
+  (brix_port_t bind/connect, data-plane manage+map, impersonation-broker
+  capabilities/setcap, outbound http/kerberos, corecmd exec).  brix-cache-tests
+  Recommends the driving tools (libselinux-utils, policycoreutils-python-utils,
+  setools-console).
+
+* Fri Jul 17 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-22
+- SELinux support for hardened (enforcing) hosts: new noarch
+  nginx-mod-brix-cache-selinux subpackage shipping a targeted-policy module
+  (packaging/selinux/brix.{te,fc,if}) built per the Fedora SELinux packaging
+  guidelines (priority-200 module store install, relabel scriptlets).
+  nginx+BriX runs as httpd_t; the module adds exactly the BriX data plane:
+  brix_port_t on tcp 1094/1095 (root://), 9001 (S3, local override of
+  tor_port_t) and 9100 (metrics, local override of hplip_port_t) with
+  httpd_t bind+connect (name_connect covers cache/stage-tier origins and
+  native TPC); brix_var_lib_t on /var/lib/brix-cache (export root + stage)
+  and brix_cache_t on /var/cache/brix-cache with full manage + mmap;
+  httpd_config_t on /etc/brix-cache (JWKS/authdb); cert_t on
+  /etc/grid-security (replaces the manual semanage remedy in the docs);
+  impersonation-broker rules (setuid/setgid/setcap + chown/fowner/fsetid/
+  dac_override/dac_read_search for multiuser stage-file ownership); outbound
+  http/ceph/kerberos port connects (WebDAV TPC via fork/exec'd curl included
+  — corecmd_exec_bin, no domain transition).  The main module package pulls
+  the policy automatically via a rich dep when selinux-policy-targeted is
+  installed; rpmbuild --without selinux disables the whole surface.  The main
+  package now also owns /var/lib/brix-cache{,/data} (0750 nginx:nginx) so
+  the install-time relabel is deterministic.  io_uring rules are documented
+  but intentionally omitted (opt-in feature; the io_uring object class does
+  not exist in the EL8 base policy).
+- packaging/ rebrand: nginx-xrootd -> brix-cache for everything under
+  packaging/ that is not an upgrade-path compatibility name — the hardened
+  systemd unit is now packaging/brix-cache.service (pid /run/brix-cache.pid,
+  config /etc/nginx/brix-cache.conf, ReadWritePaths /var/lib/brix-cache),
+  the container builder image tags are brix-cache-rpm-builder:*, and the
+  canonical data/config trees are /var/{lib,cache}/brix-cache +
+  /etc/brix-cache.  Provides/Obsoletes on the old nginx-xrootd-* package
+  names and the github.com/HEP-x/nginx-xrootd source URL are unchanged.
+
 * Mon Jul 13 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-21
 - Co-installability with stock XRootD server RPMs: rename the three client
   binaries whose names collide with files owned by the xrootd packages —

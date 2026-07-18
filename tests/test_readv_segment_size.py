@@ -19,87 +19,36 @@ Run:
 """
 
 import os
-import socket
-import subprocess
-import tempfile
-import time
-import shutil
 
 import pytest
 from XRootD import client
 from XRootD.client.flags import QueryCode
 
-from config_templates import render_config
+from settings import HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
 
-NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 FILE_BYTES = 20 * 1024 * 1024
 SEG_CAP = 16 * 1024 * 1024          # the configured brix_readv_segment_size
 MAXSEGS = 1024                       # BRIX_READV_MAXSEGS
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-@pytest.fixture(scope="module")
-def server16m():
+@pytest.fixture()
+def server16m(lifecycle, tmp_path):
     """A dedicated anon nginx with brix_readv_segment_size 16m + a 20 MiB file."""
-    if not os.path.isfile(NGINX_BIN):
-        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
-    prefix = tempfile.mkdtemp(prefix="readv_seg_")
-    data = os.path.join(prefix, "data")
-    logs = os.path.join(prefix, "logs")
-    confd = os.path.join(prefix, "conf")
-    for d in (data, logs, confd):
-        os.makedirs(d, exist_ok=True)
+    data = tmp_path / "data"
+    data.mkdir()
     payload = os.urandom(FILE_BYTES)
-    with open(os.path.join(data, "big.bin"), "wb") as fh:
-        fh.write(payload)
-    port = _free_port()
-    # When the master runs as root, nginx drops workers to 'nobody', which
-    # cannot open the root-owned temp export dir — the worker then exits fatal
-    # ("cannot open export root ... for kernel-confined path operations") and
-    # the port listens with no worker, hanging every client query. The shared
-    # fleet avoids this via the brix-test-nginx wrapper, which injects the same
-    # directive; this self-started instance must keep workers as root too.
-    user_directive = "user root;" if os.geteuid() == 0 else ""
-    with open(os.path.join(confd, "nginx.conf"), "w") as fh:
-        fh.write(render_config(
-            "nginx_readv_segment_size.conf",
-            PORT=port,
-            DATA_DIR=data,
-            LOG_DIR=logs,
-            USER_DIRECTIVE=user_directive,
-        ))
-    env = dict(os.environ)
-    env.pop("LD_LIBRARY_PATH", None)   # conda prefix breaks system XRootD libs
-    proc = subprocess.Popen([NGINX_BIN, "-p", prefix, "-c", "conf/nginx.conf"], env=env)
-    up = False
-    for _ in range(60):
-        try:
-            socket.create_connection(("127.0.0.1", port), timeout=1).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        proc.terminate()
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.fail(f"nginx never came up on :{port}")
-    try:
-        yield {"url": f"root://127.0.0.1:{port}", "payload": payload}
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except Exception:
-            proc.kill()
-        shutil.rmtree(prefix, ignore_errors=True)
+    (data / "big.bin").write_bytes(payload)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-readv-seg16m",
+        template="nginx_lc_readv.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "READV_SEG": "16m"},
+        reason="official VectorRead against a 16m brix_readv_segment_size cap"))
+    return {"url": f"root://{HOST}:{ep.port}", "payload": payload}
 
 
 def test_qconfig_advertises_configured_segment_size(server16m):

@@ -17,16 +17,13 @@ Run:  PYTHONPATH=tests pytest tests/test_brix_conformance.py -v
 import os
 import socket
 import struct
-import subprocess
-import time
 
 import pytest
 
-from config_templates import render_config
-from settings import NGINX_BIN
+from server_registry import NginxInstanceSpec
 
 BIND = "127.0.0.1"
-PORT = 13980
+PORT = None  # bound to the harness-assigned dynamic port by the `server` fixture
 
 # opcodes
 kXR_query, kXR_close, kXR_dirlist = 3001, 3003, 3004
@@ -48,7 +45,7 @@ kXR_SHA256_sig = 0x01
 KNOWN = "/known.bin"
 KNOWN_SIZE = 8192
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
 
 # --------------------------------------------------------------------------- #
@@ -152,53 +149,22 @@ def _err(body):
 # --------------------------------------------------------------------------- #
 # self-provisioned anon server
 # --------------------------------------------------------------------------- #
-@pytest.fixture(scope="module")
-def server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx not built at {NGINX_BIN}")
+@pytest.fixture(scope="function")
+def server(lifecycle, tmp_path_factory):
+    global PORT
     base = tmp_path_factory.mktemp("conf")
     data = base / "data"
     (data / "sub").mkdir(parents=True)
     (data / "known.bin").write_bytes(bytes((i * 31 + 7) & 0xff for i in range(KNOWN_SIZE)))
-    cfg = base / "n.conf"
-    cfg.write_text(render_config("nginx_xrootd_conformance_self.conf",
-                                 BASE_DIR=base,
-                                 BIND_HOST=BIND,
-                                 PORT=PORT,
-                                 DATA_DIR=data))
-    # nginx sets SO_REUSEADDR on its listener, so a precheck bind (which would
-    # trip on TIME_WAIT after a prior run) is counter-productive; just start and
-    # wait for readiness.
-    p = subprocess.Popen([NGINX_BIN, "-c", str(cfg), "-p", str(base)],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait(PORT):
-        p.terminate()
-        pytest.skip("conformance server did not start")
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-xrootd-conformance",
+        template="nginx_xrootd_conformance_self.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+    ))
+    PORT = ep.port
     yield {"data": str(data)}
-    p.terminate()
-    try:
-        p.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        p.kill()
-
-
-def _free(port):
-    with socket.socket() as s:
-        try:
-            s.bind((BIND, port)); return True
-        except OSError:
-            return False
-
-
-def _wait(port, t=8.0):
-    end = time.time() + t
-    while time.time() < end:
-        try:
-            with socket.create_connection((BIND, port), timeout=1):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
 
 
 def _open_known(s):

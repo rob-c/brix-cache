@@ -62,6 +62,12 @@ void brix_sd_cache_destroy(brix_sd_instance_t *inst);
 /* 1 iff `inst` is a cache decorator built by brix_sd_cache_create. */
 int brix_sd_cache_instance_is(const brix_sd_instance_t *inst);
 
+/* Evict `key` from the decorator's cache store (no-op if `inst` is not a cache
+ * decorator or `key` is NULL). The namespace VFS delete/rename ops dispatch on
+ * the unwrapped leaf (for per-user cred threading) and so bypass the decorator's
+ * own unlink/rename evict; they call this afterwards to keep the store coherent. */
+void brix_sd_cache_evict(brix_sd_instance_t *inst, const char *key);
+
 /* 1 iff a read-open of `key` would block on slow (remote) I/O and should be
  * offloaded; 0 to serve inline (hit / local / slice / non-cache). Non-blocking. */
 int brix_sd_cache_fill_needs_offload(brix_sd_instance_t *inst,
@@ -86,5 +92,46 @@ brix_sd_instance_t *brix_sd_cache_source_instance(
  * the eviction/reaper enumerate a composed tier cache through its own store adapter
  * (§14a — the same cstore the read path fills into). */
 void *brix_sd_cache_cstore(const brix_sd_instance_t *inst);
+
+/* ---- phase-85 F7: optional cold tier (hot/cold demote + promote) ---------- */
+
+/* Attach the OPTIONAL cold store tier to a cache decorator (no-op for a non-cache
+ * `inst`). `cold` is BORROWED (registry-owned, worker lifetime) — never freed by
+ * brix_sd_cache_destroy. With a cold tier attached, a read miss first attempts a
+ * verified promote from the cold store (falling back to the origin fill on any
+ * cold failure), and the eviction engine demotes victims into it. NULL detaches. */
+void brix_sd_cache_set_cold(brix_sd_instance_t *inst,
+    brix_sd_instance_t *cold);
+
+/* Demote the HOT cached object `key` into the cold store tier: copy its bytes
+ * from the cache store into the cold store (staged write + commit). Called by
+ * the eviction engine on space-pressure victims ONLY — never on write
+ * invalidation (a written-over object is stale and must not survive in cold).
+ * Returns NGX_OK (demoted), NGX_DECLINED (no cold tier / not a cache decorator
+ * — nothing to do), or NGX_ERROR with errno set (the caller evicts anyway:
+ * space relief wins, the origin refill preserves correctness). */
+ngx_int_t brix_sd_cache_demote(brix_sd_instance_t *inst, const char *key);
+
+/* ---- phase-85 F8: sibling mesh (peer CAS fetch before origin) ------------- */
+
+#define BRIX_SD_CACHE_MAX_PEERS 16
+
+/* One ring member: the rendezvous label ("host:port", identical on every node
+ * of the mesh) plus the built http fill source — NULL for this node's own slot
+ * (and for a member whose build failed: that member's keys fall through to the
+ * origin). */
+typedef struct {
+    brix_sd_instance_t *inst;
+    char                  label[272];
+} brix_sd_cache_peer_t;
+
+/* Attach the sibling-mesh ring to a cache decorator (no-op for a non-cache
+ * `inst`). The peer instances are BORROWED (registry-owned, worker lifetime).
+ * With a ring attached, a read miss whose rendezvous owner is a NON-self member
+ * attempts one verified fill from that sibling before the origin; any peer
+ * failure falls back to the origin. `self` indexes this node's own slot.
+ * n <= BRIX_SD_CACHE_MAX_PEERS; n == 0 detaches. */
+void brix_sd_cache_set_peers(brix_sd_instance_t *inst,
+    const brix_sd_cache_peer_t *peers, int n, int self);
 
 #endif /* BRIX_SD_CACHE_H */

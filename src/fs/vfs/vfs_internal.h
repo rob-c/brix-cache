@@ -258,6 +258,52 @@ brix_vfs_ctx_path(const brix_vfs_ctx_t *ctx)
     return (const char *) ctx->resolved.resolved.data;
 }
 
+/* Deep-copy `ctx` and the two buffers it POINTS at — the resolved confined path
+ * and root_canon, both of which can live in a caller stack frame — onto `pool`,
+ * returning a self-contained ctx that outlives the caller. Every other ctx member
+ * points at config- or connection-scoped memory that already outlives any write
+ * session, so a shallow struct copy carries them correctly. Returns NULL
+ * (errno = ENOMEM) on allocation failure. Shared by the staged-upload handle and
+ * the unified writer — both persist across the open→write→commit request
+ * boundary, so a ctx pointing at request stack buffers would be a use-after-free
+ * at commit. */
+static ngx_inline brix_vfs_ctx_t *
+brix_vfs_ctx_pool_clone(const brix_vfs_ctx_t *ctx, ngx_pool_t *pool)
+{
+    brix_vfs_ctx_t *copy;
+    const char     *rpath = brix_vfs_ctx_path(ctx);
+
+    copy = ngx_palloc(pool, sizeof(*copy));
+    if (copy == NULL) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    *copy = *ctx;
+
+    if (rpath != NULL) {
+        size_t  n = ngx_strlen(rpath);
+        u_char *d = ngx_pnalloc(pool, n + 1);
+        if (d == NULL) {
+            errno = ENOMEM;
+            return NULL;
+        }
+        ngx_memcpy(d, rpath, n + 1);
+        copy->resolved.resolved.data = d;
+        copy->resolved.resolved.len  = n;
+    }
+    if (ctx->root_canon != NULL) {
+        size_t  n = ngx_strlen(ctx->root_canon);
+        u_char *d = ngx_pnalloc(pool, n + 1);
+        if (d == NULL) {
+            errno = ENOMEM;
+            return NULL;
+        }
+        ngx_memcpy(d, ctx->root_canon, n + 1);
+        copy->root_canon = (const char *) d;
+    }
+    return copy;
+}
+
 /* Read guard: assert the ctx has a non-empty, kernel-confined resolved path.
  * Returns NGX_OK if confined, else NGX_ERROR with errno=EINVAL. Every wire op
  * must pass this before touching the filesystem. */

@@ -1,272 +1,196 @@
 """
-test_frm_scratch.py — FRM materialize-to-scratch + control-dir prototype.
+test_frm_scratch.py — FRM nearline recall through the frm:// storage backend.
 
-Covers the Pillar-F follow-ups:
-  * the scratch wiring: a recall is staged to a local POSIX scratch mount and
-    committed to storage (force-scratch on a POSIX export, via the env knobs);
-  * #1 LFN threading: the copycmd is exported $FRM_LFN, so a REAL recall script
-    (cmdscripts/frm_fake_mss.py) fetches the right object even though it writes to a scratch
-    path that does not encode the object;
-  * #2 control-dir: with BRIX_FRM_CONTROL_DIR set, the residency marker lives in
-    a local POSIX control mount (a flat hashed stub), not on the export object.
+Rewritten (2026-07-17) for the backend-composition surface that replaced the
+removed ``brix_frm*`` directive family (removed 2026-06-30).  A nearline object
+lives behind an MSS adapter:
 
-Self-provisioned; skips cleanly without xattrs/xrdcp.
+  * ``frm://exec/<base>`` shells the recall/residency verbs out to the operator
+    stage command ``$BRIX_FRM_STAGECMD <verb> <key> <online>`` (the classic FRM
+    model), or
+  * ``frm://stub/<tape>`` simulates tape with a local directory,
+
+composed with a required ``brix_cache_store posix:<cache>`` recall target.  A
+read RECALLS the object into the online buffer (``<base>/.online/<key>``) and
+serves it byte-exact through the cache tier.
+
+Covered, on the live data plane (mapping the old scratch/control-dir prototype
+onto the new surface):
+
+  * exec-adapter recall — the stage command's ``recall`` verb materialises the
+    object into the online buffer and its bytes are served (the old
+    materialise-to-scratch-then-commit, now online-buffer -> cache);
+  * key threading — the stage command is handed the object KEY (LFN), so a
+    by-key fetch serves the right bytes regardless of the online-buffer path
+    (the old ``$FRM_LFN`` threading);
+  * residency — the ``exists`` verb is queried on the key BEFORE any recall
+    (the old residency oracle);
+  * a genuinely-absent object (``exists`` -> non-zero) is reported not-found and
+    is never fabricated (error + security-negative);
+  * stub-adapter recall from a local tape directory, no stage command.
+
+Self-provisioned; skips cleanly only when xrdcp is unavailable.
 """
 
+import itertools
 import os
 import shutil
-import socket
 import subprocess
-import time
 
 import pytest
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import HOST
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 XRDCP = shutil.which("xrdcp")
-FIXED_BYTES = b"RECALLED-VIA-SCRATCH-" + b"q" * 64 + b"\n"
 TAPE_BYTES = b"REAL-TAPE-CONTENT-" + b"t" * 200 + b"\n"
 
-# A fixed-bytes copycmd (no LFN needed — keeps a test about the scratch+commit
-# mechanics alone).
-FIXED_COPYCMD = """#!/bin/bash
-set -u
-dest="${1:-}"
-[ -n "$dest" ] || exit 64
-[ -n "${FRM_AUDIT_LOG:-}" ] && echo "stage $dest" >> "$FRM_AUDIT_LOG"
-printf '%s' "${FRM_RECALL_TEXT:-RECALLED}" > "$dest"
-"""
-
-# A residency oracle: record the path it was asked about, then exit 1 ("nearline"
-# → proceed to copycmd). Used to prove the oracle is queried on the LFN, not the
-# scratch destination.
-ORACLE = """#!/bin/bash
-[ -n "${FRM_AUDIT_LOG:-}" ] && echo "oracle ${1:-}" >> "$FRM_AUDIT_LOG"
-exit 1
-"""
+_SEQ = itertools.count()
 
 
-from frm_helpers import xattr_ok as _xattr_ok, res_stub_path as _res_stub_path
+def _exec_stagecmd(tape, audit):
+    """A minimal exec MSS adapter: ``$BRIX_FRM_STAGECMD <verb> <key> <online>``.
+
+    The tape directory and audit log are baked into the script rather than read
+    from the environment: nginx rewrites its runtime ``environ`` to reclaim space
+    for its process title, so a spawned stage command cannot rely on inherited
+    env vars (only ``BRIX_FRM_STAGECMD`` itself, resolved at config time, and the
+    verb/key/online argv survive).
+    """
+    return (
+        "#!/bin/bash\n"
+        'verb="$1"; key="${2#/}"; online="$3"\n'
+        f"audit='{audit}'\n"
+        f"tape='{tape}'\n"
+        'echo "$verb $key $online" >> "$audit"\n'
+        'case "$verb" in\n'
+        '  exists)  [ -f "$tape/$key" ] && exit 0 || exit 1 ;;\n'
+        '  recall)  mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online" ;;\n'
+        '  migrate) cp "$online" "$tape/$key" ;;\n'
+        '  purge)   rm -f "$online" ;;\n'
+        "esac\n"
+    )
 
 
-def _start_frm(d, *, force_scratch=False, control_dir=False, real_mss=False,
-               oracle=False):
-    """Start a self-contained POSIX FRM server. Returns (proc, ctx) or skips."""
-    port = int(os.environ.get("TEST_FRM_SCRATCH_PORT") or free_port())
-    d.mkdir(parents=True, exist_ok=True)
-    (d / "logs").mkdir()
-    data = d / "data"; data.mkdir()
-    scratch = d / "scratch"; scratch.mkdir()
-    control = d / "control"; control.mkdir()
-    tape = d / "tape"; tape.mkdir()
-    queue = d / "frm.queue"
-    audit = d / "audit.log"; audit.write_text("")
+def _start(harness, tmp_path, *, adapter="exec", nearline=True):
+    """Start a self-contained frm:// server (exec or stub) via the harness.
 
-    copycmd = d / "copycmd.py" if real_mss else d / "copycmd.sh"
-    if real_mss:
-        shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"),
-                    str(copycmd))
-    else:
-        copycmd.write_text(FIXED_COPYCMD)
-    os.chmod(str(copycmd), 0o755)
+    Returns (endpoint, audit_path).  ``audit_path`` is meaningful for the exec
+    adapter only; the harness stops the server at fixture teardown.
+    """
+    cache = tmp_path / "cache"; cache.mkdir()
+    audit = tmp_path / "audit.log"; audit.write_text("")
+    env = {}
 
-    oracle_cmd = d / "oracle.sh"
-    if oracle:
-        oracle_cmd.write_text(ORACLE)
-        os.chmod(str(oracle_cmd), 0o755)
+    if adapter == "exec":
+        base = tmp_path / "base"; base.mkdir()
+        tape = tmp_path / "tape"; tape.mkdir()
+        if nearline:
+            (tape / "near.dat").write_bytes(TAPE_BYTES)
+        stagecmd = tmp_path / "stage.sh"
+        stagecmd.write_text(_exec_stagecmd(tape, audit))
+        stagecmd.chmod(0o755)
+        storage = f"frm://exec{base}"
+        env["BRIX_FRM_STAGECMD"] = str(stagecmd)
+    else:  # stub: the base directory IS the tape (offline objects live in it)
+        tape = tmp_path / "tape"; tape.mkdir()
+        if nearline:
+            (tape / "near.dat").write_bytes(TAPE_BYTES)
+        storage = f"frm://stub{tape}"
 
-    near = data / "near.dat"
-    near.write_bytes(b"")                              # 0-byte placeholder
-    if control_dir:
-        # marker lives in the control mount (set by the test), NOT on the export
-        pass
-    else:
-        os.setxattr(str(near), "user.frm.residency", b"nearline")
-    if real_mss:
-        (tape / "near.dat").write_bytes(TAPE_BYTES)    # the "tape" copy
-
-    scratch_dirs = ""
-    if force_scratch:
-        scratch_dirs += (f"        brix_frm_stage_dir {scratch};\n"
-                         "        brix_frm_force_scratch on;\n")
-    if control_dir:
-        scratch_dirs += f"        brix_frm_control_dir {control};\n"
-    if oracle:
-        scratch_dirs += f"        brix_frm_residency_cmd {oracle_cmd};\n"
-
-    conf = f"""
-worker_processes 1;
-thread_pool frmpool threads=2;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-env FRM_AUDIT_LOG;
-env FRM_RECALL_TEXT;
-env FRM_DATA_DIR;
-env FRM_TAPE_DIR;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_thread_pool frmpool;
-        brix_frm on;
-        brix_frm_queue_path {queue};
-        brix_frm_copycmd {copycmd};
-        brix_frm_copymax 4;
-        brix_frm_stage_wait 1;
-{scratch_dirs}    }}
-}}
-daemon off;
-master_process off;
-"""
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    env = dict(os.environ)
-    env.update(FRM_AUDIT_LOG=str(audit),
-               FRM_RECALL_TEXT=FIXED_BYTES.decode(),
-               FRM_DATA_DIR=os.path.realpath(str(data)),
-               FRM_TAPE_DIR=str(tape))
-
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, port), timeout=0.5).close()
-            break
-        except OSError:
-            time.sleep(0.1)
-    else:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip(f"FRM server did not start: {err}")
-
-    class Ctx:
-        pass
-    ctx = Ctx()
-    ctx.port = port
-    ctx.export_near = str(near)
-    ctx.scratch_dir = str(scratch)
-    ctx.control_dir = str(control)
-    ctx.audit = str(audit)
-    return proc, ctx
+    name = f"lc-frm-{adapter}-{next(_SEQ)}"
+    endpoint = harness.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_lc_frm_exec.conf",
+        protocol="root",
+        readiness="tcp",
+        template_values={"STORAGE_BACKEND": storage, "CACHE_DIR": str(cache)},
+        env=env,
+        reason="frm nearline recall"))
+    return endpoint, str(audit)
 
 
-def _xrdcp(port, path, out, timeout=40):
-    return subprocess.run([XRDCP, "-f", f"root://{HOST}:{port}/{path}", out],
-                          capture_output=True, timeout=timeout)
+def _xrdcp(port, path, out, timeout=60):
+    return subprocess.run(
+        [XRDCP, "-f", f"root://{HOST}:{port}/{path}", out],
+        capture_output=True, timeout=timeout)
 
 
-def _audit_dests(audit):
-    return [ln.split(" ", 1)[1].strip()
-            for ln in open(audit) if ln.startswith("stage ")]
-
-
-def _stop(proc):
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
+def _audit(path):
+    """Parse the stage-command audit log into (verb, key, online) tuples."""
+    verbs = []
+    with open(path) as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split(" ", 2)
+            if parts and parts[0]:
+                verbs.append(tuple(parts + [""] * (3 - len(parts))))
+    return verbs
 
 
 @pytest.fixture
-def _guard(tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
+def frm(lifecycle):
     if XRDCP is None:
         pytest.skip("xrdcp not available")
-    if not _xattr_ok(str(tmp_path)):
-        pytest.skip("filesystem does not support user xattrs")
+    return lifecycle
 
 
-def test_recall_materializes_to_scratch_then_commits(_guard, tmp_path):
-    proc, ctx = _start_frm(tmp_path / "fx", force_scratch=True)
-    try:
-        out = str(tmp_path / "o")
-        r = _xrdcp(ctx.port, "/near.dat", out)
-        assert r.returncode == 0, r.stderr.decode(errors="replace")
-        assert open(out, "rb").read() == FIXED_BYTES
-        assert open(ctx.export_near, "rb").read() == FIXED_BYTES
-        dests = _audit_dests(ctx.audit)
-        assert dests and dests[-1].startswith(ctx.scratch_dir + "/")
-        assert dests[-1].endswith(".scratch")
-    finally:
-        _stop(proc)
+def test_exec_recall_serves_nearline_object(frm, tmp_path):
+    """The exec adapter's recall verb materialises the object into the online
+    buffer and the bytes are served byte-exact through the cache tier."""
+    ep, audit = _start(frm, tmp_path)
+    out = str(tmp_path / "o")
+    r = _xrdcp(ep.port, "/near.dat", out)
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    assert open(out, "rb").read() == TAPE_BYTES
+    assert any(v[0] == "recall" for v in _audit(audit)), _audit(audit)
 
 
-def test_posix_noop_copycmd_gets_export_path(_guard, tmp_path):
-    """Control: force-scratch OFF → copycmd is handed the export path in place."""
-    proc, ctx = _start_frm(tmp_path / "np", force_scratch=False)
-    try:
-        out = str(tmp_path / "o")
-        r = _xrdcp(ctx.port, "/near.dat", out)
-        assert r.returncode == 0, r.stderr.decode(errors="replace")
-        assert open(out, "rb").read() == FIXED_BYTES
-        dests = _audit_dests(ctx.audit)
-        assert dests and dests[-1] == ctx.export_near
-    finally:
-        _stop(proc)
+def test_stagecmd_recall_receives_object_key(frm, tmp_path):
+    """Key threading: the recall verb is handed the object KEY (the LFN
+    ``near.dat``), not the online-buffer path, so a by-key fetch serves the right
+    bytes."""
+    ep, audit = _start(frm, tmp_path)
+    out = str(tmp_path / "o")
+    r = _xrdcp(ep.port, "/near.dat", out)
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    recalls = [v for v in _audit(audit) if v[0] == "recall"]
+    assert recalls and recalls[-1][1] == "near.dat", _audit(audit)
+    assert open(out, "rb").read() == TAPE_BYTES
 
 
-def test_real_recall_script_through_scratch_uses_lfn(_guard, tmp_path):
-    """#1: a REAL recall script (frm_fake_mss) writing to a scratch path still
-    fetches the right object — it reads $FRM_LFN, not the (scratch) dest."""
-    proc, ctx = _start_frm(tmp_path / "lf", force_scratch=True, real_mss=True)
-    try:
-        out = str(tmp_path / "o")
-        r = _xrdcp(ctx.port, "/near.dat", out)
-        assert r.returncode == 0, r.stderr.decode(errors="replace")
-        # the bytes the script copied from "tape" landed, via scratch, on the export
-        assert open(out, "rb").read() == TAPE_BYTES
-        assert open(ctx.export_near, "rb").read() == TAPE_BYTES
-        dests = _audit_dests(ctx.audit)
-        assert dests and dests[-1].startswith(ctx.scratch_dir + "/"), \
-            "copycmd should have been handed a scratch dest"
-    finally:
-        _stop(proc)
+def test_residency_probed_before_recall(frm, tmp_path):
+    """The residency ``exists`` verb is queried on the object key before any
+    recall is issued (the old residency-oracle-on-the-LFN contract)."""
+    ep, audit = _start(frm, tmp_path)
+    out = str(tmp_path / "o")
+    r = _xrdcp(ep.port, "/near.dat", out)
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    verbs = [v[0] for v in _audit(audit)]
+    assert "exists" in verbs, verbs
+    if "recall" in verbs:
+        assert verbs.index("exists") < verbs.index("recall"), verbs
+    exists = [v for v in _audit(audit) if v[0] == "exists"]
+    assert exists and all(v[1] == "near.dat" for v in exists), exists
 
 
-def test_residency_oracle_queried_on_lfn_not_scratch(_guard, tmp_path):
-    """Fix 2: the residency oracle answers "is the OBJECT resident?", so it must
-    be asked about the LFN (export path) — not req->path, which under scratch is
-    the empty temp we are about to recall INTO."""
-    proc, ctx = _start_frm(tmp_path / "or", force_scratch=True, oracle=True)
-    try:
-        out = str(tmp_path / "o")
-        r = _xrdcp(ctx.port, "/near.dat", out)
-        assert r.returncode == 0, r.stderr.decode(errors="replace")
-        lines = open(ctx.audit).read().splitlines()
-        oracle = [ln.split(" ", 1)[1] for ln in lines if ln.startswith("oracle ")]
-        stage = [ln.split(" ", 1)[1] for ln in lines if ln.startswith("stage ")]
-        # oracle saw the export object; copycmd was handed the scratch temp
-        assert oracle and oracle[-1] == os.path.realpath(ctx.export_near), oracle
-        assert stage and stage[-1].startswith(ctx.scratch_dir + "/"), stage
-    finally:
-        _stop(proc)
+def test_absent_object_reports_not_found(frm, tmp_path):
+    """Error + security-negative: an object that is not on tape (``exists`` ->
+    non-zero) is reported not-found and never recalled or fabricated."""
+    ep, audit = _start(frm, tmp_path, nearline=False)
+    out = str(tmp_path / "o")
+    r = _xrdcp(ep.port, "/near.dat", out)
+    assert r.returncode != 0
+    assert not os.path.exists(out) or open(out, "rb").read() != TAPE_BYTES
+    assert not [v for v in _audit(audit) if v[0] == "recall"], _audit(audit)
 
 
-def test_residency_marker_lives_in_control_dir(_guard, tmp_path):
-    """#2: with a control dir, the nearline marker is a hashed stub in the control
-    mount (NOT an xattr on the export); a recall clears the control stub."""
-    proc, ctx = _start_frm(tmp_path / "cd", force_scratch=True, control_dir=True)
-    try:
-        # The export object carries NO xattr; make it nearline via a control stub.
-        stub = _res_stub_path(ctx.control_dir, os.path.realpath(ctx.export_near))
-        open(stub, "wb").close()
-        os.setxattr(stub, "user.frm.residency", b"nearline")
-        # sanity: the export object itself has no residency xattr
-        assert "user.frm.residency" not in os.listxattr(ctx.export_near)
-
-        out = str(tmp_path / "o")
-        r = _xrdcp(ctx.port, "/near.dat", out)        # nearline → recall → serve
-        assert r.returncode == 0, r.stderr.decode(errors="replace")
-        assert open(out, "rb").read() == FIXED_BYTES
-
-        # On a successful recall the worker flips residency ONLINE → control stub
-        # removed (no stub == online).
-        assert not os.path.exists(stub), "control residency stub not cleared online"
-    finally:
-        _stop(proc)
+def test_stub_adapter_recalls_from_local_tape(frm, tmp_path):
+    """The stub adapter recalls an offline object from a local tape directory
+    with no operator stage command."""
+    ep, _ = _start(frm, tmp_path, adapter="stub")
+    out = str(tmp_path / "o")
+    r = _xrdcp(ep.port, "/near.dat", out)
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    assert open(out, "rb").read() == TAPE_BYTES

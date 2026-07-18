@@ -28,6 +28,8 @@
     ngx_flag_t  upstream_tls;      /* [brix_upstream_tls on|off] — accept kXR_gotoTLS */
     ngx_str_t   upstream_tls_ca;   /* [brix_upstream_tls_ca /path/ca.pem] — verify upstream cert */
     ngx_str_t   upstream_tls_name; /* [brix_upstream_tls_name host] — SNI override */
+    ngx_flag_t  upstream_ssl_verify;/* [brix_upstream_tls_verify on|off] A-1: default on,
+                                     * nginx -t refuses upstream_tls without a CA unless off */
 #if (NGX_SSL)
     ngx_ssl_t  *upstream_tls_ctx;  /* SSL_CTX built at postconfiguration; NULL if tls off */
 #endif

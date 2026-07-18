@@ -300,15 +300,18 @@ stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
     brix_sd_cred_t        sdcred;
     const brix_sd_cred_t *credp = NULL;
     const char           *principal = NULL;
+    /* Function-scoped so sdcred.x509_proxy (which borrows ru.path) stays valid
+     * through the stage_engine_move below, and so the resolved secret can be
+     * cleansed after the flush consumes it (A-4/T4). */
+    brix_sd_ucred_t       ru;
+
+    ngx_memzero(&ru, sizeof(ru));
 
     if (cred != NULL && cred->principal[0] != '\0') {
         principal = cred->principal;
     }
 
     if (cred != NULL && cred->key[0] != '\0') {
-        brix_sd_ucred_t ru;
-
-        ngx_memzero(&ru, sizeof(ru));
         if (brix_sd_ucred_resolve(cred->dir, cred->key, &ru) == NGX_OK) {
             ngx_memzero(&sdcred, sizeof(sdcred));
             sdcred.x509_proxy = ru.path;
@@ -341,6 +344,9 @@ stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
 
         res = stage_engine_move(&ep, credp, &bytes, &oerr);
     }
+
+    /* The flush has consumed the per-user proxy; erase the resolved secret. */
+    brix_sd_ucred_wipe(&ru);
 
     /* One unified audit line per terminal transfer (transport-agnostic). */
     brix_xfer_finish(stage_kind_to_xfer(kind), stage_kind_dir(kind), dst_key,

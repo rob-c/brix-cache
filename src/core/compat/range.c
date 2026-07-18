@@ -43,6 +43,7 @@ brix_http_parse_range(const unsigned char *hdr_val, size_t hdr_len,
     brix_byte_range_t       range;
     brix_range_vector_opts_t opts;
     ngx_uint_t                nranges;
+    brix_range_fail_e         fail = BRIX_RANGE_FAIL_NONE;
 
     /* Defaults: full file, no range. */
     out->start       = 0;
@@ -62,10 +63,15 @@ brix_http_parse_range(const unsigned char *hdr_val, size_t hdr_len,
 
     if (brix_http_parse_range_vector(hdr_val + 6, hdr_len - 6,
                                        file_size, &opts,
-                                       &range, &nranges) != NGX_OK)
+                                       &range, &nranges, &fail) != NGX_OK)
     {
-        out->present     = 1;
-        out->satisfiable = 0;
+        /* RFC 9110 §14.2: a MALFORMED ranges-specifier is ignored (serve the
+         * full 200 body, as official Stratum-1/Apache does) — leave present=0.
+         * Only a well-formed but UNSATISFIABLE range yields a 416. */
+        if (fail == BRIX_RANGE_FAIL_UNSATISFIABLE) {
+            out->present     = 1;
+            out->satisfiable = 0;
+        }
         return;
     }
 

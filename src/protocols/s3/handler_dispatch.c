@@ -244,8 +244,9 @@ s3_dispatch_bucket_get(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                                         s3_handle_get_bucket_versioning(r));
     }
     if (s3_has_query_flag(r, "acl")) {
+        /* Bucket ACL: no per-object target — canned document (fs_path NULL). */
         return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_get_acl(r, cf));
+                                        s3_handle_get_acl(r, NULL, cf));
     }
     if (s3_has_query_flag(r, "cors")) {
         return s3_metrics_return_method(r, method_slot, s3_handle_get_cors(r));
@@ -289,7 +290,7 @@ s3_resolve_object_key(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     char *fs_path, size_t fs_path_cap)
 {
     if (s3_resolve_key(cf->common.root_canon, (const char *) key, fs_path,
-                       fs_path_cap))
+                       fs_path_cap, cf->common.cache_store_endpoint))
     {
         ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
                     sizeof(s3ctx->fs_path));

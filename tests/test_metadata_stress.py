@@ -34,13 +34,15 @@ Run:
 import os
 import socket
 import struct
-import subprocess
 import threading
 import time
 
 import pytest
 
-from settings import NGINX_BIN, HOST, BIND_HOST
+from settings import HOST, BIND_HOST, free_port
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 # ---- wire constants (XProtocol; mirror tests/test_a_robustness.py) ----
 kXR_dirlist  = 3004
@@ -55,49 +57,6 @@ SECS    = float(os.environ.get("METADATA_STRESS_SECS", "6"))
 WORKERS = int(os.environ.get("METADATA_STRESS_WORKERS", "16"))
 
 
-@pytest.fixture(autouse=True)
-def _require_binary():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-
-
-# --------------------------------------------------------------------------- #
-# Server spawn (self-contained — no fleet dependency)                          #
-# --------------------------------------------------------------------------- #
-
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-def _spawn(conf_text, tmp_path, port):
-    (tmp_path / "logs").mkdir(exist_ok=True)
-    (tmp_path / "t").mkdir(exist_ok=True)
-    cp = tmp_path / "nginx.conf"
-    cp.write_text(conf_text + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(port):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"server did not start on {port}: {err}")
-    return proc
-
-
-def _stop(proc):
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-
-
 def _seed_dir(tmp_path, nfiles=64):
     data = tmp_path / "data"
     (data / "dir").mkdir(parents=True, exist_ok=True)
@@ -107,67 +66,44 @@ def _seed_dir(tmp_path, nfiles=64):
     return data
 
 
-HEADER = (
-    "error_log {logs}/error.log error;\n"
-    "pid       {logs}/nginx.pid;\n"
-    "events {{ worker_connections 512; }}\n"
-)
+# --------------------------------------------------------------------------- #
+# Registry specs — throwaway servers driven by the LifecycleHarness            #
+# --------------------------------------------------------------------------- #
+
+def _stream_spec(data, rl_rule=""):
+    rl_zone = "brix_rate_limit_zone zone=rls:4m;" if rl_rule else ""
+    return NginxInstanceSpec(
+        name="lc-metadata-stress-stream",
+        template="nginx_lc_metadata_stress_stream.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "RL_ZONE": rl_zone, "RL_RULE": rl_rule},
+        reason="metadata-op stress against a standalone root:// fileserver")
 
 
-def _stream_conf(tmp_path, data, port, rl_rule=""):
-    extra = ""
-    if rl_rule:
-        extra = "brix_rate_limit_zone zone=rls:4m;"
-    return HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        {extra}
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_storage_backend posix:{data};
-            brix_auth none;
-            brix_allow_write on;
-            {rl_rule}
-        }}
-    }}
-    """
+def _http_spec(data, rl_rule=""):
+    rl_zone = "brix_rate_limit_zone zone=rlh:4m;" if rl_rule else ""
+    return NginxInstanceSpec(
+        name="lc-metadata-stress-http",
+        template="nginx_lc_metadata_stress_http.conf",
+        protocol="webdav",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "RL_ZONE": rl_zone, "RL_RULE": rl_rule},
+        reason="metadata-op stress against a standalone WebDAV fileserver")
 
 
-def _http_conf(tmp_path, data, port, rl_rule=""):
-    extra = "brix_rate_limit_zone zone=rlh:4m;" if rl_rule else ""
-    return HEADER.format(logs=tmp_path / "logs") + f"""
-    http {{
-        client_body_temp_path {tmp_path}/t; proxy_temp_path {tmp_path}/t;
-        fastcgi_temp_path {tmp_path}/t; uwsgi_temp_path {tmp_path}/t;
-        scgi_temp_path {tmp_path}/t; access_log off;
-        {extra}
-        server {{
-            listen {BIND_HOST}:{port};
-            location / {{
-                brix_webdav on;
-                brix_storage_backend posix:{data};
-                brix_webdav_auth none;
-                {rl_rule}
-            }}
-        }}
-    }}
-    """
-
-
-def _mesh_redirector_conf(tmp_path, port, ds_port, rl_rule=""):
-    extra = "brix_rate_limit_zone zone=rlm:4m;" if rl_rule else ""
-    return HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        {extra}
-        server {{
-            listen {BIND_HOST}:{port};
-            brix_root on;
-            brix_manager_map /dir {HOST}:{ds_port};
-            brix_manager_map / {HOST}:{ds_port};
-            {rl_rule}
-        }}
-    }}
-    """
+def _mesh_spec(rl_rule=""):
+    rl_zone = "brix_rate_limit_zone zone=rlm:4m;" if rl_rule else ""
+    # The redirector answers locate itself; the advertised target need not be
+    # live, so an unused free port stands in for the data node.
+    ds_port = free_port(HOST)
+    return NginxInstanceSpec(
+        name="lc-metadata-stress-mesh",
+        template="nginx_lc_metadata_stress_mesh.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "MGR_TARGET": f"{HOST}:{ds_port}",
+                         "RL_ZONE": rl_zone, "RL_RULE": rl_rule},
+        reason="metadata-op stress against a root:// redirector (manager_map)")
 
 
 # --------------------------------------------------------------------------- #
@@ -443,89 +379,74 @@ def _server_healthy_stream(port):
 
 class TestStandaloneMetadataStress:
 
-    def test_cheap_stat_flood_all_served(self, tmp_path):
+    def test_cheap_stat_flood_all_served(self, lifecycle, tmp_path):
         """100 req/s of kXR_stat (exempt) — the server must answer ALL of them,
         never throttle a cheap op, and stay fast + healthy."""
         data = _seed_dir(tmp_path)
-        port = 21990
-        proc = _spawn(_stream_conf(tmp_path, data, port,
-                                   rl_rule="brix_rate_limit_rule zone=rls key=ip rate=50r/s burst=50;"),
-                      tmp_path, port)
-        try:
-            res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_stat,
-                                _classify_stream, close_session=lambda s: s.close())
-            _report("standalone stat flood", res)
-            _assert_no_fallover(res, "stat flood")
-            assert res["throttled"] == 0, \
-                "kXR_stat is exempt and must NEVER be rate-limited"
-            assert _pct(res["lat"], 0.95) < 1.0, \
-                f"cheap stat p95 too slow: {_pct(res['lat'],0.95):.3f}s"
-            assert _server_healthy_stream(port), "server unhealthy after stat flood"
-        finally:
-            _stop(proc)
+        ep = lifecycle.start(_stream_spec(
+            data, rl_rule="brix_rate_limit_rule zone=rls key=ip rate=50r/s burst=50;"))
+        port = ep.port
+        res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_stat,
+                            _classify_stream, close_session=lambda s: s.close())
+        _report("standalone stat flood", res)
+        _assert_no_fallover(res, "stat flood")
+        assert res["throttled"] == 0, \
+            "kXR_stat is exempt and must NEVER be rate-limited"
+        assert _pct(res["lat"], 0.95) < 1.0, \
+            f"cheap stat p95 too slow: {_pct(res['lat'],0.95):.3f}s"
+        assert _server_healthy_stream(port), "server unhealthy after stat flood"
 
-    def test_expensive_dirlist_flood_rate_limited_cleanly(self, tmp_path):
+    def test_expensive_dirlist_flood_rate_limited_cleanly(self, lifecycle, tmp_path):
         """100 req/s of kXR_dirlist (expensive, rate-limited to 30r/s) — the
         server must shed the excess with kXR_wait, never erroring or crashing,
         and cheap stat must STILL be answered during the flood."""
         data = _seed_dir(tmp_path)
-        port = 21991
-        proc = _spawn(_stream_conf(tmp_path, data, port,
-                                   rl_rule="brix_rate_limit_rule zone=rls key=ip rate=30r/s burst=30;"),
-                      tmp_path, port)
-        try:
-            res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_dirlist,
-                                _classify_stream, close_session=lambda s: s.close())
-            _report("standalone dirlist+RL", res)
-            _assert_no_fallover(res, "dirlist+RL")
-            assert res["throttled"] > 0, \
-                "dirlist at 100/s under a 30r/s limit should shed via kXR_wait"
-            # Cheap metadata stays available even while expensive ops are shed.
-            assert _server_healthy_stream(port), \
-                "stat unavailable / server unhealthy during dirlist flood"
-        finally:
-            _stop(proc)
+        ep = lifecycle.start(_stream_spec(
+            data, rl_rule="brix_rate_limit_rule zone=rls key=ip rate=30r/s burst=30;"))
+        port = ep.port
+        res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_dirlist,
+                            _classify_stream, close_session=lambda s: s.close())
+        _report("standalone dirlist+RL", res)
+        _assert_no_fallover(res, "dirlist+RL")
+        assert res["throttled"] > 0, \
+            "dirlist at 100/s under a 30r/s limit should shed via kXR_wait"
+        # Cheap metadata stays available even while expensive ops are shed.
+        assert _server_healthy_stream(port), \
+            "stat unavailable / server unhealthy during dirlist flood"
 
-    def test_dirlist_flood_no_limit_does_not_fall_over(self, tmp_path):
+    def test_dirlist_flood_no_limit_does_not_fall_over(self, lifecycle, tmp_path):
         """100 req/s of kXR_dirlist with NO rate limit — the server must absorb
         it (serve) without erroring, hanging, or crashing."""
         data = _seed_dir(tmp_path)
-        port = 21992
-        proc = _spawn(_stream_conf(tmp_path, data, port), tmp_path, port)
-        try:
-            res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_dirlist,
-                                _classify_stream, close_session=lambda s: s.close())
-            _report("standalone dirlist no-RL", res)
-            _assert_no_fallover(res, "dirlist no-RL")
-            assert res["served"] > 0
-            assert _server_healthy_stream(port), "server unhealthy after dirlist flood"
-        finally:
-            _stop(proc)
+        ep = lifecycle.start(_stream_spec(data))
+        port = ep.port
+        res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_dirlist,
+                            _classify_stream, close_session=lambda s: s.close())
+        _report("standalone dirlist no-RL", res)
+        _assert_no_fallover(res, "dirlist no-RL")
+        assert res["served"] > 0
+        assert _server_healthy_stream(port), "server unhealthy after dirlist flood"
 
-    def test_http_propfind_flood_rate_limited_cleanly(self, tmp_path):
+    def test_http_propfind_flood_rate_limited_cleanly(self, lifecycle, tmp_path):
         """100 req/s of WebDAV PROPFIND under a 30r/s per-IP limit — excess must
         return a clean 429, never a 5xx or dropped connection, server healthy."""
         data = _seed_dir(tmp_path)
-        port = 21993
-        proc = _spawn(_http_conf(tmp_path, data, port,
-                                 rl_rule="brix_rate_limit_rule zone=rlh key=ip rate=30r/s burst=30;"),
-                      tmp_path, port)
-        try:
-            res = _paced_hammer(lambda: None,
-                                lambda _s: _http_propfind(port, "/dir"),
-                                _classify_http)
-            _report("standalone PROPFIND+RL", res)
-            _assert_no_fallover(res, "PROPFIND+RL")
-            assert res["throttled"] > 0, \
-                "PROPFIND at 100/s under a 30r/s limit should return 429"
-            # The server must still be RESPONSIVE after the flood — but with the
-            # (now correctly-draining) bucket still full immediately afterwards a
-            # 429 is the right answer, not a failure.  207/200 (drained) or 429
-            # (still full) all prove it is answering, not wedged.
-            assert _http_propfind(port, "/test.txt") in (200, 207, 429), \
-                "server not responding to PROPFIND after the flood"
-        finally:
-            _stop(proc)
+        ep = lifecycle.start(_http_spec(
+            data, rl_rule="brix_rate_limit_rule zone=rlh key=ip rate=30r/s burst=30;"))
+        port = ep.port
+        res = _paced_hammer(lambda: None,
+                            lambda _s: _http_propfind(port, "/dir"),
+                            _classify_http)
+        _report("standalone PROPFIND+RL", res)
+        _assert_no_fallover(res, "PROPFIND+RL")
+        assert res["throttled"] > 0, \
+            "PROPFIND at 100/s under a 30r/s limit should return 429"
+        # The server must still be RESPONSIVE after the flood — but with the
+        # (now correctly-draining) bucket still full immediately afterwards a
+        # 429 is the right answer, not a failure.  207/200 (drained) or 429
+        # (still full) all prove it is answering, not wedged.
+        assert _http_propfind(port, "/test.txt") in (200, 207, 429), \
+            "server not responding to PROPFIND after the flood"
 
 
 # =========================================================================== #
@@ -534,52 +455,41 @@ class TestStandaloneMetadataStress:
 
 class TestMeshMetadataStress:
 
-    def test_redirector_locate_flood_rate_limited_cleanly(self, tmp_path):
+    def test_redirector_locate_flood_rate_limited_cleanly(self, lifecycle):
         """100 req/s of kXR_locate at a redirector (manager_map) under a 40r/s
         limit — each request must resolve to a clean kXR_redirect or be shed via
         kXR_wait; the redirector must never error/crash under the metadata
         storm.  No data node is required: the redirector answers locate itself."""
-        port = 21994
-        ds_port = 21995          # advertised redirect target (need not be live)
-        proc = _spawn(_mesh_redirector_conf(
-            tmp_path, port, ds_port,
-            rl_rule="brix_rate_limit_rule zone=rlm key=ip rate=40r/s burst=40;"),
-            tmp_path, port)
+        ep = lifecycle.start(_mesh_spec(
+            rl_rule="brix_rate_limit_rule zone=rlm key=ip rate=40r/s burst=40;"))
+        port = ep.port
+        res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_locate,
+                            _classify_stream, close_session=lambda s: s.close())
+        _report("mesh redirector locate+RL", res)
+        _assert_no_fallover(res, "redirector locate+RL")
+        # The redirector either redirects (served) or sheds (kXR_wait).
+        assert res["served"] + res["throttled"] == \
+            res["dispatched"] - res["errored"]
+        # Redirector still answers a locate after the storm.
         try:
-            res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_locate,
-                                _classify_stream, close_session=lambda s: s.close())
-            _report("mesh redirector locate+RL", res)
-            _assert_no_fallover(res, "redirector locate+RL")
-            # The redirector either redirects (served) or sheds (kXR_wait).
-            assert res["served"] + res["throttled"] == \
-                res["dispatched"] - res["errored"]
-            # Redirector still answers a locate after the storm.
-            try:
-                s = _xrd_login(HOST, port, timeout=4)
-                st = _op_locate(s, "/dir/f0.txt")
-                s.close()
-            except OSError:
-                st = None
-            assert st in (kXR_redirect, kXR_ok, kXR_wait), \
-                f"redirector unhealthy after locate flood (status={st})"
-        finally:
-            _stop(proc)
+            s = _xrd_login(HOST, port, timeout=4)
+            st = _op_locate(s, "/dir/f0.txt")
+            s.close()
+        except OSError:
+            st = None
+        assert st in (kXR_redirect, kXR_ok, kXR_wait), \
+            f"redirector unhealthy after locate flood (status={st})"
 
-    def test_redirector_locate_flood_no_limit_does_not_fall_over(self, tmp_path):
+    def test_redirector_locate_flood_no_limit_does_not_fall_over(self, lifecycle):
         """100 req/s of kXR_locate with NO limit — the redirector must keep
         redirecting without erroring/hanging/crashing."""
-        port = 21996
-        ds_port = 21997
-        proc = _spawn(_mesh_redirector_conf(tmp_path, port, ds_port),
-                      tmp_path, port)
-        try:
-            res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_locate,
-                                _classify_stream, close_session=lambda s: s.close())
-            _report("mesh redirector locate no-RL", res)
-            _assert_no_fallover(res, "redirector locate no-RL")
-            assert res["served"] > 0, "redirector served no locate requests"
-        finally:
-            _stop(proc)
+        ep = lifecycle.start(_mesh_spec())
+        port = ep.port
+        res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_locate,
+                            _classify_stream, close_session=lambda s: s.close())
+        _report("mesh redirector locate no-RL", res)
+        _assert_no_fallover(res, "redirector locate no-RL")
+        assert res["served"] > 0, "redirector served no locate requests"
 
 
 # =========================================================================== #
@@ -616,53 +526,39 @@ class TestRateLimitThroughput:
             f"{label}: limiter delivered only {served_rate:.0f} req/s (<{self.TARGET})"
         return served_rate, offered_rate
 
-    def test_mesh_locate_sustains_over_500rps(self, tmp_path):
+    def test_mesh_locate_sustains_over_500rps(self, lifecycle):
         """kXR_locate at a redirector (cheapest limited op — map lookup, no FS)
         under a 1000 r/s limit, offered ~2000/s: served must exceed 500 r/s."""
-        port = 21994
-        ds_port = 21995
-        proc = _spawn(_mesh_redirector_conf(
-            tmp_path, port, ds_port,
-            rl_rule=f"brix_rate_limit_rule zone=rlm key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
-            tmp_path, port)
-        try:
-            res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_locate,
-                                _classify_stream, close_session=lambda s: s.close(),
-                                rate=self.OFFERED, secs=self.SECS, workers=self.NWORKERS)
-            self._assert_throughput(f"mesh locate {self.LIMIT}r/s limit", res)
-            assert _server_healthy_stream(port) or True  # redirector has no stat root
-        finally:
-            _stop(proc)
+        ep = lifecycle.start(_mesh_spec(
+            rl_rule=f"brix_rate_limit_rule zone=rlm key=ip rate={self.LIMIT}r/s burst={self.BURST};"))
+        port = ep.port
+        res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_locate,
+                            _classify_stream, close_session=lambda s: s.close(),
+                            rate=self.OFFERED, secs=self.SECS, workers=self.NWORKERS)
+        self._assert_throughput(f"mesh locate {self.LIMIT}r/s limit", res)
+        assert _server_healthy_stream(port) or True  # redirector has no stat root
 
-    def test_stream_dirlist_sustains_over_500rps(self, tmp_path):
+    def test_stream_dirlist_sustains_over_500rps(self, lifecycle, tmp_path):
         """kXR_dirlist on a small dir under a 1000 r/s limit, offered ~2000/s."""
         data = _seed_dir(tmp_path, nfiles=8)     # small dir → cheap dirlist
-        port = 21998
-        proc = _spawn(_stream_conf(tmp_path, data, port,
-            rl_rule=f"brix_rate_limit_rule zone=rls key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
-            tmp_path, port)
-        try:
-            res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_dirlist,
-                                _classify_stream, close_session=lambda s: s.close(),
-                                rate=self.OFFERED, secs=self.SECS, workers=self.NWORKERS)
-            self._assert_throughput(f"stream dirlist {self.LIMIT}r/s limit", res)
-            assert _server_healthy_stream(port), "server unhealthy after throughput run"
-        finally:
-            _stop(proc)
+        ep = lifecycle.start(_stream_spec(
+            data, rl_rule=f"brix_rate_limit_rule zone=rls key=ip rate={self.LIMIT}r/s burst={self.BURST};"))
+        port = ep.port
+        res = _paced_hammer(lambda: _xrd_login(HOST, port), _op_dirlist,
+                            _classify_stream, close_session=lambda s: s.close(),
+                            rate=self.OFFERED, secs=self.SECS, workers=self.NWORKERS)
+        self._assert_throughput(f"stream dirlist {self.LIMIT}r/s limit", res)
+        assert _server_healthy_stream(port), "server unhealthy after throughput run"
 
-    def test_http_propfind_sustains_over_500rps(self, tmp_path):
+    def test_http_propfind_sustains_over_500rps(self, lifecycle, tmp_path):
         """WebDAV PROPFIND under a 1000 r/s limit, offered ~2000/s."""
         data = _seed_dir(tmp_path, nfiles=8)
-        port = 21999
-        proc = _spawn(_http_conf(tmp_path, data, port,
-            rl_rule=f"brix_rate_limit_rule zone=rlh key=ip rate={self.LIMIT}r/s burst={self.BURST};"),
-            tmp_path, port)
-        try:
-            res = _paced_hammer(lambda: _http_session(port),
-                                lambda s: _op_propfind_ka(s, "/dir"),
-                                _classify_http, close_session=lambda s: s.close(),
-                                rate=self.OFFERED, secs=self.SECS,
-                                workers=self.NWORKERS)
-            self._assert_throughput(f"http PROPFIND {self.LIMIT}r/s limit", res)
-        finally:
-            _stop(proc)
+        ep = lifecycle.start(_http_spec(
+            data, rl_rule=f"brix_rate_limit_rule zone=rlh key=ip rate={self.LIMIT}r/s burst={self.BURST};"))
+        port = ep.port
+        res = _paced_hammer(lambda: _http_session(port),
+                            lambda s: _op_propfind_ka(s, "/dir"),
+                            _classify_http, close_session=lambda s: s.close(),
+                            rate=self.OFFERED, secs=self.SECS,
+                            workers=self.NWORKERS)
+        self._assert_throughput(f"http PROPFIND {self.LIMIT}r/s limit", res)

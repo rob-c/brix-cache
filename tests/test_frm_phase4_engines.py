@@ -18,7 +18,6 @@ Self-contained; skips cleanly without nginx / xrdcp / xattrs / requests.
 
 import os
 import shutil
-import socket
 import subprocess
 import time
 import zlib
@@ -27,7 +26,11 @@ import urllib.request
 
 import pytest
 
-from settings import NGINX_BIN, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from server_registry import NginxInstanceSpec
+from server_launcher import RegistryCommandFailure
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 XRDCP = shutil.which("xrdcp")
 
@@ -40,42 +43,30 @@ def _xattr_ok(tmp):
         return False
 
 
-def _wait_port(port, t=10):
-    end = time.time() + t
-    while time.time() < end:
-        try:
-            socket.create_connection((HOST, port), timeout=0.5).close(); return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-def _start(d, conf, env=None):
-    cp = d / "nginx.conf"; cp.write_text(conf)
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
-    return subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            env=env or dict(os.environ))
+def _start_or_skip(lifecycle, spec):
+    """Start via the lifecycle harness, skipping (not erroring) when nginx
+    rejects the config — the legacy brix_frm* directive surface was disabled
+    2026-06-30, so a build without it must skip exactly as the old nginx -t
+    guard did."""
+    try:
+        return lifecycle.start(spec)
+    except RegistryCommandFailure as exc:
+        pytest.skip("nginx rejected config: %s" % str(exc)[-300:])
 
 
 # --------------------------------------------------------------------------- F3
-@pytest.fixture(scope="module")
-def f3(tmp_path_factory):
+@pytest.fixture
+def f3(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx not built")
     if XRDCP is None:
         pytest.skip("xrdcp not available")
-    d = tmp_path_factory.mktemp("frmf3")
+    d = tmp_path / "frmf3"; d.mkdir()
     if not _xattr_ok(str(d)):
         pytest.skip("no user xattrs")
-    (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
     tape = d / "tape"; tape.mkdir()
     audit = d / "audit.log"
-    port = 11257
 
     copycmd = str(d / "copy.py")
     shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
@@ -91,37 +82,28 @@ def f3(tmp_path_factory):
     (data / "f.dat").write_bytes(disk_bytes)
     os.setxattr(str(data / "f.dat"), "user.frm.residency", b"nearline")
 
-    conf = f"""
-worker_processes 1;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-env FRM_DATA_DIR; env FRM_TAPE_DIR; env FRM_LATENCY_MS; env FRM_AUDIT_LOG;
-events {{ worker_connections 64; }}
-stream {{
-  server {{
-    listen {BIND_HOST}:{port};
-    brix_root on; brix_storage_backend posix:{data}; brix_auth none;
-    brix_frm on; brix_frm_queue_path {d}/frm.queue;
-    brix_frm_copycmd {copycmd};
-    brix_frm_residency_cmd {oracle};
-    brix_frm_stage_wait 1;
-  }}
-}}
-daemon off; master_process off;
-"""
-    env = dict(os.environ, FRM_DATA_DIR=os.path.realpath(str(data)),
-               FRM_TAPE_DIR=str(tape), FRM_LATENCY_MS="100",
-               FRM_AUDIT_LOG=str(audit))
-    proc = _start(d, conf, env)
-    if not _wait_port(port):
-        proc.terminate(); pytest.skip("f3 server did not start")
+    endpoint = _start_or_skip(lifecycle, NginxInstanceSpec(
+        name="lc-frm-p4eng-f3",
+        template="nginx_lc_frm_phase4_engines_f3.conf",
+        protocol="root",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "DATA_DIR": str(data),
+            "QUEUE_PATH": str(d / "frm.queue"),
+            "COPY_CMD": copycmd,
+            "ORACLE_CMD": str(oracle),
+        },
+        env={
+            "FRM_DATA_DIR": os.path.realpath(str(data)),
+            "FRM_TAPE_DIR": str(tape),
+            "FRM_LATENCY_MS": "100",
+            "FRM_AUDIT_LOG": str(audit),
+        },
+        reason="Phase 4 F3 residency-oracle stage-agent engine"))
 
     class S: pass
-    s = S(); s.port = port; s.audit = str(audit); s.disk_bytes = disk_bytes
+    s = S(); s.port = endpoint.port; s.audit = str(audit); s.disk_bytes = disk_bytes
     yield s
-    proc.terminate()
-    try: proc.wait(timeout=5)
-    except subprocess.TimeoutExpired: proc.kill()
 
 
 def test_f3_oracle_online_skips_copy(f3, tmp_path):
@@ -140,17 +122,16 @@ def test_f3_oracle_online_skips_copy(f3, tmp_path):
 
 
 # --------------------------------------------------------------------------- F5
-@pytest.fixture(scope="module")
-def f5(tmp_path_factory):
+@pytest.fixture
+def f5(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx not built")
-    d = tmp_path_factory.mktemp("frmf5")
+    d = tmp_path / "frmf5"; d.mkdir()
     if not _xattr_ok(str(d)):
         pytest.skip("no user xattrs")
-    (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
     tape = d / "tape"; tape.mkdir()
-    port = 11258; mport = 11259
+    mport = free_port(HOST)
 
     copycmd = str(d / "copy.py")
     shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
@@ -163,46 +144,28 @@ def f5(tmp_path_factory):
         (data / name).write_bytes(b"")
         os.setxattr(str(data / name), "user.frm.residency", b"nearline")
 
-    conf = f"""
-worker_processes 1;
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-env FRM_DATA_DIR; env FRM_TAPE_DIR; env FRM_LATENCY_MS; env FRM_AUDIT_LOG;
-events {{ worker_connections 64; }}
-stream {{
-  server {{
-    listen {BIND_HOST}:{port};
-    brix_root on; brix_storage_backend posix:{data}; brix_auth none;
-    brix_frm on; brix_frm_queue_path {d}/frm.queue;
-    brix_frm_copycmd {copycmd};
-  }}
-}}
-http {{
-  access_log off;
-  server {{
-    listen {BIND_HOST}:{mport};
-    location = /metrics {{ brix_metrics on; }}
-    location / {{
-      brix_webdav on; brix_storage_backend posix:{data}; brix_webdav_auth none;
-      brix_allow_write on; brix_webdav_tape_rest on;
-    }}
-  }}
-}}
-daemon off; master_process off;
-"""
-    env = dict(os.environ, FRM_DATA_DIR=os.path.realpath(str(data)),
-               FRM_TAPE_DIR=str(tape), FRM_LATENCY_MS="100",
-               FRM_AUDIT_LOG=str(d / "audit.log"))
-    proc = _start(d, conf, env)
-    if not _wait_port(mport):
-        proc.terminate(); pytest.skip("f5 server did not start")
+    endpoint = _start_or_skip(lifecycle, NginxInstanceSpec(
+        name="lc-frm-p4eng-f5",
+        template="nginx_lc_frm_phase4_engines_f5.conf",
+        protocol="root",
+        extra_ports={"METRICS_PORT": mport},
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "DATA_DIR": str(data),
+            "QUEUE_PATH": str(d / "frm.queue"),
+            "COPY_CMD": copycmd,
+        },
+        env={
+            "FRM_DATA_DIR": os.path.realpath(str(data)),
+            "FRM_TAPE_DIR": str(tape),
+            "FRM_LATENCY_MS": "100",
+            "FRM_AUDIT_LOG": str(d / "audit.log"),
+        },
+        reason="Phase 4 F5 checksum-on-stage recall engine"))
 
     class S: pass
-    s = S(); s.port = port; s.mport = mport; s.adler = adler
+    s = S(); s.port = endpoint.port; s.mport = mport; s.adler = adler
     yield s
-    proc.terminate()
-    try: proc.wait(timeout=5)
-    except subprocess.TimeoutExpired: proc.kill()
 
 
 def _tape_stage(mport, path, checksum):
@@ -245,12 +208,35 @@ def _poll_state(mport, rid, want, t=20):
     return last
 
 
+# F5 checksum-on-stage verify — deferred by the src/frm dissolution.
+#
+# Both cases below drive the Tape REST /stage front door and then poll for the
+# stage-agent to DRAIN the durable request to COMPLETED/FAILED and to increment
+# brix_frm_stage_fail_total{reason="verify"}.  That draining stage agent (the
+# legacy FRM queue/scheduler worker-init) is retired — see
+# src/core/config/process_server_init.c: "The legacy FRM queue/scheduler/purge
+# worker-init is retired — the recall is driven by the [backend] on read".  On the
+# live surface a POST /stage is durably RECORDED (state SUBMITTED) but nothing
+# advances or checksum-verifies it, so there is no live behaviour these two cases
+# can assert.  The request-acceptance half is covered by tests/test_tape_rest.py
+# (which asserts state in {SUBMITTED, STARTED, COMPLETED}); checksum verify-on-stage
+# reappears with the stage-engine RECALL integration flagged in
+# src/protocols/root/query/prepare.c.  Skipped (not deleted) so both re-arm when
+# that integration lands.
+_F5_DEFERRED = ("checksum verify-on-stage requires the retired FRM stage-agent "
+                "drain; the live registry records a stage request (SUBMITTED) but "
+                "does not drain/verify it — see process_server_init.c and "
+                "prepare.c. Re-arms with the stage-engine RECALL integration.")
+
+
+@pytest.mark.skip(reason=_F5_DEFERRED)
 def test_f5_correct_checksum_completes(f5):
     rid = _tape_stage(f5.mport, "/good.dat", f5.adler)
     st = _poll_state(f5.mport, rid, {"COMPLETED", "FAILED"})
     assert st == "COMPLETED", "correct checksum should complete, got %r" % st
 
 
+@pytest.mark.skip(reason=_F5_DEFERRED)
 def test_f5_wrong_checksum_fails_verify(f5):
     before = _metric(f5.mport, "brix_frm_stage_fail_total", 'reason="verify"')
     rid = _tape_stage(f5.mport, "/bad.dat", "deadbeef")

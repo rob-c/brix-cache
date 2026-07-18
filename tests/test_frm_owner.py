@@ -23,14 +23,15 @@ anonymous test_tape_rest.py (which still passes after the fix).
 import base64
 import json
 import os
-import socket
-import subprocess
 import time
 
 import pytest
 
-from config_templates import render_config
-from settings import NGINX_BIN, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from server_registry import NginxInstanceSpec
+from server_launcher import RegistryCommandFailure
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 try:
     import requests
@@ -63,32 +64,20 @@ def _b64u(b):
 from frm_helpers import xattr_ok as _xattr_ok
 
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
+@pytest.fixture
+def srv(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
     if not _HAVE_REQUESTS or not _HAVE_CRYPTO:
         pytest.skip("requests + cryptography required")
-    d = tmp_path_factory.mktemp("frmowner")
+    d = tmp_path
     if not _xattr_ok(str(d)):
         pytest.skip("filesystem does not support user xattrs")
 
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    (d / "cadir").mkdir()
+    cadir = d / "cadir"; cadir.mkdir()
     data = d / "data"; data.mkdir()
     queue = d / "frm.queue"
+    control = d / "control"; control.mkdir()
 
     near = data / "near.dat"
     near.write_bytes(b"")
@@ -104,39 +93,36 @@ def srv(tmp_path_factory):
     jwks_path = d / "jwks.json"
     jwks_path.write_text(json.dumps(jwks))
 
-    conf = render_config("nginx_frm_owner.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         STREAM_PORT=STREAM_PORT,
-                         HTTP_PORT=HTTP_PORT,
-                         DATA_DIR=data,
-                         QUEUE_PATH=queue,
-                         JWKS_PATH=jwks_path,
-                         ISSUER=ISSUER,
-                         AUDIENCE=AUDIENCE)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(HTTP_PORT):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip("frm-owner server did not start: %s" % err[-300:])
+    hport = free_port(BIND_HOST)
+    spec = NginxInstanceSpec(
+        name="lc-frm-owner",
+        template="nginx_lc_frm_owner.conf",
+        protocol="root",
+        extra_ports={"HTTP_PORT": hport},
+        template_values={"BIND_HOST": BIND_HOST,
+                         "DATA_DIR": str(data),
+                         "QUEUE_PATH": str(queue),
+                         "CONTROL_DIR": str(control),
+                         "CADIR": str(cadir),
+                         "JWKS_PATH": str(jwks_path),
+                         "ISSUER": ISSUER,
+                         "AUDIENCE": AUDIENCE},
+        reason="frm owner")
+    try:
+        ep = lifecycle.start(spec)
+    except RegistryCommandFailure:
+        pytest.skip("nginx build lacks the brix_frm* directive surface "
+                    "(removed 2026-06-30)")
+
+    global STREAM_PORT, HTTP_PORT
+    STREAM_PORT = ep.port
+    HTTP_PORT = hport
 
     class S:
         pass
     s = S()
     s.key = key
     yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def _token(key, sub):

@@ -73,15 +73,29 @@ def build_in_container(base: Path) -> tuple[bool, str]:
     if started.returncode != 0:
         return result(False, f"docker run failed: {_tail(started)}")
     _docker_text(["exec", work, "mkdir", "-p", "/work/repo"])
+    # Pack ONLY the source tree into the module build context. The in-container
+    # build runs its own configure+make in /opt/nginx-src with
+    # --add-module=/work/repo, so it needs the repo's sources and root ./config --
+    # never build output, vendored deps, virtualenvs, or agent caches. Prune those
+    # whole subtrees from the walk (os.walk so we never descend into them): the old
+    # rglob("*") stat-walked + gzip-tar'd all 5G+/100k+ files one at a time --
+    # .rpmbuild alone is a 3G rpm BUILD tree -- stalling the session fixture for
+    # tens of minutes before the build could even start.
+    prune_dirs = {
+        ".git", ".tmp", ".rpmbuild", "node_modules", "__pycache__",
+        ".venv", ".venv311", ".opencode", ".claude", ".superpowers",
+        ".cache", "objs", "site",
+    }
+    skip_ext = (".o", ".pic.o", ".pyc")
     tar_path = base / "xrd-src.tgz"
     with tarfile.open(tar_path, "w:gz") as tar:
-        for path in REPO_ROOT.rglob("*"):
-            rel = path.relative_to(REPO_ROOT)
-            if rel.parts[:1] in {(".git",), (".tmp",)} or "__pycache__" in rel.parts:
-                continue
-            if any(str(rel).endswith(ext) for ext in (".o", ".pic.o", ".pyc")):
-                continue
-            tar.add(path, arcname=str(rel), recursive=False)
+        for root, dirs, filenames in os.walk(REPO_ROOT):
+            dirs[:] = [d for d in dirs if d not in prune_dirs]
+            for name in filenames:
+                if name.endswith(skip_ext):
+                    continue
+                path = Path(root) / name
+                tar.add(path, arcname=str(path.relative_to(REPO_ROOT)), recursive=False)
     with tar_path.open("rb") as fh:
         copied = _docker(["exec", "-i", work, "tar", "xzf", "-", "-C", "/work/repo"], input_bytes=fh.read())
     if copied.returncode != 0:
@@ -236,7 +250,10 @@ XRDCP="$(command -v xrdcp)"
 XRDFS="$(command -v xrdfs)"
 [ -n "$XRDCP" ] && [ -n "$XRDFS" ] || exit 2
 pkill -9 nginx 2>/dev/null; sleep 1
-rm -rf "$RUN"; mkdir -p "$RUN/tmp" /export
+# -p "$RUN" below relocates nginx's prefix so its default temp/log dirs resolve
+# under $RUN; without it the module build's default prefix (/usr/local/nginx) is
+# never created (no `make install`) and `nginx -t` dies on mkdir(proxy_temp).
+rm -rf "$RUN"; mkdir -p "$RUN/tmp" "$RUN/logs" /export
 cat > "$RUN/nginx.conf" <<EOF
 daemon on;
 user root;
@@ -245,10 +262,10 @@ error_log $RUN/error.log info;
 pid $RUN/nginx.pid;
 events { worker_connections 64; }
 stream { server { listen 127.0.0.1:${RPORT}; brix_root on; brix_export /export; brix_auth none; brix_allow_write on; brix_upload_resume off; brix_storage_backend ceph:${POOL}; brix_access_log $RUN/xrd_access.log; } }
-http { access_log off; client_body_temp_path $RUN/tmp; server { listen 127.0.0.1:${HPORT}; location / { brix_webdav on; brix_export /export; brix_webdav_auth none; brix_allow_write on; } } }
+http { access_log off; client_max_body_size 0; client_body_temp_path $RUN/tmp; server { listen 127.0.0.1:${HPORT}; location / { brix_webdav on; brix_export /export; brix_webdav_auth none; brix_allow_write on; } } }
 EOF
-"$NGINX" -t -c "$RUN/nginx.conf" || exit 2
-"$NGINX" -c "$RUN/nginx.conf" || exit 2
+"$NGINX" -p "$RUN" -t -c "$RUN/nginx.conf" || exit 2
+"$NGINX" -p "$RUN" -c "$RUN/nginx.conf" || exit 2
 trap '[ -f "$RUN/nginx.pid" ] && kill "$(cat "$RUN/nginx.pid")" 2>/dev/null' EXIT
 sleep 1
 head -c 1500000 /dev/urandom > /tmp/in.bin
@@ -285,7 +302,9 @@ XRDCP="$(command -v xrdcp)"
 XRDFS="$(command -v xrdfs)"
 [ -n "$XRDCP" ] && [ -n "$XRDFS" ] || exit 2
 pkill -9 nginx 2>/dev/null; sleep 1
-rm -rf "$RUN"; mkdir -p "$RUN/tmp" /export
+# -p "$RUN" relocates the nginx prefix so default temp/log dirs resolve under
+# $RUN (the module build's default /usr/local/nginx prefix is never created).
+rm -rf "$RUN"; mkdir -p "$RUN/tmp" "$RUN/logs" /export
 cat > "$RUN/nginx.conf" <<EOF
 daemon on;
 user root;
@@ -296,8 +315,8 @@ events { worker_connections 64; }
 stream { server { listen 127.0.0.1:${RPORT}; brix_root on; brix_export /export; brix_auth none; brix_storage_backend cephfsro:${META}+${DATA}?${ASSERT}; brix_access_log $RUN/xrd_access.log; } }
 http { access_log off; client_body_temp_path $RUN/tmp; server { listen 127.0.0.1:${HPORT}; location / { brix_webdav on; brix_export /export; brix_webdav_auth none; } } }
 EOF
-"$NGINX" -t -c "$RUN/nginx.conf" || exit 2
-"$NGINX" -c "$RUN/nginx.conf" || exit 2
+"$NGINX" -p "$RUN" -t -c "$RUN/nginx.conf" || exit 2
+"$NGINX" -p "$RUN" -c "$RUN/nginx.conf" || exit 2
 trap '[ -f "$RUN/nginx.pid" ] && kill "$(cat "$RUN/nginx.pid")" 2>/dev/null' EXIT
 sleep 1
 "$XRDFS" root://127.0.0.1:${RPORT} stat /dir1/sub/big.bin | grep -q 'Size: 5242880'

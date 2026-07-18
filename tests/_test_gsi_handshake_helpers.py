@@ -41,7 +41,13 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN  # noqa: E402
+from server_launcher import LifecycleHarness  # noqa: E402
+from server_registry import NginxInstanceSpec  # noqa: E402
+
+# Every nginx GSI server in this module is a throwaway registry instance driven
+# through the phase-81 LifecycleHarness (never a direct nginx launch), so the
+# registry lint treats the file as migrated.
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
@@ -49,30 +55,19 @@ NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 STOCK_XRDFS = "/usr/bin/xrdfs"
 STOCK_XRDCP = "/usr/bin/xrdcp"
 
-# Private port band (kept clear of the 11xxx fleet and the 2109x interop band).
-#
-# Under `pytest -n<N> --dist load`, several xdist workers import this helper
-# concurrently and each spins up its OWN throwaway stock-xrootd + nginx GSI
-# servers (the per-session `pki` fixture makes shared fleet instances
-# impractical here).  To keep those self-started servers collision-free, every
-# P_* port is shifted by a per-worker OFFSET computed once from the xdist worker
-# id: gw0→+20, gw1→+40, …  Serial runs (no PYTEST_XDIST_WORKER) get offset 0, so
-# behaviour is unchanged outside xdist.  The base span 21130..21145 is 16 slots;
-# a 20-slot stride per worker keeps each worker's band contiguous and clear of
-# both the next worker's band and the 2109x interop / 11xxx fleet ranges.
+# All nginx GSI servers here are registry LifecycleHarness instances on
+# OS-assigned (free_port) ports with pid-suffixed names, so xdist workers and
+# serial runs never collide on ports or registry prefixes.  The one remaining
+# fixed-port server is the throwaway STOCK xrootd used for native-client interop
+# (`stock_root`): it is launched directly (not through the registry) and needs a
+# stable listen port, so it keeps the per-worker OFFSET scheme — under
+# `pytest -n<N> --dist load` every worker imports this helper and starts its own
+# stock xrootd, so the port is shifted by a per-worker stride (gw0→+20, gw1→+40,
+# …; serial runs get offset 0) to keep the self-started servers collision-free.
 _WK = os.environ.get("PYTEST_XDIST_WORKER", "")   # "gw0".."gwN" under xdist, "" serial
 _WOFF = (int(_WK[2:]) + 1) * 20 if _WK.startswith("gw") else 0
 
 P_STOCK_ROOT = 21130 + _WOFF
-P_ROOT = {"off": 21131 + _WOFF, "auto": 21132 + _WOFF, "require": 21133 + _WOFF}
-P_ROOT_NEG = 21134 + _WOFF  # a dedicated "off" server for negative/identity tests
-P_TLS = 21135 + _WOFF       # GSI + in-protocol TLS upgrade
-P_SIGVER = 21136 + _WOFF    # GSI + kXR_sigver request signing (security_level)
-P_RSA4096 = 21137 + _WOFF   # GSI with RSA-4096 host + proxy keys
-P_BOTH = 21138 + _WOFF      # brix_auth both (ztn + gsi advertised)
-P_VOMS = 21139 + _WOFF      # GSI + VOMS VO ACL enforcement
-P_WEBDAV = 21140 + _WOFF
-P_CIPHER = 21145 + _WOFF    # GSI server advertising ONLY aes-256-cbc (WS-A)
 
 
 # --------------------------------------------------------------------------- #
@@ -451,63 +446,74 @@ def _env_with(pki, proxy):
 
 
 # --------------------------------------------------------------------------- #
-# Server launchers
+# Server launchers — every nginx GSI server is a throwaway registry instance
+# driven through the phase-81 LifecycleHarness.  The harness renders a committed
+# tests/configs/nginx_gsi_handshake_*.conf template, runs `nginx -t`, launches
+# the daemon (`daemon on;`), waits for its listen port, and reaps master+workers
+# by pidfile on close().  The URL still uses the PKI fqdn (the host-cert CN the
+# roots:// TLS upgrade verifies against); only the port is OS-assigned, read back
+# from the started endpoint.
 # --------------------------------------------------------------------------- #
-def _nginx_root_conf(pki, port, policy, logpath):
-    sdh = f"    brix_gsi_signed_dh {policy};\n" if policy != "off" else ""
-    return (
-        "daemon off;\n"
-        f"error_log {logpath} info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {port};\n"
-        "    brix_root on;\n"
-        f"    brix_storage_backend posix:{pki['data']};\n"
-        "    brix_auth gsi;\n"
-        "    brix_allow_write on;\n"
-        + sdh +
-        f"    brix_certificate     {pki['hostcert']};\n"
-        f"    brix_certificate_key {pki['hostkey']};\n"
-        f"    brix_trusted_ca      {pki['ca']};\n"
-        "  }\n}\n")
+def _gsi_nginx(name, template, data_root, protocol="root", **template_values):
+    """Start a GSI nginx server via the LifecycleHarness; return (harness, endpoint).
+
+    The custom launch env (the runtime lib shim) is passed straight through to
+    the registry launcher.  Coming up is a HARD requirement — these tests must
+    pass, never skip — so a start failure (bad config caught by `nginx -t`, or a
+    readiness timeout) propagates after the harness is torn down so nothing leaks.
+    Callers yield a fixture dict built from `endpoint` and call `harness.close()`
+    on teardown."""
+    ld = "/tmp/rt_libshim:/usr/lib64:" + os.environ.get("LD_LIBRARY_PATH", "")
+    harness = LifecycleHarness()
+    spec = NginxInstanceSpec(
+        name=name,
+        template=template,
+        protocol=protocol,
+        data_root=data_root,
+        readiness="tcp",
+        env={"LD_LIBRARY_PATH": ld},
+        template_values=template_values,
+    )
+    try:
+        endpoint = harness.start(spec)
+    except Exception:
+        harness.close()
+        raise
+    return harness, endpoint
 
 
-def _spawn_nginx(conf_text, base, port, tag):
-    assert os.path.exists(NGINX_BIN), f"nginx binary not built at {NGINX_BIN}"
-    os.makedirs(os.path.join(base, "logs"), exist_ok=True)
-    cfg = os.path.join(base, f"{tag}.conf")
-    with open(cfg, "w") as f:
-        f.write(conf_text)
-    env = dict(os.environ)
-    env["LD_LIBRARY_PATH"] = "/tmp/rt_libshim:/usr/lib64:" + env.get(
-        "LD_LIBRARY_PATH", "")
-    _free_port(port)
-    proc = subprocess.Popen([NGINX_BIN, "-p", base, "-c", cfg], env=env,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    _wait_listen(proc, port, f"nginx {tag}")
-    return proc
+def _gsi_log(endpoint):
+    """The started instance's error log (registry: <prefix>/logs/error.log)."""
+    return os.path.join(endpoint.prefix, "logs", "error.log")
 
 
 @pytest.fixture(scope="module", params=["off", "auto", "require"])
 def nginx_root(pki, request):
     """Our nginx GSI root:// server, one per signed-DH policy."""
     policy = request.param
-    port = P_ROOT[policy]
-    log = os.path.join(pki["base"], "logs", f"root_{policy}.log")
-    proc = _spawn_nginx(_nginx_root_conf(pki, port, policy, log),
-                        pki["base"], port, f"root_{policy}")
-    yield {"url": f"root://{pki['fqdn']}:{port}", "policy": policy, "log": log}
-    _terminate(proc)
+    sdh = "" if policy == "off" else f"        brix_gsi_signed_dh {policy};"
+    harness, ep = _gsi_nginx(
+        f"gsihs-root-{policy}", "nginx_gsi_handshake_root.conf", pki["data"],
+        CERT=pki["hostcert"], KEY=pki["hostkey"], CA=pki["ca"],
+        CIPHERS_DIRECTIVE="", SIGNED_DH_DIRECTIVE=sdh)
+    try:
+        yield {"url": f"root://{pki['fqdn']}:{ep.port}", "policy": policy,
+               "log": _gsi_log(ep)}
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="module")
 def nginx_root_off(pki):
     """A dedicated default (unsigned) server for negative + identity tests."""
-    log = os.path.join(pki["base"], "logs", "root_neg.log")
-    proc = _spawn_nginx(_nginx_root_conf(pki, P_ROOT_NEG, "off", log),
-                        pki["base"], P_ROOT_NEG, "root_neg")
-    yield {"url": f"root://{pki['fqdn']}:{P_ROOT_NEG}", "log": log}
-    _terminate(proc)
+    harness, ep = _gsi_nginx(
+        "gsihs-root-neg", "nginx_gsi_handshake_root.conf", pki["data"],
+        CERT=pki["hostcert"], KEY=pki["hostkey"], CA=pki["ca"],
+        CIPHERS_DIRECTIVE="", SIGNED_DH_DIRECTIVE="")
+    try:
+        yield {"url": f"root://{pki['fqdn']}:{ep.port}", "log": _gsi_log(ep)}
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="module")
@@ -515,30 +521,16 @@ def nginx_root_both(pki):
     """A server advertising BOTH token and GSI (`brix_auth both`).  The GSI
     client must still pick gsi from the multi-protocol `&P=ztn…&P=gsi…` block and
     authenticate."""
-    log = os.path.join(pki["base"], "logs", "root_both.log")
     jwks = os.path.join(pki["base"], "jwks.json")
     with open(jwks, "w") as f:           # token side is unused by the GSI client
         f.write('{"keys":[]}')
-    conf = (
-        "daemon off;\n"
-        f"error_log {log} info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {P_BOTH};\n"
-        "    brix_root on;\n"
-        f"    brix_storage_backend posix:{pki['data']};\n"
-        "    brix_auth both;\n"
-        "    brix_allow_write on;\n"
-        f"    brix_token_jwks     {jwks};\n"
-        '    brix_token_issuer   "https://test.example.com";\n'
-        '    brix_token_audience "nginx-xrootd";\n'
-        f"    brix_certificate     {pki['hostcert']};\n"
-        f"    brix_certificate_key {pki['hostkey']};\n"
-        f"    brix_trusted_ca      {pki['ca']};\n"
-        "  }\n}\n")
-    proc = _spawn_nginx(conf, pki["base"], P_BOTH, "root_both")
-    yield {"url": f"root://{pki['fqdn']}:{P_BOTH}", "log": log}
-    _terminate(proc)
+    harness, ep = _gsi_nginx(
+        "gsihs-root-both", "nginx_gsi_handshake_both.conf", pki["data"],
+        JWKS=jwks, CERT=pki["hostcert"], KEY=pki["hostkey"], CA=pki["ca"])
+    try:
+        yield {"url": f"root://{pki['fqdn']}:{ep.port}", "log": _gsi_log(ep)}
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="module")
@@ -547,13 +539,15 @@ def nginx_root_aes256(pki):
     successful handshake against it proves the client negotiated a NON-default
     session cipher (WS-A) — aes-128-cbc is not on offer, so the proven default
     path cannot be the one exercised."""
-    log = os.path.join(pki["base"], "logs", "root_aes256.log")
-    conf = _nginx_root_conf(pki, P_CIPHER, "off", log).replace(
-        "    brix_auth gsi;\n",
-        '    brix_auth gsi;\n    brix_gsi_ciphers "aes-256-cbc";\n')
-    proc = _spawn_nginx(conf, pki["base"], P_CIPHER, "root_aes256")
-    yield {"url": f"root://{pki['fqdn']}:{P_CIPHER}", "log": log}
-    _terminate(proc)
+    harness, ep = _gsi_nginx(
+        "gsihs-root-aes256", "nginx_gsi_handshake_root.conf", pki["data"],
+        CERT=pki["hostcert"], KEY=pki["hostkey"], CA=pki["ca"],
+        CIPHERS_DIRECTIVE='        brix_gsi_ciphers "aes-256-cbc";',
+        SIGNED_DH_DIRECTIVE="")
+    try:
+        yield {"url": f"root://{pki['fqdn']}:{ep.port}", "log": _gsi_log(ep)}
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="module")
@@ -587,52 +581,28 @@ def nginx_voms(pki, voms):
         f.write("vo-only\n")
     with open(os.path.join(vdata, "open.txt"), "w") as f:
         f.write("open\n")
-    log = os.path.join(pki["base"], "logs", "voms.log")
-    conf = (
-        "daemon off;\n"
-        f"error_log {log} info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {P_VOMS};\n"
-        "    brix_root on;\n"
-        f"    brix_storage_backend posix:{vdata};\n"
-        "    brix_auth gsi;\n"
-        f"    brix_vomsdir       {voms['vomsdir']};\n"
-        f"    brix_voms_cert_dir {pki['certs']};\n"
-        "    brix_require_vo /vodata testvo;\n"
-        f"    brix_certificate     {pki['hostcert']};\n"
-        f"    brix_certificate_key {pki['hostkey']};\n"
-        f"    brix_trusted_ca      {pki['ca']};\n"
-        "  }\n}\n")
-    proc = _spawn_nginx(conf, pki["base"], P_VOMS, "voms")
-    yield {"url": f"root://{pki['fqdn']}:{P_VOMS}"}
-    _terminate(proc)
+    harness, ep = _gsi_nginx(
+        "gsihs-voms", "nginx_gsi_handshake_voms.conf", vdata,
+        VOMSDIR=voms["vomsdir"], VOMS_CERT_DIR=pki["certs"],
+        CERT=pki["hostcert"], KEY=pki["hostkey"], CA=pki["ca"])
+    try:
+        yield {"url": f"root://{pki['fqdn']}:{ep.port}"}
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="module")
 def nginx_root_tls(pki):
     """GSI server that also advertises in-protocol TLS (kXR_ableTLS): the client
     authenticates with GSI, then upgrades the channel to TLS."""
-    log = os.path.join(pki["base"], "logs", "root_tls.log")
-    conf = (
-        "daemon off;\n"
-        f"error_log {log} info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {P_TLS};\n"
-        "    brix_root on;\n"
-        f"    brix_storage_backend posix:{pki['data']};\n"
-        "    brix_auth gsi;\n"
-        "    brix_allow_write on;\n"
-        "    brix_tls on;\n"
-        f"    brix_certificate     {pki['hostcert']};\n"
-        f"    brix_certificate_key {pki['hostkey']};\n"
-        f"    brix_trusted_ca      {pki['ca']};\n"
-        "  }\n}\n")
-    proc = _spawn_nginx(conf, pki["base"], P_TLS, "root_tls")
-    # roots:// forces the TLS upgrade after the GSI login.
-    yield {"url": f"roots://{pki['fqdn']}:{P_TLS}", "log": log}
-    _terminate(proc)
+    harness, ep = _gsi_nginx(
+        "gsihs-root-tls", "nginx_gsi_handshake_tls.conf", pki["data"],
+        CERT=pki["hostcert"], KEY=pki["hostkey"], CA=pki["ca"])
+    try:
+        # roots:// forces the TLS upgrade after the GSI login.
+        yield {"url": f"roots://{pki['fqdn']}:{ep.port}", "log": _gsi_log(ep)}
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="module")
@@ -641,25 +611,13 @@ def nginx_root_sigver(pki):
     kXR_sigver signature derived from the GSI session key.  A client that signs
     correctly (stock xrdfs) proceeds; this exercises the request-signing half of
     the handshake (signing_key = SHA-256(DH secret))."""
-    log = os.path.join(pki["base"], "logs", "root_sigver.log")
-    conf = (
-        "daemon off;\n"
-        f"error_log {log} info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {P_SIGVER};\n"
-        "    brix_root on;\n"
-        f"    brix_storage_backend posix:{pki['data']};\n"
-        "    brix_auth gsi;\n"
-        "    brix_allow_write on;\n"
-        "    brix_security_level intense;\n"
-        f"    brix_certificate     {pki['hostcert']};\n"
-        f"    brix_certificate_key {pki['hostkey']};\n"
-        f"    brix_trusted_ca      {pki['ca']};\n"
-        "  }\n}\n")
-    proc = _spawn_nginx(conf, pki["base"], P_SIGVER, "root_sigver")
-    yield {"url": f"root://{pki['fqdn']}:{P_SIGVER}", "log": log}
-    _terminate(proc)
+    harness, ep = _gsi_nginx(
+        "gsihs-root-sigver", "nginx_gsi_handshake_sigver.conf", pki["data"],
+        CERT=pki["hostcert"], KEY=pki["hostkey"], CA=pki["ca"])
+    try:
+        yield {"url": f"root://{pki['fqdn']}:{ep.port}", "log": _gsi_log(ep)}
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="module")
@@ -695,25 +653,15 @@ def nginx_rsa4096(pki, rsa4096):
     """A signed-DH GSI server on the RSA-4096 PKI — round 1 signs the DH public
     with the 4096-bit host key, round 2 recovers the 4096-bit-proxy-signed
     client public, so both RSA directions run at the larger size."""
-    log = os.path.join(pki["base"], "logs", "rsa4096_srv.log")
-    conf = (
-        "daemon off;\n"
-        f"error_log {log} info;\n"
-        "events { worker_connections 64; }\n"
-        "stream {\n  server {\n"
-        f"    listen {P_RSA4096};\n"
-        "    brix_root on;\n"
-        f"    brix_storage_backend posix:{pki['data']};\n"
-        "    brix_auth gsi;\n"
-        "    brix_allow_write on;\n"
-        "    brix_gsi_signed_dh require;\n"
-        f"    brix_certificate     {rsa4096['hostcert']};\n"
-        f"    brix_certificate_key {rsa4096['hostkey']};\n"
-        f"    brix_trusted_ca      {rsa4096['ca']};\n"
-        "  }\n}\n")
-    proc = _spawn_nginx(conf, pki["base"], P_RSA4096, "rsa4096")
-    yield {"url": f"root://{pki['fqdn']}:{P_RSA4096}", "env": rsa4096["env"]}
-    _terminate(proc)
+    harness, ep = _gsi_nginx(
+        "gsihs-rsa4096", "nginx_gsi_handshake_root.conf", pki["data"],
+        CERT=rsa4096["hostcert"], KEY=rsa4096["hostkey"], CA=rsa4096["ca"],
+        CIPHERS_DIRECTIVE="",
+        SIGNED_DH_DIRECTIVE="        brix_gsi_signed_dh require;")
+    try:
+        yield {"url": f"root://{pki['fqdn']}:{ep.port}", "env": rsa4096["env"]}
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="module")
@@ -776,36 +724,19 @@ def stock_root(pki):
 @pytest.fixture(scope="module")
 def nginx_webdav(pki):
     """HTTPS WebDAV server requiring x509 proxy client-cert auth."""
-    base = pki["base"]
-    wdata = os.path.join(base, "wdata")
+    wdata = os.path.join(pki["base"], "wdata")
     os.makedirs(wdata, exist_ok=True)
     with open(os.path.join(wdata, "hello.txt"), "w") as f:
         f.write("hello-webdav-gsi\n")
-    log = os.path.join(base, "logs", "webdav.log")
-    os.makedirs(os.path.join(base, "logs"), exist_ok=True)
-    conf = (
-        "daemon off;\n"
-        f"error_log {log} info;\n"
-        "events { worker_connections 64; }\n"
-        "http {\n  server {\n"
-        f"    listen {P_WEBDAV} ssl;\n"
-        f"    ssl_certificate     {pki['hostcert']};\n"
-        f"    ssl_certificate_key {pki['hostkey']};\n"
-        "    ssl_verify_client   optional_no_ca;\n"
-        "    ssl_verify_depth    10;\n"
-        "    brix_webdav_proxy_certs on;\n"
-        "    client_max_body_size 64m;\n"
-        "    location / {\n"
-        f"      root               {wdata};\n"
-        "      brix_webdav      on;\n"
-        f"      brix_storage_backend posix:{wdata};\n"
-        f"      brix_webdav_cadir {pki['certs']};\n"
-        "      brix_webdav_auth required;\n"
-        "      brix_allow_write on;\n"
-        "    }\n  }\n}\n")
-    proc = _spawn_nginx(conf, base, P_WEBDAV, "webdav")
-    yield {"url": f"https://{pki['fqdn']}:{P_WEBDAV}", "data": wdata, "log": log}
-    _terminate(proc)
+    harness, ep = _gsi_nginx(
+        "gsihs-webdav", "nginx_gsi_handshake_webdav.conf", wdata,
+        protocol="https", CERT=pki["hostcert"], KEY=pki["hostkey"],
+        CADIR=pki["certs"])
+    try:
+        yield {"url": f"https://{pki['fqdn']}:{ep.port}", "data": wdata,
+               "log": _gsi_log(ep)}
+    finally:
+        harness.close()
 
 
 # --------------------------------------------------------------------------- #

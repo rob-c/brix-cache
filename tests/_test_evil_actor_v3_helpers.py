@@ -60,8 +60,11 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
-from config_templates import render_config
+from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST, free_port
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 BIGFILE_MB = 32
 SHIM_DELAY_US = int(os.environ.get("XRD_RACE_DELAY_US", "15000"))
@@ -505,9 +508,9 @@ def _xattr_ok(tmp):
         return False
 
 
-def _gen_cert(prefix):
-    cert = os.path.join(prefix, "cert.pem")
-    key = os.path.join(prefix, "key.pem")
+def _gen_cert(workdir):
+    cert = os.path.join(workdir, "cert.pem")
+    key = os.path.join(workdir, "key.pem")
     r = subprocess.run(
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-keyout", key,
          "-out", cert, "-days", "1", "-nodes", "-subj", "/CN=127.0.0.1",
@@ -519,7 +522,7 @@ def _gen_cert(prefix):
 
 
 @pytest.fixture(scope="module")
-def srv(tmp_path_factory):
+def srv():
     if REMOTE_SERVER:
         pytest.skip("self-contained; not REMOTE")
     if not os.path.exists(NGINX_BIN):
@@ -528,23 +531,27 @@ def srv(tmp_path_factory):
         if shutil.which(tool) is None:
             pytest.skip("%s required" % tool)
 
-    prefix = tempfile.mkdtemp(prefix="evil3-")
-    datadir = os.path.join(prefix, "data")
-    tapedir = os.path.join(prefix, "tape")
-    tsandir = os.path.join(prefix, "tsan")
-    for d in (os.path.join(prefix, "logs"), datadir, tapedir, tsandir):
+    # Our own scratch tree (data + tape + shim + tsan reports + FRM sidecars);
+    # the nginx prefix, config, pidfile and logs are owned by the registry
+    # (LifecycleHarness) under its endpoint.prefix.  We only seed/own the datadir
+    # and the sanitizer / FRM artifacts, and rmtree this tree on teardown.
+    workdir = tempfile.mkdtemp(prefix="evil3-")
+    datadir = os.path.join(workdir, "data")
+    tapedir = os.path.join(workdir, "tape")
+    tsandir = os.path.join(workdir, "tsan")
+    for d in (datadir, tapedir, tsandir):
         os.makedirs(d, exist_ok=True)
 
     have_xattr = _xattr_ok(datadir)
 
-    shim, err = _build_shim(prefix)
+    shim, err = _build_shim(workdir)
     if shim is None:
-        shutil.rmtree(prefix, ignore_errors=True)
+        shutil.rmtree(workdir, ignore_errors=True)
         pytest.skip("could not build race shim: %s" % err[-300:])
 
-    cert, key = _gen_cert(prefix)
+    cert, key = _gen_cert(workdir)
     if cert is None:
-        shutil.rmtree(prefix, ignore_errors=True)
+        shutil.rmtree(workdir, ignore_errors=True)
         pytest.skip("could not generate self-signed cert")
 
     # data files
@@ -558,10 +565,10 @@ def srv(tmp_path_factory):
             f.write(chunk * 8)
 
     # FRM nearline files (file=stub, real bytes on "tape")
-    copycmd = os.path.join(prefix, "copycmd.py")
+    copycmd = os.path.join(workdir, "copycmd.py")
     shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
     os.chmod(copycmd, 0o755)
-    audit = os.path.join(prefix, "audit.log")
+    audit = os.path.join(workdir, "audit.log")
     near_names = []
     if have_xattr:
         tape_content = b"TAPE-" + b"z" * 4096 + b"\n"
@@ -578,7 +585,7 @@ def srv(tmp_path_factory):
             os.setxattr(os.path.join(datadir, nm), "user.frm.residency", b"nearline")
             near_names.append("/" + nm)
 
-    queue = os.path.join(prefix, "frm.queue")
+    queue = os.path.join(workdir, "frm.queue")
     frm_block = ""
     if have_xattr:
         frm_block = (
@@ -589,30 +596,14 @@ def srv(tmp_path_factory):
             "        brix_frm_max_inflight 64; brix_frm_max_per_source 16;\n"
             % (queue, copycmd))
 
-    root_port, root_tls_port, https_port, metrics_port = _free_ports(4)
-    for p in (root_port, root_tls_port, https_port, metrics_port):
-        if _reachable(p):
-            shutil.rmtree(prefix, ignore_errors=True)
-            pytest.skip("port %d in use" % p)
-
-    conf = render_config("nginx_evil_actor_v3.conf",
-                         WORKERS=WORKERS,
-                         PREFIX=prefix,
-                         BIND_HOST=BIND_HOST,
-                         ROOT_PORT=root_port,
-                         ROOT_TLS_PORT=root_tls_port,
-                         HTTPS_PORT=https_port,
-                         METRICS_PORT=metrics_port,
-                         DATA_DIR=datadir,
-                         CERT=cert,
-                         KEY=key,
-                         FRM_BLOCK=frm_block)
-    conf_path = os.path.join(prefix, "nginx.conf")
-    open(conf_path, "w").write(conf)
-    pidfile = os.path.join(prefix, "logs", "nginx.pid")
-
-    env = dict(os.environ)
-    pre = env.get("LD_PRELOAD", "")
+    # Worker-gated race-shim launch environment.  A sanitizer-instrumented shim
+    # must be preceded by the sanitizer RUNTIME in LD_PRELOAD ("ASan runtime does
+    # not come first"); the real versioned .so is whatever the binary under test
+    # already links, read straight out of ldd.  Handed to the spec as ``env`` so
+    # the harness merges it onto os.environ for the launch — the shim, its delay,
+    # the FRM sidecar paths and the sanitizer options all survive the lifecycle.
+    env: dict[str, str] = {}
+    pre = os.environ.get("LD_PRELOAD", "")
     san_rt = ""
     if SHIM_SAN in ("address", "thread"):
         want = "libasan.so" if SHIM_SAN == "address" else "libtsan.so"
@@ -631,7 +622,7 @@ def srv(tmp_path_factory):
     env.update(FRM_DATA_DIR=os.path.realpath(datadir), FRM_TAPE_DIR=tapedir,
                FRM_LATENCY_MS=str(FRM_LATENCY_MS), FRM_AUDIT_LOG=audit)
     if SHIM_SAN == "thread":
-        supp = os.path.join(prefix, "tsan.supp")
+        supp = os.path.join(workdir, "tsan.supp")
         open(supp, "w").write(
             "race:ngx_atomic_\nrace:^brix_metrics_\nrace:ngx_thread_pool_cycle\n"
             "race:ngx_time_update\nrace:ngx_event_\ncalled_from_lib:libssl\n"
@@ -641,24 +632,42 @@ def srv(tmp_path_factory):
     elif SHIM_SAN == "address":
         env["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=1:halt_on_error=1:verify_asan_link_order=0"
 
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", prefix, "-c", conf_path],
-                         capture_output=True, text=True, env=env)
-    if chk.returncode != 0:
-        tail = (chk.stderr or chk.stdout).strip()[-500:]
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("nginx rejected config: %s" % tail)
-    run = subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path],
-                         capture_output=True, text=True, env=env)
-    if run.returncode != 0 or not _wait_port(root_port):
-        tail = (run.stderr or run.stdout).strip()[-500:]
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("nginx did not start: %s" % tail)
+    # The 4-worker root:// + roots:// TLS + https(metrics/s3/webdav) + cleartext
+    # metrics planes are driven through the registry (LifecycleHarness): {PORT} is
+    # the cleartext root:// front and the other three planes arrive as extra_ports;
+    # the harness renders nginx_evil_actor_v3.conf, runs `nginx -t`, launches with
+    # the shim env, and reaps master+workers on close().  Crash/TSan detection is
+    # unchanged — it reads the master pid from endpoint.pidfile and scans
+    # endpoint.prefix/logs (+ our tsandir).
+    harness = LifecycleHarness()
+    try:
+        endpoint = harness.start(NginxInstanceSpec(
+            name="evil-actor-v3",
+            template="nginx_evil_actor_v3.conf",
+            protocol="root",
+            data_root=datadir,
+            extra_ports={"ROOT_TLS_PORT": free_port(),
+                         "HTTPS_PORT": free_port(),
+                         "METRICS_PORT": free_port()},
+            readiness="tcp",
+            template_values={"WORKERS": WORKERS, "BIND_HOST": BIND_HOST,
+                             "CERT": cert, "KEY": key, "FRM_BLOCK": frm_block},
+            env=env,
+        ))
+    except Exception as exc:
+        harness.close()
+        shutil.rmtree(workdir, ignore_errors=True)
+        pytest.skip("nginx did not start: %s" % str(exc)[-400:])
 
-    s = _Srv(prefix, conf_path, pidfile, (root_port, root_tls_port, https_port, metrics_port),
+    root_port = endpoint.port
+    root_tls_port = endpoint.extra_ports["ROOT_TLS_PORT"]
+    https_port = endpoint.extra_ports["HTTPS_PORT"]
+    metrics_port = endpoint.extra_ports["METRICS_PORT"]
+
+    s = _Srv(endpoint.prefix, endpoint.config, endpoint.pidfile,
+             (root_port, root_tls_port, https_port, metrics_port),
              datadir, tsandir)
-    s.master = _master_pid(pidfile)
+    s.master = _master_pid(endpoint.pidfile)
     s.have_xattr = have_xattr
     s.near_names = near_names
     s.audit = audit
@@ -676,9 +685,8 @@ def srv(tmp_path_factory):
         except Exception:
             s.frm_ok = False
     if not s.master or not _alive(s.master):
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        shutil.rmtree(prefix, ignore_errors=True)
+        harness.close()
+        shutil.rmtree(workdir, ignore_errors=True)
         pytest.skip("master pid never appeared")
     print("\n[evil3] master=%d root=%d roots_tls=%d https=%d metrics=%d shim=%s "
           "delay=%dus workers=%s xattr=%s"
@@ -687,13 +695,8 @@ def srv(tmp_path_factory):
     try:
         yield s
     finally:
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        time.sleep(0.3)
-        if s.master and _alive(s.master):
-            try: os.kill(s.master, 9)
-            except OSError: pass
-        shutil.rmtree(prefix, ignore_errors=True)
+        harness.close()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 # ----------------------- A1: roots:// TLS bring-up ---------------------------

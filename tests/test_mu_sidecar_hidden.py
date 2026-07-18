@@ -13,15 +13,17 @@ Run: PYTHONPATH=tests pytest tests/test_mu_sidecar_hidden.py -v   (no root neede
 """
 import os
 import re
-import socket
 import subprocess
 import sys
-import time
+from types import SimpleNamespace
 
 import pytest
 import requests
 
-from mu_authz_lib import creds, fleet, ports, principals
+from mu_authz_lib import creds, ports, principals
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 _PROBE = "sidecarprobe"
 _KEEP = "keep.dat"                       # a genuine user file — must stay visible
@@ -33,9 +35,6 @@ _INTERNAL = [                            # must all be invisible
     "keep.dat.xrdresume.abcd1234.part",
     "note.commit",
 ]
-
-_WEBDAV = f"https://{ports.MU.HOST}:{ports.MU.WEBDAV_STAGE}"
-_ROOT = f"root://{ports.MU.HOST}:{ports.MU.SIDECAR_ROOT}"
 
 # Inline pyxrootd probe (anon) — dirlist a directory or stat a path; prints JSON.
 _ROOT_LS_STAT = r"""
@@ -54,39 +53,41 @@ else:
 """
 
 
-def _port_open(p):
-    s = socket.socket()
-    s.settimeout(0.5)
-    try:
-        s.connect((ports.MU.HOST, p))
-        return True
-    except OSError:
-        return False
-    finally:
-        s.close()
+def _webdav_spec():
+    return NginxInstanceSpec(
+        name="lc-mu-sidecar-webdav",
+        template="nginx_mu_stage_modes_webdav.conf",
+        protocol="https",
+        readiness="webdav",
+        data_root=ports.MU.DATA_ROOT,
+        template_values={
+            "CERT": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
+            "KEY": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
+            "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
+        },
+        reason="MU WebDAV node: internal-sidecar hiding (PROPFIND/GET).",
+    )
 
 
-def _start(cfg_name, pid_name, port):
-    subst = fleet._base_subst()
-    text = open(os.path.join(fleet._CFG_SRC, cfg_name)).read()
-    for k, v in subst.items():
-        text = text.replace(k, v)
-    dst = os.path.join(ports.MU.CONFIG_DIR, cfg_name)
-    with open(dst, "w") as f:
-        f.write(text)
-    pidf = os.path.join(ports.MU.MU_ROOT, pid_name)
-    subprocess.run([fleet.NGINX, "-c", dst, "-g", f"pid {pidf};"], check=True, capture_output=True)
-    deadline = time.time() + 15
-    while time.time() < deadline and not _port_open(port):
-        time.sleep(0.2)
-    if not _port_open(port):
-        raise TimeoutError(f"server for {cfg_name} never listened on {port}")
-    return pidf
+def _root_spec():
+    return NginxInstanceSpec(
+        name="lc-mu-sidecar-root",
+        template="nginx_mu_sidecar_root.conf",
+        protocol="root",
+        readiness="root",
+        data_root=ports.MU.DATA_ROOT,
+        reason="MU root:// anon node: internal-sidecar hiding (dirlist/stat).",
+    )
 
 
 @pytest.fixture(scope="module")
-def sidecar_env():
+def cast():
+    """Build the MU PKI/principal cast once for the module (idempotent)."""
     principals.build_cast()
+
+
+@pytest.fixture
+def sidecar_env(lifecycle, cast):
     d = os.path.join(ports.MU.DATA_ROOT, _PROBE)
     os.makedirs(d, exist_ok=True)
     with open(os.path.join(d, _KEEP), "wb") as f:
@@ -94,32 +95,21 @@ def sidecar_env():
     for nm in _INTERNAL:
         with open(os.path.join(d, nm), "wb") as f:
             f.write(b"SECRET-METADATA")
-    for dd in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR, os.path.join(ports.MU.LOG_DIR, "nginx_tmp")):
-        os.makedirs(dd, exist_ok=True)
-    pids = [
-        _start("webdav_stage_noimp.conf", "sidecar_webdav.pid", ports.MU.WEBDAV_STAGE),
-        _start("sidecar_root_anon.conf", "sidecar_root.pid", ports.MU.SIDECAR_ROOT),
-    ]
-    try:
-        yield
-    finally:
-        for pidf in pids:
-            try:
-                os.kill(int(open(pidf).read().strip()), 15)
-            except (ProcessLookupError, ValueError, FileNotFoundError):
-                pass
+    webdav = lifecycle.start(_webdav_spec())
+    root = lifecycle.start(_root_spec())
+    return SimpleNamespace(webdav=webdav.url, root=root.url.rstrip("/"))
 
 
 @pytest.fixture(scope="module")
-def alice_proxy():
+def alice_proxy(cast):
     cert = os.path.join(ports.MU.PKI_DIR, "user", "alice_usercert.pem")
     key = os.path.join(ports.MU.PKI_DIR, "user", "alice_userkey.pem")
     return creds.gen_gsi_proxy(cert, key, "sidecar_alice")
 
 
-def _root_probe(path, op):
+def _root_probe(root_url, path, op):
     import json
-    r = subprocess.run([sys.executable, "-c", _ROOT_LS_STAT, _ROOT, path, op],
+    r = subprocess.run([sys.executable, "-c", _ROOT_LS_STAT, root_url, path, op],
                        capture_output=True, text=True, timeout=30)
     for line in r.stdout.splitlines():
         try:
@@ -133,7 +123,7 @@ def _root_probe(path, op):
 
 def test_webdav_propfind_hides_internal(sidecar_env, alice_proxy):
     """PROPFIND enumerates the genuine file but none of the internal artifacts."""
-    r = requests.request("PROPFIND", f"{_WEBDAV}/{_PROBE}",
+    r = requests.request("PROPFIND", f"{sidecar_env.webdav}/{_PROBE}",
                          headers={"Depth": "1"}, cert=alice_proxy, verify=False, timeout=30)
     assert r.status_code in (207, 200), f"PROPFIND failed: {r.status_code} {r.text[:200]}"
     hrefs = re.findall(r"<[^>]*href>([^<]+)<", r.text, re.IGNORECASE)
@@ -145,10 +135,10 @@ def test_webdav_propfind_hides_internal(sidecar_env, alice_proxy):
 
 def test_webdav_get_internal_is_404(sidecar_env, alice_proxy):
     """A direct GET of the genuine file works; a GET of any internal artifact is 404."""
-    ok = requests.get(f"{_WEBDAV}/{_PROBE}/{_KEEP}", cert=alice_proxy, verify=False, timeout=30)
+    ok = requests.get(f"{sidecar_env.webdav}/{_PROBE}/{_KEEP}", cert=alice_proxy, verify=False, timeout=30)
     assert ok.status_code == 200, f"genuine GET should succeed: {ok.status_code}"
     for nm in _INTERNAL:
-        rr = requests.get(f"{_WEBDAV}/{_PROBE}/{nm}", cert=alice_proxy, verify=False, timeout=30)
+        rr = requests.get(f"{sidecar_env.webdav}/{_PROBE}/{nm}", cert=alice_proxy, verify=False, timeout=30)
         assert rr.status_code == 404, (
             f"LEAK: GET of internal {nm} returned {rr.status_code} (must be 404); "
             f"body[:80]={rr.text[:80]!r}")
@@ -158,7 +148,7 @@ def test_webdav_get_internal_is_404(sidecar_env, alice_proxy):
 
 def test_root_dirlist_hides_internal(sidecar_env):
     """kXR_dirlist enumerates the genuine file but none of the internal artifacts."""
-    res = _root_probe(f"/{_PROBE}", "ls")
+    res = _root_probe(sidecar_env.root, f"/{_PROBE}", "ls")
     assert res["ok"], f"dirlist failed: {res}"
     names = set(res["names"])
     assert _KEEP in names, f"genuine file {_KEEP} missing from dirlist: {names}"
@@ -168,7 +158,7 @@ def test_root_dirlist_hides_internal(sidecar_env):
 
 def test_root_stat_internal_is_absent(sidecar_env):
     """kXR_stat of the genuine file succeeds; stat of any internal artifact reports absent."""
-    assert _root_probe(f"/{_PROBE}/{_KEEP}", "stat")["ok"], "genuine stat should succeed"
+    assert _root_probe(sidecar_env.root, f"/{_PROBE}/{_KEEP}", "stat")["ok"], "genuine stat should succeed"
     for nm in _INTERNAL:
-        res = _root_probe(f"/{_PROBE}/{nm}", "stat")
+        res = _root_probe(sidecar_env.root, f"/{_PROBE}/{nm}", "stat")
         assert not res["ok"], f"LEAK: stat of internal {nm} succeeded: {res}"

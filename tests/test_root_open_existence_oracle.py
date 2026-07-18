@@ -12,63 +12,41 @@ ACL `g cms /` as the discriminator.
 Run: PYTHONPATH=tests pytest tests/test_root_open_existence_oracle.py -v   (no root needed)
 """
 import os
-import socket
-import subprocess
-import time
 from types import SimpleNamespace
 
 import pytest
 
-from mu_authz_lib import creds, fleet, ports, principals
+from mu_authz_lib import creds, ports, principals
 from mu_authz_lib.adapters import measure_root
+from server_registry import NginxInstanceSpec
 
-_PORT = ports.MU.DIRECT_AUTHZ
-_URL = f"root://{ports.MU.HOST}:{_PORT}"
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 _EXISTS = "/prot/exists.dat"
 _GHOST = "/prot/ghost-never-created.dat"
 
 
-def _port_open(p):
-    s = socket.socket()
-    s.settimeout(0.5)
-    try:
-        s.connect((ports.MU.HOST, p))
-        return True
-    except OSError:
-        return False
-    finally:
-        s.close()
+def _spec():
+    return NginxInstanceSpec(
+        name="lc-mu-direct-authz",
+        template="nginx_mu_direct_authz.conf",
+        protocol="root",
+        readiness="root",
+        data_root=ports.MU.DATA_ROOT,
+        template_values={
+            "CERT": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
+            "KEY": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
+            "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
+            "VOMSDIR": ports.MU.VOMSDIR,
+            "CA_DIR": ports.MU.CA_DIR,
+            "AUTHDB": ports.MU.AUTHDB,
+        },
+        reason="MU direct (non-cache) node: read-open existence-oracle gate.",
+    )
 
 
-def _reap_stale_instance(pidf, port):
-    """Kill a leftover dedicated instance still bound to `port` so startup is
-    idempotent across interrupted runs. Safe: `port` is this test's dedicated
-    MU.DIRECT_AUTHZ port, so anything bound to it is our own stale master."""
-    if not _port_open(port):
-        return
-    try:
-        pid = int(open(pidf).read().strip())
-    except (OSError, ValueError):
-        pid = None
-    if pid is not None:
-        for sig in (15, 9):
-            try:
-                os.kill(pid, sig)
-            except ProcessLookupError:
-                break
-            deadline = time.time() + 5
-            while time.time() < deadline and _port_open(port):
-                time.sleep(0.2)
-            if not _port_open(port):
-                break
-    # Give the socket a moment to leave TIME_WAIT / fully release.
-    deadline = time.time() + 3
-    while time.time() < deadline and _port_open(port):
-        time.sleep(0.2)
-
-
-@pytest.fixture(scope="module")
-def direct_authz_env():
+@pytest.fixture
+def direct_authz_env(lifecycle):
     principals.build_cast()
     d = os.path.join(ports.MU.DATA_ROOT, "prot")
     os.makedirs(d, exist_ok=True)
@@ -91,38 +69,8 @@ def direct_authz_env():
     os.makedirs(ports.MU.MU_ROOT, exist_ok=True)
     with open(ports.MU.AUTHDB, "w") as f:
         f.write("g cms / rl\n")            # only VO cms may read
-    for dd in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR):
-        os.makedirs(dd, exist_ok=True)
 
-    subst = fleet._base_subst()
-    subst["{AUTHDB}"] = ports.MU.AUTHDB
-    src = os.path.join(fleet._CFG_SRC, "root_direct_authz_noimp.conf")
-    text = open(src).read()
-    for k, v in subst.items():
-        text = text.replace(k, v)
-    dst = os.path.join(ports.MU.CONFIG_DIR, "root_direct_authz_noimp.conf")
-    with open(dst, "w") as f:
-        f.write(text)
-
-    pidf = os.path.join(ports.MU.MU_ROOT, "direct_authz.pid")
-    # Reap any stale instance from an earlier run that was interrupted before its
-    # teardown ran: an orphaned master still holding _PORT makes the fresh spawn
-    # fail with "address already in use" (nginx exits 1). Idempotent startup.
-    _reap_stale_instance(pidf, _PORT)
-    subprocess.run([fleet.NGINX, "-c", dst, "-g", f"pid {pidf};"],
-                   check=True, capture_output=True)
-    deadline = time.time() + 15
-    while time.time() < deadline and not _port_open(_PORT):
-        time.sleep(0.2)
-    if not _port_open(_PORT):
-        raise TimeoutError(f"direct authz server never listened on {_PORT}")
-    try:
-        yield _URL
-    finally:
-        try:
-            os.kill(int(open(pidf).read().strip()), 15)
-        except (ProcessLookupError, ValueError, FileNotFoundError):
-            pass
+    return lifecycle.start(_spec()).url
 
 
 def _voms(name, vo):

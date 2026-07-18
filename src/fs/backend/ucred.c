@@ -142,10 +142,12 @@ ucred_read_token(const char *path, char *out_bearer, size_t cap)
         }
     }
     if (end == 0) {
+        OPENSSL_cleanse(buf, (size_t) n);   /* scratch held a bearer token */
         return NGX_DECLINED;    /* empty after trimming */
     }
     memcpy(out_bearer, buf, end);
     out_bearer[end] = '\0';
+    OPENSSL_cleanse(buf, (size_t) n);       /* wipe the secret from the stack */
     return NGX_OK;
 }
 
@@ -236,6 +238,7 @@ ucred_read_s3(const char *path, char *out_ak, size_t ak_cap,
     ak_start = 0;
     ak_end   = ucred_line_end(buf, ak_start, (size_t) n);
     if (ak_end == ak_start || (ak_end - ak_start) >= ak_cap) {
+        OPENSSL_cleanse(buf, sizeof(buf));  /* scratch held the secret key */
         return NGX_DECLINED;
     }
 
@@ -245,6 +248,7 @@ ucred_read_s3(const char *path, char *out_ak, size_t ak_cap,
     sk_start = ucred_skip_eol(buf, ak_end, (size_t) n);
     sk_end   = ucred_line_end(buf, sk_start, (size_t) n);
     if (sk_end == sk_start || (sk_end - sk_start) >= sk_cap) {
+        OPENSSL_cleanse(buf, sizeof(buf));
         return NGX_DECLINED;
     }
 
@@ -253,6 +257,7 @@ ucred_read_s3(const char *path, char *out_ak, size_t ak_cap,
     rg_end  = ucred_line_end(buf, rg_start, (size_t) n);
     rg_len  = rg_end - rg_start;
     if (rg_len >= region_cap) {
+        OPENSSL_cleanse(buf, sizeof(buf));
         return NGX_DECLINED;
     }
 
@@ -266,6 +271,7 @@ ucred_read_s3(const char *path, char *out_ak, size_t ak_cap,
         memcpy(out_region, buf + rg_start, rg_len);
         out_region[rg_len] = '\0';
     }
+    OPENSSL_cleanse(buf, sizeof(buf));   /* wipe the secret key from the stack */
     return NGX_OK;
 }
 
@@ -395,17 +401,21 @@ ucred_read_keyring(const char *path, char *out_path, size_t path_cap,
         }
 
         if (line.id_len == 0 || line.id_len >= user_cap) {
+            OPENSSL_cleanse(buf, sizeof(buf));  /* scratch held CephX key material */
             return NGX_DECLINED;    /* empty or oversized id: malformed */
         }
         memcpy(out_user, buf + line.id_start, line.id_len);
         out_user[line.id_len] = '\0';
 
         if (snprintf(out_path, path_cap, "%s", path) >= (int) path_cap) {
+            OPENSSL_cleanse(buf, sizeof(buf));
             return NGX_DECLINED;
         }
+        OPENSSL_cleanse(buf, sizeof(buf));      /* wipe key material from the stack */
         return NGX_OK;
     }
 
+    OPENSSL_cleanse(buf, sizeof(buf));
     return NGX_DECLINED;    /* no "[client.NAME]" section header found */
 }
 
@@ -662,4 +672,22 @@ brix_sd_ucred_select(const char *dir, const brix_identity_t *id,
     snprintf(out->key,       sizeof(out->key),       "%s", hash_key);
     out->expired = any_expired;
     return NGX_DECLINED;
+}
+
+/*
+ * brix_sd_ucred_wipe — cleanse the secret-bearing fields of a resolved
+ * credential once the caller is done with it.  See ucred.h for rationale.
+ */
+void
+brix_sd_ucred_wipe(brix_sd_ucred_t *cred)
+{
+    if (cred == NULL) {
+        return;
+    }
+    /* Secret material only — bearer token text, S3 secret key, and the CephX
+     * keyring PATH (librados reads the file, but the path itself is sensitive
+     * routing to key material).  Non-secret identifiers are left for logging. */
+    OPENSSL_cleanse(cred->bearer,       sizeof(cred->bearer));
+    OPENSSL_cleanse(cred->s3_sk,        sizeof(cred->s3_sk));
+    OPENSSL_cleanse(cred->ceph_keyring, sizeof(cred->ceph_keyring));
 }

@@ -33,6 +33,23 @@ typedef struct {
                                      * RFC 3820 §4 recommends <= 3 for WLCG */
     ngx_uint_t     auth;            /* webdav_auth_t: NONE/OPTIONAL/REQUIRED */
     ngx_flag_t     proxy_certs;     /* 1 to accept RFC 3820 proxy certificates */
+    ngx_str_t      ssl_client_capath; /* [brix_ssl_client_capath <dir>] OpenSSL
+                                     * hashed CA directory (IGTF layout, e.g.
+                                     * /etc/grid-security/certificates) ADDED to
+                                     * the server's TLS client-verify store at
+                                     * postconfiguration, so ssl_verify_client
+                                     * can trust a hash dir that stock nginx's
+                                     * file-only ssl_client_certificate cannot
+                                     * express.  Server-level; "" = off. */
+    ngx_str_t      proxy_ssl_capath; /* [brix_proxy_ssl_capath <dir>] OpenSSL
+                                     * hashed CA directory ADDED to this
+                                     * location's upstream (proxy_ssl) trust
+                                     * store at postconfiguration; the handler
+                                     * also injects one <hash>.N file as the
+                                     * stock proxy_ssl_trusted_certificate so
+                                     * proxy_ssl_verify's mandatory-file check
+                                     * passes.  Location-exact (deliberately
+                                     * NOT merged/inherited); "" = off. */
     X509_STORE    *ca_store;        /* loaded trust store; built at postconfiguration;
                                      * NULL if no CA dir/file configured */
 

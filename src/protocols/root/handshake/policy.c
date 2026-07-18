@@ -40,6 +40,48 @@ brix_check_token_scope(brix_ctx_t *ctx, const char *logical_path,
 }
 
 ngx_int_t
+brix_min_sec_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    if (conf->min_sec_level == BRIX_MIN_SEC_NONE) {
+        return BRIX_DISPATCH_CONTINUE;
+    }
+
+    /*
+     * compat and intense both require a TLS-encrypted transport.  brix_tls only
+     * ADVERTISES kXR_ableTLS; a client is free to finish login/auth in cleartext
+     * and reach here — that is precisely the walked-down session this floor
+     * refuses.  We reject every data/metadata opcode (session opcodes were
+     * dispatched before this gate) with kXR_TLSRequired; A-1 pairs the upstream
+     * leg so neither side can be downgraded independently.
+     */
+    if (c->ssl == NULL || c->ssl->connection == NULL) {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            "brix: cleartext session refused by brix_min_sec_level=%ui (opcode=%d)",
+            conf->min_sec_level, (int) ctx->recv.cur_reqid);
+        return brix_send_error(ctx, c, kXR_TLSRequired,
+            "server security policy requires a TLS-encrypted session");
+    }
+
+    /*
+     * intense additionally requires a non-anonymous identity.  An auth=none
+     * listener authenticates nobody (anonymous login sets auth_done=1 with no
+     * credential), so even over TLS it is below the floor.
+     */
+    if (conf->min_sec_level >= BRIX_MIN_SEC_INTENSE
+        && conf->auth == BRIX_AUTH_NONE)
+    {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            "brix: anonymous session refused by brix_min_sec_level=intense (opcode=%d)",
+            (int) ctx->recv.cur_reqid);
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+            "server security policy requires an authenticated identity");
+    }
+
+    return BRIX_DISPATCH_CONTINUE;
+}
+
+ngx_int_t
 brix_dispatch_require_login(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     if (!ctx->login.logged_in) {

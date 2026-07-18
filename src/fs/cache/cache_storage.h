@@ -36,6 +36,12 @@ void brix_cache_storage_cleanup(ngx_stream_brix_srv_conf_t *conf);
 
 /* The read-cache storage instance (cache_root). NULL if no cache configured. */
 brix_sd_instance_t *brix_cache_storage(const ngx_stream_brix_srv_conf_t *conf);
+/* The composed sd_cache DECORATOR for a tier cache (brix_cache_store), or NULL
+ * (legacy cache_root cache / none). Phase-85 F7: the eviction engine demotes
+ * victims into the decorator's cold store tier via brix_sd_cache_demote — the
+ * plain brix_cache_storage() unwraps to the store, losing that handle. */
+brix_sd_instance_t *brix_cache_storage_decorator(
+    const ngx_stream_brix_srv_conf_t *conf);
 /* The policy-layer cstore adapter over the read-cache store (eviction, reaper,
  * free-space drive the store through this — never the bare driver). NULL if the
  * cache is off. Built at config time in brix_cache_storage_init. */

@@ -11,6 +11,7 @@ no arguments; exit 0 = clean.
 | `check_config_coverage.sh` | every `src/**/*.c` is built via `./config`, or allowlisted with a reason; no stale `./config` entries | inline allowlist | edit allowlist |
 | `check_vfs_seam.sh` | no new storage-plane bypasses of the VFS (tier-2 confined-helper calls, tier-1.5 direct SD vtable I/O) | `vfs_seam_backlog.txt`, `_ns`, `_client` | `--regen` |
 | `check_http_helper_reimpl.sh` | protocols must not regrow private copies of the shared HTTP helpers (header scan, preconditions, ETag) | inline allowlist | edit allowlist |
+| `check_auth_verdict_sentinel.sh` | the session verdict `login.auth_done = 1` may be raised only by a credential handler / session login-bind path — not from a proxy/TPC/dispatch/op file (C-3 `NGX_OK`-on-deny discipline) | inline `ALLOW` | edit allowlist |
 | `check_sd_driver_conformance.sh` | every `fs_list.h` storage driver ships a conforming `brix_sd_driver_t` (+ prints the op-coverage matrix) | — | — |
 | `check_file_size.sh` | no `src/` file crosses the ~500-line soft cap; frozen offenders may only shrink | `file_size_backlog.txt` | `--regen` |
 | `check_duplication.sh` | no NEW copy-pasted code block (lizard `-Eduplicate`) across `src/`+`client/`+`shared/`; frozen blocks may only be fixed out | `duplication_backlog.txt` | `--regen` |

@@ -1,0 +1,21 @@
+[Unit]
+Description=CVMFS-brix automount umbrella on /cvmfs
+Documentation=man:brixMount(1)
+After=network-online.target
+Wants=network-online.target
+# Same job as autofs on /cvmfs — never both.
+Conflicts=autofs.service
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/mkdir -p /cvmfs /var/lib/brixcvmfs
+ExecStartPre=/usr/bin/chmod 700 /var/lib/brixcvmfs
+ExecStart=/usr/bin/brixMount autofs - /cvmfs -f -o allow_other,idle=600,cachebase=/var/lib/brixcvmfs
+Restart=on-failure
+RestartSec=5
+# main process unmounts children on SIGTERM; give it time before SIGKILL
+KillMode=mixed
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

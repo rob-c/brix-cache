@@ -17,15 +17,13 @@ import os
 import socket
 import struct
 import subprocess
-import time
 
 import pytest
 
-from config_templates import render_config
-from settings import HOST, NGINX_BIN, free_port
+from settings import HOST, NGINX_BIN
+from server_registry import NginxInstanceSpec
 
-_DIR = os.path.join(os.environ["TMPDIR"], "xrd_ssi_wire")
-SSI_PORT = int(os.environ.get("TEST_SSI_PORT") or free_port())
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 # kXR opcodes / constants
 kXR_query    = 3001
@@ -140,42 +138,20 @@ def _parse_ssi_reply(body):
 # fixture: a dedicated nginx with brix_ssi on
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def ssi_server():
-    if not os.path.exists(NGINX_BIN):
+@pytest.fixture()
+def ssi_server(lifecycle):
+    if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
-    base = os.path.join(_DIR, "srv")
-    data = os.path.join(_DIR, "data")
-    os.makedirs(os.path.join(base, "logs"), exist_ok=True)
-    os.makedirs(data, exist_ok=True)
-    conf = os.path.join(base, "nginx.conf")
-    with open(conf, "w") as f:
-        f.write(render_config(
-            "nginx_ssi_wire.conf",
-            BASE_DIR=base,
-            PORT=SSI_PORT,
-            DATA_DIR=data,
-        ))
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-    time.sleep(0.3)
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", conf], capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"ssi nginx config rejected: {chk.stderr[-300:]}")
-    started = subprocess.run([NGINX_BIN, "-c", conf], capture_output=True, text=True)
-    if started.returncode != 0:
-        pytest.skip(f"ssi nginx failed to start: {started.stderr[-300:]}")
-    # wait for the port
-    for _ in range(40):
-        try:
-            socket.create_connection((HOST, SSI_PORT), timeout=1).close()
-            break
-        except OSError:
-            time.sleep(0.25)
-    else:
-        subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-        pytest.skip("ssi nginx did not come up")
-    yield SSI_PORT
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-ssi-wire",
+        template="nginx_lc_ssi.conf",
+        protocol="root",
+        template_values={
+            "BIND_HOST": HOST,
+            "SSI_DIRECTIVES": "        brix_ssi on;\n        brix_ssi_service cta;",
+        },
+        reason="SSI wire-conformance root:// stream server (cta service)"))
+    return ep.port
 
 
 class TestSsiUnary:

@@ -170,6 +170,15 @@
       offsetof(ngx_stream_brix_srv_conf_t, upstream_tls_name),
       NULL },
 
+    /* A-1: peer verification is mandatory by default — nginx -t refuses
+     * brix_upstream_tls without a CA unless this is explicitly turned off. */
+    { ngx_string("brix_upstream_tls_verify"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, upstream_ssl_verify),
+      NULL },
+
     { ngx_string("brix_upstream_token_file"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -185,14 +194,157 @@
       offsetof(ngx_stream_brix_srv_conf_t, prepare_command),
       NULL },
 
-    /* ---- legacy FRM directives (brix_frm*) DISABLED 2026-06-30 -------------
-     * The Phase-35 FRM durable-tape-staging directive surface (brix_frm,
-     * _queue_path, _max_inflight, _max_per_source, _stagecmd, _copycmd, _copymax,
-     * _stage_ttl, _xfrhold, _stage_wait, _async_recall, _fail_backoff,
-     * _fail_retries, _residency_cmd, _stage_dir, _force_scratch, _control_dir,
-     * _copy_timeout, _migrate_copycmd, _purge_watermark, _purge_interval) is
-     * removed ahead of deleting the now-unused FRM implementation. It is superseded
-     * by the phase-64 tier/nearline backend (sd_frm). A config still using any of
-     * these now fails with nginx "unknown directive". The frm.* conf fields,
-     * handlers and runtime remain temporarily (no longer reachable from config) and
-     * are scheduled for removal. */
+    /* ---- FRM durable-tape-staging directives (brix_frm*) -------------------
+     * The Phase-35 FRM directive surface, restored 2026-07-17. It populates the
+     * embedded `frm` (brix_frm_conf_t) block, initialised in server_conf.c,
+     * merged in server_conf_merge_security.c, and consumed by the stage-request
+     * registry (brix_init_server_stage_registry, gated on frm.enable +
+     * frm.control_dir). The knobs marked "accepted" are parsed for config
+     * compatibility; the durable-queue/control-dir path drives the registry. */
+    { ngx_string("brix_frm"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.enable),
+      NULL },
+
+    { ngx_string("brix_frm_queue_path"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.queue_path),
+      NULL },
+
+    { ngx_string("brix_frm_max_inflight"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.max_inflight),
+      NULL },
+
+    { ngx_string("brix_frm_max_per_source"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.max_per_source),
+      NULL },
+
+    { ngx_string("brix_frm_stagecmd"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.stagecmd),
+      NULL },
+
+    { ngx_string("brix_frm_copycmd"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.copycmd),
+      NULL },
+
+    { ngx_string("brix_frm_copymax"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.copymax),
+      NULL },
+
+    { ngx_string("brix_frm_stage_ttl"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.stage_ttl),
+      NULL },
+
+    { ngx_string("brix_frm_xfrhold"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.xfrhold_ms),
+      NULL },
+
+    { ngx_string("brix_frm_stage_wait"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.stage_wait),
+      NULL },
+
+    { ngx_string("brix_frm_async_recall"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.async_recall),
+      NULL },
+
+    { ngx_string("brix_frm_fail_backoff"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.fail_backoff_ms),
+      NULL },
+
+    { ngx_string("brix_frm_fail_retries"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.fail_retries),
+      NULL },
+
+    { ngx_string("brix_frm_residency_cmd"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.residency_cmd),
+      NULL },
+
+    { ngx_string("brix_frm_copy_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.copy_timeout),
+      NULL },
+
+    { ngx_string("brix_frm_stage_dir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.stage_dir),
+      NULL },
+
+    { ngx_string("brix_frm_force_scratch"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.force_scratch),
+      NULL },
+
+    { ngx_string("brix_frm_control_dir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.control_dir),
+      NULL },
+
+    { ngx_string("brix_frm_migrate_copycmd"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.migrate_copycmd),
+      NULL },
+
+    /* two ratios (high low); custom setter validates low <= high and stores ppm */
+    { ngx_string("brix_frm_purge_watermark"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
+      brix_frm_set_purge_watermark,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm),
+      NULL },
+
+    { ngx_string("brix_frm_purge_interval"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, frm.purge_interval_ms),
+      NULL },

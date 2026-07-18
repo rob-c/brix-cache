@@ -88,6 +88,24 @@ brix_vfs_file_pread(brix_vfs_file_t *fh, void *buf, size_t len, off_t off)
     return fh->obj.driver->pread(&fh->obj, buf, len, off);
 }
 
+/* Write up to `len` bytes at `off` through the handle's storage driver — the
+ * backend-neutral write used when a raw-fd pwrite would bypass an object
+ * backend's block routing and size bookkeeping (e.g. pblock, whose bytes span
+ * multiple block files and whose catalog size is maintained by the driver's
+ * pwrite slot, not by the kernel fd). Returns bytes written, or -1 with errno;
+ * the caller loops on a short write. */
+ssize_t
+brix_vfs_file_pwrite(brix_vfs_file_t *fh, const void *buf, size_t len, off_t off)
+{
+    if (fh == NULL || fh->obj.driver == NULL
+        || fh->obj.driver->pwrite == NULL)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+    return fh->obj.driver->pwrite(&fh->obj, buf, len, off);
+}
+
 /* brix_vfs_memfile_materialize — phase-71 step 2 memfd sendfile proxy.
  *
  * WHAT: For a CAP_MEMFILE backend that exposes no kernel fd (obj.fd invalid,

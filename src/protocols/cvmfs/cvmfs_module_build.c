@@ -176,6 +176,10 @@ cvmfs_merge_cache(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
      * MANIFEST-class fills get the protocol's TTL stamped (T12). */
     conf->common.cache_quarantine_dir = conf->cvmfs.quarantine_dir;
     conf->common.cache_manifest_ttl   = conf->cvmfs.manifest_ttl;
+    conf->common.cache_offline_ttl    = conf->cvmfs.offline_ttl;
+    /* phase-85 F1: the master-key PATH rides the common preamble; the tier
+     * registration loads the PEM once at config time into the cache policy. */
+    conf->common.cache_cvmfs_master_key = conf->cvmfs.master_key;
     /* T20 never-drop deadlines for the shared fill machinery */
     conf->common.cache_client_hold    = conf->cvmfs.client_hold;
     conf->common.cache_fill_max_life  = conf->cvmfs.fill_max_life;

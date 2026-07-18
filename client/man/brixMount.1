@@ -10,6 +10,9 @@ brixMount \- hardened FUSE mount for CVMFS, EOS, XRootD and S3 backends
 .br
 .B brixMount
 \fB\-\-overlay\-reset\fR \fIMOUNTDIR\fR
+.br
+.B brixMount
+\fBcvmfs \-\-prewarm\fR \fIREPOSITORY\fR
 .SH DESCRIPTION
 .B brixMount
 is a single hardened front-end for mounting remote filesystems via FUSE3.
@@ -28,6 +31,21 @@ Mount a read-only CVMFS repository.
 Mount a CVMFS repository with a local writable overlay (union mount semantics).
 Local modifications are tracked; use \fB\-\-overlay\-list\fR to inspect and
 \fB\-\-overlay\-reset\fR to discard them.
+.TP
+.B autofs
+Automount umbrella for a whole /cvmfs tree: \fIENDPOINT\fR is the CVMFS
+configuration root (\fB\-\fR for the \fI/etc/cvmfs\fR default) and
+\fIMOUNTDIR\fR is the umbrella directory (typically \fB/cvmfs\fR).
+Configured repositories appear as ghost entries; the first path resolution
+of \fIMOUNTDIR\fR/\fIfqrn\fR mounts the repository on demand by spawning
+\fBbrixMount cvmfs\fR into a mount farm (default
+\fIcachebase\fB/.mnt/\fIfqrn\fR) and serving a symlink to it \(em no autofs
+kernel module or systemd dependency, works unprivileged.  Honors
+\fBCVMFS_REPOSITORIES\fR and \fBCVMFS_STRICT_MOUNT\fR from the configuration
+cascade.  Extra \fB\-o\fR options: \fBidle=\fIsecs\fR (idle unmount, 600
+default, 0 disables), \fBtimeout=\fIsecs\fR (child mount timeout),
+\fBcachebase=\fIdir\fR (per-repo child caches), \fBmntbase=\fIdir\fR
+(mount farm override), \fBrepos=\fIa:b\fR (overrides CVMFS_REPOSITORIES).
 .TP
 .B eos
 Mount an EOS namespace via XRootDFS-brix.
@@ -48,6 +66,13 @@ List local changes in a \fBcvmfs\-rw\fR overlay at \fIMOUNTDIR\fR.
 .B \-\-overlay\-reset \fIMOUNTDIR\fR
 Discard all local changes in a \fBcvmfs\-rw\fR overlay at \fIMOUNTDIR\fR.
 .TP
+.B cvmfs \-\-prewarm \fIREPOSITORY\fR
+Verify the repository trust chain, walk the whole snapshot (the pinned one
+when \fBBRIXCVMFS_PIN\fR is set) and pull every referenced object into the
+local cache \(em no mount involved.  Prints a per-sweep summary and exits 0
+only on a clean, complete sweep (\fBWARM\fR); any fetch error or a
+catalog-verification abort exits nonzero (\fBINCOMPLETE\fR).
+.TP
 .B \-h ", " \-\-help
 Print a short usage summary.
 .TP
@@ -66,6 +91,13 @@ brixMount cvmfs atlas.cern.ch ~/atlas-cvmfs/
 brixMount cvmfs-rw atlas.cern.ch ~/atlas-overlay/
 brixMount --overlay-list ~/atlas-overlay/   # inspect changes
 brixMount --overlay-reset ~/atlas-overlay/  # discard changes
+
+# Automount any configured repository under /cvmfs on first access
+brixMount autofs - /cvmfs -o allow_other,idle=600
+ls /cvmfs/atlas.cern.ch    # mounts on demand
+
+# Warm the local cache with a full snapshot before a job wave (no mount)
+brixMount cvmfs --prewarm atlas.cern.ch
 
 # Mount an EOS namespace
 brixMount eos root://eoslhcb.cern.ch ~/eos/
@@ -89,6 +121,26 @@ Override the CVMFS temporary directory.
 .TP
 .B BRIXCVMFS_ETC
 Override the CVMFS configuration directory.
+.TP
+.B BRIXCVMFS_PIN
+Pin a \fBcvmfs\fR mount to an exact root-catalog hash (same as
+\fB\-o pin=\fIHASH\fR): the mount serves exactly that snapshot, refresh never
+follows an upstream catalog rollover, and a verified upstream advance is
+surfaced as a single \fBsignal=pindrift\fR audit line instead of being
+silently followed.
+.TP
+.B BRIXCVMFS_PREFETCH
+Enable predictive prefetch on a \fBcvmfs\fR mount (same as
+\fB\-o prefetch=\fIDEPTH\fR): the first listing of a directory queues a
+background walk of that catalog subtree (descending \fIDEPTH\fR nested-catalog
+levels) that pre-pulls its content objects into the local cache, so later
+opens are cache hits. Advisory only — prefetch errors never affect foreground
+operations.
+.TP
+.B BRIXCVMFS_PREFETCH_BUDGET
+Byte budget for predictive prefetch (same as
+\fB\-o prefetch_budget=\fIBYTES\fR; 0 = unbounded). Hitting the budget stops
+the sweep with a single \fBsignal=prefetchcap\fR audit line.
 .TP
 .B BEARER_TOKEN
 Bearer token for HTTP(S) / WebDAV endpoints.

@@ -45,15 +45,18 @@ XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
 
 
 def _client_has_krb5():
-    """The client links sec_krb5 only when built with -DBRIX_HAVE_KRB5; detect
-    it by asking xrdfs to force krb5 with no ccache and seeing a krb5-specific
-    message (vs. 'no usable auth protocol')."""
+    """The client links libkrb5 only when built with -DBRIX_HAVE_KRB5; read that
+    off the dynamic-link table (the deterministic build signal, as
+    ``test_krb5_compiled_and_clean`` does).  A runtime probe is unreliable: an
+    unreachable URL fails at connect() before auth negotiation, so the error
+    never mentions krb5 whether or not the driver is compiled in."""
     if not os.path.exists(XRDFS):
         return False
-    p = subprocess.run([XRDFS, "--auth", "krb5", f"root://{url_host(HOST)}:1", "stat", "/"],
-                       capture_output=True, text=True, timeout=20,
-                       env={k: v for k, v in os.environ.items()})
-    return "krb5" in (p.stderr + p.stdout).lower()
+    ldd = subprocess.run([XRDFS, "-h"], capture_output=True, text=True).stderr
+    if "krb5" not in ldd:
+        return False
+    linked = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout
+    return "libkrb5" in linked
 
 
 @pytest.fixture()

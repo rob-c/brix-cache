@@ -222,6 +222,7 @@ def _response_hrefs(xml_text):
 # ---------------------------------------------------------------------------
 # OPTIONS  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_options_returns_200():
     """REGRESSION: OPTIONS over [::1] returns 200 with a DAV-capable Allow set."""
     r = requests.options(_url("/"), timeout=10)
@@ -236,6 +237,7 @@ def test_ipv6_webdav_options_returns_200():
 # ---------------------------------------------------------------------------
 # PUT / GET / HEAD — byte-exact round-trip  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_put_and_get_byte_exact():
     """REGRESSION: anonymous PUT then GET over [::1] is byte-exact."""
     uid = _uid()
@@ -250,6 +252,7 @@ def test_ipv6_webdav_put_and_get_byte_exact():
     assert r.content == content
 
 
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_get_seeded_file_byte_exact():
     """REGRESSION: GET of the pre-seeded file returns its exact bytes."""
     r = _get(f"/{SEED_NAME}")
@@ -257,6 +260,7 @@ def test_ipv6_webdav_get_seeded_file_byte_exact():
     assert r.content == SEED_CONTENT
 
 
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_head_returns_content_length():
     """REGRESSION: HEAD returns 200 with the correct Content-Length."""
     uid = _uid()
@@ -270,6 +274,7 @@ def test_ipv6_webdav_head_returns_content_length():
     assert int(r.headers.get("Content-Length", -1)) == len(content)
 
 
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_get_missing_returns_404():
     """REGRESSION: GET of a missing path is 404; IPv6 takes the same code path."""
     r = _get(f"/ipv6_no_such_{_uid()}.bin")
@@ -279,6 +284,7 @@ def test_ipv6_webdav_get_missing_returns_404():
 # ---------------------------------------------------------------------------
 # Range GET  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_range_request():
     """REGRESSION: a partial (Range) GET returns 206 with the exact slice."""
     uid = _uid()
@@ -299,6 +305,7 @@ def test_ipv6_webdav_range_request():
 # ---------------------------------------------------------------------------
 # Want-Digest  (REGRESSION/SMOKE) — XrdHttp checksum header over IPv6
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_want_digest_adler32():
     """REGRESSION: a Want-Digest: adler32 GET over [::1] attaches a Digest header
     whose adler32 matches the file content (adler32 is the canonical, always-wired
@@ -316,6 +323,7 @@ def test_ipv6_webdav_want_digest_adler32():
     assert expected in digest.lower(), f"{digest!r} vs adler32={expected}"
 
 
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_want_digest_sha256():
     """REGRESSION: Want-Digest: sha-256 → Digest header matching the file hash.
     sha-256 is an OpenSSL EVP path; if a build omits it the server simply returns
@@ -341,6 +349,7 @@ def test_ipv6_webdav_want_digest_sha256():
 # ---------------------------------------------------------------------------
 # DELETE  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_delete_file():
     """REGRESSION: DELETE removes the file; a subsequent GET is 404."""
     uid = _uid()
@@ -358,6 +367,7 @@ def test_ipv6_webdav_delete_file():
 # ---------------------------------------------------------------------------
 # MKCOL  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_mkcol_directory():
     """REGRESSION: MKCOL creates a collection; a child PUT then succeeds."""
     uid = _uid()
@@ -375,6 +385,7 @@ def test_ipv6_webdav_mkcol_directory():
 # ---------------------------------------------------------------------------
 # MOVE / COPY  (GATING — re-emitted Destination must not carry a bare literal)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_move_destination_header_bracketed():
     """GATING (§3 propfind/move emit contract): MOVE with a bracketed IPv6
     Destination (``http://[::1]:PORT/dst``) succeeds — src gone, dst present —
@@ -401,6 +412,7 @@ def test_ipv6_webdav_move_destination_header_bracketed():
         assert "[::1]" in loc, f"bare IPv6 literal in MOVE Location: {loc!r}"
 
 
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_copy_destination_header():
     """GATING (§3 propfind/move emit contract): COPY with a bracketed IPv6
     Destination duplicates the file (src kept, dst byte-exact) with no host
@@ -428,6 +440,7 @@ def test_ipv6_webdav_copy_destination_header():
 # ---------------------------------------------------------------------------
 # PROPFIND depth 0 / 1  (GATING — hrefs must be relative, no host literal)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_propfind_depth_0():
     """GATING (§3 webdav/propfind.c href contract): PROPFIND Depth: 0 returns 207
     with exactly one well-formed <D:href> for the file itself, and the href is a
@@ -451,6 +464,7 @@ def test_ipv6_webdav_propfind_depth_0():
         _assert_href_has_no_host_literal(h)
 
 
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_propfind_depth_1():
     """GATING (§3 webdav/propfind.c href contract): PROPFIND Depth: 1 on a
     collection returns 207 with the collection itself plus each member, every
@@ -475,6 +489,7 @@ def test_ipv6_webdav_propfind_depth_1():
         assert any(h.endswith(f"m{i}.txt") for h in hrefs), f"m{i}.txt missing"
 
 
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_propfind_href_no_host_literal():
     """GATING (§3 href contract): assert directly that no emitted href contains
     the IPv6 host literal in any form (``::1`` / ``[::1]`` / ``[::``).  This is
@@ -503,6 +518,7 @@ def _assert_href_has_no_host_literal(href: str):
 # ---------------------------------------------------------------------------
 # PROPFIND allprop properties  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_propfind_allprop_properties():
     """REGRESSION: a Depth: 0 allprop PROPFIND exposes the standard live
     properties (getcontentlength / getlastmodified / resourcetype)."""
@@ -527,6 +543,7 @@ def test_ipv6_webdav_propfind_allprop_properties():
 # ---------------------------------------------------------------------------
 # LOCK / UNLOCK  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_lock_then_unlock():
     """REGRESSION: LOCK over [::1] returns 201 with an opaquelocktoken Lock-Token
     that PROPFIND surfaces in <D:lockdiscovery>, and UNLOCK with that token
@@ -555,6 +572,7 @@ def test_ipv6_webdav_lock_then_unlock():
     assert r.status_code in (200, 201)
 
 
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_lock_enforces_put_without_token():
     """REGRESSION: a locked resource rejects a PUT lacking the lock token (423),
     and accepts it once the token is supplied in the If: header — lock semantics
@@ -577,6 +595,7 @@ def test_ipv6_webdav_lock_enforces_put_without_token():
 # ---------------------------------------------------------------------------
 # Overwrite  (REGRESSION/SMOKE)
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_overwrite_existing():
     """REGRESSION: a second PUT overwrites the object; GET returns the new body."""
     uid = _uid()
@@ -593,6 +612,7 @@ def test_ipv6_webdav_overwrite_existing():
 # ---------------------------------------------------------------------------
 # Security-negative: path traversal must not bypass confinement over IPv6
 # ---------------------------------------------------------------------------
+@pytest.mark.registry_server("ipv6-webdav")
 def test_ipv6_webdav_path_traversal_rejected():
     """SECURITY-NEG: a ``../`` escape PUT is rejected (never 200/201/500); IPv6
     does not bypass the confined-resolver contract enforced for every transport.

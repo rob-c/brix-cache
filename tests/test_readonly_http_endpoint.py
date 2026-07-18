@@ -98,31 +98,37 @@ def _req(port, method, path, body=None, headers=None):
 
 class TestWebDavReadOnlyEndpoint:
 
+    @pytest.mark.registry_server("readonly-http")
     def test_get_still_works(self, readonly_http):
         st, body = _req(readonly_http["dav_port"], "GET", "/seed.txt")
         assert st == 200, f"read-only WebDAV GET should serve content, got {st}"
         assert body == b"read-only-content"
 
+    @pytest.mark.registry_server("readonly-http")
     def test_put_forbidden(self, readonly_http):
         st, _ = _req(readonly_http["dav_port"], "PUT",
                      f"/ro_put_{uuid.uuid4().hex}.txt", body=b"nope")
         assert st == 403, f"read-only WebDAV PUT must be 403, got {st}"
 
+    @pytest.mark.registry_server("readonly-http")
     def test_delete_forbidden_and_victim_survives(self, readonly_http):
         st, _ = _req(readonly_http["dav_port"], "DELETE", "/victim.txt")
         assert st == 403, f"read-only WebDAV DELETE must be 403, got {st}"
         assert os.path.exists(os.path.join(readonly_http["data"], "victim.txt"))
 
+    @pytest.mark.registry_server("readonly-http")
     def test_mkcol_forbidden(self, readonly_http):
         st, _ = _req(readonly_http["dav_port"], "MKCOL",
                      f"/ro_mkcol_{uuid.uuid4().hex}")
         assert st == 403, f"read-only WebDAV MKCOL must be 403, got {st}"
 
+    @pytest.mark.registry_server("readonly-http")
     def test_move_forbidden(self, readonly_http):
         st, _ = _req(readonly_http["dav_port"], "MOVE", "/seed.txt",
                      headers={"Destination": "/seed_moved.txt"})
         assert st == 403, f"read-only WebDAV MOVE must be 403, got {st}"
 
+    @pytest.mark.registry_server("readonly-http")
     def test_copy_forbidden(self, readonly_http):
         st, _ = _req(readonly_http["dav_port"], "COPY", "/seed.txt",
                      headers={"Destination": "/seed_copy.txt"})
@@ -137,16 +143,19 @@ class TestS3ReadOnlyEndpoint:
 
     BUCKET = "/testbucket"
 
+    @pytest.mark.registry_server("readonly-http")
     def test_get_still_works(self, readonly_http):
         st, body = _req(readonly_http["s3_port"], "GET", f"{self.BUCKET}/seed.txt")
         assert st == 200, f"read-only S3 GET should serve content, got {st}"
         assert body == b"read-only-content"
 
+    @pytest.mark.registry_server("readonly-http")
     def test_put_forbidden(self, readonly_http):
         st, _ = _req(readonly_http["s3_port"], "PUT",
                      f"{self.BUCKET}/ro_put_{uuid.uuid4().hex}.txt", body=b"nope")
         assert st == 403, f"read-only S3 PUT must be 403, got {st}"
 
+    @pytest.mark.registry_server("readonly-http")
     def test_delete_forbidden_and_victim_survives(self, readonly_http):
         st, _ = _req(readonly_http["s3_port"], "DELETE", f"{self.BUCKET}/victim.txt")
         assert st == 403, f"read-only S3 DELETE must be 403, got {st}"

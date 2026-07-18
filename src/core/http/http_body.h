@@ -108,6 +108,20 @@ ngx_int_t brix_http_body_write_to_staged(ngx_http_request_t *r,
     struct brix_vfs_staged_s *st);
 
 /*
+ * brix_http_body_write_to_writer - stream the whole request body into a unified
+ * verified-write session (brix_vfs_writer). The backend-neutral twin of
+ * write_to_fd/write_to_staged: memory buffers are pushed with brix_vfs_writer_write
+ * and spooled (in_file) buffers with brix_vfs_writer_write_fd (kernel copy_file_range
+ * for a plain single-fd backend, a pread bounce when the session verifies or the
+ * backend is object/block). Threads a running offset from 0 so the body lands
+ * contiguously. NGX_OK / NGX_ERROR (errno set). The caller commits/aborts the
+ * session (which folds the verify read-back on commit).
+ */
+struct brix_vfs_writer_s;
+ngx_int_t brix_http_body_write_to_writer(ngx_http_request_t *r,
+    struct brix_vfs_writer_s *w);
+
+/*
  * brix_http_body_read_all - read entire request body into a single allocated buffer.
  *
  * WHAT: Summarizes the request body, allocates a pool buffer of summary.bytes + 1,

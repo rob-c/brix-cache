@@ -37,7 +37,6 @@ Run:
 import hashlib
 import os
 import socket
-import subprocess
 import time
 import zlib
 from dataclasses import dataclass
@@ -54,6 +53,7 @@ from settings import (
     HOST,
     MANAGER_PORT,
     NGINX_ANON_PORT,
+    NGINX_BIN,
     NGINX_HTTP_WEBDAV_PORT,
     NGINX_S3_PORT,
     NGINX_WEBDAV_PORT,
@@ -63,8 +63,9 @@ from settings import (
     SERVER_HOST,
     VIRTUAL_REDIR_PORT,
     WT_SYNC_PORT,
-    free_port,
 )
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
 import requests
 import urllib3
@@ -77,9 +78,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # which flaked TestMirrorTopology and the cluster-cms endpoint (both pass in
 # isolation). Mark the module `serial` so conftest pins it to the isolated serial
 # lane — the same pattern test_conformance_topologies / test_cms_mesh_interop use.
-pytestmark = [pytest.mark.serial]
-
-NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
 
 # Deterministic-but-distinct payloads.  Sizes chosen to span multiple read
 # chunks and a non-page-aligned tail.
@@ -284,6 +283,26 @@ class WebDAVDriver(_HTTPDriver):
         return None
 
 
+# CRC-64/NVME (AWS x-amz-checksum-crc64nvme): reflected in/out, init/xorout
+# all-FF, reflected polynomial 0x9A6C9329AC4BC9B5 (normal form 0xAD93D23594C93659)
+# — the exact variant src/core/compat/crc64.c serves to the S3 front.
+_CRC64NVME_POLY_REFL = 0x9A6C9329AC4BC9B5
+_CRC64NVME_TABLE = []
+for _b in range(256):
+    _c = _b
+    for _ in range(8):
+        _c = (_c >> 1) ^ _CRC64NVME_POLY_REFL if _c & 1 else _c >> 1
+    _CRC64NVME_TABLE.append(_c)
+del _b, _c
+
+
+def _crc64nvme(data):
+    crc = 0xFFFFFFFFFFFFFFFF
+    for byte in data:
+        crc = _CRC64NVME_TABLE[(crc ^ byte) & 0xFF] ^ (crc >> 8)
+    return crc ^ 0xFFFFFFFFFFFFFFFF
+
+
 class S3Driver(_HTTPDriver):
     proto = "s3"
 
@@ -292,16 +311,22 @@ class S3Driver(_HTTPDriver):
         return f"{locator}/{S3_BUCKET}/{path.lstrip('/')}"
 
     def checksum(self, locator, path, data):
+        import base64
         r = requests.head(self._url(locator, path), verify=self.verify,
                           timeout=30)
+        # Primary: the full-object CRC-64/NVME the S3 front echoes verbatim
+        # (base64 of the 8-byte big-endian CRC) on PUT/HEAD/GET.
+        server = r.headers.get("x-amz-checksum-crc64nvme")
+        if server:
+            want = base64.b64encode(_crc64nvme(data).to_bytes(8, "big")).decode()
+            return "crc64nvme", server, want
+        # Fallback: a non-multipart ETag is the hex MD5 of the object.
         etag = r.headers.get("ETag")
-        if not etag:
-            return None
-        etag = etag.strip('"')
-        # Non-multipart S3 ETag is the hex MD5 of the object.
-        if "-" in etag:
-            return None  # multipart upload ETag — not a plain md5
-        return "md5(etag)", etag.lower(), hashlib.md5(data).hexdigest()
+        if etag:
+            etag = etag.strip('"')
+            if "-" not in etag:
+                return "md5(etag)", etag.lower(), hashlib.md5(data).hexdigest()
+        return None
 
 
 # ===========================================================================
@@ -391,80 +416,51 @@ def _driver(proto):
 # The client reads/writes the front; integrity must be unaffected by mirroring.
 # ===========================================================================
 
-MIRROR_FRONT_PORT = int(os.environ.get("TEST_MIRROR_FRONT_PORT") or free_port())
-MIRROR_SINK_PORT  = int(os.environ.get("TEST_MIRROR_SINK_PORT") or free_port())
-_MIRROR_DIR = os.path.join(os.environ["TMPDIR"], "xrd_mirror_rt")
+def _pinned_port(env_var):
+    """Honor an explicit port pin (env), else let the registry assign one."""
+    value = os.environ.get(env_var)
+    return int(value) if value else None
 
 
 @pytest.fixture(scope="session")
 def mirror_endpoint():
-    """Stand up a transparent stream-mirror server; yield its root Endpoint."""
+    """Stand up a transparent stream-mirror server; yield its root Endpoint.
+
+    The sink (shadow-traffic destination) and the mirror front are throwaway
+    registry instances (LifecycleHarness): the harness renders the committed
+    nginx_integrity_mirror_{sink,front}.conf templates, runs `nginx -t`, waits
+    for each to be TCP-ready, and reaps both on close().  The front's
+    brix_stream_mirror_url is wired to the sink's assigned port via
+    template_values."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
 
-    data = os.path.join(_MIRROR_DIR, "data")
-    sink_data = os.path.join(_MIRROR_DIR, "sink_data")
-    for d in (data, sink_data,
-              os.path.join(_MIRROR_DIR, "front-run", "logs"),
-              os.path.join(_MIRROR_DIR, "sink-run", "logs")):
-        os.makedirs(d, exist_ok=True)
+    harness = LifecycleHarness()
+    try:
+        sink = harness.start(NginxInstanceSpec(
+            name="im-mirror-sink",
+            template="nginx_integrity_mirror_sink.conf",
+            protocol="root",
+            port=_pinned_port("TEST_MIRROR_SINK_PORT"),
+            readiness="tcp",
+            reason="integrity-matrix mirror shadow-traffic sink"))
+        front = harness.start(NginxInstanceSpec(
+            name="im-mirror-front",
+            template="nginx_integrity_mirror_front.conf",
+            protocol="root",
+            port=_pinned_port("TEST_MIRROR_FRONT_PORT"),
+            readiness="tcp",
+            template_values={"MIRROR_SINK": f"{H}:{sink.port}"},
+            reason="integrity-matrix mirror front (client-facing)"))
+    except Exception as exc:
+        harness.close()
+        pytest.skip(f"mirror servers did not start: {str(exc)[-300:]}")
 
-    sink_conf = os.path.join(_MIRROR_DIR, "sink.conf")
-    front_conf = os.path.join(_MIRROR_DIR, "front.conf")
-    with open(sink_conf, "w") as f:
-        f.write(f"""\
-error_log {_MIRROR_DIR}/sink-run/logs/error.log info;
-pid {_MIRROR_DIR}/sink-run/nginx.pid;
-events {{}}
-stream {{
-    server {{
-        listen 0.0.0.0:{MIRROR_SINK_PORT};
-        brix_root on; brix_storage_backend posix:{sink_data}; brix_auth none;
-        brix_allow_write on;
-    }}
-}}
-""")
-    with open(front_conf, "w") as f:
-        f.write(f"""\
-error_log {_MIRROR_DIR}/front-run/logs/error.log info;
-pid {_MIRROR_DIR}/front-run/nginx.pid;
-events {{}}
-stream {{
-    server {{
-        listen 0.0.0.0:{MIRROR_FRONT_PORT};
-        brix_root on; brix_storage_backend posix:{data}; brix_auth none;
-        brix_allow_write on;
-        brix_stream_mirror_url {H}:{MIRROR_SINK_PORT};
-        brix_mirror_opcodes open read readv stat;
-    }}
-}}
-""")
-
-    procs = []
-    for conf in (sink_conf, front_conf):
-        chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                             capture_output=True, text=True)
-        if chk.returncode != 0:
-            pytest.skip(f"mirror config rejected: {chk.stderr[-300:]}")
-        subprocess.run([NGINX_BIN, "-c", conf], capture_output=True, text=True)
-        procs.append(conf)
-
-    # Wait for the front to accept connections.
-    for _ in range(50):
-        if _reachable(H, MIRROR_FRONT_PORT, 0.5):
-            break
-        time.sleep(0.1)
-    else:
-        for conf in procs:
-            subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"],
-                           capture_output=True)
-        pytest.skip("mirror front did not come up")
-
-    ep = Endpoint("mirror", "root", _root(MIRROR_FRONT_PORT), H, MIRROR_FRONT_PORT)
-    yield ep
-
-    for conf in procs:
-        subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
+    ep = Endpoint("mirror", "root", _root(front.port), H, front.port)
+    try:
+        yield ep
+    finally:
+        harness.close()
 
 
 # ===========================================================================
@@ -529,6 +525,7 @@ class TestFixedTopologies:
     """Direct + every fleet mesh variant (proxy, redirector, manager, cluster,
     caches, 3-tier) for the protocols each front exposes."""
 
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_write_read_scalar_byte_exact(self, ep):
         drv = _ensure(ep)
         path = _unique(f"int_{ep.topo}_{ep.proto}_scalar")
@@ -538,6 +535,7 @@ class TestFixedTopologies:
         assert got == data, \
             f"{ep.topo}/{ep.proto}: {len(got)}B read != {len(data)}B written"
 
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_read_vector_byte_exact(self, ep):
         drv = _ensure(ep)
         if not getattr(drv, "supports_vector", False):
@@ -548,6 +546,7 @@ class TestFixedTopologies:
         res = _guard(ep, lambda: drv.read_vector(ep.locator, path, len(data)))
         _assert_vector(res, data)
 
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_checksum_matches(self, ep):
         drv = _ensure(ep)
         path = _unique(f"int_{ep.topo}_{ep.proto}_cks")
@@ -569,6 +568,7 @@ class TestMirrorTopology:
     """A transparent stream-mirror server: client integrity must be unaffected
     by the shadow traffic, for scalar read, vector read, write, and checksum."""
 
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_write_read_scalar_byte_exact(self, mirror_endpoint):
         ep = mirror_endpoint
         drv = _ensure(ep)
@@ -576,6 +576,7 @@ class TestMirrorTopology:
         drv.write(ep.locator, path, BIG)
         assert drv.read_scalar(ep.locator, path, len(BIG)) == BIG
 
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_read_vector_byte_exact(self, mirror_endpoint):
         ep = mirror_endpoint
         drv = _ensure(ep)
@@ -583,6 +584,7 @@ class TestMirrorTopology:
         drv.write(ep.locator, path, BIG)
         _assert_vector(drv.read_vector(ep.locator, path, len(BIG)), BIG)
 
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_checksum_matches(self, mirror_endpoint):
         ep = mirror_endpoint
         drv = _ensure(ep)
@@ -605,71 +607,56 @@ class TestMirrorTopology:
 # checksums), proving that the transparent proxy forwards byte-exact data AND
 # every user query — checksum included — through one and two proxy hops.
 
-PROXY_STORAGE_PORT = int(os.environ.get("TEST_IM_PROXY_STORAGE_PORT") or free_port())
-PROXY_HOP1_PORT    = int(os.environ.get("TEST_IM_PROXY_HOP1_PORT") or free_port())
-PROXY_HOP2_PORT    = int(os.environ.get("TEST_IM_PROXY_HOP2_PORT") or free_port())
-_PROXY_DIR = os.path.join(os.environ["TMPDIR"], "xrd_proxychain_rt")
-
-
 @pytest.fixture(scope="session")
 def proxy_chain():
-    """storage(nginx) <- proxy(nginx) <- mesh(nginx); yield locator URLs."""
+    """storage(nginx) <- proxy(nginx) <- mesh(nginx); yield locator URLs.
+
+    All three hops are throwaway registry instances (LifecycleHarness): the
+    harness renders the committed nginx_integrity_proxy_{storage,hop}.conf
+    templates, runs `nginx -t`, waits for each to be TCP-ready, and reaps them
+    on close().  Each proxy hop's brix_tap_proxy_upstream is wired to the previous
+    hop's assigned port via template_values."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
 
-    data = os.path.join(_PROXY_DIR, "data")
-    confs = {
-        "storage": (PROXY_STORAGE_PORT, f"""\
-        brix_root on; brix_storage_backend posix:{data}; brix_auth none;
-        brix_allow_write on;"""),
-        "hop1": (PROXY_HOP1_PORT, f"""\
-        brix_root on; brix_auth none;
-        brix_proxy on; brix_proxy_upstream {HOST}:{PROXY_STORAGE_PORT};"""),
-        "hop2": (PROXY_HOP2_PORT, f"""\
-        brix_root on; brix_auth none;
-        brix_proxy on; brix_proxy_upstream {HOST}:{PROXY_HOP1_PORT};"""),
-    }
-    os.makedirs(data, exist_ok=True)
-    started = []
-    for name, (port, body) in confs.items():
-        run = os.path.join(_PROXY_DIR, f"{name}-run", "logs")
-        os.makedirs(run, exist_ok=True)
-        conf = os.path.join(_PROXY_DIR, f"{name}.conf")
-        with open(conf, "w") as f:
-            f.write(f"error_log {os.path.dirname(run)}/logs/error.log info;\n"
-                    f"pid {os.path.dirname(run)}/nginx.pid;\nevents {{}}\n"
-                    f"stream {{\n    server {{\n        listen 0.0.0.0:{port};\n"
-                    f"{body}\n    }}\n}}\n")
-        chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                             capture_output=True, text=True)
-        if chk.returncode != 0:
-            for c2 in started:
-                subprocess.run([NGINX_BIN, "-c", c2, "-s", "stop"],
-                               capture_output=True)
-            pytest.skip(f"proxy-chain config rejected: {chk.stderr[-300:]}")
-        subprocess.run([NGINX_BIN, "-c", conf], capture_output=True)
-        started.append(conf)
-
-    for port in (PROXY_STORAGE_PORT, PROXY_HOP1_PORT, PROXY_HOP2_PORT):
-        for _ in range(50):
-            if _reachable(H, port, 0.5):
-                break
-            time.sleep(0.1)
-        else:
-            for c2 in started:
-                subprocess.run([NGINX_BIN, "-c", c2, "-s", "stop"],
-                               capture_output=True)
-            pytest.skip(f"proxy-chain port {port} did not come up")
+    harness = LifecycleHarness()
+    try:
+        storage = harness.start(NginxInstanceSpec(
+            name="im-proxy-storage",
+            template="nginx_integrity_proxy_storage.conf",
+            protocol="root",
+            port=_pinned_port("TEST_IM_PROXY_STORAGE_PORT"),
+            readiness="tcp",
+            reason="integrity-matrix pure-nginx proxy chain storage origin"))
+        hop1 = harness.start(NginxInstanceSpec(
+            name="im-proxy-hop1",
+            template="nginx_integrity_proxy_hop.conf",
+            protocol="root",
+            port=_pinned_port("TEST_IM_PROXY_HOP1_PORT"),
+            readiness="tcp",
+            template_values={"UPSTREAM": f"{HOST}:{storage.port}"},
+            reason="integrity-matrix proxy chain hop 1 (one-hop proxy)"))
+        hop2 = harness.start(NginxInstanceSpec(
+            name="im-proxy-hop2",
+            template="nginx_integrity_proxy_hop.conf",
+            protocol="root",
+            port=_pinned_port("TEST_IM_PROXY_HOP2_PORT"),
+            readiness="tcp",
+            template_values={"UPSTREAM": f"{HOST}:{hop1.port}"},
+            reason="integrity-matrix proxy chain hop 2 (two-hop mesh)"))
+    except Exception as exc:
+        harness.close()
+        pytest.skip(f"proxy-chain servers did not start: {str(exc)[-300:]}")
 
     info = {
-        "storage": _root(PROXY_STORAGE_PORT),
-        "proxy":   _root(PROXY_HOP1_PORT),
-        "mesh":    _root(PROXY_HOP2_PORT),
+        "storage": _root(storage.port),
+        "proxy":   _root(hop1.port),
+        "mesh":    _root(hop2.port),
     }
-    yield info
-
-    for c2 in started:
-        subprocess.run([NGINX_BIN, "-c", c2, "-s", "stop"], capture_output=True)
+    try:
+        yield info
+    finally:
+        harness.close()
 
 
 # All user-facing kXR_query infotypes the client can issue.  Path-bearing ones
@@ -708,16 +695,19 @@ class TestProxyChainQueries:
     # --- integrity through proxy / mesh ---
 
     @pytest.mark.parametrize("hop", ["proxy", "mesh"])
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_scalar_byte_exact(self, hop):
         got = self.drv.read_scalar(self.urls[hop], self.path, len(BIG))
         assert got == BIG
 
     @pytest.mark.parametrize("hop", ["proxy", "mesh"])
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_vector_byte_exact(self, hop):
         _assert_vector(self.drv.read_vector(self.urls[hop], self.path, len(BIG)),
                        BIG)
 
     @pytest.mark.parametrize("hop", ["proxy", "mesh"])
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_checksum_matches(self, hop):
         result = self.drv.checksum(self.urls[hop], self.path, BIG)
         assert result is not None, f"checksum not forwarded through {hop}"
@@ -730,6 +720,7 @@ class TestProxyChainQueries:
     @pytest.mark.parametrize("hop", ["proxy", "mesh"])
     @pytest.mark.parametrize("name,code,argkind", _QUERY_CASES,
                              ids=[q[0] for q in _QUERY_CASES])
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_query_forwarded(self, hop, name, code, argkind):
         """Every query must reach the backend: the result through the proxy/mesh
         must equal the result of the same query issued directly to storage —

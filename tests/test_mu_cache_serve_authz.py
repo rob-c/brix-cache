@@ -19,66 +19,67 @@ Scenario:
 Run: PYTHONPATH=tests pytest tests/test_mu_cache_serve_authz.py -v   (no root needed)
 """
 import os
-import socket
-import subprocess
-import time
 
 import pytest
 
-from mu_authz_lib import cache_state, creds, fleet, ports, principals
+from mu_authz_lib import cache_state, creds, ports, principals
 from mu_authz_lib.adapters import measure_root
+from server_registry import NginxInstanceSpec
 
-_PORT = ports.MU.CACHE_NOIMP
-_URL = f"root://{ports.MU.HOST}:{_PORT}"
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 _REL = "prot/secret.dat"
 _PATH = "/" + _REL
 
 
-def _port_open(p, host=ports.MU.HOST):
-    s = socket.socket()
-    s.settimeout(0.5)
-    try:
-        s.connect((host, p))
-        return True
-    except OSError:
-        return False
-    finally:
-        s.close()
+def _origin_spec():
+    return NginxInstanceSpec(
+        name="lc-mu-cache-origin",
+        template="nginx_mu_cache_origin.conf",
+        protocol="root",
+        readiness="root",
+        data_root=ports.MU.DATA_ROOT,
+        reason="MU anonymous origin for the no-root cache-HIT verification.",
+    )
 
 
-def _render_start(conf_name, pid_name, port):
-    subst = fleet._base_subst()
-    subst["{AUTHDB}"] = ports.MU.AUTHDB
-    src = os.path.join(fleet._CFG_SRC, conf_name)
-    text = open(src).read()
-    for k, v in subst.items():
-        text = text.replace(k, v)
-    dst = os.path.join(ports.MU.CONFIG_DIR, conf_name)
-    with open(dst, "w") as f:
-        f.write(text)
-    pidf = os.path.join(ports.MU.MU_ROOT, pid_name)
-    subprocess.run([fleet.NGINX, "-c", dst, "-g", f"pid {pidf};"],
-                   check=True, capture_output=True)
-    deadline = time.time() + 15
-    while time.time() < deadline and not _port_open(port):
-        time.sleep(0.2)
-    if not _port_open(port):
-        raise TimeoutError(f"server {conf_name} never listened on {port}")
-    return pidf
+def _cache_spec(origin_port):
+    return NginxInstanceSpec(
+        name="lc-mu-cache-node",
+        template="nginx_mu_cache_node.conf",
+        protocol="root",
+        readiness="root",
+        template_values={
+            "ORIGIN_PORT": origin_port,
+            "CACHE_DIR": ports.MU.CACHE_ROOT,
+            "CERT": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
+            "KEY": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
+            "CA": os.path.join(ports.MU.CA_DIR, "ca.pem"),
+            "VOMSDIR": ports.MU.VOMSDIR,
+            "CA_DIR": ports.MU.CA_DIR,
+            "AUTHDB": ports.MU.AUTHDB,
+        },
+        reason="MU GSI+authdb cache node: cache-HIT authorization gate.",
+    )
 
 
 @pytest.fixture(scope="module")
-def noimp_env():
-    """Start an anonymous ORIGIN + a GSI+authdb CACHE server (both impersonation-off) as the
+def cast():
+    """Build the MU PKI/principal cast once for the module (returns the cast)."""
+    return principals.build_cast()
+
+
+@pytest.fixture
+def noimp_env(lifecycle, cast):
+    """Start an anonymous ORIGIN + a GSI+authdb CACHE node (both impersonation-off) as the
     current uid. authdb admits only VO cms on /prot. The cache fills from the remote origin,
     so the real cache-HIT serve path is exercised. Returns (cache_url, cast)."""
-    cast = principals.build_cast()
-
     # Seed the origin export.
     d = os.path.join(ports.MU.DATA_ROOT, "prot")
     os.makedirs(d, exist_ok=True)
     with open(os.path.join(d, "secret.dat"), "wb") as f:
         f.write(b"S" * 65536)
+    os.makedirs(ports.MU.CACHE_ROOT, exist_ok=True)
     cache_state.force_cold()
 
     # authdb: only the cms VO may read (the enforcing tier the old cache path skipped). The
@@ -88,21 +89,10 @@ def noimp_env():
     with open(ports.MU.AUTHDB, "w") as f:
         f.write("# MU no-imp cache verification authdb\n")
         f.write("g cms / rl\n")
-    for dd in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR):
-        os.makedirs(dd, exist_ok=True)
 
-    pids = []
-    try:
-        pids.append(_render_start("root_origin_noimp.conf", "origin_noimp.pid",
-                                  ports.MU.ORIGIN_NOIMP))
-        pids.append(_render_start("root_cache_noimp.conf", "cache_noimp.pid", _PORT))
-        yield _URL, cast
-    finally:
-        for pidf in pids:
-            try:
-                os.kill(int(open(pidf).read().strip()), 15)
-            except (ProcessLookupError, ValueError, FileNotFoundError):
-                pass
+    origin = lifecycle.start(_origin_spec())
+    cache = lifecycle.start(_cache_spec(origin.port))
+    return cache.url, cast
 
 
 def _voms(cast, name, vo):

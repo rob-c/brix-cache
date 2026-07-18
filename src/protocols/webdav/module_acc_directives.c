@@ -47,6 +47,40 @@ brix_http_set_ktls(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
+/*
+ * brix_cache_store_endpoint on|off — registered once (WebDAV) but sets
+ * common.cache_store_endpoint on BOTH the WebDAV and S3 loc-confs, so an S3-only
+ * store location honours the flag too. Marks the location as a trusted remote
+ * cache-STORE surface where internal sidecar names (.cinfo etc.) are legitimate
+ * request targets; default OFF (applied by the shared merge) keeps the
+ * reserved-name 404 guard in force on every normal client location.
+ */
+char *
+brix_http_set_cache_store_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_http_brix_webdav_loc_conf_t *wc =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_brix_webdav_module);
+    ngx_http_s3_loc_conf_t            *sc =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_brix_s3_module);
+    ngx_str_t *value = cf->args->elts;
+    ngx_flag_t  flag;
+
+    if (ngx_strcasecmp(value[1].data, (u_char *) "on") == 0) {
+        flag = 1;
+    } else if (ngx_strcasecmp(value[1].data, (u_char *) "off") == 0) {
+        flag = 0;
+    } else {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "invalid value \"%V\" in \"%V\" directive, must be \"on\" or \"off\"",
+            &value[1], &cmd->name);
+        return NGX_CONF_ERROR;
+    }
+    wc->common.cache_store_endpoint = flag;
+    sc->common.cache_store_endpoint = flag;
+    return NGX_CONF_OK;
+}
+
 char *
 brix_acc_http_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {

@@ -12,6 +12,13 @@ objs/
 # Compiled native-client binaries + test harnesses all land under client/bin/
 client/bin/
 
+# Compiled pblock unittest binaries (built in-tree by the pblock test harness)
+/pb_ut
+/pb_cat_ut
+
+# Benchmark baseline snapshots dropped at repo root by perf comparison runs
+/baseline_*.json
+
 # mcp-workspace runtime logs
 logs/
 

@@ -12,16 +12,10 @@ Run:
 """
 
 import os
-import socket
-import subprocess
-import sys
-import time
 import uuid
 import zlib
 
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 
 try:
     import requests
@@ -29,92 +23,51 @@ try:
 except Exception:  # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST  # noqa: E402
-from config_templates import render_config  # noqa: E402
+from settings import NGINX_BIN, HOST, BIND_HOST  # noqa: E402
+from server_registry import NginxInstanceSpec  # noqa: E402
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
-
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-def _start(tmp_path_factory, on_write, xattr_format=None):
-    d = tmp_path_factory.mktemp("cow")
-    (d / "logs").mkdir()
-    (d / "t").mkdir()
-    (d / "cadir").mkdir()
-    data = d / "data"
-    data.mkdir()
-    port = free_port()
+def _start(lifecycle, name, on_write, xattr_format=None):
     extra = (f"brix_webdav_checksum_on_write {on_write};" if on_write else "")
     if xattr_format:
         extra += f"\n            brix_webdav_checksum_xattr_format {xattr_format};"
-    conf = render_config("nginx_checksum_on_write.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=port,
-                         DATA_DIR=data,
-                         EXTRA_DIRECTIVES=extra)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not _wait_port(port):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        proc.terminate()
-        pytest.skip(f"server did not start: {err}")
-    return proc, port, str(data), f"http://{HOST}:{port}"
+    ep = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_lc_checksum_on_write.conf",
+        protocol="http",
+        template_values={"BIND_HOST": BIND_HOST, "EXTRA_DIRECTIVES": extra},
+        reason="WebDAV checksum-on-write PUT ingest"))
+    return ep.port, ep.data_root, f"http://{HOST}:{ep.port}"
 
 
-@pytest.fixture(scope="module")
-def cow_server(tmp_path_factory):
+@pytest.fixture()
+def cow_server(lifecycle):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
     if not _HAVE_REQUESTS:
         pytest.skip("requests not available")
-    proc, port, data, base = _start(tmp_path_factory, "adler32,crc32c")
-    yield port, data, base
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    return _start(lifecycle, "lc-checksum-cow", "adler32,crc32c")
 
 
-@pytest.fixture(scope="module")
-def xrdcks_server(tmp_path_factory):
+@pytest.fixture()
+def xrdcks_server(lifecycle):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
     if not _HAVE_REQUESTS:
         pytest.skip("requests not available")
-    proc, port, data, base = _start(tmp_path_factory, "adler32",
-                                    xattr_format="xrdcks")
-    yield port, data, base
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    return _start(lifecycle, "lc-checksum-xrdcks", "adler32",
+                  xattr_format="xrdcks")
 
 
-@pytest.fixture(scope="module")
-def plain_server(tmp_path_factory):
+@pytest.fixture()
+def plain_server(lifecycle):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
-    proc, port, data, base = _start(tmp_path_factory, None)
-    yield port, data, base
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
+    return _start(lifecycle, "lc-checksum-plain", None)
 
 
 def _xattr_text(path, alg):

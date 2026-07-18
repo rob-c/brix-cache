@@ -134,6 +134,7 @@ def probe(proto, token, path="/test.txt", write=False):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_01_valid_accept(proto):
     """PAR-01: valid storage.read:/ token → accept (positive baseline).
 
@@ -153,6 +154,7 @@ def test_par_01_valid_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_02_alg_none_reject(proto):
     """PAR-02: alg=none unsigned token → reject (CVE-class, SEC).
 
@@ -173,6 +175,7 @@ def test_par_02_alg_none_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_03_hs256_confusion_reject(proto):
     """PAR-03: HS256-keyed-with-RSA-public-key token → reject (confusion attack, SEC).
 
@@ -193,6 +196,7 @@ def test_par_03_hs256_confusion_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_04_wrong_issuer_reject(proto):
     """PAR-04: token issued by https://evil.example.com → reject (issuer mismatch).
 
@@ -211,6 +215,7 @@ def test_par_04_wrong_issuer_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_05_expired_reject(proto):
     """PAR-05: token expired 3600 s ago → reject.
 
@@ -228,6 +233,7 @@ def test_par_05_expired_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_06_wrong_aud_reject(proto):
     """PAR-06: aud="wrong-aud" → reject (audience mismatch).
 
@@ -246,6 +252,7 @@ def test_par_06_wrong_aud_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_07_aud_array_accept(proto):
     """PAR-07: aud=["nginx-xrootd","other"] array containing server audience → accept.
 
@@ -264,6 +271,7 @@ def test_par_07_aud_array_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_08_aud_wildcard_accept(proto):
     """PAR-08: aud="https://wlcg.cern.ch/jwt/v1/any" wildcard → accept.
 
@@ -284,6 +292,7 @@ def test_par_08_aud_wildcard_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_09_crit_unknown_reject(proto):
     """PAR-09: crit=["http://example.com/UNKNOWN"] → reject (RFC 7515 §4.1.11).
 
@@ -303,6 +312,7 @@ def test_par_09_crit_unknown_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_10_numericdate_fractional_accept(proto):
     """PAR-10: exp as fractional NumericDate (now+3600.5) → accept (RFC 7519 §2).
 
@@ -322,6 +332,7 @@ def test_par_10_numericdate_fractional_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_11_jwk_injection_reject(proto):
     """PAR-11: token with embedded 'jwk' header param signed by attacker key → reject (SEC).
 
@@ -342,6 +353,7 @@ def test_par_11_jwk_injection_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_12_truncated_sig_reject(proto):
     """PAR-12: signature truncated to half its length → reject.
 
@@ -361,6 +373,7 @@ def test_par_12_truncated_sig_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_13_bad_signature_reject(proto):
     """PAR-13: first 8 signature bytes XOR'd with 0xFF → reject (signature verification).
 
@@ -380,6 +393,7 @@ def test_par_13_bad_signature_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_14_no_scope_reject(proto):
     """PAR-14: valid JWT with no scope claim → reject (authenticated, no storage grant).
 
@@ -399,6 +413,7 @@ def test_par_14_no_scope_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_15_in_scope_accept(proto):
     """PAR-15: scope="storage.read:/atlas", path=/atlas/ok.txt → accept.
 
@@ -417,6 +432,7 @@ def test_par_15_in_scope_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_16_out_of_scope_reject(proto):
     """PAR-16: scope="storage.read:/atlas", path=/cms/ok.txt → reject.
 
@@ -435,6 +451,7 @@ def test_par_16_out_of_scope_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_17_traversal_reject(proto):
     """PAR-17: scope=/atlas token, path=/atlas/../cms/ok.txt → reject (§3.5).
 
@@ -456,6 +473,7 @@ def test_par_17_traversal_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_18_oversized_reject(proto):
     """PAR-18: token with 9000-byte pad claim → reject (token size limit).
 
@@ -475,6 +493,7 @@ def test_par_18_oversized_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_19_es256_reject(proto):
     """PAR-19: ES256 token on RSA-only JWKS → reject (no matching key).
 
@@ -498,6 +517,7 @@ def test_par_19_es256_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_par_20_unknown_claims_accept(proto):
     """PAR-20: token with extra unknown claims (custom_x, https://ex/z) → accept.
 

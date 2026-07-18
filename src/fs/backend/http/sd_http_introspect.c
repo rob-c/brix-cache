@@ -34,6 +34,31 @@ sd_http_set_ranks(brix_sd_instance_t *inst, const int *ranks, int n)
     }
 }
 
+/* Bench the last-answering endpoint after a verify (cvmfs-cas / manifest)
+ * failure. A digest mismatch is not a transport error, so the failover scorer
+ * never touched this endpoint's health — bump the SAME decaying fail_score a
+ * transport failure would raise, hard enough to lose the next pick to any
+ * clean-scored sibling. Two units (2*256) clears the 128 hysteresis band in
+ * one shot and outlives the half-open probe's single re-selection; it decays
+ * back on subsequent good fills, so a transient corruption does not
+ * permanently demote a healthy origin (a rank change would). Written from a
+ * fill thread; fail_score is racy-by-design like the rest of the score set. */
+#define SD_HTTP_VERIFY_PENALTY 512
+void
+sd_http_penalize_last_origin(brix_sd_instance_t *inst)
+{
+    sd_http_inst_state *is;
+
+    if (!sd_http_instance_is(inst)) {
+        return;
+    }
+    is = inst->state;
+    if (is->cur_ep < 0 || is->cur_ep >= is->n_eps) {
+        return;                         /* no origin has answered yet */
+    }
+    is->eps[is->cur_ep].fail_score += SD_HTTP_VERIFY_PENALTY;
+}
+
 /* Endpoint inventory for the RTT prober (copies, no ngx types). */
 int
 sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256],

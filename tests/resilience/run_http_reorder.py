@@ -31,7 +31,8 @@ import sys
 import tempfile
 import time
 
-from config_templates import render_config
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
@@ -71,29 +72,18 @@ def wait_port(port, proc, tries=80):
 
 
 def start_nginx_http(prefix, data):
-    logs = os.path.join(prefix, "logs")
-    tmp = os.path.join(prefix, "tmp")
-    for d in (logs, tmp):
-        os.makedirs(d, exist_ok=True)
-    port = free_port()
-    conf = os.path.join(prefix, "nginx.conf")
-    with open(conf, "w") as fh:
-        fh.write(render_config(
-            "nginx_resilience_http_reorder.conf",
-            LOG_DIR=logs,
-            TMP_DIR=tmp,
-            PORT=port,
-            DATA_DIR=data,
-        ))
-    env = dict(os.environ)
-    env.pop("LD_LIBRARY_PATH", None)
-    proc = subprocess.Popen([servers.NGINX_BIN, "-p", prefix, "-c", "nginx.conf"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            env=env)
-    if not wait_port(port, proc):
-        proc.kill()
-        sys.exit("nginx http failed to start")
-    return port, proc
+    """Stand up the WebDAV/HTTP reorder-harness nginx through the registry
+    harness, serving the pre-seeded ``data`` tree.  Returns ``(port, harness)``;
+    the caller closes the harness to tear it down."""
+    harness = LifecycleHarness()
+    endpoint = harness.start(NginxInstanceSpec(
+        name="resil-http-reorder",
+        template="nginx_resilience_http_reorder.conf",
+        protocol="http",
+        readiness="tcp",
+        data_root=data,
+    ))
+    return endpoint.port, harness
 
 
 def start_brix_http(prefix, data):
@@ -199,7 +189,7 @@ def main():
     print("[note] official xrdcp cannot copy http:// (CLI limit) — clients: "
           "repo xrdcp + curl")
 
-    ng_port, ng_proc = start_nginx_http(ng_dir, ng_data)
+    ng_port, ng_harness = start_nginx_http(ng_dir, ng_data)
     xr_port, xr_proc = start_brix_http(xr_dir, xr_data)
     smap = {"nginx": ng_port, "xrootd": xr_port}
     print(f"[up] nginx http :{ng_port}   xrootd XrdHttp :{xr_port}")
@@ -225,12 +215,12 @@ def main():
                     rows.append(dict(client=client, server=sname, level=level,
                                      ok=ok, secs=round(secs, 3)))
     finally:
-        for p in (ng_proc, xr_proc):
-            p.terminate()
-            try:
-                p.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                p.kill()
+        ng_harness.close()
+        xr_proc.terminate()
+        try:
+            xr_proc.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            xr_proc.kill()
 
     print_summary(rows, pairs, levels, size_bytes, args.reps)
 

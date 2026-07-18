@@ -3,6 +3,9 @@
  * Phase-38 split of webfile.c; behavior-identical.
  */
 #include "webfile_internal.h"
+#include "web_ka.h"
+#include "net/cpool.h"
+#include "posix/fuse_ops.h"   /* brix_fuse_conn_healthy for the pooled wrappers */
 
 const char *
 tag_val(const char *p, const char *end, const char *name, size_t *vlen)
@@ -117,6 +120,35 @@ web_auth(const char *bearer, char *out, size_t outsz)
 }
 
 
+/* Parse one PROPFIND (Depth 0) multistatus body into *si. Shared by the
+ * stateless brix_web_stat and the pooled brix_web_stat_pooled — they differ only
+ * in transport. The open tag may carry attributes (XrdHttp) or not (nginx), so
+ * we cannot pair on a bare "response>"; next_response_open/close tolerate both. */
+int
+webdav_parse_single(const char *body, size_t blen, brix_statinfo *si,
+                    brix_status *st)
+{
+    const char *b   = body ? body : "";
+    const char *end = b + blen;
+    const char *rp  = next_response_open(b, end);
+    const char *re;
+    char        href[XRDC_PATH_MAX];
+
+    if (rp == NULL) {
+        brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND: empty multistatus");
+        return -1;
+    }
+    re = next_response_close(rp, end);
+    if (re == NULL) {
+        re = end;
+    }
+    if (parse_response(rp, re, si, href, sizeof(href)) != 0) {
+        brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND: unparseable response");
+        return -1;
+    }
+    return 0;
+}
+
 int
 brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
               int verify, const char *ca_dir, brix_statinfo *si, brix_status *st)
@@ -124,8 +156,7 @@ brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
     char           hdrs[2400];
     char           auth[2200];
     brix_http_resp r;
-    const char    *rp, *re;
-    char           href[XRDC_PATH_MAX];
+    int            rc;
 
     web_auth(bearer, auth, sizeof(auth));
     snprintf(hdrs, sizeof(hdrs), "Depth: 0\r\n%s", auth);
@@ -143,30 +174,33 @@ brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
         brix_http_resp_free(&r);
         return -1;
     }
-    /* Bound the first <[ns:]response[ attrs]>...</[ns:]response> block. The open
-     * tag may carry attributes (XrdHttp) or not (nginx), so we cannot pair on a
-     * bare "response>"; next_response_open/close tolerate both forms. */
-    {
-        const char *body = r.body ? r.body : "";
-        const char *bend = body + (r.body ? r.body_len : 0);
-        rp = next_response_open(body, bend);
-        if (rp == NULL) {
-            brix_http_resp_free(&r);
-            brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND: empty multistatus");
-            return -1;
-        }
-        re = next_response_close(rp, bend);
-        if (re == NULL) {
-            re = bend;
-        }
-    }
-    if (parse_response(rp, re, si, href, sizeof(href)) != 0) {
-        brix_http_resp_free(&r);
-        brix_status_set(st, XRDC_EPROTO, 0, "PROPFIND: unparseable response");
+    rc = webdav_parse_single(r.body, r.body ? r.body_len : 0, si, st);
+    brix_http_resp_free(&r);
+    return rc;
+}
+
+/* Pooled keep-alive stat (Depth 0): checkout → propfind → parse → checkin. The
+ * health predicate keeps the socket on a protocol result (404/403) and drops it
+ * on a transport/proto sever (ESOCK/EPROTO), same as the read/root paths. */
+int
+brix_web_stat_pooled(brix_cpool *pool, const char *path, brix_statinfo *si,
+                     brix_status *st)
+{
+    char         *body = NULL;
+    size_t        blen = 0;
+    brix_webmeta *m = brix_cpool_checkout(pool, st);
+    int           rc;
+
+    if (m == NULL) {
         return -1;
     }
-    brix_http_resp_free(&r);
-    return 0;
+    rc = brix_webmeta_propfind(m, path, 0, &body, &blen, st);
+    if (rc == 0) {
+        rc = webdav_parse_single(body, blen, si, st);
+    }
+    free(body);
+    brix_cpool_checkin(pool, m, rc == 0 ? 1 : brix_fuse_conn_healthy(st));
+    return rc;
 }
 
 
@@ -348,6 +382,56 @@ path_basename(const char *path, char *out, size_t outsz)
 }
 
 
+/* Parse a PROPFIND (Depth 1) multistatus body into a brix_dirent array, skipping
+ * the self entry `self` (the directory's own basename). Shared by the stateless
+ * brix_web_readdir and the pooled brix_web_readdir_pooled. */
+int
+webdav_parse_multi(const char *body, size_t blen, const char *self,
+                   brix_dirent **ents_out, size_t *n_out, brix_status *st)
+{
+    const char  *p   = body ? body : "";
+    const char  *end = p + blen;
+    brix_dirent *ents = NULL;
+    size_t       n = 0, cap = 0;
+
+    *ents_out = NULL;
+    *n_out = 0;
+    while ((p = next_response_open(p, end)) != NULL) {
+        const char   *open = p;                      /* content after the open tag */
+        const char   *close = next_response_close(open, end);
+        brix_statinfo si;
+        char          href[XRDC_PATH_MAX], name[XRDC_NAME_MAX];
+        if (close == NULL) {
+            break;
+        }
+        if (parse_response(open, close, &si, href, sizeof(href)) == 0 && href[0]) {
+            path_basename(href, name, sizeof(name));
+            if (name[0] != '\0' && strcmp(name, self) != 0) {
+                if (n == cap) {
+                    size_t nc = cap ? cap * 2 : 32;
+                    brix_dirent *ne = realloc(ents, nc * sizeof(*ne));
+                    if (ne == NULL) {
+                        free(ents);
+                        brix_status_set(st, XRDC_EPROTO, 0, "readdir: out of memory");
+                        return -1;
+                    }
+                    ents = ne;
+                    cap = nc;
+                }
+                memset(&ents[n], 0, sizeof(ents[n]));
+                snprintf(ents[n].name, sizeof(ents[n].name), "%s", name);
+                ents[n].have_stat = 1;
+                ents[n].st = si;
+                n++;
+            }
+        }
+        p = close + 2;                               /* past the "</" of the close */
+    }
+    *ents_out = ents;
+    *n_out = n;
+    return 0;
+}
+
 int
 brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
                  int verify, const char *ca_dir, brix_dirent **ents_out,
@@ -356,10 +440,8 @@ brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
     char           hdrs[2400];
     char           auth[2200];
     brix_http_resp r;
-    const char    *p;
-    brix_dirent   *ents = NULL;
-    size_t         n = 0, cap = 0;
     char           self[XRDC_PATH_MAX];
+    int            rc;
 
     *ents_out = NULL;
     *n_out = 0;
@@ -374,47 +456,35 @@ brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
         brix_http_resp_free(&r);
         return -1;
     }
-    /* the self-entry basename to skip (the directory itself) */
-    path_basename(path, self, sizeof(self));
-
-    p = r.body ? r.body : "";
-    {
-    const char *bend = p + (r.body ? r.body_len : 0);
-    while ((p = next_response_open(p, bend)) != NULL) {
-        const char   *open = p;                      /* content after the open tag */
-        const char   *end = next_response_close(open, bend);   /* the close tag */
-        brix_statinfo si;
-        char          href[XRDC_PATH_MAX], name[XRDC_NAME_MAX];
-        if (end == NULL) {
-            break;
-        }
-        if (parse_response(open, end, &si, href, sizeof(href)) == 0 && href[0]) {
-            path_basename(href, name, sizeof(name));
-            if (name[0] != '\0' && strcmp(name, self) != 0) {
-                if (n == cap) {
-                    size_t nc = cap ? cap * 2 : 32;
-                    brix_dirent *ne = realloc(ents, nc * sizeof(*ne));
-                    if (ne == NULL) {
-                        free(ents);
-                        brix_http_resp_free(&r);
-                        brix_status_set(st, XRDC_EPROTO, 0, "readdir: out of memory");
-                        return -1;
-                    }
-                    ents = ne;
-                    cap = nc;
-                }
-                memset(&ents[n], 0, sizeof(ents[n]));
-                snprintf(ents[n].name, sizeof(ents[n].name), "%s", name);
-                ents[n].have_stat = 1;
-                ents[n].st = si;
-                n++;
-            }
-        }
-        p = end + 2;                                 /* past the "</" of the close */
-    }
-    }
+    path_basename(path, self, sizeof(self));    /* the self-entry basename to skip */
+    rc = webdav_parse_multi(r.body, r.body ? r.body_len : 0, self,
+                            ents_out, n_out, st);
     brix_http_resp_free(&r);
-    *ents_out = ents;
-    *n_out = n;
-    return 0;
+    return rc;
+}
+
+/* Pooled keep-alive readdir (Depth 1). Same idiom as brix_web_stat_pooled. */
+int
+brix_web_readdir_pooled(brix_cpool *pool, const char *path,
+                        brix_dirent **ents_out, size_t *n_out, brix_status *st)
+{
+    char         *body = NULL;
+    size_t        blen = 0;
+    char          self[XRDC_PATH_MAX];
+    brix_webmeta *m = brix_cpool_checkout(pool, st);
+    int           rc;
+
+    *ents_out = NULL;
+    *n_out = 0;
+    if (m == NULL) {
+        return -1;
+    }
+    rc = brix_webmeta_propfind(m, path, 1, &body, &blen, st);
+    if (rc == 0) {
+        path_basename(path, self, sizeof(self));
+        rc = webdav_parse_multi(body, blen, self, ents_out, n_out, st);
+    }
+    free(body);
+    brix_cpool_checkin(pool, m, rc == 0 ? 1 : brix_fuse_conn_healthy(st));
+    return rc;
 }

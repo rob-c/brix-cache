@@ -297,21 +297,24 @@ webdav_put_precheck(ngx_http_request_t *r,
 }
 
 /*
- * webdav_put_open_target — open the staged temp for the final path.
+ * webdav_put_open_target — open the unified write session for the final path.
  *
- * WHAT: Builds the staged-write VFS ctx and opens a staged temp file
- *   (O_EXCL, unique name, up to 16 attempts) through the metered VFS surface.
- *   On success returns WEBDAV_PUT_CONTINUE with `*out_staged` set; on failure
- *   maps the captured errno to a clean 4xx (or 500 for no-4xx-contract errnos),
- *   sends it, and returns WEBDAV_PUT_DONE.
+ * WHAT: Builds the staged-write VFS ctx and opens a brix_vfs_writer session on
+ *   it with BRIX_VFS_O_ATOMIC (force the staged temp+publish path so a failed
+ *   write never leaves a partial at the final path) and the export's
+ *   verify-on-write setting.  On success returns WEBDAV_PUT_CONTINUE with
+ *   `*out_writer` set; on failure maps the captured errno to a clean 4xx (or 500
+ *   for no-4xx-contract errnos), sends it, and returns WEBDAV_PUT_DONE.
  *
  * WHY: Keeps the "body is written to a staged temp and atomically renamed only
  *   on success" invariant (WS8/HTTP-4) and its errno→status mapping in one
- *   place, matching S3 PUT's s3_put_finalize_fs_error.  Status codes unchanged.
+ *   place, matching S3 PUT's s3_put_finalize_fs_error.  Routing the write
+ *   through the writer gives WebDAV the same common verified-write call every
+ *   backend shares.  Status codes unchanged.
  *
  * HOW:
  *   1. Init the staged-write ctx via webdav_put_vfs_ctx_init.
- *   2. brix_vfs_staged_open; a non-NULL result is the success path.
+ *   2. brix_vfs_writer_open(O_ATOMIC, verify_write); a non-NULL result succeeds.
  *   3. ENOENT/ENOTDIR (missing parent collection) → 409 (RFC 4918 §9.7.1).
  *   4. Otherwise map errno via brix_http_map_errno, log the path, and finalize
  *      with the mapped 4xx or 500.
@@ -319,26 +322,27 @@ webdav_put_precheck(ngx_http_request_t *r,
 webdav_put_step_t
 webdav_put_open_target(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
-    brix_vfs_ctx_t *vctx, brix_vfs_staged_t **out_staged)
+    brix_vfs_ctx_t *vctx, brix_vfs_writer_t **out_writer)
 {
-    brix_vfs_staged_t *staged;
+    brix_vfs_writer_t *writer;
     int                staged_err = 0;
     ngx_int_t          status;
 
-    *out_staged = NULL;
+    *out_writer = NULL;
 
     /*
-     * Open a staged temp file beside the final path (O_EXCL, unique name, up to
-     * 16 attempts) through the metered VFS staged surface.  The body is written
-     * here and atomically renamed onto the final path only on success — never
-     * exposing a partial object.
+     * Open a write session that stages a temp beside the final path (O_ATOMIC,
+     * O_EXCL, unique name, up to 16 attempts) through the metered VFS surface.
+     * The body is written here and atomically renamed onto the final path only
+     * on success — never exposing a partial object.  verify_write folds a
+     * read-back integrity check on commit when the export opts in.
      */
     webdav_put_vfs_ctx_init(r, conf, path, vctx);
 
-    staged = brix_vfs_staged_open(vctx, NGX_FILE_DEFAULT_ACCESS, 16,
-                                    &staged_err);
-    if (staged != NULL) {
-        *out_staged = staged;
+    writer = brix_vfs_writer_open(vctx, BRIX_VFS_O_ATOMIC,
+                                    conf->common.verify_write, &staged_err);
+    if (writer != NULL) {
+        *out_writer = writer;
         return WEBDAV_PUT_CONTINUE;
     }
 

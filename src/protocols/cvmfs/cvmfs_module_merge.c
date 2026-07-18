@@ -140,8 +140,12 @@ cvmfs_merge_upstreams(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
                              61);
     ngx_conf_merge_sec_value(conf->cvmfs.negative_ttl, prev->cvmfs.negative_ttl,
                              10);
+    ngx_conf_merge_sec_value(conf->cvmfs.offline_ttl, prev->cvmfs.offline_ttl,
+                             0);
     ngx_conf_merge_str_value(conf->cvmfs.quarantine_dir,
                              prev->cvmfs.quarantine_dir, "");
+    ngx_conf_merge_str_value(conf->cvmfs.master_key,
+                             prev->cvmfs.master_key, "");
     ngx_conf_merge_ptr_value(conf->cvmfs.upstream_allow,
                              prev->cvmfs.upstream_allow, NULL);
     ngx_conf_merge_uint_value(conf->cvmfs.upstream_max, prev->cvmfs.upstream_max,
@@ -205,6 +209,9 @@ cvmfs_merge_resilience(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
     ngx_conf_merge_uint_value(conf->cvmfs.fill_retry_policy,
                               prev->cvmfs.fill_retry_policy,
                               BRIX_CVMFS_RETRY_FAILOVER);
+    ngx_conf_merge_uint_value(conf->cvmfs.origin_http_version,
+                              prev->cvmfs.origin_http_version,
+                              BRIX_CVMFS_ORIGIN_HTTP_UNSET);
     ngx_conf_merge_value(conf->cvmfs.shared_cache, prev->cvmfs.shared_cache, 0);
     ngx_conf_merge_value(conf->cvmfs.unified_origin, prev->cvmfs.unified_origin,
                          0);
@@ -224,7 +231,23 @@ cvmfs_merge_resilience(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
             "is the ranked failover set that hides a dead Stratum-1)");
         return NGX_CONF_ERROR;
     }
+    /* HTTP-version policy (phase-85 F11) is process-wide like the bounds
+     * above. A version the linked libcurl cannot speak (today: HTTP/3 without
+     * an nghttp3/quiche build) is refused at config time rather than failing
+     * every fill at runtime. */
+    if (conf->cvmfs.enable
+        && conf->cvmfs.origin_http_version != BRIX_CVMFS_ORIGIN_HTTP_UNSET
+        && !brix_s3_origin_http_version_supported(
+               (int) conf->cvmfs.origin_http_version))
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cvmfs_origin_http_version: the linked libcurl lacks "
+            "support for the requested HTTP version (HTTP/3 needs a "
+            "libcurl built with an HTTP/3 backend)");
+        return NGX_CONF_ERROR;
+    }
     if (conf->cvmfs.enable) {
+        brix_s3_origin_http_version_set((int) conf->cvmfs.origin_http_version);
         brix_s3_origin_timeouts_set(
             (long) conf->cvmfs.origin_connect_timeout * 1000,
             (long) conf->cvmfs.origin_stall_timeout,
@@ -302,6 +325,38 @@ cvmfs_merge_secure(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
                 }
                 conf->scvmfs_registry = reg;
             }
+        }
+    }
+
+    /* Token-gated repos (phase-85 F3). Inherit the entry list by pointer,
+     * then build each entry's issuer registry once (registry == NULL) on
+     * cvmfs-enabled locations only — a non-cvmfs location inheriting the
+     * list never serves the protocol, so it must not pay (or fail on) the
+     * registry load. Building at merge fails misconfigurations loudly at
+     * config time instead of 401ing every request. */
+    /* Per-VO QoS fill classes (phase-85 F9): plain pointer inheritance —
+     * the class list is pure config + worker-local bucket state, nothing to
+     * build at merge time. */
+    ngx_conf_merge_ptr_value(conf->qos, prev->qos, NULL);
+
+    ngx_conf_merge_ptr_value(conf->repo_authz, prev->repo_authz, NULL);
+    if (conf->cvmfs.enable == 1 && conf->repo_authz != NULL) {
+        brix_cvmfs_repo_authz_t *e = conf->repo_authz->elts;
+        ngx_uint_t               i;
+
+        for (i = 0; i < conf->repo_authz->nelts; i++) {
+            brix_token_registry_t *reg = NULL;
+
+            if (e[i].registry != NULL) {
+                continue;
+            }
+            if (brix_token_registry_build(cf,
+                    (const char *) e[i].issuers.data,
+                    BRIX_AUTHZ_CAPABILITY, &reg) != NGX_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
+            e[i].registry = reg;
         }
     }
     return NGX_CONF_OK;

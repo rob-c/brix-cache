@@ -368,10 +368,17 @@ stream {{ server {{
             )
         )
         cp_log = logs / "cp.log"
+        # The server enumerates the hashed CA dir with readdir() (pki_load.c), so
+        # the two CA subject-hashes are advertised in filesystem order, which is
+        # not stable across runs. Accept either concatenation — membership, not
+        # order, is what the sec token conveys (the byte-exact transfer above
+        # already proves the client accepted the chain).
+        adv_inter_root = f"ca:{hashes['inter']}|{hashes['root']}"
+        adv_root_inter = f"ca:{hashes['root']}|{hashes['inter']}"
         checks.append(
             (
-                _grep(cp_log, f"ca:{hashes['inter']}|{hashes['root']}"),
-                f"sec token advertises ca:{hashes['inter']}|{hashes['root']}",
+                _grep(cp_log, adv_inter_root) or _grep(cp_log, adv_root_inter),
+                f"sec token advertises {adv_inter_root} (either order)",
             )
         )
         checks.append((not _grep(cp_log, "ca:00000000"), "no 00000000 placeholder"))

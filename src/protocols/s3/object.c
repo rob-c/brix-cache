@@ -9,6 +9,7 @@
 #include "protocols/shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
 #include "protocols/shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
 #include "protocols/root/zip/zip_http.h"   /* phase-57 W2: ZIP member access over S3 GET */
+#include "protocols/webdav/xrdhttp.h"       /* shared multipart/byteranges (vector-read) serve */
 #include "object_internal.h"
 
 /* GetObject range/bytes metrics — shared by the inline serve and the off-loop
@@ -403,6 +404,75 @@ s3_get_serve(ngx_http_request_t *r, const s3_get_serve_t *sv)
     return rc;
 }
 
+/*
+ * WHAT: Serve a multi-range S3 GetObject (comma-listed Range:) as a
+ *   multipart/byteranges response — the HTTP form of a kXR_readv vector read.
+ * WHY:  brix_http_serve_file_ranged() honours only the first range; the parse/
+ *   encode/send pipeline for multipart bodies (incl. INVARIANT #2's TLS-memory vs
+ *   cleartext-sendfile split) is owned by the shared, frozen
+ *   xrdhttp_handle_multipart_get(), already used by WebDAV GET.  Reuse it rather
+ *   than reimplement multipart on the S3 path.
+ * HOW:  Project the VFS stat onto a struct stat for the size bounds, dup the
+ *   sendfile fd, register a pool cleanup that owns the dup's close, release the
+ *   VFS handle, then delegate with fd_from_table=1 so the multipart handler does
+ *   not double-close the fd this cleanup owns.  Mirrors webdav get.c
+ *   get_serve_range().  A partial response carries no full-object checksum or
+ *   user metadata, so the caller branches here before those header echoes.
+ */
+static ngx_int_t
+s3_get_serve_multirange(ngx_http_request_t *r, brix_vfs_file_t *fh,
+                        const brix_vfs_stat_t *vst, const char *fs_path)
+{
+    struct stat              sb;
+    ngx_fd_t                 send_fd;
+    ngx_pool_cleanup_t      *cln;
+    ngx_pool_cleanup_file_t *clnf;
+    size_t                   name_len;
+    u_char                  *name;
+
+    ngx_memzero(&sb, sizeof(sb));
+    sb.st_size  = (off_t) vst->size;
+    sb.st_mtime = vst->mtime;
+    sb.st_ctime = vst->ctime;
+    sb.st_mode  = (mode_t) vst->mode;
+    sb.st_ino   = vst->ino;
+
+    send_fd = dup(brix_vfs_file_sendfile_fd(fh));
+    if (send_fd == NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
+                      "s3 multi-range: dup(sendfile fd) failed for \"%s\"",
+                      fs_path);
+        brix_vfs_close(fh, r->connection->log);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* Register the dup's close on r->pool before handing it to the multipart
+     * handler; the handler runs with fd_from_table=1 and does not own the fd. */
+    cln = ngx_pool_cleanup_add(r->pool, sizeof(ngx_pool_cleanup_file_t));
+    if (cln == NULL) {
+        ngx_close_file(send_fd);
+        brix_vfs_close(fh, r->connection->log);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    name_len = ngx_strlen(fs_path);
+    name = ngx_pnalloc(r->pool, name_len + 1);
+    if (name == NULL) {
+        ngx_close_file(send_fd);
+        brix_vfs_close(fh, r->connection->log);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ngx_memcpy(name, fs_path, name_len + 1);
+    cln->handler = ngx_pool_cleanup_file;
+    clnf         = cln->data;
+    clnf->fd     = send_fd;
+    clnf->name   = name;
+    clnf->log    = r->pool->log;
+
+    brix_vfs_close(fh, r->connection->log);
+
+    return xrdhttp_handle_multipart_get(r, send_fd, &sb, 1);
+}
+
 /* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The range-parse → headers → body-send pipeline is shared with WebDAV GET via brix_http_serve_file_ranged() (src/shared/file_serve.c); this handler keeps only the S3-specific concerns: NoSuchKey XML errors, identity resolution, and S3 range/bytes metrics. */
 
 /* HOW: Phase 1 — open the object through the VFS layer (brix_vfs_open, read-only, cache-aware). If the open fails: ENOENT/ENOTDIR → NoSuchKey 404 XML; other errno → brix_http_errno_to_status() with internal_error metric. Phase 2 — brix_vfs_file_stat(); a directory target → NoSuchKey 404 (S3 keys are objects, not directories). Phase 3 — resolve the display identity (token subject, else access key, else "anonymous"). Phase 4 — fill brix_http_serve_opts_t (xfer_proto=S3, op_name="GetObject", etag_flags=0) and delegate the entire range-parse/header/send pipeline to brix_http_serve_file_ranged(), which also takes ownership of the vfs handle. Phase 5 — from the returned result, increment the S3 range_total[FULL/PARTIAL/UNSATISFIED] counter and, on a non-zero body, bytes_tx_total plus the IPv4/IPv6 split. */
@@ -477,6 +547,14 @@ s3_handle_get(ngx_http_request_t *r,
             brix_vfs_close(fh, r->connection->log);
             return crc;
         }
+    }
+
+    /* Vector read: a comma-listed Range: (kXR_readv over HTTP) is served as
+     * multipart/byteranges via the shared handler, matching WebDAV GET.  Branch
+     * before the identity/checksum echoes — a partial multipart response carries
+     * no full-object checksum or user metadata. */
+    if (xrdhttp_request_is_multirange(r)) {
+        return s3_get_serve_multirange(r, fh, &vst, fs_path);
     }
 
     s3_get_resolve_identity(r, cf, identity, sizeof(identity));

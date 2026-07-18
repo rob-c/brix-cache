@@ -29,34 +29,6 @@
 
 #include <unistd.h>      /* pread for the write-back promote read loop */
 
-/* Duplicate a C string onto `pool` (NUL-terminated). Returns NULL on a NULL input
- * (with *lenp = 0) or on allocation failure — the caller distinguishes the two by
- * checking the input. Used to make a staged handle's ctx self-contained. */
-static char *
-staged_pool_strdup(ngx_pool_t *pool, const char *s, size_t *lenp)
-{
-    size_t  n;
-    u_char *p;
-
-    if (s == NULL) {
-        if (lenp != NULL) {
-            *lenp = 0;
-        }
-        return NULL;
-    }
-    n = ngx_strlen(s);
-    p = ngx_pnalloc(pool, n + 1);
-    if (p == NULL) {
-        return NULL;
-    }
-    ngx_memcpy(p, s, n);
-    p[n] = '\0';
-    if (lenp != NULL) {
-        *lenp = n;
-    }
-    return (char *) p;
-}
-
 /*
  * Set *err_out (when non-NULL) to the current errno and return NULL. Single
  * exit convention for brix_vfs_staged_open's failure arms.
@@ -95,10 +67,6 @@ static brix_vfs_staged_t *
 staged_alloc_handle(brix_vfs_ctx_t *ctx, int *err_out)
 {
     brix_vfs_staged_t *st;
-    size_t             rlen = 0;
-    const char        *rpath;
-    char              *rpath_dup;
-    char              *root_dup;
 
     if (brix_vfs_require_write(ctx) != NGX_OK) {
         return staged_open_fail(err_out);
@@ -116,33 +84,15 @@ staged_alloc_handle(brix_vfs_ctx_t *ctx, int *err_out)
     }
 
     /*
-     * Deep-copy the ctx struct and the resolved-path / root_canon buffers it
-     * POINTS at (WebDAV's resolved path lives in a stack `char[]`) onto
-     * ctx->pool, which lives until the response completes.
+     * The staged handle outlives the caller's stack frame (S3/WebDAV PUT dispatch
+     * the body write to a thread pool and RETURN before commit), so self-contain a
+     * deep copy of the ctx — including the resolved-path / root_canon buffers it
+     * points at (WebDAV's resolved path lives in a stack `char[]`) — on ctx->pool,
+     * which lives until the response completes.
      */
-    st->ctx = ngx_palloc(ctx->pool, sizeof(*st->ctx));
+    st->ctx = brix_vfs_ctx_pool_clone(ctx, ctx->pool);
     if (st->ctx == NULL) {
-        errno = ENOMEM;
-        return staged_open_fail(err_out);
-    }
-    *st->ctx = *ctx;
-
-    rpath     = brix_vfs_ctx_path(ctx);
-    rpath_dup = staged_pool_strdup(ctx->pool, rpath, &rlen);
-    root_dup  = staged_pool_strdup(ctx->pool, ctx->root_canon, NULL);
-
-    if ((rpath != NULL && rpath_dup == NULL)
-        || (ctx->root_canon != NULL && root_dup == NULL))
-    {
-        errno = ENOMEM;
-        return staged_open_fail(err_out);
-    }
-    if (rpath_dup != NULL) {
-        st->ctx->resolved.resolved.data = (u_char *) rpath_dup;
-        st->ctx->resolved.resolved.len  = rlen;
-    }
-    if (root_dup != NULL) {
-        st->ctx->root_canon = root_dup;
+        return staged_open_fail(err_out);   /* errno set by the clone */
     }
 
     st->pool      = ctx->pool;
@@ -182,6 +132,9 @@ staged_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
     st->driver_staged = brix_sd_staged_open_maybe_cred(ctx->sd,
         brix_vfs_export_relative(ctx, final_path), mode,
         use_cred ? &ucred : NULL, &sderr);
+    /* Secret consumed by the staged-origin session; erase the stack copy
+     * (A-4 / T4). */
+    brix_sd_ucred_wipe(&ustore);
     if (st->driver_staged == NULL) {
         if (err_out != NULL) {
             *err_out = sderr;

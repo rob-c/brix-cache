@@ -26,7 +26,10 @@ ngx_int_t s3_apply_put_tagging_header(ngx_http_request_t *r,
 
 /* Canned probe-satisfiers. */
 ngx_int_t s3_handle_get_bucket_versioning(ngx_http_request_t *r);
-ngx_int_t s3_handle_get_acl(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf);
+/* Object ?acl passes the resolved key as fs_path (stat-gated → NoSuchKey when
+ * absent); bucket ?acl passes NULL (no per-object target, canned document). */
+ngx_int_t s3_handle_get_acl(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf);
 ngx_int_t s3_handle_get_cors(ngx_http_request_t *r);
 
 #endif /* NGX_HTTP_S3_TAGGING_H */

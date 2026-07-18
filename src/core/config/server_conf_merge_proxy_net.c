@@ -37,6 +37,7 @@ brix_merge_srv_proxy(ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_value(conf->upstream_tls,          prev->upstream_tls,          0);
+    ngx_conf_merge_value(conf->upstream_ssl_verify,   prev->upstream_ssl_verify,   1);
     ngx_conf_merge_str_value(conf->upstream_tls_ca,   prev->upstream_tls_ca,   "");
     ngx_conf_merge_str_value(conf->upstream_tls_name, prev->upstream_tls_name, "");
     ngx_conf_merge_str_value(conf->upstream_token_file,
@@ -46,6 +47,8 @@ brix_merge_srv_proxy(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->proxy.enable,       prev->proxy.enable,       0);
     ngx_conf_merge_value(conf->proxy.port,         prev->proxy.port,         1094);
     ngx_conf_merge_value(conf->proxy.upstream_tls, prev->proxy.upstream_tls, 0);
+    ngx_conf_merge_value(conf->proxy.upstream_ssl_verify,
+                         prev->proxy.upstream_ssl_verify, 1);
     ngx_conf_merge_uint_value(conf->proxy.auth,    prev->proxy.auth,
                               BRIX_PROXY_AUTH_ANONYMOUS);
     ngx_conf_merge_uint_value(conf->proxy.login_user, prev->proxy.login_user,

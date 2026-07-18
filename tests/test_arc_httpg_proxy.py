@@ -16,9 +16,14 @@ the brix delegation endpoint (`brix_delegation_endpoint on`, proxy-upload
 form: an EEC-authenticated PUT whose body is the user's own proxy; the chain
 is PKIX-verified against the grid CA and DN-matched before being stored in
 `brix_storage_credential_dir` as x5h-<sha256(DN)[:32]>.pem).  The back leg
-then selects the delegated credential of the *verified front-leg identity*
-via a `map $ssl_client_s_dn_legacy` into `proxy_ssl_certificate` — so the
-ARC-CE authenticates every forwarded request as the real submitting user.
+then resolves the delegated credential of the *verified front-leg identity*
+via `proxy_ssl_certificate $brix_delegated_cred` (the variable re-derives
+the storage key from the chain's end-entity DN at request time — no map
+block, no per-user config) — so the ARC-CE authenticates every forwarded
+request as the real submitting user.  All trust (front-leg client verify,
+delegation-chain verify, back-leg server verify) comes from ONE hashed CA
+directory via brix_client_certificate_folder / brix_ssl_client_capath /
+brix_webdav_cadir / brix_proxy_ssl_capath — no bundle file anywhere.
 The front leg FAILS CLOSED (`ssl_verify_client on`): a client presenting no
 certificate, or one that does not chain to the grid CA, is refused by nginx
 itself and never proxied; an authenticated identity that never delegated
@@ -187,9 +192,10 @@ def grid_users(arc_ce):
                     "eec_key": cred / "userkey.pem",
                     "proxy": cred / "userproxy.pem",
                     "ca_dir": cred / "certificates"}
-    ca_pem = glob.glob(str(users[ARC_USERS[0]]["ca_dir"] / "ARC-TestCA-*.pem"))
+    ca_dir = users[ARC_USERS[0]]["ca_dir"]
+    ca_pem = glob.glob(str(ca_dir / "ARC-TestCA-*.pem"))
     assert ca_pem, "test-CA certificate missing from user tarball"
-    return {"users": users, "ca": ca_pem[0]}
+    return {"users": users, "ca": ca_pem[0], "ca_dir": ca_dir}
 
 
 @pytest.fixture(scope="module")
@@ -201,10 +207,6 @@ def front(arc_ce, grid_users, tmp_path_factory):
         (base / sub).mkdir()
     port = free_port()
     audit = base / "guard-audit.log"
-    map_entries = "\n".join(
-        '        "~^{dn}(/CN=[0-9]+)*$" "{path}";'.format(
-            dn=re.escape(u["dn"]), path=base / "creds" / (u["key"] + ".pem"))
-        for u in grid_users["users"].values())
     conf = base / "nginx.conf"
     conf.write_text(render_config("nginx_arc_httpg_proxy.conf",
                                   BASE_DIR=base,
@@ -212,9 +214,8 @@ def front(arc_ce, grid_users, tmp_path_factory):
                                   BACKEND_PORT=arc_ce["port"],
                                   HOST_CERT=arc_ce["root"] / "hostcert.pem",
                                   HOST_KEY=arc_ce["root"] / "hostkey.pem",
-                                  CA_CERT=grid_users["ca"],
+                                  CA_DIR=grid_users["ca_dir"],
                                   CRED_DIR=base / "creds",
-                                  CRED_MAP_ENTRIES=map_entries,
                                   AUDIT_LOG=audit))
     rc = _run([NGINX_BIN, "-t", "-c", str(conf)])
     assert rc.returncode == 0, f"nginx -t failed: {rc.stderr}"

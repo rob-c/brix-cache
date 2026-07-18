@@ -146,6 +146,7 @@ class TestFederatedRedirection:
     correctly relays WAN redirects back to the client.
     """
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-meta", "cluster-3t-sub")
     def test_local_sub_manager_escalates_unknown_path(self, federated_cluster):
         """A path unknown to the sub-manager triggers escalation to the meta-manager."""
         name = f"fed_esc_{uuid.uuid4().hex[:8]}.bin"
@@ -165,6 +166,7 @@ class TestFederatedRedirection:
         finally:
             sock.close()
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-meta", "cluster-3t-sub")
     def test_xrdcp_via_sub_manager_fetches_wan_file(self, federated_cluster, tmp_path):
         """xrdcp through the sub-manager fetches a file located at the remote leaf node."""
         payload = os.urandom(64 * 1024)
@@ -182,6 +184,7 @@ class TestFederatedRedirection:
             got = fh.read()
         assert _md5(got) == _md5(payload), "Federated redirect content mismatch"
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-meta", "cluster-3t-sub")
     def test_multiple_hops_completed(self, federated_cluster, tmp_path):
         """Verify redirect chain: meta redirects to sub, sub redirects to leaf."""
         payload = os.urandom(32 * 1024)
@@ -216,6 +219,7 @@ class TestFederatedRedirection:
             f"Sub should redirect to leaf ({CLUSTER_3T_LEAF_PORT}), got {sub_redirect_port}"
         )
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-meta", "cluster-3t-sub")
     def test_xrdfs_ls_through_federated_namespace(self, federated_cluster):
         """xrdfs ls on the sub-manager returns files visible via the meta-manager."""
         _write_leaf(f"fed_ls_{uuid.uuid4().hex[:8]}.txt", b"ls-test")
@@ -228,6 +232,7 @@ class TestFederatedRedirection:
             f"xrdfs ls through federated namespace failed: {r.stderr}"
         )
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-meta", "cluster-3t-sub")
     def test_redirect_chain_completes_large_file(self, federated_cluster, tmp_path):
         """Section 4B Validation: large file transfer completes through redirect chain."""
         payload = os.urandom(4 * 1024 * 1024)  # 4 MiB

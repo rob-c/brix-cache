@@ -31,7 +31,7 @@ still open.
 | [History — Storage & Caching](history-storage-and-caching.md) | VFS seam closure, composable cache tiers, pluggable backends (pblock, Ceph/RADOS, S3, CVMFS), FRM/tape staging dissolution, unified cache state | 54 KB |
 | [History — Client Tooling](history-client-tooling.md) | Native xrdcp/xrdfs, FUSE (xrootdfs), CVMFS native client (brixMount), GSI client interop, the "swiss army client" vision, robustness/UX/firewall/mount-speed work | 41 KB |
 | [History — Testing & Incidents](history-testing-and-incidents.md) | Test harness evolution, conformance suites (WLCG x509/token, multiuser perms), chaos/reload testing, load testing, production postmortems (incl. the "host overloaded" banned-diagnosis incident) | 45 KB |
-| [History — Security & Credentials](history-security-and-credentials.md) | Auth gate ordering, credential forwarding, TPC delegation (native + WebDAV), impersonation, GSI/TLS negotiation, vulnerabilities found & fixed, XrdAcc | 56 KB |
+| [History — Security & Credentials](history-security-and-credentials.md) | Auth gate ordering, credential forwarding, TPC delegation (native + WebDAV), impersonation, GSI/TLS negotiation, ARC-CE httpg front proxy + `$brix_delegated_cred` / hashed-CA-dir directives, vulnerabilities found & fixed, XrdAcc | 62 KB |
 | [History — Build, Infra & Decisions](history-build-infra-and-decisions.md) | Build system mechanics, packaging, codebase-wide refactors (rebrand, src realignment, hardening waves), **and the standing working agreements for AI agents in this repo** | 30 KB |
 
 These sit alongside the five earlier `lessons-*.md` documents, which remain
