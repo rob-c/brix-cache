@@ -372,6 +372,24 @@ brix_sd_cache_instance_is(const brix_sd_instance_t *inst)
     return (inst != NULL && inst->driver == &brix_sd_cache_driver) ? 1 : 0;
 }
 
+/* Evict `key` from this decorator's cache store, if `inst` is a cache decorator
+ * (a no-op otherwise). The namespace VFS ops (delete/rename) dispatch on the
+ * unwrapped leaf instance so per-user credentials thread to the origin driver,
+ * which skips the decorator's own unlink/rename and therefore its evict side
+ * effect; the caller invokes this after a successful leaf op to keep the store
+ * coherent. Mirrors the evict in sd_cache_unlink()/sd_cache_rename(). */
+void
+brix_sd_cache_evict(brix_sd_instance_t *inst, const char *key)
+{
+    sd_cache_inst_state  *st;
+
+    if (!brix_sd_cache_instance_is(inst) || key == NULL) {
+        return;
+    }
+    st = SD_CACHE_ST(inst);
+    (void) brix_cstore_evict(&st->cstore, key);
+}
+
 /* Would a read-open of `key` block the calling thread on slow (remote) I/O? 1
  * only for a cache MISS whose whole-file fill would touch a non-local tier - the
  * source exposes no local fd (a remote read: xroot/http/s3/ceph) or the cache
@@ -459,4 +477,46 @@ void *
 brix_sd_cache_cstore(const brix_sd_instance_t *inst)
 {
     return brix_sd_cache_instance_is(inst) ? &SD_CACHE_ST(inst)->cstore : NULL;
+}
+
+/* Attach/detach the OPTIONAL cold store tier (phase-85 F7). `cold` is BORROWED
+ * (registry-owned, worker lifetime) so brix_sd_cache_destroy never frees it.
+ * No-op for a non-cache instance. With a cold tier set, sd_cache_fill tries a
+ * verified promote from it before the origin, and brix_sd_cache_demote (the
+ * eviction seam) copies victims into it. */
+void
+brix_sd_cache_set_cold(brix_sd_instance_t *inst, brix_sd_instance_t *cold)
+{
+    if (brix_sd_cache_instance_is(inst)) {
+        SD_CACHE_ST(inst)->cold = cold;
+    }
+}
+
+/* Attach/detach the sibling-mesh ring (phase-85 F8). The member instances are
+ * BORROWED (registry-owned, worker lifetime) so brix_sd_cache_destroy never
+ * frees them. No-op for a non-cache instance; n == 0 (or an out-of-range self)
+ * detaches. With a ring set, sd_cache_fill tries one verified fill from the
+ * key's rendezvous-owning sibling before the origin. */
+void
+brix_sd_cache_set_peers(brix_sd_instance_t *inst,
+    const brix_sd_cache_peer_t *peers, int n, int self)
+{
+    sd_cache_inst_state *st;
+    int                  i;
+
+    if (!brix_sd_cache_instance_is(inst)) {
+        return;
+    }
+    st = SD_CACHE_ST(inst);
+    if (peers == NULL || n <= 0 || n > BRIX_SD_CACHE_MAX_PEERS
+        || self < 0 || self >= n)
+    {
+        st->n_peers = 0;
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        st->peers[i] = peers[i];
+    }
+    st->n_peers   = n;
+    st->peer_self = self;
 }

@@ -77,6 +77,98 @@ brix_s3_origin_reuse_set(int reuse_on)
     g_origin_no_reuse = reuse_on ? 0 : 1;
 }
 
+/* Origin HTTP-version policy (phase-85 F11). 0 = unset: never touch
+ * CURLOPT_HTTP_VERSION, so libcurl's own default policy stays in force —
+ * byte-frozen parity with every build before the directive existed. Non-zero
+ * values use the brix_cvmfs_origin_http_e wire encoding (11/20/21/30); see
+ * s3_transport.h. Set pre-fork from the cvmfs merge. */
+static int  g_origin_http_version;
+
+void
+brix_s3_origin_http_version_set(int ver)
+{
+    g_origin_http_version = ver;
+}
+
+int
+brix_s3_origin_http_version_supported(int ver)
+{
+    curl_version_info_data  *vi;
+
+    switch (ver) {
+    case 11:
+        return 1;                          /* every libcurl speaks HTTP/1.1 */
+    case 20:
+    case 21:
+        vi = curl_version_info(CURLVERSION_NOW);
+        return (vi != NULL && (vi->features & CURL_VERSION_HTTP2)) ? 1 : 0;
+    case 30:
+#ifdef CURL_VERSION_HTTP3
+        vi = curl_version_info(CURLVERSION_NOW);
+        return (vi != NULL && (vi->features & CURL_VERSION_HTTP3)) ? 1 : 0;
+#else
+        return 0;                          /* built against pre-H3 headers */
+#endif
+    default:
+        return 0;
+    }
+}
+
+/* Map the operator policy onto CURLOPT_HTTP_VERSION for this request. Unset
+ * (the default) sets nothing — libcurl's own policy stays untouched. */
+static void
+s3o_apply_http_version(CURL *curl)
+{
+    switch (g_origin_http_version) {
+    case 11:
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION,
+                         (long) CURL_HTTP_VERSION_1_1);
+        break;
+    case 20:
+        /* ALPN h2 over TLS / h2c Upgrade over cleartext; libcurl falls back
+         * to 1.1 by itself when the origin does not negotiate. */
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION,
+                         (long) CURL_HTTP_VERSION_2_0);
+        break;
+    case 21:
+        /* Cleartext h2 with prior knowledge: no Upgrade dance, no fallback —
+         * the origin must speak h2c directly (nghttpd/haproxy h2c listener). */
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION,
+                         (long) CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE);
+        break;
+#ifdef CURL_VERSION_HTTP3
+    case 30:
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION,
+                         (long) CURL_HTTP_VERSION_3);
+        break;
+#endif
+    default:
+        break;                             /* 0 = unset: libcurl default */
+    }
+}
+
+/* The version the origin ACTUALLY negotiated for a completed transfer, as the
+ * short trace token ("1.1", "2", …), or NULL when libcurl cannot say. Makes an
+ * HTTP/2→1.1 fallback observable in the trace line instead of silent. */
+static const char *
+s3o_negotiated_proto(CURL *curl)
+{
+    long  ver = 0;
+
+    if (curl_easy_getinfo(curl, CURLINFO_HTTP_VERSION, &ver) != CURLE_OK) {
+        return NULL;
+    }
+    switch (ver) {
+    case CURL_HTTP_VERSION_1_0: return "1.0";
+    case CURL_HTTP_VERSION_1_1: return "1.1";
+    case CURL_HTTP_VERSION_2_0: return "2";
+#ifdef CURL_VERSION_HTTP3
+    case CURL_HTTP_VERSION_3:   return "3";
+#endif
+    default:                    return NULL;
+    }
+}
+
 static long
 s3o_ms_since(const struct timespec *t0)
 {
@@ -200,6 +292,7 @@ typedef struct {
     size_t      bytes;
     long        dur_ms;
     const char *err;               /* curl error text when status < 0, else NULL */
+    const char *proto;             /* negotiated HTTP version token, or NULL     */
 } s3o_trace_t;
 
 /* Emit one upstream-request trace line from a filled s3o_trace_t. Logged at
@@ -225,9 +318,10 @@ s3o_trace(const s3o_trace_t *t)
     } else {
         ngx_log_error(level, ngx_cycle->log, 0,
             "cvmfs-trace: upstream %s http://%s:%d%s status=%d bytes=%uz "
-            "host=%s:%d dur_ms=%l",
+            "host=%s:%d dur_ms=%l proto=%s",
             t->method, t->host, t->port, safe, t->status, t->bytes,
-            t->host, t->port, t->dur_ms);
+            t->host, t->port, t->dur_ms,
+            t->proto != NULL ? t->proto : "?");
     }
 }
 
@@ -510,6 +604,7 @@ s3o_configure(CURL *curl, const s3o_request_t *req, s3o_resp_t *r,
 
     s3o_apply_timeouts(curl, req->timeout_ms);
     s3o_apply_reuse(curl);
+    s3o_apply_http_version(curl);
     s3o_apply_method(curl, req);
     s3o_apply_tls(curl, req);
 }
@@ -587,6 +682,7 @@ s3o_request_impl(const s3o_request_t *req, brix_s3_resp_t *resp,
     tr.status = (int) status;
     tr.bytes  = r->body_len;
     tr.dur_ms = s3o_ms_since(&t0);
+    tr.proto  = s3o_negotiated_proto(curl);
     s3o_trace(&tr);
     return 0;
 }

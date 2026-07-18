@@ -432,7 +432,7 @@ s3_delete_dispose_key(s3_del_ctx_t *dc, const xmlChar *key_text, size_t key_len)
     key_str[key_len] = '\0';
 
     if (!s3_resolve_key(dc->cf->common.root_canon, key_str, fs_path,
-                        sizeof(fs_path)))
+                        sizeof(fs_path), dc->cf->common.cache_store_endpoint))
     {
         err.code    = "AccessDenied";
         err.message = "Access Denied.";

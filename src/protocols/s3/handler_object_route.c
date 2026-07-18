@@ -66,7 +66,7 @@ s3_dispatch_object_get(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
     if (s3_has_query_flag(r, "acl")) {
         return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_get_acl(r, cf));
+                                        s3_handle_get_acl(r, fs_path, cf));
     }
     if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
         return s3_metrics_return_method(r, method_slot,

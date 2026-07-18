@@ -135,6 +135,14 @@ RAW_ALLOW="$RAW_ALLOW"'|^src/fs/cache/cinfo\.c'
 #     storage — the export WRITE side goes through brix_vfs_staged. Same class
 #     as cinfo.c (a non-export file the SD seam does not own).
 RAW_ALLOW="$RAW_ALLOW"'|^src/core/http/http_body\.c'
+#   - vfs_writer.c: the unified writer's fd-ingest bounce (brix_vfs_writer_write_fd)
+#     pread()s the caller's INBOUND source fd — nginx's request-body spool
+#     (client_body_temp), the same non-export source http_body.c reads — into a
+#     64 KiB buffer, then pushes each chunk through brix_vfs_writer_write so the
+#     export WRITE side routes to the SD driver (and the verify CRC sees it). The
+#     raw op is on the ingest source, never on export storage. Same class as
+#     http_body.c.
+RAW_ALLOW="$RAW_ALLOW"'|^src/fs/vfs/vfs_writer\.c'
 #   - clone.c: post-clone CSI integrity fold — after brix_copy_range (backend)
 #     writes the cloned bytes, the handler re-reads the dst handle-table fd to
 #     feed brix_csi_write_update with per-block CRCs.  The dst fd was opened

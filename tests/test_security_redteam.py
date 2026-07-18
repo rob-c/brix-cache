@@ -20,49 +20,54 @@ Run:
         PYTHONPATH=tests pytest tests/test_security_redteam.py -v
 """
 
-import os
-import subprocess
-import tempfile
+import itertools
 
 import pytest
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
+
+_SEQ = itertools.count()
+
+LONG_SECRET = b"a-sufficiently-long-admin-secret-0123456789"
+KEYTAB = b"0 N:1 k:" + b"a" * 64 + b" u:cmsnode g:cms n:cluster\n"
 
 
-def _nginx_test(conf_text, extra_files=None):
-    """Write conf (+ optional files) to a temp prefix and run `nginx -t`.
+class _RedTeam:
+    """Config-test helper: create mode-sensitive credential files under a temp
+    dir and run `nginx -t` against a committed template, returning
+    (returncode, combined stdout+stderr) — the emerg messages ride stderr."""
 
-    Returns (returncode, combined_output).  extra_files maps a format
-    placeholder name -> (relative_path, content_bytes, mode); each file is
-    created and its absolute path is substituted into the conf via .format().
-    """
-    prefix = tempfile.mkdtemp(prefix="redteam_")
-    for sub in ("logs", "conf", "tmp", "data"):
-        os.makedirs(os.path.join(prefix, sub), exist_ok=True)
-    created = {}
-    for name, (rel, content, mode) in (extra_files or {}).items():
-        path = os.path.join(prefix, rel)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "wb") as fh:
-            fh.write(content)
-        os.chmod(path, mode)
-        created[name] = path
-    conf_path = os.path.join(prefix, "conf", "nginx.conf")
-    with open(conf_path, "w") as fh:
-        fh.write(conf_text.format(prefix=prefix, **created))
-    proc = subprocess.run(
-        [NGINX_BIN, "-t", "-p", prefix, "-c", "conf/nginx.conf"],
-        capture_output=True, text=True,
-    )
-    return proc.returncode, (proc.stdout + proc.stderr)
+    def __init__(self, harness, tmp_path):
+        self._h = harness
+        self._tmp = tmp_path
+
+    def file(self, rel, content, mode):
+        path = self._tmp / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        path.chmod(mode)
+        return str(path)
+
+    def check(self, template, **values):
+        name = f"lc-redteam-{next(_SEQ)}"
+        self._h.register(NginxInstanceSpec(
+            name=name, template=template,
+            protocol="root", readiness="tcp", template_values=values))
+        self._h.launcher.render_nginx(self._h.spec(name))
+        r = self._h.nginx_test(name, check=False)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
-def _have_nginx():
-    return os.path.exists(NGINX_BIN)
-
-
-pytestmark = pytest.mark.skipif(not _have_nginx(),
-                                reason="nginx binary not built")
+@pytest.fixture()
+def redteam(tmp_path):
+    harness = LifecycleHarness()
+    try:
+        yield _RedTeam(harness, tmp_path)
+    finally:
+        harness.close()
 
 
 # ---------------------------------------------------------------------------
@@ -71,50 +76,27 @@ pytestmark = pytest.mark.skipif(not _have_nginx(),
 
 class TestAdminSecretHardening:
 
-    BASE = """
-daemon off; pid {prefix}/nginx.pid; error_log {prefix}/logs/e.log info;
-events {{ worker_connections 64; }}
-http {{
-  client_body_temp_path {prefix}/tmp;
-  proxy_temp_path {prefix}/tmp;
-  fastcgi_temp_path {prefix}/tmp;
-  uwsgi_temp_path {prefix}/tmp;
-  scgi_temp_path {prefix}/tmp;
-  server {{ listen 28310;
-    location /brix/api/v1/admin/ {{
-      brix_dashboard on;
-      brix_admin_secret {secret};
-      {extra}
-    }} }} }}
-"""
-
-    def test_short_secret_rejected(self):
-        rc, out = _nginx_test(
-            self.BASE.replace("{extra}", ""),
-            {"secret": ("secret", b"short", 0o600)},
-        )
+    def test_short_secret_rejected(self, redteam):
+        rc, out = redteam.check(
+            "nginx_redteam_admin.conf",
+            SECRET=redteam.file("secret", b"short", 0o600), EXTRA="")
         assert rc != 0, "a <16 byte admin secret must be rejected at config load"
         assert "too short" in out, out
 
-    def test_long_secret_accepted(self):
-        rc, out = _nginx_test(
-            self.BASE.replace("{extra}", ""),
-            {"secret": ("secret",
-                        b"a-sufficiently-long-admin-secret-0123456789", 0o600)},
-        )
+    def test_long_secret_accepted(self, redteam):
+        rc, out = redteam.check(
+            "nginx_redteam_admin.conf",
+            SECRET=redteam.file("secret", LONG_SECRET, 0o600), EXTRA="")
         # A clean parse reaches "test is successful"; any directive error would
         # surface as an [emerg] about the directive itself.
         assert "too short" not in out, out
         assert "brix_admin" not in out or "successful" in out, out
 
-    def test_proxy_allow_directive_parses(self):
-        rc, out = _nginx_test(
-            self.BASE.replace(
-                "{extra}",
-                "brix_admin_proxy_allow backend.example.org 10.1.2.3;"),
-            {"secret": ("secret",
-                        b"a-sufficiently-long-admin-secret-0123456789", 0o600)},
-        )
+    def test_proxy_allow_directive_parses(self, redteam):
+        rc, out = redteam.check(
+            "nginx_redteam_admin.conf",
+            SECRET=redteam.file("secret", LONG_SECRET, 0o600),
+            EXTRA="brix_admin_proxy_allow backend.example.org 10.1.2.3;")
         assert "brix_admin_proxy_allow" not in out or "successful" in out, out
         assert "unknown directive" not in out, out
 
@@ -125,45 +107,29 @@ http {{
 
 class TestCmsAuthConfig:
 
-    BASE = """
-daemon off; pid {prefix}/nginx.pid; error_log {prefix}/logs/e.log info;
-events {{ worker_connections 64; }}
-stream {{
-  server {{ listen 28311;
-    brix_cms_server on;
-    {extra}
-  }} }}
-"""
-
-    KEYTAB = b"0 N:1 k:" + b"a" * 64 + b" u:cmsnode g:cms n:cluster\n"
-
-    def test_allow_and_keytab_parse(self):
-        rc, out = _nginx_test(
-            self.BASE.replace(
-                "{extra}",
-                "brix_cms_server_allow 127.0.0.0/8 10.0.0.0/8;\n"
-                "    brix_cms_server_sss_keytab {keytab};"),
-            {"keytab": ("cms.keytab", self.KEYTAB, 0o600)},
-        )
+    def test_allow_and_keytab_parse(self, redteam):
+        keytab = redteam.file("cms.keytab", KEYTAB, 0o600)
+        rc, out = redteam.check(
+            "nginx_redteam_cms.conf",
+            EXTRA=("brix_cms_server_allow 127.0.0.0/8 10.0.0.0/8;\n"
+                   f"    brix_cms_server_sss_keytab {keytab};"))
         # rc == 0 means the keytab parsed and loaded (a malformed keytab or bad
         # permission would emerg here); the "sss auth configured" NOTICE itself
         # goes to the error_log file, not nginx -t's stderr.
         assert rc == 0, out
 
-    def test_world_readable_keytab_rejected(self):
-        rc, out = _nginx_test(
-            self.BASE.replace(
-                "{extra}", "brix_cms_server_sss_keytab {keytab};"),
-            {"keytab": ("cms.keytab", self.KEYTAB, 0o644)},   # world-readable
-        )
+    def test_world_readable_keytab_rejected(self, redteam):
+        keytab = redteam.file("cms.keytab", KEYTAB, 0o644)   # world-readable
+        rc, out = redteam.check(
+            "nginx_redteam_cms.conf",
+            EXTRA=f"brix_cms_server_sss_keytab {keytab};")
         assert rc != 0, "a world-readable cms sss keytab must be rejected"
         assert "unsafe permissions" in out, out
 
-    def test_bad_cidr_rejected(self):
-        rc, out = _nginx_test(
-            self.BASE.replace(
-                "{extra}", "brix_cms_server_allow not-a-cidr;"),
-        )
+    def test_bad_cidr_rejected(self, redteam):
+        rc, out = redteam.check(
+            "nginx_redteam_cms.conf",
+            EXTRA="brix_cms_server_allow not-a-cidr;")
         assert rc != 0, "an invalid CIDR must be rejected"
         assert "invalid CIDR" in out, out
 
@@ -174,50 +140,28 @@ stream {{
 
 class TestConcurrencyLimitConfig:
 
-    BASE = """
-daemon off; pid {prefix}/nginx.pid; error_log {prefix}/logs/e.log info;
-events {{ worker_connections 64; }}
-http {{
-  client_body_temp_path {prefix}/tmp;
-  proxy_temp_path {prefix}/tmp;
-  fastcgi_temp_path {prefix}/tmp;
-  uwsgi_temp_path {prefix}/tmp;
-  scgi_temp_path {prefix}/tmp;
-  brix_rate_limit_zone zone=conc:1m;
-  server {{ listen 28312;
-    location / {{ brix_webdav on; brix_storage_backend posix:{prefix}/data;
-      brix_webdav_auth optional; brix_webdav_cafile {ca};
-      {extra} }} }} }}
-"""
+    def _ca(self, redteam):
+        return redteam.file("ca", b"dummy", 0o600)
 
-    def _files(self):
-        return {"ca": ("data/ca", b"dummy", 0o600)}
-
-    def test_concurrency_directive_parses(self):
-        rc, out = _nginx_test(
-            self.BASE.replace("{extra}",
-                              "brix_concurrency_limit zone=conc key=ip limit=4;"),
-            self._files(),
-        )
+    def test_concurrency_directive_parses(self, redteam):
+        rc, out = redteam.check(
+            "nginx_redteam_concurrency.conf", CA=self._ca(redteam),
+            EXTRA="brix_concurrency_limit zone=conc key=ip limit=4;")
         # cafile is a dummy so TLS init may complain, but the concurrency
         # directive itself must not be flagged unknown/invalid.
         assert "unknown parameter" not in out, out
         assert "unknown directive" not in out, out
 
-    def test_concurrency_requires_limit(self):
-        rc, out = _nginx_test(
-            self.BASE.replace("{extra}",
-                              "brix_concurrency_limit zone=conc key=ip;"),
-            self._files(),
-        )
+    def test_concurrency_requires_limit(self, redteam):
+        rc, out = redteam.check(
+            "nginx_redteam_concurrency.conf", CA=self._ca(redteam),
+            EXTRA="brix_concurrency_limit zone=conc key=ip;")
         assert rc != 0, "concurrency limit must require limit="
         assert "limit=" in out, out
 
-    def test_concurrency_unknown_zone_rejected(self):
-        rc, out = _nginx_test(
-            self.BASE.replace("{extra}",
-                              "brix_concurrency_limit zone=nope key=ip limit=4;"),
-            self._files(),
-        )
+    def test_concurrency_unknown_zone_rejected(self, redteam):
+        rc, out = redteam.check(
+            "nginx_redteam_concurrency.conf", CA=self._ca(redteam),
+            EXTRA="brix_concurrency_limit zone=nope key=ip limit=4;")
         assert rc != 0, "concurrency limit with an undeclared zone must be rejected"
         assert "unknown zone" in out, out

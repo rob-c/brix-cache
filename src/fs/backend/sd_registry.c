@@ -138,6 +138,8 @@ brix_sd_instance_create(ngx_log_t *log, const char *name,
     inst->driver = driver;
     inst->log = log;
     inst->pool = pool;
+    inst->caps = driver->caps;   /* effective caps default = descriptor caps;
+                                  * init may narrow/extend (Phase-83 pblock mask) */
 
     if (driver->init != NULL && driver->init(inst, driver_conf) != NGX_OK) {
         if (err_out != NULL) { *err_out = errno != 0 ? errno : EINVAL; }
@@ -161,14 +163,16 @@ brix_sd_instance_destroy(brix_sd_instance_t *inst)
 uint32_t
 brix_sd_caps(const brix_sd_instance_t *inst)
 {
-    return (inst != NULL && inst->driver != NULL) ? inst->driver->caps : 0;
+    return (inst != NULL && inst->driver != NULL) ? inst->caps : 0;
 }
 
 ngx_fd_t
 brix_sd_fd(const brix_sd_obj_t *obj)
 {
-    if (obj == NULL || obj->driver == NULL
-        || !(obj->driver->caps & BRIX_SD_CAP_FD))
+    /* Honour the per-instance effective caps (Phase-83 mask), not the raw
+     * descriptor caps: caps=-fd must actually suppress the kernel fd here. */
+    if (obj == NULL || obj->inst == NULL
+        || !(obj->inst->caps & BRIX_SD_CAP_FD))
     {
         return NGX_INVALID_FILE;
     }

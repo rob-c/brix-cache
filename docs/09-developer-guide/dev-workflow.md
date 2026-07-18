@@ -77,12 +77,11 @@ pytest -q
 Helper launcher for local test services:
 
 ```bash
-cd /path/to/nginx-xrootd
-tests/manage_test_servers.sh start      # nginx + reference xrootd
-tests/manage_test_servers.sh status
-tests/manage_test_servers.sh restart nginx
-tests/manage_test_servers.sh stop
-tests/manage_test_servers.sh force-stop ref   # kill unmanaged fixed-port ref listeners
+cd /path/to/nginx-xrootd/tests
+python3 -m cmdscripts.manage_test_servers start-all      # nginx + reference xrootd + full fleet
+python3 -m cmdscripts.manage_test_servers status
+python3 -m cmdscripts.manage_test_servers restart
+python3 -m cmdscripts.manage_test_servers stop-all
 ```
 
 The main test harness in `tests/` expects nginx already running on the base anonymous/GSI/WebDAV ports. Some focused suites start their own sidecar nginx or reference services: conformance and bridge tests use a reference `xrootd`, VO ACL tests use a dedicated VOMS listener, privilege tests use a read-only listener, CRL tests use a revoked-cert listener, and token tests use the token-auth listener described in [building.md](../03-configuration/build-guide.md).
@@ -195,7 +194,7 @@ Not all tests use the same set of nginx listeners. Running a focused subset with
 
 | Test file | Servers needed | How to start |
 |---|---|---|
-| `test_file_api.py`, `test_xrootd.py`, `test_readv.py` | `NGINX_ANON_PORT=11094` | `tests/manage_test_servers.sh start` |
+| `test_file_api.py`, `test_xrootd.py`, `test_readv.py` | `NGINX_ANON_PORT=11094` | `python3 -m cmdscripts.manage_test_servers start-all` |
 | `test_aio.py`, `test_write.py`, `test_pgwrite_checksum.py` | `NGINX_ANON_PORT=11094` | same |
 | `test_gsi_tls.py`, `test_gsi_security.py` | `NGINX_GSI_PORT=11095`, PKI fixtures | same |
 | `test_token_auth.py`, `test_token_security.py` | `NGINX_TOKEN_PORT=11097`, JWKS key | same |
@@ -208,7 +207,7 @@ Not all tests use the same set of nginx listeners. Running a focused subset with
 | `test_vo_acl.py` | GSI listener + VOMS fixture | same |
 | `test_manager_mode.py`, `test_cms.py` | manager port (separate config) | same |
 
-The `manage_test_servers.sh start` script handles all of these in one command. Use focused test runs (`pytest tests/test_file_api.py -v`) to avoid waiting for the full suite when working on one subsystem.
+The `manage_test_servers start-all` command (run from `tests/`) handles all of these in one command. Use focused test runs (`pytest tests/test_file_api.py -v`) to avoid waiting for the full suite when working on one subsystem.
 
 ---
 

@@ -86,6 +86,7 @@ def ensure_dirs():
 # 1. Success — cache file present → served from cache
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("http-cache")
 def test_cache_hit_served(base_url):
     """GET returns the cached copy when cache file and metadata are valid.
 
@@ -123,6 +124,7 @@ def test_cache_hit_served(base_url):
 # 2. Error path — cache file absent → falls through to origin
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("http-cache")
 def test_cache_miss_fallthrough(base_url):
     """GET serves the origin file when the cache entry does not exist.
 
@@ -160,6 +162,7 @@ def test_cache_miss_fallthrough(base_url):
 # 3. Security-neg — path traversal attempt is rejected
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("http-cache")
 def test_path_traversal_blocked(base_url):
     """URL with ``..`` segments must not escape the webdav_root.
 
@@ -203,6 +206,7 @@ class TestXCacheAlternative:
     Topology: Client ──► Nginx (with brix_cache) ──► XRootD (Origin)
     """
 
+    @pytest.mark.registry_server("http-cache")
     def test_first_read_fetches_from_origin(self, base_url):
         """First GET on a new path serves origin content (cache miss).
 
@@ -237,6 +241,7 @@ class TestXCacheAlternative:
                 pass
             unlink_cache_entry(cache_path)
 
+    @pytest.mark.registry_server("http-cache")
     def test_second_read_served_from_cache_not_origin(self, base_url):
         """Second GET on a cached path serves cached content (cache hit).
 
@@ -271,6 +276,7 @@ class TestXCacheAlternative:
                 pass
             unlink_cache_entry(cache_path)
 
+    @pytest.mark.registry_server("http-cache")
     def test_checksum_consistency_between_origin_and_cache(self, base_url):
         """Roadmap Section 4A Validation point 3: checksum consistency.
 
@@ -309,6 +315,7 @@ class TestXCacheAlternative:
                 pass
             unlink_cache_entry(cache_path)
 
+    @pytest.mark.registry_server("http-cache")
     def test_cache_directory_created_automatically(self, base_url):
         """Cache root directory is created by nginx if it does not exist at startup.
 
@@ -334,6 +341,7 @@ class TestXCacheAlternative:
             except FileNotFoundError:
                 pass
 
+    @pytest.mark.registry_server("http-cache")
     def test_corrupt_cache_file_falls_through_to_origin(self, base_url):
         """A cache file without readable metadata falls through to origin.
 

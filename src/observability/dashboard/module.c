@@ -2,6 +2,7 @@
 #include "api_admin.h"   /* Phase 23: brix_admin_dispatch + admin directives */
 #include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
 #include "core/compat/cstr.h"         /* brix_str_cbuf */
+#include "core/config/http_common.h"  /* E-1: brix_strict_security via common conf */
 
 #include "module_internal.h"          /* ngx_http_brix_dashboard_set_users */
 
@@ -181,6 +182,26 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
      * even "idle", so reject a config that inverts the two thresholds. */
     if (conf->stalled_threshold_ms < conf->idle_threshold_ms) {
         return "brix_dashboard_stalled_threshold must be greater than or equal to brix_dashboard_idle_threshold";
+    }
+
+    /* E-1: the dashboard exposes client identities, file paths and IPs; serving
+     * it anonymously (no login) publishes all of that to any reader. Warn
+     * always; refuse under strict security. The strict flag lives on the shared
+     * common conf (the dashboard has no preamble of its own), so read it from
+     * the common module's location conf, where directive inheritance already
+     * resolved it. */
+    if (conf->enable && conf->anonymous) {
+        ngx_http_brix_common_conf_t *ucf =
+            ngx_http_conf_get_module_loc_conf(cf, ngx_http_brix_common_module);
+        ngx_flag_t strict = (ucf != NULL && ucf->common.strict_security == 1);
+
+        if (brix_shared_security_gate(cf, strict,
+                "dashboard served anonymously — client identities, paths and "
+                "IPs are readable without a login",
+                "brix_dashboard_anonymous off") != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
     }
     return NGX_CONF_OK;
 }

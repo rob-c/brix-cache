@@ -200,6 +200,7 @@ vfs_mkdir_backend(const vfs_mkdir_req_t *req, const brix_sd_driver_t *drv)
     }
 
     rc = vfs_backend_mkdir_dispatch(req, drv, leaf, use_cred, &cred);
+    brix_sd_ucred_wipe(&store);   /* secret consumed by mkdir; erase (A-4/T4) */
 
     saved_errno = errno;
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
@@ -296,6 +297,7 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
             brix_sd_ucred_t   store;
             brix_sd_cred_t    cred;
             brix_sd_setattr_t attr;
+            ngx_int_t         chmod_rc;
             int               use_cred = 0, cred_err = 0;
 
             /* Zero before the gate: it fills only the active credential kind;
@@ -312,6 +314,7 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
                 }
             }
             if (drv->setattr == NULL) {
+                brix_sd_ucred_wipe(&store);   /* resolved but unused; erase */
                 return NGX_OK;
             }
             ngx_memzero(&attr, sizeof(attr));
@@ -319,10 +322,12 @@ brix_vfs_chmod(brix_vfs_ctx_t *ctx, mode_t mode)
             attr.mode = mode;
             /* Dispatch on the leaf so brix_sd_setattr_maybe_cred finds the
              * leaf driver's setattr_cred slot (decorators relay to plain). */
-            return brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
-                       brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
-                       &attr, use_cred ? &cred : NULL) == NGX_OK
-                   ? NGX_OK : NGX_ERROR;
+            chmod_rc = brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+                           brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
+                           &attr, use_cred ? &cred : NULL) == NGX_OK
+                       ? NGX_OK : NGX_ERROR;
+            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
+            return chmod_rc;
         }
     }
     if (brix_chmod_confined_canon(ctx->log, ctx->root_canon,
@@ -357,6 +362,7 @@ brix_vfs_setattr(brix_vfs_ctx_t *ctx, const brix_sd_setattr_t *attr)
         if (drv != NULL) {
             brix_sd_ucred_t store;
             brix_sd_cred_t  cred;
+            ngx_int_t       setattr_rc;
             int             use_cred = 0, cred_err = 0;
 
             /* Zero before the gate: it fills only the active credential kind;
@@ -373,14 +379,18 @@ brix_vfs_setattr(brix_vfs_ctx_t *ctx, const brix_sd_setattr_t *attr)
                 }
             }
             if (drv->setattr == NULL) {
+                brix_sd_ucred_wipe(&store);   /* resolved but unused; erase */
                 return NGX_OK;   /* no mutable metadata — no-op success */
             }
             /* Dispatch on the leaf so brix_sd_setattr_maybe_cred finds the
              * leaf driver's setattr_cred slot (decorators relay to plain). */
-            return brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
-                       brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
-                       attr, use_cred ? &cred : NULL) == NGX_OK
-                   ? NGX_OK : NGX_ERROR;
+            setattr_rc = brix_sd_setattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+                             brix_vfs_export_relative(ctx,
+                                 brix_vfs_ctx_path(ctx)),
+                             attr, use_cred ? &cred : NULL) == NGX_OK
+                         ? NGX_OK : NGX_ERROR;
+            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
+            return setattr_rc;
         }
     }
 

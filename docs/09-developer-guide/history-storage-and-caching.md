@@ -825,6 +825,34 @@ the original bug fix), gated by `cache_dirty_max_age`.
   one endpoint serve both test styles. General principle recorded here:
   **any on/off-toggleable feature needs its own dedicated test coverage per
   setting**, not one test parametrized across both.
+- **The `driver->close` vs. shell-ownership contract, and the FRM/cache
+  double-free it caught (2026-07-17).** A read of an offline object through
+  `frm://exec` (or `frm://stub`) reliably `free(): double free detected in
+  tcache 2` on the *serve* — the recall itself succeeded (online buffer +
+  cache both correct); only the byte-serve aborted. Root cause was a driver
+  contract violation, not an FRM-logic bug: the SD object model splits
+  ownership so that `driver->close(o)` releases **only** the fd/state, while
+  the malloc'd shell (`heap_shell`) is freed by whoever holds the object *by
+  pointer* — `brix_sd_obj_release()` does `close(o); if (o->heap_shell)
+  free(o);`, the VFS adopt-fail path does the same, and
+  `brix_vfs_adopt_obj()` frees the original after copying it by value (and
+  zeroes `heap_shell` on the embedded copy). Every driver obeys this
+  (posix/http/remote/pblock close only their state) **except `sd_frm_close`**,
+  which also did `if (obj->heap_shell) free(obj);`. So when the cache-fill
+  spine released its source object (`brix_sd_obj_release(fs->so)` in
+  `cache_fill_pump`, sd_cache_fill.c:209), `sd_frm_close` freed the shell,
+  then the release wrapper read `o->heap_shell` (use-after-free) and freed it
+  again. The frm object is the one object routinely released *by pointer*
+  (as the cache-fill source), never adopted-by-value, which is why only frm
+  crashed. Fix: remove the shell-free from `sd_frm_close`. `sd_cache_partial.c`'s
+  `sd_cache_close` carried the identical latent violation — harmless on the
+  hot path (the partial object is always VFS-adopted, so `heap_shell` is
+  already zeroed before close runs) but a double-free on the adopt-fail /
+  release-by-pointer paths — and was fixed the same way for contract
+  uniformity. **General principle: a `driver->close` implementation must
+  never free its own shell; shell lifetime belongs to the by-pointer holder
+  or the VFS adopter.** The rewritten `tests/test_frm_scratch.py` (see the
+  testing history) now exercises this serve path live on both adapters.
 
 ---
 
@@ -876,6 +904,8 @@ knowing about as diagnostic tools rather than re-inventing them:
 | `xrdstorascan` scan engine walks raw POSIX, not the SD-driver seam — backend/namespace-consistency reporting is meaningless for non-POSIX backends until routed through the VFS | architecture gap | xrdstorascan_backend_tooling memory |
 | FRM migrate/purge engine (F1/F2) and Category-2 purge intentionally not reimplemented in-process post-dissolution; purge-watermark monitor logs only, never acts | scoped-out by design | frm_tape_staging_plan memory; comparison docs |
 | Ceph phase-5 (server bench + dedicated Ceph CI harness) and phase-4b (catalog enumeration verb + inventory/drift wiring) deferred together, pending a real non-POSIX driver to exercise them meaningfully | deferred | xrdstorascan_backend_tooling memory |
+| FRM test modernisation (2026-07-18): three retired subsystems still had tests asserting their old behaviour. **Live surface exists → modernised to green:** on-open nearline recall (`test_frm_staging.py`) moved from posix-export + `user.frm.residency` xattr to `frm://exec` MSS backend + `brix_cache_store` (recall in cache-fill; 8 concurrent opens → 1 exec recall proves the cache tier single-flights). **No live surface → skipped with precise reason (re-arm on reintegration):** the unified `kind=tape` transfer-ledger line (emitted only by the stage_engine RECALL path, not the sync read-fault recall — future integration flagged in `prepare.c`); F5 checksum-verify-on-stage (durable registry records SUBMITTED but the draining/verifying stage-agent is retired); F6 purge-watermark monitor (arming NOTICE removed from source). Key lesson: **when a subsystem is dissolved, its tests split cleanly into "behaviour relocated" (port to the new seam) vs. "behaviour removed/deferred" (skip, don't fake) — the wrong move is forcing a green against a surface that no longer emits the signal.** | test modernisation | `docs/refactor/phase-81-test-server-registry.md` (frm entries); this era |
+| **FIXED (2026-07-18) — tape backend advertised zero caps.** The modernised `test_frm_control_locality.py` / `test_tape_rest.py::test_archiveinfo_reports_locality` failed: a tape-only object reported `ONLINE`/`onDisk=true` and a missing object was not `LOST`. Root cause: `brix_sd_frm_create()` (`src/fs/backend/frm/sd_frm.c`) hand-builds the instance instead of going through `brix_sd_instance_create()`, and **never copied `driver->caps` into `inst->caps`** — so `brix_sd_caps()` (which reads the per-instance effective caps, not `driver->caps`) returned 0. The `brix_vfs_residency()` decorator-walk gates on `brix_sd_caps(inst) & BRIX_SD_CAP_NEARLINE`, so it never recognised the tape driver, fell through to its default `ONLINE`/`nearline=0`, and every locality probe was wrong. Fix: one line — `inst->caps = brix_sd_frm_driver.caps;` at construction, mirroring `sd_registry.c:141`. This also correctly re-enables the tape driver's `FD`/`RANDOM_WRITE` effective caps for the cache-recall gate. Lesson: **any backend that bypasses the generic instance factory must replicate `inst->caps = driver->caps`, because `brix_sd_caps()` is instance-scoped (Phase-83 cap masking), not driver-scoped.** | correctness fix | this era |
 
 ---
 

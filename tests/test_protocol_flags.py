@@ -127,12 +127,14 @@ class TestAlwaysOnFlags:
             f"kXR_isServer (0x{_kXR_isServer:08x}) not set; flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("cache-only")
     def test_suppgrw_set_on_cache_server(self):
         flags = _get_protocol_flags(SERVER_HOST, CACHE_ONLY_PORT)
         assert flags & _kXR_suppgrw, (
             f"kXR_suppgrw not set on cache server; flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("proxy-nginx")
     def test_suppgrw_set_on_proxy_server(self):
         flags = _get_protocol_flags(SERVER_HOST, PROXY_NGINX_PORT)
         assert flags & _kXR_suppgrw, (
@@ -144,6 +146,7 @@ class TestAlwaysOnFlags:
 class TestCacheFlag:
     """kXR_attrCache (0x80) is set only when brix_cache_export is configured."""
 
+    @pytest.mark.registry_server("cache-only")
     def test_cache_flag_set_for_cache_server(self):
         flags = _get_protocol_flags(SERVER_HOST, CACHE_ONLY_PORT)
         assert flags & _kXR_attrCache, (
@@ -158,6 +161,7 @@ class TestCacheFlag:
             f"flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("proxy-nginx")
     def test_cache_flag_absent_for_proxy_server(self):
         flags = _get_protocol_flags(SERVER_HOST, PROXY_NGINX_PORT)
         assert not (flags & _kXR_attrCache), (
@@ -170,6 +174,7 @@ class TestCacheFlag:
 class TestProxyFlag:
     """kXR_attrProxy (0x200) is set only when brix_proxy is on."""
 
+    @pytest.mark.registry_server("proxy-nginx")
     def test_proxy_flag_set_for_proxy_server(self):
         flags = _get_protocol_flags(SERVER_HOST, PROXY_NGINX_PORT)
         assert flags & _kXR_attrProxy, (
@@ -184,6 +189,7 @@ class TestProxyFlag:
             f"flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("cache-only")
     def test_proxy_flag_absent_for_cache_server(self):
         flags = _get_protocol_flags(SERVER_HOST, CACHE_ONLY_PORT)
         assert not (flags & _kXR_attrProxy), (
@@ -246,6 +252,7 @@ def _do_open(host: str, port: int, path: str) -> int:
 class TestMetadataOnlyFlag:
     """kXR_attrMeta (0x100) advertised by metadata-only nodes; open is rejected."""
 
+    @pytest.mark.registry_server("meta-only")
     def test_meta_flag_set_for_meta_only_server(self):
         flags = _get_protocol_flags(SERVER_HOST, META_ONLY_PORT)
         assert flags & _kXR_attrMeta, (
@@ -260,6 +267,7 @@ class TestMetadataOnlyFlag:
             f"flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("meta-only")
     def test_metadata_server_rejects_open(self):
         status = _do_open(SERVER_HOST, META_ONLY_PORT, "/no-such-file")
         assert status == _kXR_status_error, (
@@ -272,6 +280,7 @@ class TestMetadataOnlyFlag:
 class TestSupervisorFlag:
     """kXR_attrSuper (0x400) set only when brix_supervisor is on."""
 
+    @pytest.mark.registry_server("supervisor")
     def test_supervisor_flag_set(self):
         flags = _get_protocol_flags(SERVER_HOST, SUPERVISOR_PORT)
         assert flags & _kXR_attrSuper, (
@@ -279,6 +288,7 @@ class TestSupervisorFlag:
             f"flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("supervisor")
     def test_supervisor_implies_manager(self):
         flags = _get_protocol_flags(SERVER_HOST, SUPERVISOR_PORT)
         assert flags & _kXR_isManager, (
@@ -298,6 +308,7 @@ class TestSupervisorFlag:
 class TestVirtualRedirFlag:
     """kXR_attrVirtRdr (0x800) auto-detected when manager_map set and cms_addr absent."""
 
+    @pytest.mark.registry_server("virtual-redir")
     def test_virtual_redir_flag_set(self):
         flags = _get_protocol_flags(SERVER_HOST, VIRTUAL_REDIR_PORT)
         assert flags & _kXR_attrVirtRdr, (
@@ -305,6 +316,7 @@ class TestVirtualRedirFlag:
             f"server; flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("virtual-redir")
     def test_virtual_redir_implies_manager(self):
         flags = _get_protocol_flags(SERVER_HOST, VIRTUAL_REDIR_PORT)
         assert flags & _kXR_isManager, (
@@ -324,6 +336,7 @@ class TestVirtualRedirFlag:
 class TestCollapseRedirFlag:
     """kXR_collapseRedir (0x2000) set only when brix_collapse_redir is on."""
 
+    @pytest.mark.registry_server("collapse-redir")
     def test_collapse_redir_flag_set(self):
         flags = _get_protocol_flags(SERVER_HOST, COLLAPSE_REDIR_PORT)
         assert flags & _kXR_collapseRedir, (
@@ -338,6 +351,7 @@ class TestCollapseRedirFlag:
             f"flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("cache-only")
     def test_collapse_redir_flag_absent_for_cache_server(self):
         flags = _get_protocol_flags(SERVER_HOST, CACHE_ONLY_PORT)
         assert not (flags & _kXR_collapseRedir), (
@@ -366,6 +380,7 @@ class TestRecoverWritesFlag:
             f"flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("supervisor")
     def test_recover_writes_absent_on_manager(self):
         flags = _get_protocol_flags(SERVER_HOST, SUPERVISOR_PORT)
         assert not (flags & _kXR_recoverWrts), (
@@ -391,6 +406,7 @@ class TestGpfFlags:
             f"implemented; flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("proxy-nginx")
     def test_supgpf_never_set_on_proxy_server(self):
         flags = _get_protocol_flags(SERVER_HOST, PROXY_NGINX_PORT)
         assert not (flags & _kXR_supgpf), (
@@ -398,6 +414,7 @@ class TestGpfFlags:
             f"flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("cache-only")
     def test_supgpf_never_set_on_cache_server(self):
         flags = _get_protocol_flags(SERVER_HOST, CACHE_ONLY_PORT)
         assert not (flags & _kXR_supgpf), (
@@ -412,6 +429,7 @@ class TestGpfFlags:
             f"flags={flags:#010x}"
         )
 
+    @pytest.mark.registry_server("proxy-nginx")
     def test_anongpf_never_set_on_proxy_server(self):
         flags = _get_protocol_flags(SERVER_HOST, PROXY_NGINX_PORT)
         assert not (flags & _kXR_anongpf), (

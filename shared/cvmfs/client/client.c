@@ -76,14 +76,21 @@ static cvmfs_catalog_t *open_catalog_by_hash(cvmfs_client_t *cl, const cvmfs_has
 /* ---- nested-catalog descent -------------------------------------------- */
 
 /* Longest nested-mountpoint prefix of `path` registered in `cat`, or NULL.
- * Writes the mountpoint into `mp`/`mp_sz` and its hash into *h. */
+ * Writes the mountpoint into `mp`/`mp_sz` and its hash into *h. When
+ * `include_self` is set, `path` itself is also considered a candidate — needed
+ * by readdir, whose CHILDREN of a mountpoint live in the nested catalog rooted
+ * at that mountpoint; resolve (which wants the mountpoint's own dirent, held in
+ * the PARENT catalog) passes 0 so it never descends into path-as-mountpoint. */
 static int longest_nested_prefix(cvmfs_catalog_t *cat, const char *path,
-                                 char *mp, size_t mp_sz, cvmfs_hash_t *h) {
+                                 char *mp, size_t mp_sz, cvmfs_hash_t *h,
+                                 int include_self) {
     int found = 0;
-    /* iterate every "/a", "/a/b", ... prefix that is a directory ancestor */
+    /* iterate every "/a", "/a/b", ... prefix that is a directory ancestor
+     * (and, when include_self, the full path) */
     size_t plen = strlen(path);
-    for (size_t i = 1; i < plen; i++) {
-        if (path[i] != '/') continue;
+    for (size_t i = 1; i <= plen; i++) {
+        int boundary = (i < plen) ? (path[i] == '/') : include_self;
+        if (!boundary) continue;
         char cand[1024];
         if (i >= sizeof(cand)) break;
         memcpy(cand, path, i); cand[i] = '\0';
@@ -105,7 +112,7 @@ static int resolve_full(cvmfs_client_t *cl, const char *path, cvmfs_dirent_t *ou
 
     for (int depth = 0; depth < CVMFS_MAX_NESTED_DEPTH; depth++) {
         char mp[1024]; cvmfs_hash_t h;
-        if (!longest_nested_prefix(cat, path, mp, sizeof(mp), &h)) break;
+        if (!longest_nested_prefix(cat, path, mp, sizeof(mp), &h, 0)) break;
 
         char ntmp[512];
         const char *td = cl->catalog_tmp[0] ? cl->catalog_tmp : "/tmp";
@@ -133,13 +140,48 @@ int cvmfs_client_resolve(cvmfs_client_t *cl, const char *path, cvmfs_dirent_t *o
     return rc;
 }
 
+/* Directory listing that follows nested-catalog transitions. A mountpoint's
+ * children live in the nested catalog rooted at it, so — unlike resolve — the
+ * descent must consider `path` itself a mountpoint (include_self=1). Reuses the
+ * same open/close/unlink discipline as resolve_full. Returns the catalog
+ * readdir count, or <0 on error. */
+int cvmfs_client_readdir(cvmfs_client_t *cl, const char *path,
+                         cvmfs_readdir_cb cb, void *ud, long now) {
+    cvmfs_catalog_t *cat = cl->root_catalog;
+    int owns = 0;
+    char tmp[512] = {0};
+
+    for (int depth = 0; depth < CVMFS_MAX_NESTED_DEPTH; depth++) {
+        char mp[1024]; cvmfs_hash_t h;
+        if (!longest_nested_prefix(cat, path, mp, sizeof(mp), &h, 1)) break;
+
+        char ntmp[512];
+        const char *td = cl->catalog_tmp[0] ? cl->catalog_tmp : "/tmp";
+        cvmfs_catalog_t *ncat = open_catalog_by_hash(cl, &h, td, ntmp, sizeof(ntmp), now);
+        if (ncat == NULL) break;              /* can't descend → list current cat */
+
+        if (owns) { cvmfs_catalog_close(cat); if (tmp[0]) unlink(tmp); }
+        cat = ncat; owns = 1;
+        snprintf(tmp, sizeof(tmp), "%s", ntmp);
+    }
+
+    int n = cvmfs_catalog_readdir(cat, path, cb, ud);
+    if (owns) { cvmfs_catalog_close(cat); if (tmp[0]) unlink(tmp); }
+    return n;
+}
+
 /* ---- mount ------------------------------------------------------------- */
 
-/* Verify the trust chain (whitelist → manifest → cert) into cl->manifest, then
- * fetch + open the root catalog into a fresh temp file. Does NOT install into
- * cl->root_catalog — the caller decides (mount installs; refresh swaps). Shared
- * by mount and refresh. Returns 0 with *out_cat/out_tmp set, or a negative code. */
+/* Verify the trust chain (whitelist → manifest → cert) into the caller's STAGED
+ * manifest buffer, then fetch + open the root catalog into a fresh temp file.
+ * Installs NOTHING into cl — the caller commits (mount installs; refresh swaps)
+ * only after the whole chain has verified, so a failed refresh can never leave
+ * half-committed metadata (xattrs reporting a revision that is not being served,
+ * or a wedge where old_root already equals the new root). Shared by mount and
+ * refresh. Returns 0 with *out_cat/out_tmp/m/mlen set, or a negative code. */
 static int load_trust_and_catalog(cvmfs_client_t *cl, long now,
+                                  unsigned char *mbuf, size_t mbuf_cap, size_t *mlen,
+                                  cvmfs_manifest_t *m,
                                   char *out_tmp, size_t out_tmp_sz,
                                   cvmfs_catalog_t **out_cat) {
     /* 1. whitelist: fetch raw, verify vs master key, check expiry. */
@@ -148,30 +190,87 @@ static int load_trust_and_catalog(cvmfs_client_t *cl, long now,
     cvmfs_whitelist_t wl;
     if (cvmfs_whitelist_parse(wlbuf, wln, &wl) != 0) return -4;
     if (cvmfs_verify_whitelist(&wl, cl->master_pub, cl->master_pub_len) != 0) return -5;
-    if (cvmfs_whitelist_expired(&wl, now)) return -6;
+    /* Expiry is a WALL-CLOCK judgement: the whitelist's "YYYYMMDDhhmmss" parses to
+     * a UTC epoch, so it must be compared against real time — NOT `now`, which is
+     * CLOCK_MONOTONIC (seconds-since-boot) and is used only for TTL/refresh gating.
+     * Feeding mono here made expiry unenforceable (mono ≪ epoch, never trips). */
+    if (cvmfs_whitelist_expired(&wl, (long) time(NULL))) return -6;
+    /* The whitelist 'N<fqrn>' line binds this trust anchor to one repository.
+     * A validly-signed whitelist minted for a different (or unnamed) repo must
+     * not authorize this mount — otherwise a master-key holder for repo A could
+     * have their whitelist replayed against repo B. Case-sensitive per fqrn. */
+    if (wl.repo_name[0] == '\0' || strcmp(wl.repo_name, cl->config.name) != 0) return -12;
 
-    /* 2. manifest: fetch raw, parse. */
-    if (raw_fetch(cl, ".cvmfspublished", cl->manifest_buf, sizeof(cl->manifest_buf),
-                  &cl->manifest_len, now) != 0) return -3;
-    if (cvmfs_manifest_parse(cl->manifest_buf, cl->manifest_len, &cl->manifest) != 0) return -7;
+    /* 2. manifest: fetch raw into the STAGING buffer, parse. */
+    if (raw_fetch(cl, ".cvmfspublished", mbuf, mbuf_cap, mlen, now) != 0) return -3;
+    if (cvmfs_manifest_parse(mbuf, *mlen, m) != 0) return -7;
+    /* NOTE: the manifest 'N<fqrn>' field is NOT gated against the served repo.
+     * Stock CVMFS authenticates the manifest by cert-fingerprint ∈ whitelist +
+     * signature body-binding, and binds repository identity through the
+     * whitelist 'N' line (checked above, -12) — not the manifest's N. Real
+     * publishers routinely serve one signed manifest under several fqrns (our
+     * whitelist conformance harness reproduces this), so gating on manifest-N
+     * here would refuse legitimate mounts. Identity is the whitelist's job. */
 
     /* 3. signing cert: fetch CAS object ('X'), check fingerprint ∈ whitelist. */
     size_t certn = 0;
-    unsigned char *cert = fetch_cas(cl, &cl->manifest.certificate, 'X', &certn, now);
+    unsigned char *cert = fetch_cas(cl, &m->certificate, 'X', &certn, now);
     if (cert == NULL) return -8;
     char fp[64];
     int fp_ok = cvmfs_cert_fingerprint(cert, certn, fp, sizeof(fp)) == 0
              && cvmfs_whitelist_lists_fp(&wl, fp);
-    int sig_ok = fp_ok && cvmfs_verify_manifest(&cl->manifest, cert, certn) == 0;
+    int sig_ok = fp_ok && cvmfs_verify_manifest(m, cert, certn) == 0;
     free(cert);
     if (!sig_ok) return -9;
 
-    /* 4. root catalog: fetch + open. */
-    cvmfs_catalog_t *cat = open_catalog_by_hash(cl, &cl->manifest.root_catalog,
+    /* 4. root catalog: fetch + open. A pinned client opens the PIN hash instead
+     * of the manifest's — the CAS fetch is hash-verified, so a tampered pin
+     * target is refused right here — and records whether the verified upstream
+     * manifest has drifted away from the pin. */
+    const cvmfs_hash_t *want = cl->pin_set ? &cl->pin_root : &m->root_catalog;
+    cvmfs_catalog_t *cat = open_catalog_by_hash(cl, want,
                                                 cl->catalog_tmp, out_tmp, out_tmp_sz, now);
     if (cat == NULL) return -10;
+    if (cl->pin_set) {
+        cl->pin_drift = !cvmfs_hash_eq(&cl->pin_root, &m->root_catalog);
+        if (cl->pin_drift)
+            cvmfs_hash_to_hex(&m->root_catalog, 0,
+                              cl->pin_drift_hex, sizeof(cl->pin_drift_hex));
+    }
+
+    /* 5. revision consistency: the manifest 'S' must equal the root catalog's own
+     * recorded revision. The catalog is content-addressed by the (now body-bound,
+     * hence authentic) manifest 'C', so its 'revision' property is authenticated
+     * transitively — a rollback that edits only the unsigned-looking manifest 'S'
+     * without rebuilding the catalog is caught here. Tolerant of a catalog with no
+     * 'revision' property (older/hand-built repos) and of a manifest that omits 'S'
+     * entirely (revision defaults to 0): enforce only when BOTH sides carry a
+     * revision and they disagree, so we never reject a legitimate repo that omits
+     * either. Body-binding (see cvmfs_verify_manifest) already prevents an attacker
+     * from stripping a signed 'S', so a revision of 0 here can only be a genuinely
+     * S-less publish, which has no prior revision to roll back to. */
+    /* Skipped for a pinned client: a pin to an older publish legitimately
+     * disagrees with the (advanced) manifest 'S'. */
+    char revbuf[32];
+    if (!cl->pin_set && m->revision != 0
+            && cvmfs_catalog_property(cat, "revision", revbuf, sizeof(revbuf)) == 1
+            && atol(revbuf) != m->revision) {
+        cvmfs_catalog_close(cat);
+        return -11;
+    }
     *out_cat = cat;
     return 0;
+}
+
+/* Install a fully-verified staged manifest as the client's current one. The
+ * manifest struct holds pointers into its backing buffer, so commit = copy the
+ * raw bytes then re-parse against cl->manifest_buf (parse is deterministic and
+ * already succeeded on these exact bytes). */
+static void commit_manifest(cvmfs_client_t *cl, const unsigned char *mbuf, size_t mlen) {
+    memcpy(cl->manifest_buf, mbuf, mlen);
+    cl->manifest_len = mlen;
+    cvmfs_manifest_parse(cl->manifest_buf, cl->manifest_len, &cl->manifest);
+    cl->ttl = cl->manifest.ttl > 0 ? cl->manifest.ttl : 240;
 }
 
 /* Extract the hostname from a host URL: "http://HOST[:port]/cvmfs/repo" → HOST. */
@@ -246,9 +345,12 @@ int cvmfs_client_mount(cvmfs_client_t *cl, const char *repo_name,
      * the content layer's hash-verified retry. Bounded with backoff. */
     int rc = -1;
     for (unsigned attempt = 0; attempt < 6; attempt++) {
-        rc = load_trust_and_catalog(cl, now, cl->root_catalog_tmp,
+        size_t           mlen = 0;
+        cvmfs_manifest_t m;
+        rc = load_trust_and_catalog(cl, now, cl->manifest_stage, sizeof(cl->manifest_stage),
+                                    &mlen, &m, cl->root_catalog_tmp,
                                     sizeof(cl->root_catalog_tmp), &cl->root_catalog);
-        if (rc == 0) break;
+        if (rc == 0) { commit_manifest(cl, cl->manifest_stage, mlen); break; }
         long ms = cvmfs_failover_backoff_ms(attempt);
         struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
         nanosleep(&ts, NULL);
@@ -260,7 +362,6 @@ int cvmfs_client_mount(cvmfs_client_t *cl, const char *repo_name,
     cl->mounted_at = now;
     cl->last_refresh = now;
     cl->last_reap = now;
-    cl->ttl = cl->manifest.ttl > 0 ? cl->manifest.ttl : 240;
     return 0;
 }
 
@@ -274,23 +375,48 @@ int cvmfs_client_refresh(cvmfs_client_t *cl, long now) {
     if (cl->ttl <= 0) cl->ttl = 240;
     if (now < cl->last_refresh + cl->ttl) return 0;      /* not due */
 
-    cvmfs_hash_t old_root = cl->manifest.root_catalog;
+    size_t           mlen = 0;
+    cvmfs_manifest_t m;
     char             ntmp[512] = {0};
     cvmfs_catalog_t *ncat = NULL;
-    int rc = load_trust_and_catalog(cl, now, ntmp, sizeof(ntmp), &ncat);
+    int rc = load_trust_and_catalog(cl, now, cl->manifest_stage, sizeof(cl->manifest_stage),
+                                    &mlen, &m, ntmp, sizeof(ntmp), &ncat);
     cl->last_refresh = now;
     if (rc != 0) return -1;                              /* keep serving old */
 
-    if (cvmfs_hash_eq(&old_root, &cl->manifest.root_catalog)) {
-        cvmfs_catalog_close(ncat);                       /* same revision */
+    /* Pinned mount: the served catalog is immutable. The chain re-verified
+     * (trust freshness) and drift vs upstream was recorded above; discard the
+     * re-opened pin catalog and keep the manifest we mounted with, so xattrs
+     * keep describing what is actually being served. */
+    if (cl->pin_set) {
+        cvmfs_catalog_close(ncat);
         if (ntmp[0]) unlink(ntmp);
         return 0;
     }
-    /* new revision → swap the root catalog */
+
+    /* Rollback protection: a verified-but-OLDER revision is a replay (or a
+     * poisoned mirror serving stale state) — refuse it and keep serving. Only
+     * enforced when both sides carry a revision, so hand-built repos without an
+     * 'S' field never wedge. */
+    if (m.revision > 0 && cl->manifest.revision > 0
+            && m.revision < cl->manifest.revision) {
+        cvmfs_catalog_close(ncat);
+        if (ntmp[0]) unlink(ntmp);
+        return -1;
+    }
+
+    if (cvmfs_hash_eq(&cl->manifest.root_catalog, &m.root_catalog)) {
+        cvmfs_catalog_close(ncat);                       /* same revision */
+        if (ntmp[0]) unlink(ntmp);
+        commit_manifest(cl, cl->manifest_stage, mlen);   /* refreshed ttl/timestamp */
+        return 0;
+    }
+    /* new revision → swap the root catalog, then commit its manifest */
     cvmfs_catalog_close(cl->root_catalog);
     if (cl->root_catalog_tmp[0]) unlink(cl->root_catalog_tmp);
     cl->root_catalog = ncat;
     snprintf(cl->root_catalog_tmp, sizeof(cl->root_catalog_tmp), "%s", ntmp);
+    commit_manifest(cl, cl->manifest_stage, mlen);
     return 1;
 }
 
@@ -381,12 +507,29 @@ int cvmfs_client_getxattr(cvmfs_client_t *cl, const char *path, const char *name
                           char *out, size_t outlen, long now) {
     char val[512];
 
+    /* Official CVMFS exposes these under the "user.cvmfs." namespace
+     * (user.cvmfs.fqrn, user.cvmfs.revision, ...). Accept that spelling by
+     * folding it onto the bare "user." names we dispatch below; the bare names
+     * remain valid for compatibility. */
+    char nbuf[128];
+    if (strncmp(name, "user.cvmfs.", 11) == 0) {
+        snprintf(nbuf, sizeof(nbuf), "user.%s", name + 11);
+        name = nbuf;
+    }
+
     if (strcmp(name, "user.fqrn") == 0) {
         snprintf(val, sizeof(val), "%s", cl->config.name);
     } else if (strcmp(name, "user.revision") == 0) {
-        snprintf(val, sizeof(val), "%ld", cl->manifest.revision);
+        /* Pinned: report the SERVED catalog's own revision, not the (possibly
+         * advanced) manifest's; fall through when the catalog records none. */
+        if (!(cl->pin_set && cl->root_catalog
+                && cvmfs_catalog_property(cl->root_catalog, "revision",
+                                          val, sizeof(val)) == 1))
+            snprintf(val, sizeof(val), "%ld", cl->manifest.revision);
     } else if (strcmp(name, "user.root_hash") == 0) {
-        cvmfs_hash_to_hex(&cl->manifest.root_catalog, 0, val, sizeof(val));
+        /* A pinned mount serves the pin, whatever the manifest advertises. */
+        cvmfs_hash_to_hex(cl->pin_set ? &cl->pin_root : &cl->manifest.root_catalog,
+                          0, val, sizeof(val));
     } else if (strcmp(name, "user.host") == 0 || strcmp(name, "user.proxy") == 0) {
         cvmfs_fo_route_t r;
         if (cvmfs_failover_select(&cl->fo, now, &r) != 0) return -1;
@@ -418,11 +561,43 @@ int cvmfs_client_getxattr(cvmfs_client_t *cl, const char *path, const char *name
     return put_val(out, outlen, val);
 }
 
-int cvmfs_client_listxattr(char *out, size_t outlen) {
-    static const char names[] =
-        "user.fqrn\0user.revision\0user.root_hash\0user.host\0"
-        "user.proxy\0user.hash\0user.nchunks\0";
-    size_t n = sizeof(names) - 1;
-    if (outlen >= n) memcpy(out, names, n);
+int cvmfs_client_listxattr(cvmfs_client_t *cl, const char *path,
+                           char *out, size_t outlen, long now) {
+    /* Names applicable to EVERY node, then the file-only content attributes.
+     * Official CVMFS advertises only the attributes that apply to the node, so
+     * a directory (which has no whole-file hash or chunk count) must not list
+     * user.hash / user.nchunks — getxattr on them would only ENODATA. */
+    static const char common[]   = "user.fqrn\0user.revision\0user.root_hash\0"
+                                   "user.host\0user.proxy\0";
+    static const char fileonly[] = "user.hash\0user.nchunks\0";
+    size_t cn = sizeof(common) - 1, fn = sizeof(fileonly) - 1;
+
+    cvmfs_dirent_t e;
+    int is_file = cvmfs_client_resolve(cl, path, &e, now) == 1
+                  && (e.flags & CVMFS_FLAG_FILE);
+
+    size_t n = cn + (is_file ? fn : 0);
+    if (outlen >= n) {
+        memcpy(out, common, cn);
+        if (is_file) memcpy(out + cn, fileonly, fn);
+    }
     return (int) n;
+}
+
+/* ---- reproducibility pin ------------------------------------------------ */
+
+int cvmfs_client_pin_root(cvmfs_client_t *cl, const char *hex) {
+    if (hex == NULL || cvmfs_hash_parse(hex, strlen(hex), &cl->pin_root) != 0)
+        return -1;
+    cl->pin_set = 1;
+    cl->pin_drift = 0;
+    cl->pin_drift_hex[0] = '\0';
+    return 0;
+}
+
+int cvmfs_client_pin_drift(cvmfs_client_t *cl, char *out, size_t outlen) {
+    if (!cl->pin_set || !cl->pin_drift) return 0;
+    if (out != NULL && outlen > 0)
+        snprintf(out, outlen, "%s", cl->pin_drift_hex);
+    return 1;
 }

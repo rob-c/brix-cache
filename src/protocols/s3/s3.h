@@ -404,7 +404,8 @@ ngx_int_t s3_set_header(ngx_http_request_t *r, const char *key,
  * Returns 1 on success, 0 if the key escapes the root or is invalid.
  * out must be at least PATH_MAX bytes.
  */
-int s3_resolve_key(const char *root, const char *key, char *out, size_t outsz);
+int s3_resolve_key(const char *root, const char *key, char *out, size_t outsz,
+    unsigned allow_internal);
 
 /* Multipart, copy, delete-objects, and checksum operation declarations were
  * split out (phase-79 file-size burndown) into s3_ops.h, included here so every

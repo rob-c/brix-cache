@@ -43,6 +43,7 @@ BRIXCVMFS_CORE = [
     "shared/cvmfs/object/object.c",
     "shared/cvmfs/failover/failover.c",
     "shared/cvmfs/catalog/catalog.c",
+    "shared/cvmfs/walk/walk.c",
     "shared/cvmfs/grammar/hash.c",
     "shared/cvmfs/grammar/classify.c",
     "shared/cvmfs/signature/manifest.c",
@@ -95,16 +96,63 @@ def _build_mkrepo(run: LiveRun) -> Path:
     )
 
 
+# Prebuilt client archives the brixMount umbrella links against. brixmount.c
+# includes cli/cli_hint.h -> brix.h, which pulls in the whole client wire stack
+# (protocols/root/... under -I src) and references symbols that live in these
+# static libraries. Rather than re-list that ever-growing transitive source set,
+# link the same archives the production build links — mirroring the
+# $(BINDIR)/brixMount recipe in client/Makefile (CLIENT_LIB + PROTO_LIB).
+_UMBRELLA_ARCHIVES = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a"]
+
+
+def _umbrella_link_deps() -> tuple[list[str], list[str], list[str], list[str]]:
+    """(includes, defines, sources, archives) needed to link the brixMount
+    umbrella. Skips cleanly if the prebuilt client archives are absent (e.g. a
+    checkout where the client hasn't been built yet)."""
+    for lib in _UMBRELLA_ARCHIVES:
+        if not os.path.isfile(os.path.join(REPO_ROOT, lib)):
+            raise LiveSkip(f"prebuilt {lib} not present (build the client first)")
+    return (
+        ["client/lib", "src"],                       # brix.h + wire headers
+        ["-DXRDPROTO_NO_NGX"],                        # ngx-free proto shim
+        ["client/apps/fs/brixcvmfs_rw.c",             # brixcvmfs_rw_main ref
+         "client/apps/fs/brixautofs.c"],              # brixautofs_main ref
+        list(_UMBRELLA_ARCHIVES),
+    )
+
+
 def _build_brixcvmfs(run: LiveRun, *, no_main_frontends: list[str] | None = None, extra_sources: list[str] | None = None, extra_includes: list[str] | None = None, name: str = "brixcvmfs") -> Path:
     """Build brixcvmfs (or a brixMount umbrella when front-end sources are given)."""
     cflags, libs = _fuse3_flags()
+    includes = list(extra_includes or [])
+    sources = list(extra_sources or [])
+    defines: list = []
+    archives: list = []
+    syslibs: list = []
+
+    # The brixMount umbrella (main() owned by brixmount.c) needs the prebuilt
+    # client archives + their include/define/source deps; the standalone
+    # brixcvmfs binary does not.
+    is_umbrella = bool(no_main_frontends) and any("brixmount.c" in f for f in no_main_frontends)
+    if is_umbrella:
+        u_includes, defines, u_sources, archives = _umbrella_link_deps()
+        for inc in u_includes:
+            if inc not in includes:
+                includes.append(inc)
+        for src in u_sources:
+            if src not in sources:
+                sources.append(src)
+        syslibs = ["-lssl", "-pthread"]
+
     args: list = ["-Wall", "-Wextra", "-Werror", "-I", "shared"]
-    for include in extra_includes or []:
+    for include in includes:
         args += ["-I", include]
+    args += defines
     args += cflags
     if no_main_frontends:
         args += ["-DBRIXCVMFS_NO_MAIN", *no_main_frontends]
-    args += ["client/apps/fs/brixcvmfs.c", *(extra_sources or []), *BRIXCVMFS_CORE, *libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz"]
+    args += ["client/apps/fs/brixcvmfs.c", *sources, *BRIXCVMFS_CORE, *archives,
+             *libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz", *syslibs]
     return _gcc(run, run.root / name, args)
 
 
@@ -144,7 +192,7 @@ def _unmount(mnt: Path) -> None:
             return
 
 
-def _wait_mounted(mnt: Path, timeout: float = 10.0) -> bool:
+def _wait_mounted(mnt: Path, timeout: float = 30.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if os.path.ismount(str(mnt)):

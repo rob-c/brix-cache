@@ -119,7 +119,7 @@ s3put_ensure_parent_dirs(s3put_state_t *st)
             brix_vfs_backend_resolve(st->cf->common.root_canon,
                                      st->r->connection->log));
 
-        if (leaf != NULL && !(leaf->driver->caps & BRIX_SD_CAP_DIRS_WRITE)) {
+        if (leaf != NULL && !(brix_sd_caps(leaf) & BRIX_SD_CAP_DIRS_WRITE)) {
             return NGX_OK;
         }
     }
@@ -196,14 +196,16 @@ s3put_precondition(s3put_state_t *st)
 
 
 /*
- * s3put_open_target — open the staged (exclusive-create) file for the object.
+ * s3put_open_target — open the unified write session (atomic temp+publish) for
+ * the object.
  *
- * WHAT: opens a staged VFS handle into which the body is written before the
+ * WHAT: opens a brix_vfs_writer session into which the body is written before the
  *   atomic commit.
  * WHY: the phase-74 exclusive-create semantics are frozen here — this helper is
  *   the single place that opens the target, so the staged mode/perms live in
- *   exactly one spot.
- * HOW: on success stores the handle in st->staged and returns NGX_OK; on failure
+ *   exactly one spot.  BRIX_VFS_O_ATOMIC forces the temp+publish path even for
+ *   random-capable backends, preserving S3's no-partial-at-final invariant.
+ * HOW: on success stores the session in st->writer and returns NGX_OK; on failure
  *   finalizes with the confinement-aware fs error (403 not 500) and returns
  *   NGX_DONE.
  */
@@ -213,12 +215,13 @@ s3put_open_target(s3put_state_t *st)
     brix_vfs_ctx_t svctx;
     int            staged_err = 0;
 
-    /* A transient stack ctx is fine: brix_vfs_staged_open deep-copies the ctx
-     * (and the strings it points at) onto r->pool, so the handle survives the async
+    /* A transient stack ctx is fine: brix_vfs_writer_open deep-copies the ctx
+     * (and the strings it points at) onto r->pool, so the session survives the async
      * body-write completion (put_aio/put_chunk commit after this function returns). */
     s3_build_vfs_ctx(st->r, (const char *) st->fs_path, st->cf, &svctx);
-    st->staged = brix_vfs_staged_open(&svctx, 0600, 16, &staged_err);
-    if (st->staged == NULL) {
+    st->writer = brix_vfs_writer_open(&svctx, BRIX_VFS_O_ATOMIC,
+                                      st->cf->common.verify_write, &staged_err);
+    if (st->writer == NULL) {
         int open_errno = staged_err;   /* the VFS open captured errno */
         brix_log_safe_path(st->r->connection->log, NGX_LOG_ERR, open_errno,
                              "s3: staged open for \"%s\" failed",

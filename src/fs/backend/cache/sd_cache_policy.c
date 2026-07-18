@@ -176,6 +176,7 @@ sd_cache_stale_serve_ok(sd_cache_inst_state *st, const char *key)
     brix_cache_cinfo_t  ci;
     time_t                now = time(NULL);
     time_t                ttl = st->policy.cvmfs_manifest_ttl;
+    uint64_t              horizon;
 
     if (ttl <= 0) {
         return 0;
@@ -186,17 +187,36 @@ sd_cache_stale_serve_ok(sd_cache_inst_state *st, const char *key)
     {
         return 0;
     }
-    if (ci.filled_at == 0
-        || (uint64_t) now >= ci.filled_at + 10 * (uint64_t) ttl)
+    /* phase-85 F10: brix_cvmfs_offline_ttl stretches the survival horizon
+     * past the 10x bound — the fill spine verified this manifest's signature
+     * chain when it was cached, so through a total origin outage the site
+     * keeps serving that last-known-good, still-verified view. */
+    horizon = 10 * (uint64_t) ttl;
+    if (st->policy.cvmfs_offline_ttl > 0
+        && (uint64_t) st->policy.cvmfs_offline_ttl > horizon)
     {
+        horizon = (uint64_t) st->policy.cvmfs_offline_ttl;
+    }
+    if (ci.filled_at == 0 || (uint64_t) now >= ci.filled_at + horizon) {
         return 0;                       /* stale window exhausted: fail hard */
+    }
+    if ((uint64_t) now >= ci.filled_at + 10 * (uint64_t) ttl) {
+        /* past where phase-68 would have failed: the offline window alone is
+         * keeping this repo alive — one parsable degraded-mode notice per
+         * serve until the origin returns or the horizon expires. */
+        ngx_log_error(NGX_LOG_NOTICE, st->log, 0,
+            "sd_cache: event=offline-degraded key=\"%s\" (%uL s past fill, "
+            "offline_ttl %T s) - origin down, serving the pinned last-verified "
+            "snapshot", key,
+            (uint64_t) ((uint64_t) now - ci.filled_at),
+            st->policy.cvmfs_offline_ttl);
     }
     ngx_log_error(NGX_LOG_WARN, st->log, 0,
         "sd_cache: refill of \"%s\" failed; serving stale copy (%uL s past "
         "expiry)\n"
         "  cause: origin unreachable or fill error\n"
         "  fix:   check Stratum-1 reachability; stale serving stops at 10x "
-        "manifest_ttl", key,
+        "manifest_ttl (or brix_cvmfs_offline_ttl when longer)", key,
         (uint64_t) ((uint64_t) now - ci.expires_at));
     brix_cache_cinfo_set_expires(&ci, now + ttl);   /* next retry in one TTL */
     (void) brix_cstore_cinfo_store(&st->cstore, key, &ci);

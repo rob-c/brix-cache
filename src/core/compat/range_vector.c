@@ -59,10 +59,14 @@ range_vector_parse_suffix(const u_char *dash, const u_char *comma,
     }
 
     start = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
-    if (start <= 0) {
+    if (start < 0) {   /* covers the ngx_atoof -1 parse-failure sentinel */
         return range_vector_reject(opts);
     }
 
+    /* A well-formed zero-length suffix ("-0") is grammatically valid but
+     * unsatisfiable; let it flow through as start = file_size so the final
+     * bounds gate in range_vector_parse_one classifies it as unsatisfiable
+     * (not a malformed grammar error). */
     if (start > file_size) {
         start = file_size;
     }
@@ -141,18 +145,23 @@ range_vector_parse_explicit(const u_char *p, const u_char *dash,
  * HOW:
  *      1. Locate the '-' separator; reject when the component has none.
  *      2. Dispatch to the suffix helper when the dash is leading, else the
- *         explicit helper; propagate any non-OK return unchanged.
- *      3. Reject when the resolved range is unsatisfiable (start out of file
- *         bounds or start > last).
+ *         explicit helper; propagate any non-OK return unchanged (grammar
+ *         error -> *fail = MALFORMED).
+ *      3. Reject a well-formed range that falls out of the file bounds
+ *         (start >= file_size) as *fail = UNSATISFIABLE; a reversed span
+ *         (start > last) is a malformed byte-range-spec (RFC 9110 §14.1.2).
  *      4. Fill *out (fd/handle cleared) and return NGX_OK.
  */
 static ngx_int_t
 range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
-    const brix_range_vector_opts_t *opts, brix_byte_range_t *out)
+    const brix_range_vector_opts_t *opts, brix_byte_range_t *out,
+    brix_range_fail_e *fail)
 {
     const u_char *dash;
     off_t         start = 0, last = 0;
     ngx_int_t     rc;
+
+    *fail = BRIX_RANGE_FAIL_MALFORMED;
 
     /* Find dash within this range component. */
     dash = ngx_strlchr((u_char *) p, (u_char *) comma, '-');
@@ -171,11 +180,17 @@ range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
         return rc;
     }
 
-    /* Validate unsatisfiable ranges. */
-    if (start < 0 || start >= file_size || start > last) {
+    /* A well-formed range that begins past EOF is unsatisfiable (416); a
+     * reversed span (start > last) is a malformed specifier (ignore -> 200). */
+    if (start >= file_size) {
+        *fail = BRIX_RANGE_FAIL_UNSATISFIABLE;
+        return range_vector_reject(opts);
+    }
+    if (start < 0 || start > last) {
         return range_vector_reject(opts);
     }
 
+    *fail = BRIX_RANGE_FAIL_NONE;
     out->start  = start;
     out->end    = last;
     out->fd     = -1;
@@ -202,10 +217,11 @@ range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
 ngx_int_t
 brix_http_parse_range_vector(const u_char *data, size_t len,
     off_t file_size, const brix_range_vector_opts_t *opts,
-    brix_byte_range_t *ranges, ngx_uint_t *nranges)
+    brix_byte_range_t *ranges, ngx_uint_t *nranges, brix_range_fail_e *fail)
 {
-    const u_char *p, *end, *comma;
-    ngx_uint_t    n = 0;
+    const u_char     *p, *end, *comma;
+    ngx_uint_t        n = 0;
+    brix_range_fail_e why = BRIX_RANGE_FAIL_NONE;
 
     p   = data;
     end = data + len;
@@ -223,8 +239,12 @@ brix_http_parse_range_vector(const u_char *data, size_t len,
             comma = end;
         }
 
-        rc = range_vector_parse_one(p, comma, file_size, opts, &ranges[n]);
+        rc = range_vector_parse_one(p, comma, file_size, opts, &ranges[n],
+                                    &why);
         if (rc == NGX_ERROR) {
+            if (fail != NULL) {
+                *fail = why;
+            }
             return NGX_ERROR;
         }
         if (rc == NGX_OK) {
@@ -235,6 +255,9 @@ brix_http_parse_range_vector(const u_char *data, size_t len,
         p = comma + 1;
     }
 
+    if (fail != NULL) {
+        *fail = BRIX_RANGE_FAIL_NONE;
+    }
     *nranges = n;
     return NGX_OK;
 }

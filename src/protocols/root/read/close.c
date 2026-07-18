@@ -170,7 +170,7 @@ brix_close_staged_commit(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
 {
     int  cerr = 0;
 
-    if (ctx->files[idx].staged == NULL || ctx->files[idx].staged_committed) {
+    if (ctx->files[idx].writer == NULL || ctx->files[idx].staged_committed) {
         return NGX_DECLINED;
     }
     if (brix_staged_commit_handle(ctx, idx, &cerr) == NGX_OK) {

@@ -33,6 +33,7 @@
 #include "core/ngx_brix_module.h"
 #include "net/upstream/upstream.h"
 #include "protocols/root/path/op_path.h"
+#include "core/negcache/negcache.h"    /* E-4: locate-harvest backoff */
 #include "net/manager/registry.h"
 #include "net/manager/redir_cache.h"
 #include "net/manager/pending.h"
@@ -306,6 +307,22 @@ locate_check_data_server(locate_ctx_t *lc, ngx_int_t *out_rc)
             BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
             *out_rc = brix_upstream_start(ctx, c, conf);
             return 1;
+        }
+
+        /* E-4: throttle a locate-harvest loop — a principal already over its
+         * miss budget is answered with kXR_wait rather than another NotFound. */
+        if (conf->negcache.threshold > 0) {
+            unsigned w = brix_negcache_note_miss(ctx, conf->negcache.threshold,
+                                                 conf->negcache.window_ms,
+                                                 conf->negcache.backoff_s);
+            if (w > 0) {
+                ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                    "xrootd negcache: kXR_wait %ud for LOCATE miss %s",
+                    w, lc->reqpath);
+                BRIX_OP_ERR(ctx, BRIX_OP_LOCATE);
+                *out_rc = brix_send_wait(ctx, c, w);
+                return 1;
+            }
         }
 
         brix_log_access(ctx, c, "LOCATE", lc->reqpath, "-",

@@ -33,13 +33,13 @@ webdav_put_step_t webdav_put_precheck(ngx_http_request_t *r,
 
 webdav_put_step_t webdav_put_open_target(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
-    brix_vfs_ctx_t *vctx, brix_vfs_staged_t **out_staged);
+    brix_vfs_ctx_t *vctx, brix_vfs_writer_t **out_writer);
 
 void webdav_put_start_dashboard(ngx_http_request_t *r, const char *path,
     int64_t bytes);
 
 webdav_put_step_t webdav_put_stream_body(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
-    brix_vfs_staged_t *staged, int created);
+    brix_vfs_writer_t *writer, int created);
 
 #endif /* BRIX_WEBDAV_PUT_INTERNAL_H */

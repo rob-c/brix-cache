@@ -14,24 +14,44 @@ import struct
 import subprocess
 import time
 
-from settings import NGINX_BIN, free_ports
+import pytest
+
+from settings import HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
 from _test_a_robustness_helpers import (
     make_protocol_req, make_login_req, make_open_req, make_read_req,
     make_close_req,
 )
 
+# Module-level marker so the phase-81 registry lint treats this helper (imported
+# by test_cache_partial_fill.py) as registry-driven; harmless in a non-test
+# module.
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCINFO = os.path.join(REPO, "client", "bin", "xrdcinfo")
-HOST = "127.0.0.1"
+
+# Stable registry names for the throwaway cache/origin instances.  Each test owns
+# its own function-scoped `lifecycle` harness whose close() stops+unregisters
+# them, so reusing fixed names across the (serial) suite never collides.
+ORIGIN_NAME = "lc-cache-partial-origin"
+CACHE_NAME = "lc-cache-partial-cache"
 
 
 class CacheNode:
-    def __init__(self, cache_port, store_dir, backend, procs, backend_port):
+    """A registry-driven cache node (plus its root:// origin for the xroot
+    backend), holding the LifecycleHarness so teardown stays with the owning
+    test."""
+
+    def __init__(self, lifecycle, cache_port, store_dir, backend, backend_port,
+                 *, names, origin_name):
+        self._lc = lifecycle              # LifecycleHarness owned by the test
+        self._names = names               # instance names to stop, cache first
+        self._origin_name = origin_name   # root:// origin instance, or None
         self.cache_port = cache_port
         self.store_dir = store_dir
         self.backend = backend            # "xroot" | "posix" | "pblock" | ...
         self.backend_port = backend_port  # origin port (xroot) or None
-        self._procs = procs               # {name: nginx master pid}
         self.backend_data = ""            # dir seeded by seed_origin (posix)
         self.seed_mode = "posix"          # "posix" (raw write) | "pblock" (xrdcp)
         self.seed_port = None             # root:// port to xrdcp pblock seeds to
@@ -44,54 +64,17 @@ class CacheNode:
         return False
 
 
-def _write_conf(path, text):
-    with open(path, "w") as f:
-        f.write(text)
+def _optline(directive, value, indent="        "):
+    """Render an optional cache directive line, or "" when unset — so a template
+    placeholder for a directive that is not configured collapses to nothing."""
+    return f"{indent}{directive} {value};\n" if value else ""
 
 
-def _start_nginx(prefix, conf_text, name):
-    """Start a daemonized nginx and return its MASTER pid. The master is a
-    session/process-group leader (pgid == master pid), so teardown reaps the
-    whole group (master + workers) via killpg(pid) — even after the master
-    exits, because its workers keep the group alive. See stop_node."""
-    os.makedirs(os.path.join(prefix, "logs"), exist_ok=True)
-    conf = os.path.join(prefix, f"{name}.conf")
-    _write_conf(conf, conf_text)
-    p = subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf],
-                       capture_output=True, text=True)
-    if p.returncode != 0:
-        raise RuntimeError(f"{name} nginx start failed: {p.stderr[-600:]}")
-    pidfile = os.path.join(prefix, f"{name}.pid")   # matches the conf `pid` directive
-    for _ in range(100):
-        try:
-            with open(pidfile) as f:
-                pid = int(f.read().strip())
-            if pid > 0:
-                return pid
-        except (OSError, ValueError):
-            time.sleep(0.02)
-    raise RuntimeError(f"{name} nginx pidfile {pidfile} never appeared")
-
-
-def _wait_port(port, timeout=10.0):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=1.0):
-                return
-        except OSError:
-            time.sleep(0.15)
-    raise RuntimeError(f"port {port} never came up")
-
-
-def _opt(line, cond):
-    return (line + "\n") if cond else ""
-
-
-def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
+def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=None,
                     max_object=None, deny_prefix=None, include_regex=None,
                     origin_backend="posix"):
-    """Start a cache node in front of `backend`, returning a CacheNode.
+    """Start a cache node in front of `backend` through the registry lifecycle
+    harness, returning a CacheNode.
 
     Two proven config styles (mirror tests/run_root_slice_fill.sh and
     tests/run_cache_backend_source.sh):
@@ -106,9 +89,6 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         seed_origin writes into the backend's own dir.
     """
     base = str(tmp)
-    cache_port, backend_port = list(free_ports(2))
-    procs = {}
-    tp = "thread_pool default threads=2;\n"
 
     if backend == "xroot":
         origin_root = os.path.join(base, "origin")
@@ -120,39 +100,89 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         # pblock origin uses the pblock backend + write capability (its seed goes
         # in via xrdcp).
         if origin_backend == "pblock":
-            obline = (f"  brix_storage_backend pblock://{origin_root}/;"
-                      f" brix_auth none;\n"
-                      f"  brix_allow_write on; brix_upload_resume off;\n")
+            origin_storage = f"brix_storage_backend pblock://{origin_root}/;"
+            origin_allow_write = ("        brix_allow_write on;"
+                                  " brix_upload_resume off;\n")
         else:
-            obline = f"  brix_export {origin_root}; brix_auth none;\n"
-        origin_conf = (
-            f"daemon on; error_log {base}/o/olog.log error; pid {base}/o/o.pid;\n"
-            f"events {{ worker_connections 64; }}\n"
-            f"stream {{ server {{ listen {HOST}:{backend_port}; brix_root on;\n"
-            f"{obline}}} }}\n")
-        procs["origin"] = _start_nginx(base + "/o", origin_conf, "o")
-        _wait_port(backend_port)
+            origin_storage = f"brix_export {origin_root};"
+            origin_allow_write = ""
+        origin_ep = lifecycle.start(NginxInstanceSpec(
+            name=ORIGIN_NAME,
+            template="nginx_lc_cache_partial_origin.conf",
+            protocol="root",
+            data_root=origin_root,
+            template_values={
+                "BIND_HOST": BIND_HOST,
+                "ORIGIN_STORAGE": origin_storage,
+                "ORIGIN_ALLOW_WRITE": origin_allow_write,
+            },
+            reason="cache partial-fill root:// origin"))
+        backend_port = origin_ep.port
 
-        cache_conf = (
-            f"daemon on; error_log {base}/c/clog.log info; pid {base}/c/c.pid;\n"
-            f"{tp}events {{ worker_connections 64; }}\n"
-            f"stream {{ server {{\n"
-            f"    listen {HOST}:{cache_port}; brix_root on; brix_auth none;\n"
-            f"    brix_export {export};\n"
-            f"    brix_storage_backend root://{HOST}:{backend_port};\n"
-            f"    brix_cache_store posix:{cache_dir};\n"
-            f"    brix_cache_export /;\n"
-            + _opt(f"    brix_cache_slice_size {slice_size};", slice_size)
-            + _opt(f"    brix_cache_max_object {max_file_size};", max_file_size)
-            + _opt(f"    brix_cache_deny_prefix {deny_prefix};", deny_prefix)
-            + _opt(f"    brix_cache_include_regex {include_regex};", include_regex)
-            + f"}} }}\n")
-        procs["cache"] = _start_nginx(base + "/c", cache_conf, "c")
-        _wait_port(cache_port)
-        node = CacheNode(cache_port, cache_dir, backend, procs, backend_port)
+        cache_ep = lifecycle.start(NginxInstanceSpec(
+            name=CACHE_NAME,
+            template="nginx_lc_cache_partial_cache.conf",
+            protocol="root",
+            data_root=cache_dir,
+            template_values={
+                "BIND_HOST": BIND_HOST,
+                "CACHE_ALLOW_WRITE": "",
+                "CACHE_EXPORT": f"        brix_export {export};\n",
+                "CACHE_BACKEND": f"root://{HOST}:{backend_port}",
+                "CACHE_STORE": cache_dir,
+                "CACHE_SLICE_SIZE": _optline("brix_cache_slice_size", slice_size),
+                "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_file_size),
+                "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
+                "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
+            },
+            reason="cache partial-fill xroot cache node"))
+        node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, backend_port,
+                         names=[CACHE_NAME, ORIGIN_NAME], origin_name=ORIGIN_NAME)
         node.backend_data = origin_root
         node.seed_mode = origin_backend          # posix -> raw; pblock -> xrdcp
         node.seed_port = backend_port            # seed writes go to the origin
+        return node
+
+    if backend == "http":
+        # A local nginx HTTP static origin (plain file server) behind an http://
+        # storage backend: whole-file fill through the composable sd_cache. The
+        # test seeds files into the origin's doc root and reads them back through
+        # the cache node.
+        doc_root = os.path.join(base, "http-origin")
+        cache_dir = os.path.join(base, "cache")
+        for d in (doc_root, cache_dir):
+            os.makedirs(d, exist_ok=True)
+        origin_ep = lifecycle.start(NginxInstanceSpec(
+            name=ORIGIN_NAME,
+            template="nginx_lc_cache_partial_http_origin.conf",
+            protocol="http",
+            data_root=doc_root,
+            template_values={"BIND_HOST": BIND_HOST},
+            reason="cache partial-fill http:// origin"))
+        backend_port = origin_ep.port
+
+        cache_ep = lifecycle.start(NginxInstanceSpec(
+            name=CACHE_NAME,
+            template="nginx_lc_cache_partial_cache.conf",
+            protocol="root",
+            data_root=cache_dir,
+            template_values={
+                "BIND_HOST": BIND_HOST,
+                "CACHE_ALLOW_WRITE": "",
+                "CACHE_EXPORT": "",
+                "CACHE_BACKEND": f"http://{HOST}:{backend_port}",
+                "CACHE_STORE": cache_dir,
+                "CACHE_SLICE_SIZE": _optline("brix_cache_slice_size", slice_size),
+                "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_file_size),
+                "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
+                "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
+            },
+            reason="cache partial-fill http cache node"))
+        node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, backend_port,
+                         names=[CACHE_NAME, ORIGIN_NAME], origin_name=ORIGIN_NAME)
+        node.backend_data = doc_root
+        node.seed_mode = "posix"          # raw file write into the http doc root
+        node.seed_port = None
         return node
 
     # ---- composable whole-file path (posix/pblock/root backend) -----------
@@ -166,54 +196,43 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
     drv = {"posix": f"posix:{bdir}", "pblock": f"pblock://{bdir}/"}.get(backend)
     if drv is None:
         raise RuntimeError(f"gated backend {backend} must be caller-skipped")
-    cache_conf = (
-        f"daemon on; error_log {base}/c/clog.log info; pid {base}/c/c.pid;\n"
-        f"{tp}events {{ worker_connections 64; }}\n"
-        f"stream {{ server {{\n"
-        f"    listen {HOST}:{cache_port}; brix_root on; brix_auth none;\n"
-        f"    brix_allow_write on; brix_upload_resume off;\n"
-        f"    brix_storage_backend {drv};\n"
-        f"    brix_cache_store posix:{store}; brix_cache_export /;\n"
-        + _opt(f"    brix_cache_slice_size {slice_size};", slice_size)
-        + _opt(f"    brix_cache_max_object {max_object};", max_object)
-        + _opt(f"    brix_cache_deny_prefix {deny_prefix};", deny_prefix)
-        + _opt(f"    brix_cache_include_regex {include_regex};", include_regex)
-        + f"}} }}\n")
-    procs["cache"] = _start_nginx(base + "/c", cache_conf, "c")
-    _wait_port(cache_port)
-    node = CacheNode(cache_port, store, backend, procs, backend_port)
+    cache_ep = lifecycle.start(NginxInstanceSpec(
+        name=CACHE_NAME,
+        template="nginx_lc_cache_partial_cache.conf",
+        protocol="root",
+        data_root=store,
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "CACHE_ALLOW_WRITE": "        brix_allow_write on; brix_upload_resume off;\n",
+            "CACHE_EXPORT": "",
+            "CACHE_BACKEND": drv,
+            "CACHE_STORE": store,
+            "CACHE_SLICE_SIZE": _optline("brix_cache_slice_size", slice_size),
+            "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_object),
+            "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
+            "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
+        },
+        reason="cache partial-fill local backend cache node"))
+    node = CacheNode(lifecycle, cache_ep.port, store, backend, None,
+                     names=[CACHE_NAME], origin_name=None)
     node.backend_data = bdir
     node.seed_mode = backend                  # posix -> raw; pblock -> xrdcp
-    node.seed_port = cache_port               # seed writes go through the backend
+    node.seed_port = cache_ep.port            # seed writes go through the backend
     return node
 
 
-def _reap(pid):
-    """SIGKILL the process GROUP led by nginx master `pid` (reaps master +
-    workers), falling back to the bare pid. Using pid AS the pgid works even
-    after the master exits, since its workers keep the group alive."""
-    try:
-        os.killpg(pid, 9)
-    except OSError:
-        try:
-            os.kill(pid, 9)
-        except OSError:
-            pass
-
-
 def stop_node(node):
-    """SIGKILL every nginx process group of the node (master + workers)."""
-    for _name, pid in node._procs.items():
-        _reap(pid)
+    """Stop every registry instance the node owns (cache first, then origin)."""
+    for name in node._names:
+        node._lc.stop(name)
 
 
 def kill_origin(node, timeout=5.0):
-    """Kill the root:// origin and block until its port stops accepting — a
+    """Stop the root:// origin and block until its port stops accepting — a
     deterministic backend-offline for the behavioral tests."""
-    pid = node._procs.get("origin")
-    if pid is None:
+    if node._origin_name is None:
         return
-    _reap(pid)
+    node._lc.stop(node._origin_name)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -323,6 +342,26 @@ def read_range(port, path, off, length):
         s.close()
 
 
+def raw_open_frame(port, path):
+    """Open `path` on the node and return the RAW kXR_open response frame bytes
+    (8-byte header + body), reading exactly what the server put on the wire.
+
+    Unlike read_range(), this does not parse/validate the frame — it is the probe
+    the log-leak regression test uses to assert the open response is a clean
+    protocol frame with no server log text spliced ahead of it (a fill-thread
+    diagnostic that logged to a stale, fd-reused connection log would land the log
+    line on this very socket)."""
+    s = _session(port)
+    try:
+        s.sendall(make_open_req(path.encode()))
+        header = _recv_exact(s, 8)
+        _sid, _status, dlen = struct.unpack(">HHI", header)
+        body = _recv_exact(s, dlen) if 0 < dlen < 65536 else b""
+        return header + body
+    finally:
+        s.close()
+
+
 def residency(store_dir, key):
     """Return the parsed xrdcinfo record for the cached object <store_dir>/<key>.
 
@@ -349,11 +388,12 @@ def residency(store_dir, key):
 
 
 def backend_available(backend):
-    """True iff the env for a gated backend is present. http needs
-    XRD_TEST_HTTP_ORIGIN; s3 needs XRD_TEST_S3_ENDPOINT; rados needs
-    XRD_TEST_RADOS_POOL. Absent -> tests skip (never fail)."""
+    """True iff the backend can be stood up here. http always can — make_cache_node
+    launches a local nginx static origin, no external service needed. s3 needs
+    XRD_TEST_S3_ENDPOINT and rados needs XRD_TEST_RADOS_POOL (cluster-tier); absent
+    -> those tests skip (never fail)."""
     return {
-        "http":  bool(os.environ.get("XRD_TEST_HTTP_ORIGIN")),
+        "http":  True,
         "s3":    bool(os.environ.get("XRD_TEST_S3_ENDPOINT")),
         "rados": bool(os.environ.get("XRD_TEST_RADOS_POOL")),
     }.get(backend, True)

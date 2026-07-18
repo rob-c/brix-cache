@@ -10,16 +10,17 @@
 
 
 /*
- * s3_commit_put — W6b: commit the staged temp file to its final path, honouring
- * an exclusive (create-if-absent) PutObject.  When the request carried
+ * s3_commit_put — W6b: commit the write session's staged temp to its final path,
+ * honouring an exclusive (create-if-absent) PutObject.  When the request carried
  * `If-None-Match: *` the commit uses renameat2(RENAME_NOREPLACE); otherwise the
- * plain rename.  Returns NGX_OK; or NGX_ERROR with ngx_errno preserved (EEXIST
- * when an exclusive create lost the race — the caller maps that to 412).  Runs
- * on the event loop (all three PUT commit sites do), so the request ctx is live.
+ * plain rename.  A verifying session folds its read-back integrity check here.
+ * Returns NGX_OK; or NGX_ERROR with ngx_errno preserved (EEXIST when an exclusive
+ * create lost the race — the caller maps that to 412).  Runs on the event loop
+ * (all three PUT commit sites do), so the request ctx is live.
  */
 ngx_int_t
 s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
-    brix_vfs_staged_t *staged, const char *final_path)
+    brix_vfs_writer_t *writer, const char *final_path)
 {
     ngx_http_s3_req_ctx_t *rx =
         ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
@@ -27,10 +28,10 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     ngx_int_t   rc;
     int         e;
 
-    (void) root_canon;   /* the staged handle carries its own final/tmp paths */
-    /* Publish through the VFS staged surface (routes through sd_stage when a stage
-     * store is composed; a local temp+rename otherwise) — §6.5/G9 unified staging. */
-    rc = brix_vfs_staged_commit(staged,
+    /* Publish through the unified write session (routes through sd_stage when a
+     * stage store is composed; a local temp+rename otherwise) — §6.5/G9 unified
+     * staging — folding the verify-on-write read-back when the export opts in. */
+    rc = brix_vfs_writer_commit_ex(writer,
              (rx != NULL && rx->exclusive_create) ? 1 : 0);
 
     /* Unified ledger: S3 PutObject (chunked / aio path) is a STAGE publish — the

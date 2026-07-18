@@ -137,6 +137,8 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
 
     obj = brix_sd_open_maybe_cred(sd, logical, sd_flags, a->create_mode,
         use_cred ? &ucred : NULL, &oerr);
+    /* Secret consumed by the origin open; erase the stack copy (A-4/T4). */
+    brix_sd_ucred_wipe(&ustore);
     if (obj == NULL) {
         errno = (oerr != 0) ? oerr : EIO;
         return NGX_ERROR;
@@ -243,6 +245,16 @@ brix_open_map_open_error(brix_ctx_t *ctx, ngx_connection_t *c,
 						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", resolved, mode_str,
 						  kXR_isDirectory, "is a directory");
+	}
+	if (err == EBUSY) {
+		/* A mandatory lease holds the file (pblock F15 locks=1): a hard
+		 * kXR_FileLocked, not kXR_wait — the lease clears on the HOLDER's
+		 * schedule (release or expiry), so parking the client in a retry
+		 * loop would hang it for the whole lease lifetime. */
+		BRIX_RETURN_ERR(ctx, c,
+						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+						  "OPEN", resolved, mode_str,
+						  kXR_FileLocked, "file locked");
 	}
 	if (err == EAGAIN && !is_write) {
 		/* A nearline (tape) recall is in flight (sd_cache/sd_frm, §9.2). Tell

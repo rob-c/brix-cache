@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
 
-NGX_SRC = Path("/tmp/nginx-1.28.3")
+# Honour NGX_SRC (mirroring c_regression_units.py) so the unit runners link
+# against whichever configured build tree the caller points at — the shared
+# /tmp/nginx-1.28.3 by default, or a private tree during concurrent-session work.
+NGX_SRC = Path(os.environ.get("NGX_SRC", "/tmp/nginx-1.28.3"))
 OBJS = NGX_SRC / "objs"
 
 

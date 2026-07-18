@@ -28,13 +28,10 @@ import shutil
 import socket
 import struct
 import subprocess
-import time
 
 import pytest
 
-from config_templates import render_config
-
-from settings import NGINX_BIN
+from server_registry import NginxInstanceSpec
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIND = "127.0.0.1"
@@ -48,7 +45,7 @@ kXR_ok = 0
 kXR_redirect = 4004
 kXR_SHA256_sig = 0x01
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
 
 
 # --------------------------------------------------------------------------- #
@@ -111,89 +108,45 @@ def _sigver(sock, expectrid, seqno=1, streamid=b"\x00\x09"):
 # --------------------------------------------------------------------------- #
 # self-provisioned servers (anon data, static-map redirector → data)
 # --------------------------------------------------------------------------- #
-def _free(port):
-    with socket.socket() as s:
-        try:
-            s.bind((BIND, port))
-            return True
-        except OSError:
-            return False
-
-
-def _start(cfg, base):
-    p = subprocess.Popen([NGINX_BIN, "-c", cfg, "-p", base],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return p
-
-
-def _wait_listen(port, timeout=8.0):
-    end = time.time() + timeout
-    while time.time() < end:
-        try:
-            with socket.create_connection((BIND, port), timeout=1):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-@pytest.fixture(scope="module")
-def servers(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not built at {NGINX_BIN}")
+@pytest.fixture
+def servers(lifecycle, tmp_path_factory):
     base = tmp_path_factory.mktemp("gohep")
     data = base / "data"
     data.mkdir()
     (data / "hello.txt").write_text("hello from nginx-xrootd, go-hep!\n")
     blob = os.urandom(65536)
     (data / "blob.bin").write_bytes(blob)
-    (base / "sub").mkdir()  # placeholder
+    (data / "sub").mkdir()  # placeholder child for dirlist redirect
 
-    anon_port, rdr_port, ds_port = 13970, 13971, 13972
-    for p in (anon_port, rdr_port, ds_port):
-        if not _free(p):
-            pytest.skip(f"port {p} busy")
+    # The redirector's backing data server; the anon role serves the same files
+    # directly. Both share the same posix export dir.
+    ds = lifecycle.start(NginxInstanceSpec(
+        name="lc-gohep-ds",
+        template="nginx_gohep_anon.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+        reason="go-hep data server behind the static-map redirector.",
+    ))
+    anon = lifecycle.start(NginxInstanceSpec(
+        name="lc-gohep-anon",
+        template="nginx_gohep_anon.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+        reason="go-hep anon direct data server (raw-wire sigver guard).",
+    ))
+    rdr = lifecycle.start(NginxInstanceSpec(
+        name="lc-gohep-redirector",
+        template="nginx_gohep_redirector.conf",
+        protocol="root",
+        readiness="tcp",
+        template_values={"DATA_PORT": ds.port},
+        reason="go-hep static manager_map redirector (child stat/dirlist).",
+    ))
 
-    anon_cfg = base / "anon.conf"
-    anon_cfg.write_text(render_config("nginx_gohep_anon.conf",
-                                      BASE_DIR=base,
-                                      ROLE="anon",
-                                      BIND_HOST=BIND,
-                                      PORT=anon_port,
-                                      DATA_DIR=data))
-    # data server behind the redirector (separate root with the same files)
-    ds_cfg = base / "ds.conf"
-    ds_cfg.write_text(render_config("nginx_gohep_anon.conf",
-                                    BASE_DIR=base,
-                                    ROLE="ds",
-                                    BIND_HOST=BIND,
-                                    PORT=ds_port,
-                                    DATA_DIR=data))
-    rdr_cfg = base / "rdr.conf"
-    rdr_cfg.write_text(render_config("nginx_gohep_redirector.conf",
-                                     BASE_DIR=base,
-                                     BIND_HOST=BIND,
-                                     PORT=rdr_port,
-                                     DATA_PORT=ds_port))
-
-    procs = [_start(str(anon_cfg), str(base)),
-             _start(str(ds_cfg), str(base)),
-             _start(str(rdr_cfg), str(base))]
-    ok = all(_wait_listen(p) for p in (anon_port, rdr_port, ds_port))
-    if not ok:
-        for pr in procs:
-            pr.terminate()
-        pytest.skip("self-provisioned servers did not come up")
-
-    yield {"anon": anon_port, "rdr": rdr_port, "ds": ds_port,
-           "data": str(data), "blob": blob}
-
-    for pr in procs:
-        pr.terminate()
-        try:
-            pr.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            pr.kill()
+    return {"anon": anon.port, "rdr": rdr.port, "ds": ds.port,
+            "data": str(data), "blob": blob}
 
 
 # --------------------------------------------------------------------------- #

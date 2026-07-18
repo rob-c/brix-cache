@@ -48,20 +48,15 @@ s3_put_aio_thread(void *data, ngx_log_t *log)
     t->io_errno = 0;
 
     /*
-     * Phase 31 W2 / phase-46 W1a: stream every body buf straight to the staged
-     * temp fd — no full-body contiguous copy.  Memory bufs go via pwrite(2);
-     * spooled bufs via kernel copy_file_range from the nginx temp file.  Both are
+     * Phase 31 W2 / phase-46 W1a: stream every body buf straight through the
+     * unified write session — no full-body contiguous copy.  The writer routes
+     * memory bufs via its write primitive and spooled bufs via write_fd (kernel
+     * copy_file_range from the nginx temp file), and a driver-backed remote-stage
+     * target with no kernel fd transparently through the same call.  Both are
      * blocking syscalls, which is exactly why they run here on the thread pool
      * rather than the event loop.
      */
-    /* A driver-backed (remote-stage) staged target has no kernel fd — stream the
-     * body through the staged-write primitive; otherwise write straight to the temp
-     * fd (memory pwrite / spooled copy_file_range). Mirrors the WebDAV PUT path. */
-    if (brix_vfs_staged_is_driver(t->staged)
-            ? brix_http_body_write_to_staged(t->r, t->staged) != NGX_OK
-            : brix_http_body_write_to_fd(t->r, brix_vfs_staged_fd(t->staged),
-                                           t->final_path, NULL) != NGX_OK)
-    {
+    if (brix_http_body_write_to_writer(t->r, t->writer) != NGX_OK) {
         t->io_errno = errno;
         t->nwritten = -1;
         return;
@@ -84,13 +79,13 @@ s3_put_aio_done(ngx_event_t *ev)
                              (ngx_uint_t) t->io_errno,
                              "s3: async write() failed for: \"%s\"",
                              t->final_path);
-        brix_vfs_staged_abort(t->staged, 1);
+        brix_vfs_writer_abort(t->writer);
         s3_put_finalize_error(r);
         return;
     }
 
-    /* The VFS staged commit closes/promotes the temp itself — no manual close. */
-    if (s3_commit_put(r, log, t->root_canon, t->staged,
+    /* The write session's commit closes/promotes the temp itself — no manual close. */
+    if (s3_commit_put(r, log, t->root_canon, t->writer,
                       t->final_path) != NGX_OK)
     {
         if (s3_put_commit_conflict(r)) {

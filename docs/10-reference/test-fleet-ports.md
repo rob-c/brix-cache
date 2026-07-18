@@ -4,13 +4,14 @@
 constant below is env-overridable (`TEST_<NAME>`). Secondary allocators:
 [`tests/cms_mesh_lib.py`](../../tests/cms_mesh_lib.py) (21610–21749),
 [`tests/hybrid_mesh_lib.py`](../../tests/hybrid_mesh_lib.py) (11300–11330),
-`tests/lib/dedicated.sh` (launch orchestration), `tests/run_cvmfs_*.sh`
-(ad-hoc 12831–12904). `tools/ci/check_ports_doc.sh` fails CI when a
+and the declarative fleet catalogue [`tests/fleet_specs.py`](../../tests/fleet_specs.py)
+(launch orchestration). `tools/ci/check_ports_doc.sh` fails CI when a
 settings.py port constant is missing from this page.
 
 First stop when a test fails with a connection error: find the port here,
 then `ss -tlnp | grep <port>` to see whether that instance is actually up
-(`tests/manage_test_servers.sh start-all` brings up the fleet).
+(`python3 -m cmdscripts.manage_test_servers start-all`, run from `tests/`,
+brings up the fleet).
 
 ## Primary nginx fleet (shared multi-protocol instance)
 

@@ -16,14 +16,14 @@ Run (serial):
 
 import os
 import shutil
-import socket
 import subprocess
-import time
 
 import pytest
 
-from config_templates import render_config
-from settings import HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
+from settings import HOST, free_port
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,16 +31,8 @@ CLIENT_DIR = os.path.join(REPO, "client")
 XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-@pytest.fixture(scope="module")
-def fixture(tmp_path_factory):
+@pytest.fixture
+def fixture(lifecycle, tmp_path_factory):
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
@@ -61,33 +53,19 @@ def fixture(tmp_path_factory):
     (dataB / "mism.bin").write_bytes(os.urandom(300000))  # davs-BAD: different bytes
     # dataB intentionally has NO match.bin → 404 on the BAD plane
 
-    rport = _free_port()
-    ok_port = _free_port()
-    bad_port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_xrddiag_compare_davs.conf",
-        BASE_DIR=root,
-        BIND_HOST=BIND_HOST,
-        ROOT_PORT=rport,
-        OK_PORT=ok_port,
-        BAD_PORT=bad_port,
-        DATA_R=dataR,
-        DATA_B=dataB,
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-xrddiag-compare-davs",
+        template="nginx_xrddiag_compare_davs.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(dataR),
+        extra_ports={"OK_PORT": free_port(), "BAD_PORT": free_port()},
+        template_values={"DATA_B": str(dataB)},
+        reason="root:// + two WebDAV planes (same data / different data) for the compare oracle.",
     ))
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        try:
-            with socket.create_connection((HOST, rport), timeout=1):
-                break
-        except OSError:
-            time.sleep(0.1)
-    yield {"rport": rport, "ok": ok_port, "bad": bad_port}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    yield {"rport": ep.port,
+           "ok": ep.extra_ports["OK_PORT"],
+           "bad": ep.extra_ports["BAD_PORT"]}
 
 
 def _cmp(fx, name, davs_port, timeout=30):

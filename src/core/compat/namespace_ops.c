@@ -82,6 +82,9 @@ errno_to_ns_status(int err)
     case ENOTEMPTY: return BRIX_NS_NOT_EMPTY;
     case ENAMETOOLONG: return BRIX_NS_TOO_LONG;
     case ENOSPC:    return BRIX_NS_NO_SPACE;
+#ifdef EDQUOT
+    case EDQUOT:    return BRIX_NS_NO_SPACE;
+#endif
     case EBUSY:
     case EINVAL:    return BRIX_NS_CONFLICT;
     default:        return BRIX_NS_IO_ERROR;

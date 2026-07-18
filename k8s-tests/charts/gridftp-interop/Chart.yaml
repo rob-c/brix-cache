@@ -1,0 +1,15 @@
+apiVersion: v2
+name: gridftp-interop
+description: A brix GridFTP gateway (gsiftp:// + cleartext) fronting a posix export, for the globus-url-copy/gfal2 interop matrix
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: brix-common
+    version: 0.1.0
+    repository: file://../brix-common
+  - name: topology-role
+    version: 0.1.0
+    repository: file://../topology-role
+    alias: gridftp
+    condition: gridftp.enabled

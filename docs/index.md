@@ -159,6 +159,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [Native Client Tools](04-protocols/native-client-tools.md) | Clean-room `xrdcp`, `xrdfs`, diagnostics, checksum tools, FUSE mounts, POSIX preload, and `libxrdc` |
 | [HTTP TPC Reference](04-protocols/http-tpc-reference.md) | Third-party copy comparison between HTTP-TPC and native XRootD TPC |
 | [CMS Cluster Protocol (`cms://`)](04-protocols/cms-protocol.md) | The cmsd↔cmsd management wire protocol — framing, manager↔server↔client negotiation, and cmsd-compliance gotchas |
+| [gsiftp:// GSI Data Channel](04-protocols/gsiftp-data-channel-security.md) | GridFTP DCAU/`PROT P` data-channel security deep dive (delegated-credential presentation, chain-completion + unexpected-EOF gotchas) with ASCII diagrams and a `root://` comparison |
 
 ### Authentication & Security
 *Access control from anonymous read to full WLCG grid identity. Pick your auth model, then configure it.*
@@ -216,7 +217,9 @@ graph TD
 | [Capacity Planning](05-operations/capacity-planning.md) | Sizing workers/connections/FDs, thread pool, SHM zones, transfer budget |
 | [Certificate & Token Rotation](05-operations/certificate-rotation.md) | Hot-reload of JWKS/CRL/authdb + graceful host-cert roll without dropping requests |
 | [Upgrade Procedure](05-operations/upgrade-procedure.md) | RPM upgrade/rollback, the 2-`.so` module-load order, libbz2 SONAME caveat |
+| [SELinux Hardening](05-operations/selinux-hardening.md) | SELinux for admins new to it: what the shipped brix policy module confines, rollout runbook, denial debugging |
 | [Remote-host test suite](05-operations/remote-host-test-suite.md) | Install the RPMs on a fresh host + run the pytest fleet — source build vs. shipped `.so`, with the `load_module` injection |
+| [/cvmfs Automount](05-operations/cvmfs-automount.md) | `brixMount autofs` umbrella daemon: stock-client-style /cvmfs on-demand mounts with zero autofs/systemd dependency (WSL2 OOTB), symlink-farm design, packaging + conflict matrix |
 
 ### Observability & Monitoring
 *Every request lands in a counter. Here's how to read them.*

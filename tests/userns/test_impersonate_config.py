@@ -12,86 +12,88 @@ operating mode and asserts the directive surface + mode validation:
   * an invalid mode token               -> rejected, lists off|single|map
 
 It lives in tests/userns/ so it shares that folder's standalone pytest root and
-is never gated on the main server fleet.  Skips if the nginx binary is absent.
+is never gated on the main server fleet.  The config is rendered from the
+committed `nginx_userns_impersonate.conf` template and driven through the
+phase-81 registry (LifecycleHarness), which owns the `nginx -t` primitive.
 """
 
+import itertools
 import os
-import subprocess
-import textwrap
+import sys
 
 import pytest
 
-NGINX = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-TMP = "/tmp/imp_conftest_pytest"
+# tests/userns/ is a standalone pytest root, so the parent tests/ dir is not on
+# sys.path when invoked as `pytest tests/userns/` — add it so the phase-81
+# registry (server_launcher / server_registry / config_templates) imports.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from server_launcher import LifecycleHarness  # noqa: E402
+from server_registry import NginxInstanceSpec  # noqa: E402
+
+pytestmark = pytest.mark.uses_lifecycle_harness
+
+_SEQ = itertools.count()
 
 
-def _run_t(stream_body, port_suffix):
-    os.makedirs(os.path.join(TMP, "logs"), exist_ok=True)
-    os.makedirs(os.path.join(TMP, "export"), exist_ok=True)
-    conf = os.path.join(TMP, "nginx.conf")
-    with open(conf, "w") as fh:
-        fh.write(textwrap.dedent(f"""\
-            daemon off;
-            master_process off;
-            error_log {TMP}/logs/error.log info;
-            pid {TMP}/nginx.pid;
-            events {{ worker_connections 64; }}
-            stream {{
-              server {{
-                listen 127.0.0.1:21{port_suffix};
-                brix_root on;
-                brix_storage_backend posix:{TMP}/export;
-            {stream_body}
-              }}
-            }}
-            """))
-    r = subprocess.run([NGINX, "-t", "-c", conf],
-                       capture_output=True, text=True, timeout=30)
-    return r.returncode, r.stdout + r.stderr
+def _check(harness, stream_body):
+    """Render the impersonation template with the given per-server directive
+    lines and run `nginx -t`, returning (returncode, combined stdout+stderr)."""
+    name = f"lc-imp-config-{next(_SEQ)}"
+    harness.register(NginxInstanceSpec(
+        name=name, template="nginx_userns_impersonate.conf",
+        protocol="root", readiness="tcp",
+        template_values={"STREAM_BODY": stream_body}))
+    harness.launcher.render_nginx(harness.spec(name))
+    r = harness.nginx_test(name, check=False)
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
-@pytest.fixture(autouse=True)
-def _need_nginx():
-    if not os.path.isfile(NGINX):
-        pytest.skip(f"nginx binary not built at {NGINX} (set TEST_NGINX_BIN)")
+@pytest.fixture()
+def imp(tmp_path):
+    harness = LifecycleHarness()
+    try:
+        yield lambda body: _check(harness, body)
+    finally:
+        harness.close()
 
 
-def test_off_is_accepted():
-    rc, out = _run_t("    brix_impersonation off;", "01")
+def test_off_is_accepted(imp):
+    rc, out = imp("    brix_impersonation off;")
     assert rc == 0, out
     assert "successful" in out
 
 
-def test_no_directive_is_accepted():
-    rc, out = _run_t("    # no impersonation directive", "02")
+def test_no_directive_is_accepted(imp):
+    rc, out = imp("    # no impersonation directive")
     assert rc == 0, out
 
 
-def test_single_without_user_is_rejected():
-    rc, out = _run_t("    brix_impersonation single;", "03")
+def test_single_without_user_is_rejected(imp):
+    rc, out = imp("    brix_impersonation single;")
     assert rc != 0
     assert "brix_impersonation_user" in out
 
 
-def test_single_with_user_is_accepted():
-    rc, out = _run_t(
+def test_single_with_user_is_accepted(imp):
+    rc, out = imp(
         "    brix_impersonation single;\n"
-        "    brix_impersonation_user nobody;", "04")
+        "    brix_impersonation_user nobody;")
     assert rc == 0, out
     assert "successful" in out
 
 
-def test_map_requires_root():
+def test_map_requires_root(imp, tmp_path):
     if os.geteuid() == 0:
         pytest.skip("running as root: map would be accepted")
-    rc, out = _run_t(
+    rc, out = imp(
         "    brix_impersonation map;\n"
-        "    brix_impersonation_socket /tmp/imp_conftest_pytest/b.sock;", "05")
+        f"    brix_impersonation_socket {tmp_path}/b.sock;")
     assert rc != 0
     assert "root" in out.lower()
 
 
-def test_invalid_mode_is_rejected():
-    rc, out = _run_t("    brix_impersonation bogus;", "06")
+def test_invalid_mode_is_rejected(imp):
+    rc, out = imp("    brix_impersonation bogus;")
     assert rc != 0
     assert "off|single|map" in out

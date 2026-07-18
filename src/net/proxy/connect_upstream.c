@@ -134,6 +134,16 @@ brix_proxy_tls_handshake_done(ngx_connection_t *uconn)
         return;
     }
 
+    /* Belt-and-braces: when verification is enabled on the CTX a bad chain/host
+     * already fails the handshake above; this makes the trust decision explicit
+     * and survives refactors. Harmless (X509_V_OK) when verification is off. */
+    if (SSL_get_verify_result(uconn->ssl->connection) != X509_V_OK) {
+        BRIX_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+        brix_proxy_abort(proxy, "proxy: upstream TLS peer verification failed");
+        return;
+    }
+
     /* Restore normal event handlers and transition to bootstrap */
     uconn->read->handler  = brix_proxy_read_handler;
     uconn->write->handler = brix_proxy_write_handler;

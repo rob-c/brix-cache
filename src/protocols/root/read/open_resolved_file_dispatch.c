@@ -46,39 +46,38 @@
 
 /* Whole-object staged write open (phase-70): put the freshly-allocated handle in
  * STAGED mode instead of opening a session-writable driver handle a whole-object
- * backend cannot provide. Opens a VFS staged handle on `vctx` (which the caller
- * already bound with the per-user credential + deleg + .sd = the composed
- * instance) via brix_vfs_staged_open — the SAME staged_open_cred + cred gate the
- * WebDAV/S3 PUT bridge uses. The staged handle self-contains its ctx on the
- * connection pool, so it survives across the open→writes→sync/close requests.
- * On success synthesizes a minimal `struct stat` (no bytes yet), sets fd=-1 and
- * driver_backed=1 (so brix_open_validate_fd skips the POSIX-fd checks), records
- * the staged handle + zero append offset on the file slot, and returns
+ * backend cannot provide. Opens a unified brix_vfs_writer session on `vctx` (which
+ * the caller already bound with the per-user credential + deleg + .sd = the
+ * composed instance) — the SAME verified-write session GridFTP STOR and WebDAV/S3
+ * PUT use. The writer self-contains a deep copy of its ctx, so it survives across
+ * the open→writes→sync/close requests, and folds in a read-back CRC check when
+ * brix_verify_write is on. On success synthesizes a minimal `struct stat` (no
+ * bytes yet), sets fd=-1 and driver_backed=1 (so brix_open_validate_fd skips the
+ * POSIX-fd checks), records the write session on the file slot, and returns
  * NGX_DECLINED (proceed). On failure sends the mapped kXR error and returns its
  * rc. Sequential-append + commit-on-sync/close are handled by the write/sync/
- * close opcode handlers keyed on ctx->files[idx].staged != NULL. */
+ * close opcode handlers keyed on ctx->files[idx].writer != NULL. */
 static ngx_int_t
 brix_open_dispatch_staged(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
     brix_sd_instance_t *sd)
 {
-	brix_ctx_t         *ctx = a->ctx;
-	ngx_connection_t   *c   = a->c;
-	brix_file_t        *fh  = &ctx->files[a->idx];
-	brix_vfs_staged_t  *st;
-	int                 serr = 0;
+	brix_ctx_t         *ctx    = a->ctx;
+	ngx_connection_t   *c      = a->c;
+	brix_file_t        *fh     = &ctx->files[a->idx];
+	int                 verify = a->conf->common.verify_write ? 1 : 0;
+	brix_vfs_writer_t  *w;
+	int                 werr = 0;
 
-	vctx->sd = sd;   /* brix_vfs_staged_open dispatches on ctx->sd */
+	vctx->sd = sd;   /* brix_vfs_writer_open dispatches on ctx->sd */
 
-	st = brix_vfs_staged_open(vctx, a->create_mode, 16 /* excl-name attempts */,
-	                            &serr);
-	if (st == NULL) {
+	w = brix_vfs_writer_open(vctx, BRIX_VFS_O_TRUNC, verify, &werr);
+	if (w == NULL) {
 		return brix_open_map_open_error(ctx, c, a->resolved,
-		    serr != 0 ? serr : EROFS, a->is_write);
+		    werr != 0 ? werr : EROFS, a->is_write);
 	}
 
-	fh->staged              = st;
-	fh->staged_expected_off = 0;
-	fh->staged_committed    = 0;
+	fh->writer           = w;
+	fh->staged_committed = 0;
 
 	/* No fd, no driver object: byte I/O routes through the staged handle. Mark
 	 * driver_backed so the POSIX-fd validation is skipped and synthesize a stat

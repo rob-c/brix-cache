@@ -37,12 +37,12 @@ from pathlib import Path
 
 import pytest
 
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-DST = 21231
 
 # root:// wire opcodes (XProtocol.hh)
 kXR_close, kXR_protocol, kXR_login, kXR_open, kXR_read = 3003, 3006, 3007, 3010, 3013
@@ -169,46 +169,26 @@ class MockSource(threading.Thread):
         self.async_open_served.set()
 
 
-def _wait_listen(port, tries=80):
-    for _ in range(tries):
-        r = subprocess.run(["bash", "-c", f"ss -tln | grep -q ':{port} '"])
-        if r.returncode == 0:
-            return True
-        time.sleep(0.1)
-    return False
-
-
 @pytest.fixture
-def dest(tmp_path):
-    if not (os.path.exists(NGINX) and os.path.exists(XRDCP)):
-        pytest.skip("nginx / xrdcp not built")
+def dest(lifecycle, tmp_path):
+    if not os.path.exists(XRDCP):
+        pytest.skip("xrdcp not built")
     ddata = tmp_path / "dstdata"
     ddata.mkdir()
-    # nginx master runs as root here, so the worker drops to the built-in
-    # 'nobody' user; the checkpoint-recovery lock is written INTO the export, so
-    # the export must be writable by that worker user (the fleet exports are 0777
-    # for the same reason). Without this the worker fails the recovery lock with
-    # EACCES and exits fatally, and the dest never comes up.
+    # The worker may drop to the built-in 'nobody' user; the checkpoint-recovery
+    # lock is written INTO the export, so the export must be writable by that
+    # worker user (the fleet exports are 0777 for the same reason).
     ddata.chmod(0o777)
-    cfg = tmp_path / "dst.conf"
-    cfg.write_text(render_config(
-        "nginx_tpc_async_dest.conf",
-        BASE_DIR=tmp_path,
-        PORT=DST,
-        DATA_DIR=ddata,
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-tpc-async-dest",
+        template="nginx_tpc_async_dest.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(ddata),
+        reason="Native TPC dest resolving asynchronous source opens (§F8).",
     ))
-    subprocess.run(["bash", "-c", f"fuser -k {DST}/tcp 2>/dev/null"])
-    proc = subprocess.Popen([NGINX, "-c", str(cfg), "-p", str(tmp_path)],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait_listen(DST):
-        proc.terminate()
-        pytest.skip("nginx dest did not come up")
-    yield {"ddata": ddata, "base": tmp_path}
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    return {"ddata": ddata, "port": ep.port,
+            "logs": os.path.join(ep.prefix, "logs")}
 
 
 @pytest.mark.parametrize("mode", ["waitresp", "wait"])
@@ -221,10 +201,10 @@ def test_async_open_resolved(dest, mode):
         r = subprocess.run(
             [XRDCP, "-f", "--tpc", "only",
              f"root://127.0.0.1:{src.port}//src.txt",
-             f"root://127.0.0.1:{DST}//{out.name}"],
+             f"root://127.0.0.1:{dest['port']}//{out.name}"],
             capture_output=True, text=True, timeout=90)
         if r.returncode != 0 or not out.exists():
-            errlog = Path(dest["base"]) / "dst-err.log"
+            errlog = Path(dest["logs"]) / "dst-err.log"
             tail = ""
             if errlog.exists():
                 tail = "\n".join(errlog.read_text(errors="replace").splitlines()[-20:])

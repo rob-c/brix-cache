@@ -17,82 +17,49 @@ Run:
 """
 
 import os
-import subprocess
-import tempfile
 
 import pytest
 
 from settings import NGINX_BIN, NGINX_METRICS_PORT
+from server_registry import NginxInstanceSpec
 
 
-def _nginx_t(conf_text):
-    """Write conf_text to a temp file and return (rc, combined_output) of -t."""
-    d = tempfile.mkdtemp(prefix="xrd_p51_")
-    conf = os.path.join(d, "nginx.conf")
-    with open(conf, "w") as f:
-        f.write(conf_text.replace("@DIR@", d))
-    r = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                       capture_output=True, text=True)
-    return r.returncode, (r.stdout + r.stderr)
+pytestmark = [
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.skipif(
+        not os.path.exists(NGINX_BIN),
+        reason=f"nginx binary not found at {NGINX_BIN}"),
+]
 
 
-pytestmark = pytest.mark.skipif(
-    not os.path.exists(NGINX_BIN), reason=f"nginx binary not found at {NGINX_BIN}")
+def _assert_parse_ok(lifecycle, name, template):
+    """Register a parse-only spec, render it, and run `nginx -t`.
 
-
-def test_new_stream_directives_parse():
-    """All new stream-side resilience directives are accepted by nginx -t."""
-    conf = """
-worker_processes 1;
-error_log @DIR@/error.log;
-pid @DIR@/nginx.pid;
-events { worker_connections 64; }
-stream {
-    server {
-        listen 127.0.0.1:19951;
-        brix_root on; brix_storage_backend posix:@DIR@; brix_auth none;
-        brix_gsi_max_inflight_handshakes 128;
-    }
-    server {
-        listen 127.0.0.1:19952;
-        brix_cms_server on;
-        brix_cms_server_max_connections 1024;
-        brix_cms_server_max_connections_per_ip 64;
-    }
-    server {
-        listen 127.0.0.1:19953;
-        brix_root on; brix_storage_backend posix:@DIR@; brix_auth none;
-        brix_manager_mode on;
-    }
-}
-"""
-    rc, out = _nginx_t(conf)
-    assert rc == 0, f"nginx -t rejected the phase-51 directives:\n{out}"
+    A clean return from nginx_test() (no RegistryCommandFailure) is the
+    equivalent of the original rc==0; we additionally assert the -t banner
+    strings on the returned CompletedProcess to preserve assertion strength.
+    """
+    spec = lifecycle.register(NginxInstanceSpec(
+        name=name,
+        template=template,
+        protocol="root",
+        reason="phase-51 resilience directive parse-only check"))
+    lifecycle.reconfigure(spec.name)
+    result = lifecycle.nginx_test(spec.name)
+    out = result.stdout + result.stderr
     assert "syntax is ok" in out and "test is successful" in out, out
 
 
-def test_directive_disable_values_parse():
+def test_new_stream_directives_parse(lifecycle):
+    """All new stream-side resilience directives are accepted by nginx -t."""
+    _assert_parse_ok(
+        lifecycle, "lc-phase51-directives", "nginx_lc_phase51_directives.conf")
+
+
+def test_directive_disable_values_parse(lifecycle):
     """The 0/off disable escapes parse too (back-compat)."""
-    conf = """
-worker_processes 1;
-error_log @DIR@/error.log;
-pid @DIR@/nginx.pid;
-events { worker_connections 64; }
-stream {
-    server {
-        listen 127.0.0.1:19954;
-        brix_root on; brix_storage_backend posix:@DIR@; brix_auth none;
-        brix_gsi_max_inflight_handshakes 0;
-    }
-    server {
-        listen 127.0.0.1:19955;
-        brix_cms_server on;
-        brix_cms_server_max_connections_per_ip 0;
-    }
-}
-"""
-    rc, out = _nginx_t(conf)
-    assert rc == 0, f"nginx -t rejected the disable values:\n{out}"
+    _assert_parse_ok(
+        lifecycle, "lc-phase51-disable", "nginx_lc_phase51_disable.conf")
 
 
 # Counters that brix_export_resilience_metrics() must emit (E6/A1).

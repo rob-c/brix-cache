@@ -31,6 +31,7 @@
 #include "core/compat/copy_range.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <unistd.h>
 
 #define CLONE_ITEM_LEN   32u      /* sizeof(clone_item) */
@@ -110,6 +111,21 @@ brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
         if (copy_len == 0) {
             p += CLONE_ITEM_LEN;
             continue;
+        }
+
+        /* Reject offsets/lengths that overflow a signed off_t before handing
+         * them to copy_file_range/pread — a wire uint64 with the high bit set
+         * casts to a negative off_t. Fail loudly with kXR_ArgInvalid rather than
+         * relying on a downstream kernel EINVAL, matching the read path's
+         * explicit negative-offset guard (src/protocols/root/read/read.c). */
+        if (src_off < 0 || dst_off < 0 || src_len_raw > (uint64_t) SSIZE_MAX
+            || src_off_raw > (uint64_t) SSIZE_MAX - src_len_raw
+            || dst_off_raw > (uint64_t) SSIZE_MAX - src_len_raw)
+        {
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
+                              ctx->files[src_idx].path,
+                              ctx->files[dst_idx].path,
+                              kXR_ArgInvalid, "clone offset/length out of range");
         }
 
         if (brix_copy_range(c->log, ctx->files[src_idx].fd, src_off,

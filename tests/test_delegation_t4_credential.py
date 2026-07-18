@@ -25,11 +25,9 @@ Run:
 """
 
 import http.client
-import os
 import re
 import ssl
 import subprocess
-import time
 
 import pytest
 
@@ -40,10 +38,12 @@ from cmdscripts.delegation_twostep import (
     key_for_dn,
     mint_certs,
     sign_csr,
-    stop_nginx,
 )
-from config_templates import render_config_to_path
-from settings import CA_CERT, NGINX_BIN, SERVER_CERT, SERVER_KEY, free_ports
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+from settings import CA_CERT, SERVER_CERT, SERVER_KEY
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 CERT_BLOCK = re.compile(
     r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.S
@@ -73,40 +73,33 @@ def pki(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def front(tmp_path_factory, pki):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
     base = tmp_path_factory.mktemp("t4front")
-    for sub in ("tmp", "export", "creds"):
-        (base / sub).mkdir()
-    deleg_port, verify_port = free_ports(2)
-    conf = render_config_to_path(
-        "nginx_t4_delegation_handshake.conf",
-        base / "nginx.conf",
-        strict=True,
-        BASE_DIR=base,
-        DELEG_PORT=deleg_port,
-        VERIFY_PORT=verify_port,
-        HOST_CERT=SERVER_CERT,
-        HOST_KEY=SERVER_KEY,
-        CA_CERT=CA_CERT,
-        CRED_DIR=base / "creds",
-    )
-    result = subprocess.run(
-        [NGINX_BIN, "-p", str(base), "-c", str(conf)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    if result.returncode != 0:
-        pytest.fail("nginx failed to start:\n" + result.stdout[-4000:])
-    time.sleep(0.5)
+    creds = base / "creds"
+    creds.mkdir()
+    from settings import free_ports
+    (verify_port,) = free_ports(1)
+    harness = LifecycleHarness()
+    try:
+        ep = harness.start(NginxInstanceSpec(
+            name="lc-t4-delegation",
+            template="nginx_t4_delegation_handshake.conf",
+            protocol="https", readiness="tcp",
+            extra_ports={"VERIFY_PORT": verify_port},
+            template_values={"HOST_CERT": str(SERVER_CERT),
+                             "HOST_KEY": str(SERVER_KEY),
+                             "CA_CERT": str(CA_CERT),
+                             "CRED_DIR": str(creds)}))
+    except Exception:
+        harness.close()
+        raise
     yield {
         "base": base,
-        "creds": base / "creds",
-        "deleg_url": f"https://127.0.0.1:{deleg_port}/.well-known/brix-delegation",
+        "creds": creds,
+        "deleg_url": (f"https://127.0.0.1:{ep.port}"
+                      "/.well-known/brix-delegation"),
         "verify_port": verify_port,
     }
-    stop_nginx(base)
+    harness.close()
 
 
 def _twostep_getreq(front, pki, tag):

@@ -124,6 +124,19 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
                 rec.dst_key, rec.export_root, rec.attempts);
             return 0;
         }
+
+        /* Transient re-drive failure (the origin is still unreachable): bump
+         * attempts and re-persist the record FAILED. The higher attempt count is
+         * the durable evidence that the restart replay re-drove this transfer —
+         * against a recovered origin the reflush above would instead have
+         * completed and unlinked the record. Kept in the active journal so a
+         * later tick / restart retries it. */
+        stage_journal_bump_failed(stage_journal_dir, &rec, saved_errno);
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd stage: reconcile re-flush of \"%s\" (export \"%s\") failed "
+            "(errno %d attempts=%uD) - record kept FAILED for retry",
+            rec.dst_key, rec.export_root, saved_errno, rec.attempts);
+        return 0;
     }
 
     /* Backend unreachable / no stage tier now: keep the record for a later retry. */

@@ -107,6 +107,7 @@ def forge():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_01_header_bearer_valid_200(forge):
     """BEAR-01: Authorization: Bearer <valid> → 200.
 
@@ -130,6 +131,7 @@ def test_bear_01_header_bearer_valid_200(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_02_lowercase_bearer_scheme(forge):
     """BEAR-02: Authorization: bearer <valid> (lowercase) → RFC-correct 200.
 
@@ -154,6 +156,7 @@ def test_bear_02_lowercase_bearer_scheme(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_03_uppercase_bearer_scheme(forge):
     """BEAR-03: Authorization: BEARER <valid> (uppercase) → 200.
 
@@ -188,6 +191,7 @@ def test_bear_03_uppercase_bearer_scheme(forge):
         "200 (header-wins behaviour) instead of rejecting."
     ),
 )
+@pytest.mark.registry_server("webdav-token")
 def test_bear_04_dual_transport_must_400(forge):
     """BEAR-04: valid token in header AND ?authz=<valid> → RFC-correct 400.
 
@@ -218,6 +222,7 @@ def test_bear_04_dual_transport_must_400(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_05_query_access_token_200(forge):
     """BEAR-05: GET /test.txt?access_token=<valid> → 200.
 
@@ -251,6 +256,7 @@ def test_bear_05_query_access_token_200(forge):
         "?access_token= responses."
     ),
 )
+@pytest.mark.registry_server("webdav-token")
 def test_bear_06_query_nostore_cache_control(forge):
     """BEAR-06: ?access_token= response MUST include Cache-Control: no-store.
 
@@ -278,6 +284,7 @@ def test_bear_06_query_nostore_cache_control(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_07_bearer_no_token_rejected(forge):  # noqa: ARG001 — forge unused but consistent API
     """BEAR-07: Authorization: Bearer (no token value) → not 200.
 
@@ -301,6 +308,7 @@ def test_bear_07_bearer_no_token_rejected(forge):  # noqa: ARG001 — forge unus
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_08_bearer_extra_token_rejected(forge):
     """BEAR-08: Authorization: Bearer <valid> extra → not 200.
 
@@ -335,6 +343,7 @@ def test_bear_08_bearer_extra_token_rejected(forge):
         "(Unauthorized) and does not emit WWW-Authenticate."
     ),
 )
+@pytest.mark.registry_server("webdav-token")
 def test_bear_09_no_credential_401_www_authenticate(forge):  # noqa: ARG001
     """BEAR-09: unauthenticated request to protected resource → 401 + WWW-Authenticate: Bearer.
 
@@ -376,6 +385,7 @@ def test_bear_09_no_credential_401_www_authenticate(forge):  # noqa: ARG001
         "403 for all token validation failures (sig-invalid, alg:none, etc.)."
     ),
 )
+@pytest.mark.registry_server("webdav-token")
 def test_bear_10_invalid_token_401(forge):
     """BEAR-10: invalid token (alg:none) → 401 + WWW-Authenticate: Bearer.
 
@@ -403,6 +413,7 @@ def test_bear_10_invalid_token_401(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_11_insufficient_scope_403(forge):
     """BEAR-11: valid token, wrong scope for path → 403.
 
@@ -431,6 +442,7 @@ def test_bear_11_insufficient_scope_403(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_12_insufficient_scope_www_authenticate_scope(forge):
     """BEAR-12: insufficient_scope 403 SHOULD include scope in WWW-Authenticate.
 
@@ -480,6 +492,7 @@ def test_bear_12_insufficient_scope_www_authenticate_scope(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_bear_13_tls_connection_works(forge):
     """BEAR-13: Bearer tokens are transported over TLS (rule 94, informational).
 

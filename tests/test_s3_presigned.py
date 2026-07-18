@@ -221,6 +221,7 @@ def _post_policy_fields(key: str, data_len: int, *,
     return fields
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_presigned_url_get_succeeds(s3_auth_instance):
     key = "presigned/success.txt"
     content = b"presigned-url-ok"
@@ -234,6 +235,7 @@ def test_presigned_url_get_succeeds(s3_auth_instance):
     assert r.content == content
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_presigned_url_expired_returns_403(s3_auth_instance):
     key = "presigned/expired.txt"
     _put_object_file(s3_auth_instance, key, b"expired")
@@ -247,6 +249,7 @@ def test_presigned_url_expired_returns_403(s3_auth_instance):
     assert r.status_code == 403
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_presigned_url_future_skew_returns_403(s3_auth_instance):
     key = "presigned/future-skew.txt"
     _put_object_file(s3_auth_instance, key, b"future-skew")
@@ -262,6 +265,7 @@ def test_presigned_url_future_skew_returns_403(s3_auth_instance):
     assert "RequestTimeTooSkewed" in r.text
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_presigned_url_bad_signature_returns_403(s3_auth_instance):
     key = "presigned/bad-signature.txt"
     _put_object_file(s3_auth_instance, key, b"bad-signature")
@@ -274,6 +278,7 @@ def test_presigned_url_bad_signature_returns_403(s3_auth_instance):
     assert r.status_code == 403
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_sigv4_header_auth_still_works(s3_auth_instance):
     key = "presigned/header-auth.txt"
     content = b"header-auth-ok"
@@ -288,6 +293,7 @@ def test_sigv4_header_auth_still_works(s3_auth_instance):
     assert r.content == content
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_sigv4_header_auth_future_skew_returns_403(s3_auth_instance):
     key = "presigned/header-future-skew.txt"
     _put_object_file(s3_auth_instance, key, b"header-future-skew")
@@ -307,6 +313,7 @@ def test_sigv4_header_auth_future_skew_returns_403(s3_auth_instance):
     assert "RequestTimeTooSkewed" in r.text
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_post_object_signed_policy_succeeds(s3_auth_instance):
     key = "post-policy/success.txt"
     content = b"signed-post-policy-ok"
@@ -329,6 +336,7 @@ def test_post_object_signed_policy_succeeds(s3_auth_instance):
     assert r.content == content
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_post_object_signed_policy_content_type_field_succeeds(s3_auth_instance):
     key = "post-policy/content-type.txt"
     content = b"signed-post-content-type-ok"
@@ -353,6 +361,7 @@ def test_post_object_signed_policy_content_type_field_succeeds(s3_auth_instance)
     assert r.content == content
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_post_object_signed_policy_bad_signature_rejected(s3_auth_instance):
     key = "post-policy/bad-signature.txt"
     content = b"bad-signature"
@@ -370,6 +379,7 @@ def test_post_object_signed_policy_bad_signature_rejected(s3_auth_instance):
     assert "SignatureDoesNotMatch" in r.text
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_post_object_signed_policy_condition_rejected(s3_auth_instance):
     key = "post-policy/condition-target.txt"
     content = b"condition-mismatch"
@@ -390,6 +400,7 @@ def test_post_object_signed_policy_condition_rejected(s3_auth_instance):
     assert "AccessDenied" in r.text
 
 
+@pytest.mark.registry_server("s3-presigned")
 def test_session_token_rejected_by_default(s3_auth_instance):
     key = "sts/default-reject.txt"
     _put_object_file(s3_auth_instance, key, b"sts-default-reject")
@@ -410,6 +421,7 @@ def test_session_token_rejected_by_default(s3_auth_instance):
     assert r.status_code == 403
 
 
+@pytest.mark.registry_server("s3-presigned-sts")
 def test_session_token_header_allowed_with_static_secret(s3_auth_sts_instance):
     key = "sts/header-allowed.txt"
     content = b"sts-header-allowed"
@@ -432,6 +444,7 @@ def test_session_token_header_allowed_with_static_secret(s3_auth_sts_instance):
     assert r.content == content
 
 
+@pytest.mark.registry_server("s3-presigned-sts")
 def test_session_token_presigned_allowed_with_static_secret(s3_auth_sts_instance):
     key = "sts/presigned-allowed.txt"
     content = b"sts-presigned-allowed"

@@ -19,12 +19,14 @@ No fleet dependency (TEST_SKIP_SERVER_SETUP-style: spawns its own nginx).
 import os
 import socket
 import struct
-import subprocess
-import time
 
 import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
+from server_launcher import RegistryCommandFailure
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 PORT = int(os.environ.get("TEST_FRM_QUEUE_PORT") or free_port())
 
@@ -106,86 +108,55 @@ def _cancel(sock, reqid, streamid=b"\x00\x05"):
     return _read_response(sock)
 
 
-def _wait_port(port, timeout=10):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.5):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-class _Server:
-    def __init__(self, prefix, conf):
-        self.prefix = prefix
-        self.conf = conf
-        self.proc = None
-
-    def start(self):
-        self.proc = subprocess.Popen([NGINX_BIN, "-p", str(self.prefix),
-                                      "-c", str(self.conf)],
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
-        if not _wait_port(PORT):
-            err = self.proc.stderr.read().decode(errors="replace")
-            self.stop()
-            pytest.skip(f"FRM server did not start: {err}")
-
-    def stop(self):
-        if self.proc:
-            self.proc.terminate()
-            try:
-                self.proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-            self.proc = None
-
-    def restart(self):
-        self.stop()
-        time.sleep(0.3)
-        self.start()
-
-
-@pytest.fixture(scope="module")
-def frm(tmp_path_factory):
+@pytest.fixture
+def frm(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
 
-    d = tmp_path_factory.mktemp("frm")
-    (d / "logs").mkdir()
-    data = d / "data"
+    global PORT
+
+    data = tmp_path / "data"
     data.mkdir()
     (data / "online.bin").write_bytes(b"x" * 4096)
-    queue = d / "frm.queue"
+    queue = tmp_path / "frm.queue"
+    control = tmp_path / "control"
+    control.mkdir()
 
-    conf = f"""
-error_log {d}/logs/error.log info;
-pid {d}/logs/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{PORT};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_frm on;
-        brix_frm_queue_path {queue};
-        brix_frm_max_inflight 128;
-    }}
-}}
-daemon off;
-master_process off;
-"""
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    srv = _Server(d, cp)
-    srv.start()
+    spec = NginxInstanceSpec(
+        name="lc-frm-queue",
+        template="nginx_lc_frm_queue.conf",
+        protocol="root",
+        template_values={
+            "BIND_HOST": BIND_HOST,
+            "DATA_DIR": str(data),
+            "QUEUE_PATH": str(queue),
+            "CONTROL_DIR": str(control),
+        },
+        reason="frm queue")
+    try:
+        endpoint = lifecycle.start(spec)
+    except RegistryCommandFailure:
+        pytest.skip("nginx build lacks the brix_frm* directive surface "
+                    "(removed 2026-06-30)")
+
+    # The self-started server picks its own registry port; wire the wire-level
+    # session helper (module-global PORT) to it.
+    PORT = endpoint.port
+
+    class _Server:
+        def stop(self):
+            lifecycle.stop("lc-frm-queue")
+
+        def start(self):
+            lifecycle.start_registered("lc-frm-queue")
+
+        def restart(self):
+            lifecycle.restart("lc-frm-queue")
+
+    srv = _Server()
     srv.data = str(data)
     srv.queue = str(queue)
     yield srv
-    srv.stop()
 
 
 def test_prepare_stage_returns_durable_reqid(frm):
@@ -260,27 +231,16 @@ def test_qprep_unknown_reqid_no_crash(frm):
     s.close()
 
 
+@pytest.mark.skip(reason=(
+    "Retired 2026-07-18: this test poked a byte inside the legacy monolithic "
+    "frm.queue file at the fixed 4608-byte record slot [4608+256] and asserted "
+    "the FRM reconcile detected the bad CRC32c and reclaimed the slot. That "
+    "durable-queue engine (fixed-width CRC-checksummed record slots) was removed "
+    "2026-06-30. The stage-request registry that replaced it persists to "
+    "<control_dir>/stage_requests.dat with a different on-disk layout and no "
+    "per-slot CRC reclaim contract, so the byte-offset poke targets a file that "
+    "no longer exists and the assertion has no live surface to bind to. Restart "
+    "durability of a valid record is now covered by "
+    "test_queued_request_survives_restart."))
 def test_corrupt_record_reclaimed_on_restart(frm):
-    # DoD: a torn/corrupt record (bad CRC) must be DETECTED and reclaimed by
-    # reconciliation, not trusted — nginx restarts cleanly and keeps serving.
-    s = _session()
-    _prepare(s, ["/nearline_corrupt.dat"], kXR_stage | kXR_noerrs)
-    s.close()
-
-    frm.stop()
-    # Flip a byte inside the first record slot (header is [0, 4608); record 0
-    # starts at 4608). A wrong CRC32c → reconcile reclaims the slot.
-    with open(frm.queue, "r+b") as f:
-        f.seek(4608 + 256)
-        orig = f.read(1)
-        f.seek(4608 + 256)
-        f.write(bytes([orig[0] ^ 0xFF]))
-    frm.start()
-
-    # Server came up despite the corrupt record and still serves a fresh request.
-    s = _session()
-    status, body = _prepare(s, ["/online.bin"], kXR_stage)
-    assert status == kXR_ok, "server did not recover from a corrupt queue record"
-    reqid = body.rstrip(b"\x00").decode()
-    assert reqid != "0"
-    s.close()
+    pass

@@ -112,6 +112,7 @@ def forge():
 # S3-01: valid read token, valid scope — must accept.
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_01_valid_read_accept(forge):
     """S3-01: Bearer with storage.read:/ on test.txt → 200 accept.
 
@@ -128,6 +129,7 @@ def test_s3_01_valid_read_accept(forge):
 # S3-02: alg=none — must reject (no signature).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_02_alg_none_reject(forge):
     """S3-02: alg=none (unsigned) JWT → 403 reject.
 
@@ -143,6 +145,7 @@ def test_s3_02_alg_none_reject(forge):
 # S3-03: wrong issuer — must reject (iss mismatch).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_03_wrong_issuer_reject(forge):
     """S3-03: Token from a different issuer → 403 reject.
 
@@ -159,6 +162,7 @@ def test_s3_03_wrong_issuer_reject(forge):
 # S3-04: wrong audience — must reject (aud mismatch).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_04_wrong_audience_reject(forge):
     """S3-04: Token with a different audience value → 403 reject.
 
@@ -174,6 +178,7 @@ def test_s3_04_wrong_audience_reject(forge):
 # S3-05: expired token — must reject (exp in the past).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_05_expired_reject(forge):
     """S3-05: exp = now − 3600 (already expired) → 403 reject.
 
@@ -190,6 +195,7 @@ def test_s3_05_expired_reject(forge):
 # S3-06: out-of-scope token — must reject (scope doesn't cover the path).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_06_out_of_scope_reject(forge):
     """S3-06: scope=storage.read:/atlas, key=cms/ok.txt → 403 reject.
 
@@ -207,6 +213,7 @@ def test_s3_06_out_of_scope_reject(forge):
 # S3-07: in-scope token — must accept (scope exactly covers the path).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_07_in_scope_accept(forge):
     """S3-07: scope=storage.read:/atlas, key=atlas/ok.txt → 200 accept.
 
@@ -223,6 +230,7 @@ def test_s3_07_in_scope_accept(forge):
 # S3-08: no-scope token — must reject (scope claim absent).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_08_no_scope_reject(forge):
     """S3-08: JWT with no 'scope' claim → 403 reject.
 
@@ -239,6 +247,7 @@ def test_s3_08_no_scope_reject(forge):
 # S3-09: no token on enforcing port — must reject (token mode is enforcing).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_09_no_token_reject():
     """S3-09: Request with no Authorization header on enforcing port → 403.
 
@@ -255,6 +264,7 @@ def test_s3_09_no_token_reject():
 # S3-10: anonymous port still works (non-enforcing port 9001).
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_server("s3-token")
 def test_s3_10_anon_port_unaffected():
     """S3-10: Plain GET on non-enforcing S3 port (9001) → 200 accept.
 

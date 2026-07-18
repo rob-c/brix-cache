@@ -1,107 +1,110 @@
-"""Phase 4b-2 — write-through async flush is recorded in the shared durable
-journal (the FRM queue), so a flush interrupted by a crash leaves a recoverable
-record instead of being silently lost.
+"""Write-back (tape) async flush is recorded in the durable stage journal, so a
+flush interrupted by a dead origin leaves a recoverable FAILED record instead of
+being silently lost.
 
-Deterministic check: point a write-through-async server at a DEAD origin and write
-a file. The local cache write + close succeed (async is fire-and-forget), the
-background flush to the dead origin fails, and the producer must leave a
-`kind=wt, status=FAILED` record in the journal. We parse the on-disk record
-directly (the layout is pinned by frm_format.h's static asserts).
+Deterministic check: a root:// server composes a write-STAGE tier (brix_stage +
+brix_stage_flush async) over a DEAD origin (root://127.0.0.1:1). A client write
+lands on the local stage store and close returns immediately (async is
+fire-and-forget); the background store->origin flush fails against the dead origin,
+and the stage engine must leave a `kind=FLUSH, state=FAILED` record in the durable
+journal ($BRIX_STAGE_JOURNAL_DIR). We parse the on-disk brix_sreq_t record
+directly (layout pinned by stage_engine.h).
 
-The replay that re-drives such a record on restart is Phase 4b-2b-ii.
+This behaviour is confined to a write-back tier by the async flush mode: a plain
+export with no stage tier journals nothing. The restart replay that re-drives such
+a record is exercised by test_xfer_wt_replay.py.
 """
 import os
 import shutil
-import socket
+import struct
 import subprocess
 import time
 
 import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+from server_launcher import RegistryCommandFailure
+
+pytestmark = [pytest.mark.uses_lifecycle_harness]
 
 PORT = int(os.environ.get("TEST_XFER_WTJ_PORT") or free_port())
 XRDCP = shutil.which("xrdcp")
 
-# frm_record_t layout (frm_format.h) — byte offsets within a 4608-byte slot.
-FRM_REC_SIZE = 4608
-OFF_STATUS = 65
-OFF_LFN = 108
-LFN_LEN = 3072
-OFF_XFER_KIND = 4300
-FRM_ST_FAILED = 4
-FRM_XFER_WT = 1
+# brix_sreq_t on-disk layout (src/fs/xfer/stage_engine.h).  Little-endian, natural
+# alignment; the `6x` pads open_options (uint16) up to the 8-byte size_hint.  The C
+# struct rounds its total size up to an 8-byte multiple (trailing pad); unpack_from
+# reads only the fields below, so the trailing pad is harmless.
+SREQ_FMT = "<40s i i 16s 1024s 16s 1024s 1024s H 6x Q Q q q q I i 128s 512s 1024s B"
+# field indices in the unpacked tuple
+F_KIND, F_STATE, F_SRC_KEY, F_DST_KEY = 1, 2, 4, 6
+F_ATTEMPTS, F_LAST_ERRNO = 14, 15
+
+BRIX_STAGE_FLUSH = 1
+BRIX_SREQ_FAILED = 3
 
 
-def _scan_wt_record(queue_path, name):
-    """Return (status, lfn) for the first kind=wt record whose lfn contains
-    `name`, or None. Slot 0 is the header; records follow."""
+def _cstr(b):
+    return b.split(b"\x00", 1)[0].decode("utf-8", "replace")
+
+
+def _scan_flush_record(journal_dir, name):
+    """Return the unpacked brix_sreq_t tuple for the first kind=FLUSH .req record
+    whose src/dst key contains `name`, or None."""
     try:
-        data = open(queue_path, "rb").read()
+        entries = os.listdir(journal_dir)
     except OSError:
         return None
-    off = FRM_REC_SIZE
-    while off + FRM_REC_SIZE <= len(data):
-        rec = data[off:off + FRM_REC_SIZE]
-        if rec[OFF_XFER_KIND] == FRM_XFER_WT:
-            lfn = rec[OFF_LFN:OFF_LFN + LFN_LEN].split(b"\x00", 1)[0]
-            lfn = lfn.decode("utf-8", "replace")
-            if name in lfn:
-                return rec[OFF_STATUS], lfn
-        off += FRM_REC_SIZE
+    for fn in entries:
+        if not fn.endswith(".req"):
+            continue
+        try:
+            data = open(os.path.join(journal_dir, fn), "rb").read()
+        except OSError:
+            continue
+        if len(data) < struct.calcsize(SREQ_FMT):
+            continue
+        rec = struct.unpack_from(SREQ_FMT, data, 0)
+        if rec[F_KIND] != BRIX_STAGE_FLUSH:
+            continue
+        if name in _cstr(rec[F_DST_KEY]) or name in _cstr(rec[F_SRC_KEY]):
+            return rec
     return None
 
 
-@pytest.fixture(scope="module")
-def wtj_server(tmp_path_factory):
+@pytest.fixture
+def wtj_server(lifecycle, tmp_path):
+    global PORT
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
     if XRDCP is None:
         pytest.skip("xrdcp not available")
 
-    d = tmp_path_factory.mktemp("wtjournal")
-    (d / "logs").mkdir()
-    data = d / "data"; data.mkdir()
-    queue = d / "wt.queue"
+    data = tmp_path / "data"; data.mkdir()
+    stage = tmp_path / "stage"; stage.mkdir()
+    journal = tmp_path / "journal"; journal.mkdir()
 
-    conf = render_config("nginx_xfer_wt_dead_origin.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=PORT,
-                         DATA_DIR=data,
-                         QUEUE_PATH=queue)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    deadline = time.time() + 10
-    up = False
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, PORT), timeout=0.5).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip(f"wt-journal server did not start: {err}")
+    spec = NginxInstanceSpec(
+        name="lc-xfer-wt-journal",
+        template="nginx_lc_xfer_wt_dead_origin.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "STAGE_DIR": str(stage), "JOURNAL_DIR": str(journal)},
+        reason="write-back durable-flush journal record")
+    try:
+        ep = lifecycle.start(spec)
+    except RegistryCommandFailure:
+        pytest.skip("nginx build lacks the brix_stage tier directive surface")
+    PORT = ep.port
 
     class S:
         pass
     s = S()
-    s.queue = str(queue)
+    s.journal = str(journal)
     yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
-def test_failed_async_flush_leaves_wt_journal_record(wtj_server, tmp_path):
+def test_failed_async_flush_leaves_journal_record(wtj_server, tmp_path):
     src = tmp_path / "payload.bin"
     src.write_bytes(b"durable-write-through-" + b"q" * 500)
 
@@ -110,20 +113,22 @@ def test_failed_async_flush_leaves_wt_journal_record(wtj_server, tmp_path):
         [XRDCP, "-f", str(src), f"root://{HOST}:{PORT}//{name}"],
         capture_output=True, timeout=30)
     assert r.returncode == 0, \
-        f"cache write should succeed (async flush is deferred): " \
+        f"stage write should succeed (async flush is deferred): " \
         f"{r.stderr.decode(errors='replace')}"
 
-    # The background flush to the dead origin fails; the producer marks the
-    # journal record FAILED. Poll for it.
-    found = None
+    # The background flush to the dead origin fails; the engine marks the durable
+    # record FAILED (state, not just left QUEUED). Poll for it.
+    rec = None
     deadline = time.time() + 15
     while time.time() < deadline:
-        found = _scan_wt_record(wtj_server.queue, name)
-        if found is not None and found[0] == FRM_ST_FAILED:
+        rec = _scan_flush_record(wtj_server.journal, name)
+        if rec is not None and rec[F_STATE] == BRIX_SREQ_FAILED:
             break
         time.sleep(0.3)
 
-    assert found is not None, "no kind=wt journal record for the async flush"
-    status, lfn = found
-    assert status == FRM_ST_FAILED, f"wt record status={status}, expected FAILED"
-    assert name in lfn
+    assert rec is not None, "no kind=FLUSH journal record for the async flush"
+    assert rec[F_STATE] == BRIX_SREQ_FAILED, \
+        f"flush record state={rec[F_STATE]}, expected FAILED({BRIX_SREQ_FAILED})"
+    # last_errno is stamped on the transient failure (dead origin -> connect error).
+    assert rec[F_LAST_ERRNO] != 0, "FAILED record should carry a non-zero errno"
+    assert name in _cstr(rec[F_DST_KEY]) or name in _cstr(rec[F_SRC_KEY])

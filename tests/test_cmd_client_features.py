@@ -24,10 +24,11 @@ def test_client_features_scenarios_are_importable():
 
 
 @pytest.mark.optin
+@pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(client_features.SECTIONS))
 def test_client_features_scenario(scenario: str):
-    if os.environ.get("PHASE81_RUN_LIVE_PORTS") != "1":
-        pytest.skip("set PHASE81_RUN_LIVE_PORTS=1 to run client-features live scenarios")
+    if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
+        pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip client-features live scenarios")
     missing = client_features.missing_binaries()
     if missing:
         pytest.skip(f"client binaries missing: {', '.join(missing)}")

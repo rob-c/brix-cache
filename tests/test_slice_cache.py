@@ -17,7 +17,6 @@ Two layers:
 
 import glob
 import os
-import signal
 import socket
 import struct
 import subprocess
@@ -26,8 +25,10 @@ import time
 import pytest
 
 from cmdscripts import c_object_units
-from config_templates import render_config
-from settings import HOST, NGINX_BIN, free_ports
+from server_registry import NginxInstanceSpec
+from settings import HOST, NGINX_BIN
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 _HERE = os.path.dirname(__file__)
 _OBJS = os.environ.get("TEST_NGINX_OBJS", "/tmp/nginx-1.28.3/objs")
@@ -53,40 +54,36 @@ class TestSliceLibrary:
 class TestSliceConfig:
     """Step F — the brix_cache_slice_size tier directive parses and validates."""
 
-    def _nginx_t(self, tmp_path, slice_value):
+    def _nginx_t(self, lifecycle, tmp_path, slice_value):
         # Export and cache_store must be siblings: the server rejects a cache
         # store at/beneath the export root (its .cinfo/.meta sidecars would be
-        # exposed in the client namespace).
-        origin = tmp_path / "origin"
-        origin.mkdir()
+        # exposed in the client namespace). The cache store lives outside the
+        # registry-managed export prefix, so it is a test-owned tmp dir.
         cache = tmp_path / "cache"
         cache.mkdir()
-        (tmp_path / "logs").mkdir()
-        conf = tmp_path / "nginx.conf"
-        conf.write_text(render_config("nginx_slice_cache_validate.conf",
-                                      BASE_DIR=tmp_path,
-                                      ORIGIN_DIR=origin,
-                                      HOST=HOST,
-                                      CACHE_DIR=cache,
-                                      SLICE_SIZE=slice_value))
+        reg = lifecycle.register(NginxInstanceSpec(
+            name=f"lc-slice-validate-{slice_value}",
+            template="nginx_slice_cache_validate.conf",
+            protocol="none",
+            readiness="none",
+            template_values={"HOST": HOST, "CACHE_DIR": str(cache),
+                             "SLICE_SIZE": slice_value},
+            reason="brix_cache_slice_size directive parse/validate (nginx -t).",
+        ))
+        endpoint = lifecycle.launcher.render_nginx(reg)
         return subprocess.run(
-            [_NGINX, "-t", "-p", str(tmp_path), "-c", "nginx.conf"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30,
-        )
+            [NGINX_BIN, "-t", "-p", endpoint.prefix, "-c", "conf/nginx.conf"],
+            capture_output=True, text=True, timeout=30)
 
-    def test_valid_slice_size_accepted(self, tmp_path):
-        if not os.path.exists(_NGINX):
-            pytest.skip(f"nginx binary not built at {_NGINX}")
-        proc = self._nginx_t(tmp_path, "128m")
-        out = proc.stdout.decode(errors="replace")
+    def test_valid_slice_size_accepted(self, lifecycle, tmp_path):
+        proc = self._nginx_t(lifecycle, tmp_path, "128m")
+        out = proc.stdout + proc.stderr
         assert proc.returncode == 0, f"valid 128m slice rejected:\n{out}"
         assert "successful" in out
 
-    def test_non_multiple_slice_size_rejected(self, tmp_path):
-        if not os.path.exists(_NGINX):
-            pytest.skip(f"nginx binary not built at {_NGINX}")
-        proc = self._nginx_t(tmp_path, "100k")
-        out = proc.stdout.decode(errors="replace")
+    def test_non_multiple_slice_size_rejected(self, lifecycle, tmp_path):
+        proc = self._nginx_t(lifecycle, tmp_path, "100k")
+        out = proc.stdout + proc.stderr
         assert proc.returncode != 0, "non-multiple-of-1m slice must be rejected"
         assert "multiple of 1m" in out
 
@@ -233,72 +230,33 @@ def _read(sock, fhandle, offset, length, deadline=30.0):
                          "(slice fill never completed)" % (offset, length, deadline))
 
 
-def _kill(proc):
-    if not proc:
-        return
-    try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-    except (ProcessLookupError, OSError):
-        try:
-            proc.kill()
-        except OSError:
-            pass
-
-
-def _start(base, name, cfg_text, port):
-    cfg = os.path.join(base, name)
-    with open(cfg, "w") as f:
-        f.write(cfg_text)
-    proc = subprocess.Popen([NGINX_BIN, "-c", cfg, "-p", base],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            start_new_session=True)
-    end = time.time() + 10
-    while time.time() < end:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
-                return proc
-        except OSError:
-            time.sleep(0.1)
-    _kill(proc)
-    return None
-
-
-@pytest.fixture(scope="module")
-def xcache(tmp_path_factory):
+@pytest.fixture
+def xcache(lifecycle, tmp_path_factory):
     """An ORIGIN data server + a CACHE server in 1 MiB slice mode in front of it."""
-    if not (NGINX_BIN and os.path.exists(NGINX_BIN)):
-        pytest.skip("nginx-xrootd binary not built at %s" % NGINX_BIN)
     base = str(tmp_path_factory.mktemp("xcache"))
     origin_data = os.path.join(base, "origin_data")
-    export = os.path.join(base, "export")          # cache server's (empty) export
     cache_root = os.path.join(base, "cache_root")
-    for d in (origin_data, export, cache_root, os.path.join(base, "logs")):
+    for d in (origin_data, cache_root):
         os.makedirs(d, exist_ok=True)
 
-    origin_port, cache_port = free_ports(2)
-    origin_cfg = render_config("nginx_slice_cache_origin.conf",
-                               BASE_DIR=base,
-                               PORT=origin_port,
-                               DATA_DIR=origin_data)
-    cache_cfg = render_config("nginx_slice_cache_cache.conf",
-                              BASE_DIR=base,
-                              PORT=cache_port,
-                              EXPORT_DIR=export,
-                              ORIGIN_PORT=origin_port,
-                              CACHE_DIR=cache_root)
-
-    origin = _start(base, "origin.conf", origin_cfg, origin_port)
-    cache = _start(base, "cache.conf", cache_cfg, cache_port)
-    if not origin or not cache:
-        _kill(cache)
-        _kill(origin)
-        pytest.skip("origin/cache server did not start")
-    try:
-        yield {"host": "127.0.0.1", "port": cache_port,
-               "origin_data": origin_data, "cache_root": cache_root}
-    finally:
-        _kill(cache)
-        _kill(origin)
+    origin = lifecycle.start(NginxInstanceSpec(
+        name="lc-slice-cache-origin",
+        template="nginx_slice_cache_origin.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=origin_data,
+        reason="Slice-cache origin data server.",
+    ))
+    cache = lifecycle.start(NginxInstanceSpec(
+        name="lc-slice-cache-node",
+        template="nginx_slice_cache_cache.conf",
+        protocol="root",
+        readiness="tcp",
+        template_values={"ORIGIN_PORT": origin.port, "CACHE_DIR": cache_root},
+        reason="Slice-cache node (1 MiB slice mode) in front of the origin.",
+    ))
+    return {"host": "127.0.0.1", "port": cache.port,
+            "origin_data": origin_data, "cache_root": cache_root}
 
 
 def _seed(xc, name, size=_FILESIZE):

@@ -134,8 +134,10 @@ brix_open_read_probe(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
 
         if (brix_sd_stat_maybe_cred(sd, key, &sst,
                 use_cred ? &ucred : NULL) != NGX_OK) {
+            brix_sd_ucred_wipe(&ustore);   /* secret consumed; erase (A-4/T4) */
             return 0;
         }
+        brix_sd_ucred_wipe(&ustore);       /* secret consumed; erase (A-4/T4) */
         *is_dir = sst.is_dir ? 1 : 0;
         return 1;
     }
@@ -360,6 +362,55 @@ brix_open_precheck(brix_ctx_t *ctx, ngx_connection_t *c,
 						  op,
 						  "OPEN", "-", md,
 						  kXR_ArgMissing, "no path given");
+	}
+
+	/* D-2 byte-hygiene: reject an opaque carrying a control / non-ASCII /
+	 * shell-metacharacter byte before any handler (TPC src/dst URL, delegated-
+	 * token mode, compression, ZIP member) parses, logs, or forwards it. A
+	 * well-formed opaque percent-encodes anything outside the unreserved/
+	 * structural set, so this is a zero-false-positive gate at the parse edge. */
+	{
+		char          opq_raw[BRIX_MAX_PATH + 1];
+		unsigned char bad_byte;
+
+		if (open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
+								 opq_raw, sizeof(opq_raw))) {
+			if (brix_opaque_illegal_byte(opq_raw, &bad_byte)) {
+				ngx_log_error(NGX_LOG_INFO, c->log, 0,
+							  "brix: rejecting kXR_open — illegal opaque byte 0x%02xd",
+							  (int) bad_byte);
+				BRIX_RETURN_ERR(ctx, c,
+								  op,
+								  "OPEN", "-", md,
+								  kXR_ArgInvalid, "illegal byte in opaque");
+			}
+
+			/* D-2 strict half (opt-in): once the bytes are clean, enforce the
+			 * schema — oss.asize must be an unsigned integer and every key must
+			 * fall in a recognized namespace. Off by default (stock accepts
+			 * both unchecked); on, a typed-wrong or unknown key is refused with
+			 * kXR_ArgInvalid, named in the log, before any handler parses it. */
+			if (conf->opaque_strict) {
+				char badkey[64];
+				int  verdict = brix_opaque_schema_check(opq_raw, badkey,
+														sizeof(badkey));
+
+				if (verdict != BRIX_OPAQUE_SCHEMA_OK) {
+					ngx_log_error(NGX_LOG_INFO, c->log, 0,
+								  "brix: rejecting kXR_open — opaque schema %s for key \"%s\"",
+								  verdict == BRIX_OPAQUE_SCHEMA_BAD_TYPE
+									  ? "type mismatch" : "unknown key",
+								  badkey);
+					BRIX_RETURN_ERR(ctx, c,
+									  op,
+									  "OPEN", "-", md,
+									  kXR_ArgInvalid,
+									  verdict == BRIX_OPAQUE_SCHEMA_BAD_TYPE
+										  ? "opaque parameter type mismatch"
+										  : "unknown opaque parameter");
+				}
+			}
+		}
 	}
 
 	/* Strip XRootD CGI query string ("?oss.asize=N" etc.) from the path.

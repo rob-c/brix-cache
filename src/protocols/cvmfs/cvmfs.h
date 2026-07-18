@@ -37,6 +37,17 @@ typedef enum {
     BRIX_CVMFS_RETRY_FORCE_PRIMARY  /* pin preferred origin, never fail  */
 } brix_cvmfs_retry_policy_e;
 
+/* Origin HTTP version policy (brix_cvmfs_origin_http_version, phase-85 F11).
+ * Values mirror the transport contract in fs/cache/origin/s3_transport.h:
+ * UNSET leaves libcurl's own default policy untouched (byte-frozen parity). */
+typedef enum {
+    BRIX_CVMFS_ORIGIN_HTTP_UNSET = 0,  /* directive absent: libcurl default  */
+    BRIX_CVMFS_ORIGIN_HTTP_11    = 11, /* force HTTP/1.1                     */
+    BRIX_CVMFS_ORIGIN_HTTP_2     = 20, /* h2 ALPN / h2c Upgrade, 1.1 fallback */
+    BRIX_CVMFS_ORIGIN_HTTP_2D    = 21, /* cleartext h2 prior knowledge       */
+    BRIX_CVMFS_ORIGIN_HTTP_3     = 30  /* QUIC (needs libcurl HTTP3 support) */
+} brix_cvmfs_origin_http_e;
+
 /* Geo API answering mode (brix_cvmfs_geo_answer). */
 typedef enum {
     BRIX_CVMFS_GEO_PASSTHROUGH = 0, /* relay upstream GeoAPI verbatim    */
@@ -55,7 +66,17 @@ typedef struct {
     ngx_flag_t   enable;           /* brix_cvmfs on|off (default off)       */
     time_t       manifest_ttl;     /* brix_cvmfs_manifest_ttl (default 61s) */
     time_t       negative_ttl;     /* brix_cvmfs_negative_ttl (default 10s) */
+    time_t       offline_ttl;      /* brix_cvmfs_offline_ttl (default 0 = off):
+                                      through a total origin outage keep
+                                      serving the last verified manifest this
+                                      long past its fill (extends the 10x-TTL
+                                      stale window, phase-85 F10)             */
     ngx_str_t    quarantine_dir;   /* brix_cvmfs_quarantine_dir (optional)  */
+    ngx_str_t    master_key;       /* brix_cvmfs_verify_manifest <pem>: repo
+                                      master public key(s); fills of
+                                      .cvmfspublished/.cvmfswhitelist must
+                                      verify the full signature chain before
+                                      publish ("" = off, phase-85 F1)        */
     ngx_array_t *upstream_allow;   /* brix_cvmfs_upstream_allow host…       */
     ngx_uint_t   upstream_max;     /* brix_cvmfs_upstream_max (default 8)   */
     ngx_uint_t   origin_select;    /* brix_cvmfs_origin_select (T19)        */
@@ -78,6 +99,15 @@ typedef struct {
                                             off = fresh conn per request for a
                                             connection-reaping middlebox        */
     ngx_uint_t   fill_retry_policy;      /* failover|force-primary (def fail)  */
+    ngx_uint_t   origin_http_version;    /* brix_cvmfs_origin_http_version
+                                            1.1|2|2-direct|3 (default unset =
+                                            libcurl's own policy, phase-85 F11):
+                                            2 = ALPN h2 / h2c Upgrade with an
+                                            automatic HTTP/1.1 fallback;
+                                            2-direct = cleartext h2 prior
+                                            knowledge (origin MUST speak h2);
+                                            3 = QUIC, refused at config time
+                                            when the linked libcurl lacks it    */
     ngx_flag_t   shared_cache;           /* proxy-mode: share ONE cache across
                                             all upstreams (content-addressed
                                             CVMFS is identical per Stratum-1)  */
@@ -96,6 +126,29 @@ typedef struct {
     ngx_uint_t   geo_max_servers;  /* probed-list cap (default 16)             */
 } brix_cvmfs_conf_t;
 
+/* One brix_cvmfs_repo_authz entry (phase-85 F3): the named repo (or "*") is
+ * served only to holders of a READ-scope token from this issuer registry. */
+typedef struct {
+    ngx_str_t    repo;             /* fqrn to gate, or "*" = every repo      */
+    ngx_str_t    issuers;          /* scitokens.cfg path                     */
+    void        *registry;         /* brix_token_registry_t*, built at merge */
+} brix_cvmfs_repo_authz_t;
+
+/* One brix_cvmfs_qos class (phase-85 F9): token-subject → fill-rate class.
+ * `fills` bounds ORIGIN FILLS per second (token bucket, burst = fills; 0 =
+ * unlimited — parity with no QoS). sub.len == 0 is the `default` class:
+ * unclassified traffic (no validated bearer, or a subject no class names).
+ * The bucket fields are runtime state: conf memory is per-worker after fork
+ * (COW) and only touched on the event loop, so a class bounds each worker
+ * independently — no locks, no shared memory. */
+typedef struct {
+    ngx_str_t    name;             /* class label (logs/audit)               */
+    ngx_str_t    sub;              /* token subject; "" = default class      */
+    ngx_uint_t   fills;            /* max fills/sec; 0 = unlimited           */
+    ngx_msec_t   last;             /* bucket: last refill (worker-local)     */
+    ngx_int_t    tokens;           /* bucket: milli-fills (1000 = one fill)  */
+} brix_cvmfs_qos_t;
+
 typedef struct {
     /* shared per-protocol storage/tier preamble — SAME struct the webdav and
      * s3 loc-confs embed; populated by the brix_cvmfs_storage_backend /
@@ -111,6 +164,14 @@ typedef struct {
     ngx_str_t    scvmfs_token_issuers; /* scitokens.cfg path (bearer mode)   */
     void        *scvmfs_registry;      /* brix_token_registry_t*, built at
                                           merge when bearer mode is on       */
+
+    /* ---- token-gated repos (phase-85 F3) ---- */
+    ngx_array_t *repo_authz;           /* brix_cvmfs_repo_authz_t entries;
+                                          NULL = no repo is gated            */
+
+    /* ---- per-VO/per-job QoS fill throttling (phase-85 F9) ---- */
+    ngx_array_t *qos;                  /* brix_cvmfs_qos_t classes;
+                                          NULL = no throttling               */
 } ngx_http_brix_cvmfs_loc_conf_t;
 
 /* scvmfs client-authz modes (VOMS/GSI client-cert mode is future work —
@@ -134,6 +195,9 @@ typedef struct {
     ngx_str_t             origin_used;     /* host:port of the fill origin —
                                               $cvmfs_origin (T16)            */
     brix_sess_xfer_t      sess_xfer;       /* GET transfer lifecycle record */
+    char                  token_sub[256];  /* validated bearer subject (F3/
+                                              scvmfs paths); "" = anonymous —
+                                              the F9 QoS classification key  */
     unsigned              sess_attempt_logged:1;
     unsigned              sess_xfer_started:1;
     unsigned              secure:1;        /* scvmfs (T22)                   */
@@ -188,6 +252,24 @@ void brix_cvmfs_notify_status(ngx_http_request_t *r,
  * (transport verified + client authenticated per brix_scvmfs_authz);
  * anything else is a final status (400/401). */
 ngx_int_t brix_scvmfs_preamble(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf);
+
+/* Token-gated repos (phase-85 F3): evaluate brix_cvmfs_repo_authz for the
+ * classified repo. NGX_DECLINED = not gated, or gated and a valid READ-scope
+ * bearer was presented — proceed; NGX_HTTP_BAD_REQUEST = gated repo on a
+ * cleartext connection (a bearer must never ride cleartext); NGX_HTTP_
+ * UNAUTHORIZED = missing/invalid/out-of-scope bearer. Runs AFTER classify
+ * (needs ctx->url.repo), covers every class: CAS, metadata, geo. */
+ngx_int_t brix_cvmfs_repo_authz_eval(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf);
+
+/* Per-VO QoS (phase-85 F9): charge one ORIGIN FILL against the request's
+ * class bucket (ctx->token_sub → class, else the `default` class). Called
+ * only when a remote miss-fill is about to run — cache hits are never
+ * throttled. NGX_DECLINED = proceed (no QoS configured / class unlimited /
+ * budget available); NGX_HTTP_TOO_MANY_REQUESTS = this class's fill budget
+ * is exhausted this second (the client retries; other classes keep flowing). */
+ngx_int_t brix_cvmfs_qos_check(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf);
 
 /* T19 rtt mode: record (at config time) that the export at `root_canon` runs

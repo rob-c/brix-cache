@@ -212,6 +212,24 @@ brix_cache_storage(const ngx_stream_brix_srv_conf_t *conf)
     return conf->cache_storage_inst;
 }
 
+/* Phase-85 F7: the composed sd_cache DECORATOR itself (not its unwrapped
+ * store), or NULL for a legacy cache_root cache / no tier cache. The eviction
+ * engine demotes victims into the decorator's cold store tier through this —
+ * brix_cache_storage() deliberately unwraps to the store, so demote needs the
+ * decorator handle. */
+brix_sd_instance_t *
+brix_cache_storage_decorator(const ngx_stream_brix_srv_conf_t *conf)
+{
+    if (conf->common.cache_store.len > 0) {
+        brix_sd_instance_t *c =
+            brix_vfs_backend_resolve(conf->common.root_canon, ngx_cycle->log);
+        if (c != NULL && brix_sd_cache_instance_is(c)) {
+            return c;
+        }
+    }
+    return NULL;
+}
+
 brix_cstore_t *
 brix_cache_storage_cstore(const ngx_stream_brix_srv_conf_t *conf)
 {

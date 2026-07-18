@@ -17,45 +17,36 @@ is built.  Skips cleanly otherwise.
 """
 import hashlib
 import os
+import socket
 import subprocess
 import time
 
 import pytest
 
-from settings import NGINX_BIN  # noqa: E402
-from config_templates import render_config
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
-P_ROOT = 21144                      # private ports, clear of the fleet band
-P_HTTP = 21145
-P_HTTPS = 21146
 PW = "multi-proto-pw"
 USER = "protouser"
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
 def _run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=120, **kw)
 
 
-def _free_port(port):
-    subprocess.run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"],
-                   capture_output=True)
-    for _ in range(20):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode != 0:
-            return
-        time.sleep(0.1)
-
-
-def _wait_listen(proc, port, what):
-    for _ in range(60):
-        assert proc.poll() is None, f"{what} exited before binding {port}"
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return
-        time.sleep(0.1)
-    proc.terminate()
-    raise AssertionError(f"{what} did not come up on {port}")
+def _port_up(port, tries=60):
+    for _ in range(tries):
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
+            return True
+        except OSError:
+            time.sleep(0.1)
+    return False
 
 
 def _pwd_hash(password, salt):
@@ -86,39 +77,37 @@ def multi_server(tmp_path_factory):
               "-subj", "/CN=127.0.0.1"])
     assert r.returncode == 0, f"throwaway TLS cert generation failed: {r.stderr}"
 
-    cfg = base / "nginx.conf"
-    cfg.write_text(render_config("nginx_pwd_multiproto.conf",
-                                 LOG_DIR=logs,
-                                 PID_FILE=base / "nginx.pid",
-                                 BASE_DIR=base,
-                                 ROOT_PORT=P_ROOT,
-                                 HTTP_PORT=P_HTTP,
-                                 HTTPS_PORT=P_HTTPS,
-                                 DATA_DIR=data,
-                                 PWD_FILE=pwdfile,
-                                 SERVER_CERT=cert,
-                                 SERVER_KEY=key))
-
-    for port in (P_ROOT, P_HTTP, P_HTTPS):
-        _free_port(port)
-    # Config-parse-time messages (including the pwd production warnings) are
-    # written to stderr — the configured error_log is not open yet at that
-    # phase — so capture stderr to a file the warning test can grep.
-    startup_log = logs / "startup.log"
-    proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg)],
-                            stdout=subprocess.DEVNULL,
-                            stderr=open(startup_log, "wb"))
-    for port in (P_ROOT, P_HTTP, P_HTTPS):
-        _wait_listen(proc, port, "multiproto nginx")
-    yield {"data": data, "log": startup_log,
-           "root": f"root://127.0.0.1:{P_ROOT}",
-           "http": f"http://127.0.0.1:{P_HTTP}",
-           "https": f"https://127.0.0.1:{P_HTTPS}"}
-    proc.terminate()
+    from settings import free_ports
+    http_port, https_port = free_ports(2)
+    spec = NginxInstanceSpec(
+        name="lc-pwd-multiproto",
+        template="nginx_pwd_multiproto.conf",
+        protocol="root", readiness="tcp",
+        data_root=str(data),
+        extra_ports={"HTTP_PORT": http_port, "HTTPS_PORT": https_port},
+        template_values={"PWD_FILE": str(pwdfile),
+                         "SERVER_CERT": str(cert),
+                         "SERVER_KEY": str(key)})
+    harness = LifecycleHarness()
+    registered = harness.register(spec)
     try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+        # Config-parse-time messages (the pwd production warnings) are written to
+        # stderr — the configured error_log is not open at that phase — so run
+        # the config test first and stash its combined output for the warning
+        # test to grep, then launch.
+        harness.launcher.render_nginx(registered)
+        probe = harness.nginx_test("lc-pwd-multiproto", check=False)
+        startup_log = logs / "startup.log"
+        startup_log.write_text((probe.stdout or "") + (probe.stderr or ""))
+
+        ep = harness.start_registered("lc-pwd-multiproto")
+        assert _port_up(https_port), "https listener did not come up"
+        yield {"data": data, "log": startup_log,
+               "root": f"root://127.0.0.1:{ep.port}",
+               "http": f"http://127.0.0.1:{http_port}",
+               "https": f"https://127.0.0.1:{https_port}"}
+    finally:
+        harness.close()
 
 
 def _env(password=PW, user=USER):

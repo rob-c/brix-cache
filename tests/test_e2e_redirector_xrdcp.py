@@ -127,6 +127,7 @@ def _write_file(path: str, data: bytes):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.requires_local_server
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_xrdcp_read_through_redirector(cluster):
     """xrdcp follows redirect and downloads the correct bytes."""
     payload  = os.urandom(65536)
@@ -146,6 +147,7 @@ def test_xrdcp_read_through_redirector(cluster):
 
 @pytest.mark.requires_local_server
 @pytest.mark.timeout(60)
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_xrdcp_write_through_redirector(cluster):
     """xrdcp upload follows redirect; file lands on the data server filesystem."""
     payload  = os.urandom(32768)
@@ -181,6 +183,7 @@ def test_xrdcp_write_through_redirector(cluster):
 @pytest.mark.slow
 @pytest.mark.large
 @pytest.mark.timeout(300)
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_large_file_round_trip_through_redirector(cluster):
     """200 MB download through redirector preserves MD5."""
     large_file = os.path.join(cluster["data_root"], "large200.bin")
@@ -213,6 +216,7 @@ def test_large_file_round_trip_through_redirector(cluster):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.requires_local_server
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_xrdfs_stat_through_redirector(cluster):
     """xrdfs stat via redirector returns correct file size."""
     payload = b"stat test content " * 100
@@ -238,6 +242,7 @@ def test_xrdfs_stat_through_redirector(cluster):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.requires_local_server
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_xrdfs_ls_through_redirector(cluster):
     """xrdfs ls via redirector lists correct directory contents."""
     uid  = uuid.uuid4().hex[:8]
@@ -259,6 +264,7 @@ def test_xrdfs_ls_through_redirector(cluster):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.requires_local_server
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_parallel_downloads_through_redirector(cluster):
     """Five concurrent xrdcp downloads all succeed with identical content."""
     payload = os.urandom(32768)
@@ -293,6 +299,7 @@ def test_parallel_downloads_through_redirector(cluster):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.requires_local_server
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_gsi_xrdcp_through_redirector(cluster):
     """Authenticated (GSI) xrdcp follows redirect successfully."""
     if not os.path.exists(PROXY_STD):
@@ -316,6 +323,7 @@ def test_gsi_xrdcp_through_redirector(cluster):
 # Section 9h — Redirector metrics update after client transfer
 # ---------------------------------------------------------------------------
 
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_redirector_metrics_update_after_transfer(cluster, test_env):
     """connections_total and op_ok{op="login"} increment on the redirector port."""
     import urllib.request, re
@@ -358,6 +366,7 @@ def test_redirector_metrics_update_after_transfer(cluster, test_env):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.requires_local_server
+@pytest.mark.registry_servers("cluster-ds", "cluster-redir")
 def test_xrdcp_cross_server_copy_through_redirector(cluster):
     """xrdcp src=redirector dst=anon port performs a client-mediated copy."""
     payload = os.urandom(16384)

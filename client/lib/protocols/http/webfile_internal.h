@@ -47,6 +47,9 @@ const char * next_response_open(const char *p, const char *end);
 const char * next_response_close(const char *p, const char *end);
 int has_collection_element(const char *p, const char *end);
 void path_basename(const char *path, char *out, size_t outsz);
+int webdav_parse_single(const char *body, size_t blen, brix_statinfo *si, brix_status *st);
+int webdav_parse_multi(const char *body, size_t blen, const char *self,
+                       brix_dirent **ents_out, size_t *n_out, brix_status *st);
 
 /* webfile_io.c */
 void web_disconnect(brix_webfile *wf);

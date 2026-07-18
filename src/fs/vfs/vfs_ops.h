@@ -187,4 +187,82 @@ ngx_int_t brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl);
 /* Close and (when remove_tmp) unlink the temp. Idempotent; NULL-safe. */
 void brix_vfs_staged_abort(brix_vfs_staged_t *st, unsigned remove_tmp);
 
+/* --- unified verified write session (src/fs/vfs/vfs_writer.c) ------------------
+ * ONE write entry point for every backend: a protocol write path (GridFTP STOR,
+ * and any future caller) opens a session, feeds extents, and commits — the
+ * session picks the mechanics from the backend's capabilities and, when asked,
+ * folds a self-computed CRC that is verified against a read-back on commit.
+ *
+ *   random-write backend (POSIX default export, pblock): an in-place
+ *     O_WRITE|O_CREATE handle written with brix_vfs_file_pwrite at arbitrary
+ *     offsets — REST/APPE and out-of-order (MODE E) extents are supported.
+ *   staged-only backend (S3/object store, no CAP_RANDOM_WRITE): an atomic
+ *     staged upload (temp → commit); extents MUST arrive sequentially from
+ *     offset 0 (an object store cannot patch bytes in place), so a non-sequential
+ *     write is refused.
+ *
+ * `verify` asserts the caller is writing a whole object from offset 0 (a fresh
+ * STOR, not a REST/APPE partial); when set, every extent is CRC-32'd and, on
+ * commit, the persisted object is re-read through its driver and compared. A
+ * mismatch/short object unlinks the file and fails the commit. An empty object
+ * (nothing written) is a complete [0,0) write and verifies trivially. */
+#ifndef BRIX_VFS_WRITER_T_DECLARED
+#define BRIX_VFS_WRITER_T_DECLARED
+typedef struct brix_vfs_writer_s brix_vfs_writer_t;
+#endif
+
+/* Open a write session on the resolved `ctx`. The writer self-contains a deep
+ * copy of `ctx` (and the resolved-path / root_canon buffers it points at), so the
+ * caller's ctx may be a per-request stack frame that dies before commit.
+ * `flags` honours BRIX_VFS_O_TRUNC on the random-write path (the staged path is
+ * always a fresh object) and BRIX_VFS_O_ATOMIC (force the staged temp+publish path
+ * even for a random-write backend, so a failed write never leaves a partial at the
+ * final path — the WebDAV/S3 PUT contract). Returns NULL with *err_out (errno) set
+ * on failure. */
+brix_vfs_writer_t *brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags,
+    int verify, int *err_out);
+/* Write `len` bytes from `buf` at object offset `off`. NGX_OK / NGX_ERROR (errno
+ * set; EINVAL on a non-sequential extent to a staged-only backend). */
+ngx_int_t brix_vfs_writer_write(brix_vfs_writer_t *w, const void *buf,
+    size_t len, off_t off);
+/* Ingest `len` bytes from an already-open source fd (`src_fd` at `src_off`) onto
+ * the object at `dst_off` — the fd-to-fd twin of brix_vfs_writer_write, for a
+ * caller that has the body spooled to a temp fd (WebDAV/S3 PUT) rather than in a
+ * memory buffer. A single-fd, sendfile-capable random backend with verify OFF is
+ * moved kernel-side (copy_file_range, zero-copy); a verifying, staged/object, or
+ * block backend is read into a bounce buffer and pushed through the normal write
+ * engine so the CRC accumulator sees every byte and block/staged routing holds.
+ * NGX_OK / NGX_ERROR (errno set). */
+ngx_int_t brix_vfs_writer_write_fd(brix_vfs_writer_t *w, int src_fd,
+    off_t src_off, size_t len, off_t dst_off);
+/* Next offset the session expects: the sequential append cursor on the staged/
+ * object path (a write at any other offset is refused EINVAL), or the high-water
+ * byte count on the random path. -1 when w is NULL. Lets a caller distinguish an
+ * out-of-order write (its own error mapping) from a backend I/O failure. */
+off_t brix_vfs_writer_expected_off(const brix_vfs_writer_t *w);
+/* Finalize: fsync/close (random) or atomically publish (staged), then — when the
+ * session was opened with verify — re-read and CRC-compare the object, unlinking
+ * it on mismatch. NGX_OK on success, NGX_ERROR otherwise. Consumes the session:
+ * after commit the only valid follow-up is brix_vfs_writer_abort (a NULL-safe
+ * no-op once finished). */
+ngx_int_t brix_vfs_writer_commit(brix_vfs_writer_t *w);
+/* Like brix_vfs_writer_commit, but `excl` publishes with RENAME_NOREPLACE on the
+ * staged path (S3 If-None-Match exclusive create): NGX_ERROR with errno==EEXIST if
+ * the final object already exists. `excl` is a no-op on the in-place random path. */
+ngx_int_t brix_vfs_writer_commit_ex(brix_vfs_writer_t *w, unsigned excl);
+/* Discard an un-committed session: close + remove any staged temp / created
+ * object. Idempotent and NULL-safe. */
+void brix_vfs_writer_abort(brix_vfs_writer_t *w);
+/* The writable kernel fd behind the session — the in-place handle fd (random path)
+ * or the staged temp fd (staged path). NGX_INVALID_FILE for a NULL writer or a
+ * driver-backed object with no kernel fd. Callers that must write bytes outside
+ * brix_vfs_writer_write (Content-Encoding decode, aws-chunked de-framing) use this;
+ * an NGX_INVALID_FILE result means "no fd — that path is unsupported here". */
+ngx_fd_t brix_vfs_writer_fd(const brix_vfs_writer_t *w);
+/* The underlying staged handle on the staged path (NULL on the in-place random
+ * path or a NULL writer) — lets legacy staged-consuming code (commit ledgers,
+ * streaming de-chunkers) borrow the session's temp while the writer owns its
+ * lifecycle. Do NOT commit/abort it directly; drive the session via the writer. */
+brix_vfs_staged_t *brix_vfs_writer_staged(const brix_vfs_writer_t *w);
+
 #endif /* BRIX_VFS_OPS_H */

@@ -12,7 +12,9 @@ with a single write(2) on buffer-full / fd-switch / a 1s timer / connection clos
                            malicious path cannot inject a forged log line (the
                            batch buffer must not bypass brix_sanitize_log_string).
 
-The raw-wire + nginx-spawn helpers are reused from test_phase25_ratelimit.
+Each nginx here is a throwaway instance provisioned through the `lifecycle`
+harness (template nginx_lc_access_log_batch.conf); the raw-wire helpers are
+reused from test_phase25_ratelimit.
 """
 
 import os
@@ -20,11 +22,13 @@ import time
 
 import pytest
 
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, HOST, BIND_HOST
 from test_phase25_ratelimit import (
-    HEADER, _spawn, _stop, _xrd_login, _xrd_open, _xrd_read, KXR_OK,
+    _xrd_login, _xrd_open, _xrd_read, KXR_OK,
 )
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
 @pytest.fixture(autouse=True)
@@ -33,15 +37,15 @@ def _require_binary():
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
 
 
-def _alog_conf(tmp_path, port, data, logfile):
-    return render_config(
-        "nginx_access_log_batch.conf",
-        LOG_DIR=tmp_path / "logs",
-        BIND_HOST=BIND_HOST,
-        PORT=port,
-        DATA_DIR=data,
-        ACCESS_LOG=logfile,
-    )
+def _start(lifecycle, data, name):
+    """Launch a batched-access-log stream server; return (port, access-log path)."""
+    ep = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_lc_access_log_batch.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+        reason="phase-33 batched stream access-log durability coverage"))
+    return ep.port, os.path.join(ep.prefix, "logs", "access.log")
 
 
 def _read_log(path, pred, timeout=5.0):
@@ -63,83 +67,68 @@ def _read_log(path, pred, timeout=5.0):
     return text
 
 
-def test_batched_lines_durable_after_close(tmp_path):
+def test_batched_lines_durable_after_close(lifecycle, tmp_path):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello world\n")
-    logfile = tmp_path / "access.log"
-    port = 21980
-    proc = _spawn(_alog_conf(tmp_path, port, data, logfile), tmp_path, port)
-    try:
+    port, logfile = _start(lifecycle, data, "lc-access-log-batch-close")
+    s = _xrd_login(HOST, port)
+    st, body = _xrd_open(s, "/f.txt")
+    assert st == KXR_OK, st
+    fh = body[:4]
+    for _ in range(6):
+        _xrd_read(s, fh, 0, 5)
+    s.close()  # triggers brix_on_disconnect → flush
+
+    text = _read_log(logfile,
+                     lambda t: t.count(' "READ ') >= 6 and "DISCONNECT" in t)
+    # All six reads plus the DISCONNECT record must be present post-close.
+    assert text.count(' "READ ') >= 6, f"missing READ lines:\n{text}"
+    assert "DISCONNECT" in text, f"missing DISCONNECT line:\n{text}"
+
+
+def test_no_loss_interleaved_connections(lifecycle, tmp_path):
+    data = tmp_path / "data"; data.mkdir()
+    (data / "f.txt").write_text("hello world\n")
+    port, logfile = _start(lifecycle, data, "lc-access-log-batch-interleave")
+    conns = []
+    for _ in range(2):
         s = _xrd_login(HOST, port)
         st, body = _xrd_open(s, "/f.txt")
         assert st == KXR_OK, st
-        fh = body[:4]
-        for _ in range(6):
+        conns.append((s, body[:4]))
+    # Interleave reads across both connections (same fd, same worker buffer).
+    for _ in range(4):
+        for s, fh in conns:
             _xrd_read(s, fh, 0, 5)
-        s.close()  # triggers brix_on_disconnect → flush
+    for s, _ in conns:
+        s.close()
 
-        text = _read_log(str(logfile),
-                         lambda t: t.count(' "READ ') >= 6 and "DISCONNECT" in t)
-        # All six reads plus the DISCONNECT record must be present post-close.
-        assert text.count(' "READ ') >= 6, f"missing READ lines:\n{text}"
-        assert "DISCONNECT" in text, f"missing DISCONNECT line:\n{text}"
-    finally:
-        _stop(proc)
+    text = _read_log(logfile, lambda t: t.count("DISCONNECT") >= 2)
+    # 2 connections × 4 reads = 8 READ lines, both DISCONNECTs — none lost.
+    assert text.count(' "READ ') >= 8, f"lost READ lines:\n{text}"
+    assert text.count("DISCONNECT") >= 2, f"missing DISCONNECTs:\n{text}"
 
 
-def test_no_loss_interleaved_connections(tmp_path):
-    data = tmp_path / "data"; data.mkdir()
-    (data / "f.txt").write_text("hello world\n")
-    logfile = tmp_path / "access.log"
-    port = 21981
-    proc = _spawn(_alog_conf(tmp_path, port, data, logfile), tmp_path, port)
-    try:
-        conns = []
-        for _ in range(2):
-            s = _xrd_login(HOST, port)
-            st, body = _xrd_open(s, "/f.txt")
-            assert st == KXR_OK, st
-            conns.append((s, body[:4]))
-        # Interleave reads across both connections (same fd, same worker buffer).
-        for _ in range(4):
-            for s, fh in conns:
-                _xrd_read(s, fh, 0, 5)
-        for s, _ in conns:
-            s.close()
-
-        text = _read_log(str(logfile), lambda t: t.count("DISCONNECT") >= 2)
-        # 2 connections × 4 reads = 8 READ lines, both DISCONNECTs — none lost.
-        assert text.count(' "READ ') >= 8, f"lost READ lines:\n{text}"
-        assert text.count("DISCONNECT") >= 2, f"missing DISCONNECTs:\n{text}"
-    finally:
-        _stop(proc)
-
-
-def test_control_bytes_in_path_are_escaped(tmp_path):
+def test_control_bytes_in_path_are_escaped(lifecycle, tmp_path):
     # Security-neg: a path carrying a newline must be escaped in the log so it
     # cannot forge a second log line.  Batching must not bypass sanitisation.
     data = tmp_path / "data"; data.mkdir()
-    logfile = tmp_path / "access.log"
-    port = 21982
-    proc = _spawn(_alog_conf(tmp_path, port, data, logfile), tmp_path, port)
-    try:
-        s = _xrd_login(HOST, port)
-        # Open a nonexistent path with an embedded newline + injection marker.
-        _xrd_open(s, "/evil\nINJECTED_LINE GET /x")
-        s.close()
+    port, logfile = _start(lifecycle, data, "lc-access-log-batch-escape")
+    s = _xrd_login(HOST, port)
+    # Open a nonexistent path with an embedded newline + injection marker.
+    _xrd_open(s, "/evil\nINJECTED_LINE GET /x")
+    s.close()
 
-        text = _read_log(str(logfile), "DISCONNECT")
-        # The raw control byte must be escaped (\x0a), never a literal newline
-        # that splits the field — so no log line may *start* with the marker.
-        for ln in text.splitlines():
-            assert not ln.lstrip().startswith("INJECTED_LINE"), (
-                f"unescaped newline forged a log line:\n{text}"
-            )
-        assert "\\x0a" in text or "INJECTED_LINE" in text, (
-            "expected the evil path to appear (escaped) in the log"
+    text = _read_log(logfile, "DISCONNECT")
+    # The raw control byte must be escaped (\x0a), never a literal newline
+    # that splits the field — so no log line may *start* with the marker.
+    for ln in text.splitlines():
+        assert not ln.lstrip().startswith("INJECTED_LINE"), (
+            f"unescaped newline forged a log line:\n{text}"
         )
-    finally:
-        _stop(proc)
+    assert "\\x0a" in text or "INJECTED_LINE" in text, (
+        "expected the evil path to appear (escaped) in the log"
+    )
 
 
 def test_wiring_present():

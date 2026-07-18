@@ -258,6 +258,7 @@ def _wait_for_log(path: Path, predicate, timeout: float = 10.0) -> str:
 
 
 class TestChaosMeshDiscovery:
+    @pytest.mark.registry_servers("chaos-discovery-ds", "chaos-discovery-redir", "chaos-tier1", "chaos-tier2", "chaos-tier3")
     def test_delayed_cms_start_registers_data_server(self, chaos_mesh):
         path = "/chaos-discovery/file.dat"
 
@@ -308,6 +309,7 @@ class TestChaosMeshReload:
         _restart_nginx_instance("chaos-tier2", chaos_mesh["tier2"])
 
     @pytest.mark.timeout(240)
+    @pytest.mark.registry_servers("chaos-discovery-ds", "chaos-discovery-redir", "chaos-tier1", "chaos-tier2", "chaos-tier3")
     def test_tier2_reload_during_stream_read_preserves_md5(self, chaos_mesh):
         remote_name = f"chaos_reload_{os.getpid()}_{uuid.uuid4().hex}.bin"
         remote_path = f"/{remote_name}"
@@ -401,6 +403,7 @@ class TestChaosMeshStep1IdentityShifting:
     """
 
     @pytest.mark.timeout(120)
+    @pytest.mark.registry_servers("chaos-discovery-ds", "chaos-discovery-redir", "chaos-tier1", "chaos-tier2", "chaos-tier3")
     def test_identity_shifting_jwt_to_sss(self, chaos_mesh, tmp_path):
         """JWT client credential at Tier1 is translated to SSS at Tier2.
 
@@ -481,6 +484,7 @@ class TestChaosMeshStep3MultiStreamTPC:
     """
 
     @pytest.mark.timeout(120)
+    @pytest.mark.registry_servers("chaos-discovery-ds", "chaos-discovery-redir", "chaos-tier1", "chaos-tier2", "chaos-tier3")
     def test_multistream_tpc_s3_to_binary(self, chaos_mesh, tmp_path):
         """TPC COPY where source is S3 and destination is XRootD via HTTP WebDAV.
 
@@ -570,6 +574,7 @@ class TestChaosMeshStep4SynchronousConflict:
         Must NOT silently corrupt the destination.
     """
 
+    @pytest.mark.registry_servers("chaos-discovery-ds", "chaos-discovery-redir", "chaos-tier1", "chaos-tier2", "chaos-tier3")
     def test_synchronous_conflict_during_tpc(self, chaos_mesh, tmp_path):
         """kXR_open(kXR_new) on TPC-active file must fail with lock conflict.
 
@@ -676,6 +681,7 @@ class TestChaosMeshStep5SIGHUPDuringTPC:
     """
 
     @pytest.mark.timeout(300)
+    @pytest.mark.registry_servers("chaos-discovery-ds", "chaos-discovery-redir", "chaos-tier1", "chaos-tier2", "chaos-tier3")
     def test_sighup_during_tpc_preserves_handles(self, chaos_mesh, tmp_path):
         """SIGHUP on Tier2 during TPC must not corrupt the in-flight transfer.
 

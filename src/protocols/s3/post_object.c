@@ -117,10 +117,8 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     size_t etag_sz)
 {
     brix_vfs_ctx_t     vctx;
-    brix_vfs_staged_t *st;
+    brix_vfs_writer_t   *w;
     int                  vfs_err;
-    off_t                off = 0;
-    ngx_fd_t             stfd;
     struct stat          sb;
 
     /* Create the key's parent directories (S3 keys may embed '/') through the
@@ -150,24 +148,24 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     s3_build_vfs_ctx(r, fs_path, cf, &vctx);
-    st = brix_vfs_staged_open(&vctx, 0600, 16, &vfs_err);
-    if (st == NULL) {
+    w = brix_vfs_writer_open(&vctx, BRIX_VFS_O_ATOMIC, cf->common.verify_write,
+                             &vfs_err);
+    if (w == NULL) {
         errno = vfs_err;
         return NGX_ERROR;
     }
 
-    /* Write the full in-memory file part through the storage seam; the VFS
-     * primitive handles EINTR and short writes. */
-    stfd = brix_vfs_staged_fd(st);
-    if (brix_vfs_pwrite_full(stfd, form->file_data, form->file_len, off)
-        != NGX_OK)
-    {
-        brix_vfs_staged_abort(st, 1);
+    /* Write the full in-memory file part through the unified write session — it
+     * routes to the backend's driver (in-place fd or staged object upload), so a
+     * non-POSIX backend is no longer bypassed by a raw fd-keyed pwrite. */
+    if (brix_vfs_writer_write(w, form->file_data, form->file_len, 0) != NGX_OK) {
+        brix_vfs_writer_abort(w);
         return NGX_ERROR;
     }
 
-    /* Atomically publish the staged temp as the final object. */
-    if (brix_vfs_staged_commit(st, 0 /* not exclusive */) != NGX_OK) {
+    /* Atomically publish the staged temp as the final object (folds the
+     * verify-on-write read-back when the export opts in). */
+    if (brix_vfs_writer_commit(w) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -282,7 +280,8 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
 
     if (s3_post_expand_filename(r, &form) != NGX_OK
         || !s3_resolve_key(cf->common.root_canon, form.key,
-                           fs_path, sizeof(fs_path)))
+                           fs_path, sizeof(fs_path),
+                           cf->common.cache_store_endpoint))
     {
         s3_metrics_finalize_request_method(
             r, BRIX_S3_METHOD_POST,

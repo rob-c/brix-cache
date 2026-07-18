@@ -3,10 +3,10 @@
 # Usage:
 #   docker build -f packaging/rpm/Dockerfile.alma11 \
 #     --build-arg VERSION=0.1.0 \
-#     -t nginx-xrootd-rpm-builder:alma11 .
+#     -t brix-cache-rpm-builder:alma11 .
 #
 #   # Extract the RPMs:
-#   docker run --rm -v "$PWD/dist:/out" nginx-xrootd-rpm-builder:alma11 \
+#   docker run --rm -v "$PWD/dist:/out" brix-cache-rpm-builder:alma11 \
 #     cp -r /artifacts/. /out/
 #
 # AlmaLinux 11 notes:
@@ -46,6 +46,7 @@ RUN dnf install -y \
         nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
         libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
         libxcrypt-devel fuse3-devel sqlite-devel liburing-devel libzstd-devel lz4-devel \
+        selinux-policy-devel \
         librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \
     && dnf clean all
 

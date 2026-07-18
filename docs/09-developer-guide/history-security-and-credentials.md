@@ -230,7 +230,16 @@ rounds**. Every bug found fell into one of two classes:
 
 One genuine WLCG-interop bug also surfaced: the `storage.modify` token scope
 was parsed but never consulted by the write-authz gate — a dead permission
-that silently didn't grant what it claimed to.
+that silently didn't grant what it claimed to. **Fixed (2026-07-17):**
+`brix_token_check_write` (`src/auth/token/scopes.c:279`) now grants on
+`modify` alongside `write`/`create`, so a token whose only write-like scope is
+`storage.modify` is honoured for overwrite/modify/delete while still being
+denied read (`modify` sets no read bit). Verified green (2026-07-17, both
+protocols): write-grant `test_wlcg_token_conformance_write.py::test_wr_04_modify_scope_accept`
+`[webdav,s3]` and `test_wlcg_token_conformance_fill.py::test_fil_wg_08_modify_atlas_put_accept`
+(modify → PUT accept); read-denial `::test_fil_wg_07_modify_atlas_get_reject`
+and `test_wlcg_token_conformance_edge.py::test_b07_modify_scope_no_read_reject`
+(modify → GET reject).
 
 **Process hazard (recurring across two rounds, worth remembering for any
 future triage-agent dispatch):** agents asked only to "return a structured
@@ -485,6 +494,134 @@ pre-existing flake, unrelated to this suite: the WebDAV `HH token`
 C-pairing case flakes ~50% of the time on a davs→https GET-fill keepalive
 race.
 
+### ARC-CE httpg front proxy: per-user delegation with zero per-user config (2026-07-14/16)
+
+`tests/test_arc_httpg_proxy.py` + `tests/configs/nginx_arc_httpg_proxy.conf`
+(6 passing in ~86s, marked slow+serial; run:
+`TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_arc_httpg_proxy.py -v -p no:xdist`)
+prove brix terminates "httpg" (HTTPS + RFC 3820 proxy-cert client auth) in
+front of a real NorduGrid ARC-CE 7 (`nordugrid/arc-ce-image:rocky9-arc7-atlas`)
+with GENUINE per-user delegation — no user credential and no per-user entry
+anywhere in nginx config. Flow: each user T8-uploads their proxy to
+`brix_delegation_endpoint` (PUT `/.well-known/brix-delegation`,
+EEC-authenticated), stored in `brix_storage_credential_dir` as
+`x5h-<sha256(oneline DN)[:32]>.pem`; the ARC back leg resolves it at request
+time via `proxy_ssl_certificate(_key) $brix_delegated_cred`. Fail-closed
+throughout: `ssl_verify_client on` means certless/untrusted clients get 400
+at nginx before the ACCESS phase (so guard/junk-path probes must authenticate
+first), and `$brix_delegated_cred` = `""` on any miss means an undelegated
+identity reaches the ARC-CE with no credential and is refused there. Verified
+live: alice/bob jobs each `Owner:` = their own DN at ARC; bob 404s on alice's
+session file; anonymous → 400; guard 444 bounce (authenticated probe);
+untrusted CA → 400; proxy-authenticated delegation upload → 403. Ops guide
+(architecture, full config, manual cluster build, troubleshooting):
+`docs/05-operations/arc-ce-httpg-front-proxy.md`. Credential-tier taxonomy:
+`docs/10-reference/credential-tiers-t-numbers.md`. Directive reference:
+`docs/04-protocols/webdav-directives.md`.
+
+Load-bearing findings from standing the lab up:
+
+- Stock nginx fails httpg with 400 "proxy certificates not allowed" even
+  under `ssl_verify_client optional_no_ca`; fix = `brix_webdav_proxy_certs
+  on` (sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on the listener SSL_CTX) +
+  `ssl_verify_client on` (`optional` also works but proxies anonymous
+  requests onward).
+- The delegation location needs `brix_webdav on` + **`brix_allow_write on`**
+  (a read-only export 403s the PUT before delegation dispatch — empirically
+  rediscovered every time) + `brix_webdav_cafile`/`brix_webdav_cadir` +
+  `brix_webdav_auth required`.
+- The T8 upload must be authenticated with the **EEC, not the proxy** —
+  `ctx->dn` keeps the full leaf DN (`…/CN=alice/CN=123…`) and the strict
+  DN-equality check against the uploaded chain's EEC subject 403s
+  proxy-authenticated uploads (kept as a security-negative test).
+- T8 stores the uploaded PEM verbatim → private key included (PEM cert
+  parsing skips the key block), which is what lets the same file feed both
+  `proxy_ssl_certificate` and `_key`. The T4/GridSite two-step used to store
+  a key-less PEM; fixed 2026-07-16: `brix_gsi_assemble_proxy` now emits
+  proxy+chain+reqkey, the native GSI `kXGC_sigpxy` path
+  (`src/auth/gsi/delegation.c`) was deduplicated onto it, regression:
+  `tests/test_delegation_t4_credential.py` (two-step → stored PEM has key →
+  real mTLS handshake with it).
+- ARC container specifics: `proxy_set_header Host $http_host` is mandatory
+  (A-REX embeds the request host in session hrefs, so job IDs route through
+  the front proxy); ARC client needs `-T arcrest -Q NONE`; the image's baked
+  test-CA is expired → `arcctl test-ca init/hostcert/usercert -f`; services
+  start via `/usr/share/arc/arc-arex-start` + `arc-arex-ws-start` (no
+  systemd); the trust anchor is `certificates/ARC-TestCA-*.pem` only, never
+  the IGTF bundle.
+- Test-infra gotcha: `render_config` replaces placeholder tokens EVERYWHERE
+  including comments — never write `{NAME}` in a template comment if its
+  value is multi-line.
+
+**Hashed-CA-directory directives (2026-07-16).** Motivation: a grid host
+ships only `/etc/grid-security/certificates` (the IGTF hashed dir) — no
+bundle file exists and none may be synthesized. Four features make every
+trust point consume that one directory (all webdav-module-registered but
+work on any http server; each has a 3-test suite):
+
+- `brix_ssl_client_capath <dir>` — postconfig adds the hashed dir to the
+  listener's client-verify store (additive to `ssl_client_certificate`;
+  fatal on unusable path). `tests/test_ssl_client_capath.py`.
+- `brix_client_certificate_folder <dir>` — parse-time auto-pick of
+  `ssl_client_certificate`: hashes the hostcert issuer, resolves `<hash>.N`
+  in the dir, assigns the stock directive's value. Must come **after**
+  `ssl_certificate`; mutually exclusive with an explicit
+  `ssl_client_certificate`. `tests/test_client_certificate_folder.py`.
+- `brix_proxy_ssl_capath <dir>` — back-leg counterpart; location-only,
+  deliberately NOT merged/inherited. Parse time
+  (`src/protocols/webdav/module_directives.c`): validates the dir, picks the
+  lexicographically-smallest `<8hex>.<digits>` file (skips `.rN` CRLs), and
+  injects it through ngx_http_proxy_module's OWN
+  `proxy_ssl_trusted_certificate` command entry via a `cf->args` swap — no
+  private-struct access; an explicit `proxy_ssl_trusted_certificate` in the
+  same location surfaces as the stock "is duplicate" conflict. Postconfig
+  (`src/protocols/webdav/postconfig.c`): location-tree walk (the
+  proto_exclusive pattern — static tree + regex + named lists; the raw
+  `clcf->locations` queue is unreliable), then a first-member cast
+  `(ngx_http_upstream_conf_t *)loc_conf[ngx_http_proxy_module.ctx_index]` →
+  `X509_STORE_load_locations` on the upstream `ssl->ctx`; a location without
+  `proxy_pass https://…` is an EMERG at `nginx -t`.
+  `tests/test_proxy_ssl_capath.py`.
+- `$brix_delegated_cred` (`src/protocols/webdav/module_init.c`, registered
+  per-request-cacheable) — TLS-layer variable:
+  `SSL_get_verify_result == X509_V_OK` → skip RFC 3820 proxies via
+  `brix_px_classify` to find the EEC → oneline DN → `brix_sd_ucred_key` /
+  `brix_sd_ucred_resolve` against `wdcf->common.storage_credential_dir`.
+  `""` on any miss (fail closed); expired → info log naming the DN;
+  bearer/s3/ceph credential kinds rejected. Works in plain `proxy_pass`
+  locations with no brix handler. Replaces the hand-maintained
+  `map $ssl_client_s_dn_legacy $arc_cred` block — zero per-user config, no
+  reload on new delegations, expiry-checked at use time.
+  `tests/test_delegated_cred.py`.
+
+Gotchas found while building/migrating:
+
+- `brix_sd_ucred_resolve` leaves output fields **untouched** on its
+  not-found DECLINED path — `ngx_memzero` the `brix_sd_ucred_t` before
+  calling or you read uninitialized `expired`.
+- nginx's upstream name check is DNS-only (`X509_check_host`, no IP-SAN
+  matching) — `proxy_ssl_verify on` against `proxy_pass https://127.0.0.1:N`
+  fails even with an IP SAN in the cert; set `proxy_ssl_name localhost`.
+- `brix_storage_credential_dir` must sit at **server** level so the
+  delegation endpoint (store) and the plain proxy location's
+  `$brix_delegated_cred` (lookup) see the same directory.
+- `BRIX_SP_MODE_ON` (the default signing-policy mode) tolerates absent
+  `.signing_policy` files ("1 if no policy file is present") → pointing
+  `brix_webdav_cadir` at a bare hashed dir is safe.
+
+**Lab migration (2026-07-16, 6/6 live PASS).** The ARC lab template was
+rewritten onto the four features: single `CA_DIR` placeholder (the old
+`CA_CERT` + `CRED_MAP_ENTRIES` map are gone); front leg
+`brix_client_certificate_folder` + `brix_ssl_client_capath`, delegation
+location `brix_webdav_cadir`, back leg `$brix_delegated_cred` +
+`brix_proxy_ssl_capath` — all fed by one hashed dir. The test's `grid_users`
+fixture reuses each user tarball's `cred/certificates` dir directly (it is
+already X509_CERT_DIR-shaped with hashed files — no dir-building needed).
+Sweep result: no other configs/tests used the map or
+`proxy_ssl_trusted_certificate` patterns; fleet-wide `brix_webdav_cafile
+{CA_CERT}` uses point at a single CA PEM file — the correct directive for
+that shape — and were deliberately not migrated.
+
 ---
 
 ## Part 2 — Design-decision inventory
@@ -609,25 +746,319 @@ config — that is a deliberate opt-in feature decision (a
 
 ### Other standalone findings worth keeping
 
-- **FINDING-EXP-1 (open, xfail-tracked):** `src/token/validate.c` only
-  enforces JWT `exp` when it is `>0`; an absent or malformed `exp` claim is
-  treated as non-expiring. Not externally exploitable on its own (`exp` is
-  inside the signed payload, so an attacker can't forge a favorable value
-  without also forging the signature), but it violates the WLCG token
-  profile. Needs an explicit operator sign-off before flipping to
-  reject-by-default, since it could break tokens from issuers that
-  currently omit `exp`.
+- **FINDING-EXP-1 (fixed, 2026-07-17):** historically `validate.c` only
+  enforced JWT `exp` when it was `>0`, so an absent or malformed `exp` claim
+  was treated as non-expiring. `exp` is now **mandatory**: `token_extract_claims`
+  (`src/auth/token/validate.c:214`) rejects the token (`-1`, "token missing
+  valid positive exp") when `exp` is absent or non-positive, and `exp=null`
+  fails `json_get_int64` the same way. This was never externally exploitable on
+  its own (`exp` is inside the signed payload), but it violated the WLCG token
+  profile. The reject-by-default behaviour is pinned by passing conformance
+  tests — `test_wlcg_token_conformance_parity_ext.py::test_ext_clm2_05_missing_exp_reject`
+  (absent `exp` → reject) and `::test_ext_ndt_03_exp_null_reject` (`exp=null`
+  → reject), both asserting `reject` directly (no xfail). Issuers that omit
+  `exp` are now refused by design.
+- **FINDING-KID-1 / hyper-hardening D-5 (fixed, 2026-07-17):** `token_select_key_by_kid`
+  (`src/auth/token/validate_sig.c`) carried a "legacy single-key leniency" — when a
+  token asserted a `kid` that matched no loaded JWKS key but exactly one key was
+  configured, it used that sole key anyway. The signature was still verified against it
+  (`token_sig_ok`), so this was never a forgery bypass, but it meant an asserted `kid`
+  was not authoritative: the resolved key could disagree with the client's own
+  assertion (RFC 7515 §4.1.4 / CWE-347 authoritativeness gap, LOW). The fallback is
+  removed — an asserted `kid` naming no loaded key is now a hard reject. **No compat
+  flag** was added: a spec-faithful single-key deployment either asserts the correct
+  `kid` (exact match) or omits `kid` (the caller's kid-absent rotation-grace trial,
+  unchanged), so nothing legitimate depended on the fallback, and the
+  `brix_token_validate_args_t` struct is field-assigned (not `memset`) at all five
+  callsites, so a defaulted-off flag field would have been an uninitialized-read footgun.
+  Pinned by `test_wlcg_token_conformance_edge.py::test_e08/e09/e10` (matching-kid accept,
+  unmatched-kid-single-key reject, traversal-kid reject) plus the unchanged E04
+  kid-absent path and the multikey signature family; `test_malicious_credentials.py::
+  test_kid_path_traversal_not_used_as_path` still green.
 - **FINDING-FRM-1 (fixed):** FRM cancel/evict had no requester-ownership
   check, allowing a cross-tenant denial-of-service (any user could cancel
   or evict another user's staging request). Fixed via
   `frm_request_owner_check`; fails open only for anonymous/legacy records
   that predate the ownership field.
-- **FINDING-BIND-1 (documented, not a live vuln):** `kXR_bind`'s sessid
-  functions as a bearer token but is not CSPRNG-derived. A P2 test forged
-  64 sessids and all were correctly rejected, so this is a documented
-  contract weakness rather than an exploited hole. A hardening
-  recommendation (mint via `RAND_bytes`) was drafted but left undone,
-  pending operator sign-off.
+- **FINDING-BIND-1 / hyper-hardening D-4 (fixed, 2026-07-17):** `kXR_bind`'s
+  sessid functions as a bearer token (a fresh connection presenting a matching
+  sessid inherits the primary's authenticated session) but was minted as
+  `time | pid | (uintptr_t)c | ngx_random()` in `conn_init_slots_and_sessid`
+  (`src/protocols/root/connection/handler.c`) — predictable in its first 8 bytes
+  (constant time+pid words per worker) and leaking a live heap pointer past ASLR.
+  Forgery was already rejected (a P2 test forged 64 sessids, all refused at the
+  registry lookup), so this was a contract weakness, not an exploited hole. Now
+  all 16 bytes come from `RAND_bytes` (OpenSSL CSPRNG); the mint fails closed —
+  a `RAND_bytes` failure returns `NGX_ERROR` and `conn_init_ctx` drops the
+  connection rather than issue a weak session ID (a dead CSPRNG means TLS is
+  broken too, so the server is unusable regardless). Pinned by
+  `tests/test_conf_sessions.py::test_d4_valid_minted_sessid_binds` /
+  `::test_d4_forged_sessid_rejected` / `::test_d4_sessid_unpredictable_csprng`
+  (the last is the regression that fails under the old packing).
+- **FINDING-METRIC-1 / hyper-hardening E-3 (gated, 2026-07-17):** INVARIANT #8
+  (low-cardinality Prometheus labels) was enforced only by code review — a new
+  metric family interpolating a per-request value (path/user/DN/client-IP/URI/
+  object-key) into a label would pass CI and, once scraped, spawn one time-series
+  per distinct value, OOMing the scrape target and TSDB (CWE-770 metric explosion,
+  a self-inflicted DoS). No live instance existed (all 19 interpolated labels in
+  the tree today are already bounded), so this closed a *regression* gap, not a
+  hole. New guard `tools/ci/check_metric_cardinality.sh` greps every interpolated
+  label token (`<name>=\"%…\"`) under `src/observability/metrics/` and rejects any
+  whose label NAME is not on a curated 26-name vocabulary of two justified classes:
+  ENUM (fixed compile-time set — proto/op/status/method/direction/class/le/…) and
+  CONFIG-N (deployment-bounded resource names — export/backend/upstream/zone/repo/
+  vo/server/port). Literal-valued labels are cardinality-1 and never flagged; a
+  one-off bounded gauge carries a per-line `/* metric-cardinality-allow: <reason>
+  */` marker (same escape-hatch as `check_vfs_seam.sh`). The vocabulary is curated,
+  not a backlog — extending it mirrors an enum edit in `unified.h`; reconcile the
+  live label set with `--list`. Wired into `.github/workflows/guards.yml`. Pinned
+  by `tests/test_source_guards.py` (real-tree pass in the parametrized guard set +
+  three injected fixtures: approved label passes / path-valued label fails with
+  "INVARIANT #8" / marker overrides).
+- **FINDING-OPAQUE-1 / hyper-hardening D-2 (byte-hygiene half fixed, 2026-07-18):**
+  the XRootD CGI opaque string (everything after `?` in a wire path — `oss.*` /
+  `tpc.*` / `auth.*` / `xrd.*` / `xrdcl.*` key=value pairs) was string-matched by
+  each handler with no central byte-hygiene gate. Because the opaque is **logged**
+  and, for native/WebDAV TPC, **spliced into an OUTBOUND request**, a raw control
+  byte is a log/CRLF-injection + request-smuggling primitive (CWE-93/CWE-117), a
+  shell/quoting metacharacter is a command-injection primitive if any value reaches
+  a shell (CWE-88), and a high-bit byte is non-conforming (mojibake/filter-evasion).
+  None appear in a legitimate opaque — conforming clients percent-encode anything
+  outside the unreserved/structural set — so a single always-on gate at the parse
+  edge kills the whole class with zero false positives. New `brix_opaque_illegal_byte`
+  (`src/protocols/root/path/opaque_validate.c`, pure C, 256-entry permit table built
+  once from an explicit allow set: URL-unreserved `A-Za-z0-9.-_~`, path/authority
+  `/:@`, percent-encoding `%+`, CGI structure `=&,?`) is called from
+  `brix_open_precheck` (`src/protocols/root/read/open_request.c`) at the central
+  native kXR_open edge: the opaque is extracted via the existing
+  `open_extract_opaque()` and, on an illegal byte, the open is refused with
+  `kXR_ArgInvalid` **before** any handler parses, logs, or forwards it. OURS
+  intentionally diverges from stock here (stock accepts the raw bytes). NUL is out of
+  scope for this gate by construction (it terminates a C-string scan); embedded-NUL in
+  the wire payload is already rejected upstream (`test_open_embedded_nul_rejected_parity`).
+  The **schema half** landed the same day (see FINDING-OPAQUE-2). Verified
+  end-to-end against a fresh nginx-xrootd instance on a dynamic port (immune to the
+  standing-fleet contention): `tests/test_conf_openflags.py` §L2 — structural bytes
+  (`%`/`+`/`,`/nested-`?`) still open, clean opaque still opens, and all 11 injection
+  bytes (LF/CR/ESC/DEL/high-bit/backtick/`$`/`;`/`<`/space/`'`) reject with
+  `kXR_error`+`kXR_ArgInvalid`. 13 checks green, VFS seam clean (`opaque_validate.c`
+  is `<stddef.h>`-only, no data syscalls). [R73]
+- **FINDING-OPAQUE-2 / hyper-hardening D-2 (schema half fixed, 2026-07-18):** the two
+  pieces FINDING-OPAQUE-1 deferred — `oss.asize` positive-int type-enforcement and
+  unknown-key rejection — both carry the caveat that **stock consumes neither on the
+  native path** (both stripped), so enforcing them always-on would diverge from stock
+  fuzz behaviour. Resolved by gating the whole schema tier behind a new
+  **`brix_opaque_strict on|off` directive (default off)**: off ⇒ only the always-on
+  byte-hygiene gate runs, parity untouched; on ⇒ the operator deliberately elects the
+  stricter posture. New `brix_opaque_schema_check()` in the same pure-C core
+  (`src/protocols/root/path/opaque_validate.c`; ABI in the new `opaque_validate.h`; no
+  ngx/libc-string deps) walks the `&`-separated `key=value` pairs and returns the first
+  violation: an `oss.asize` whose value is not an unsigned decimal integer (`BAD_TYPE`)
+  or a key in no recognized XRootD namespace (`UNKNOWN_KEY`, vocabulary = prefixes
+  `oss. tpc. xrd. xrdcl. cms. scitag.` + bare `authz`; a bare `xrd` cannot masquerade as
+  the `xrd.` namespace). Wired into `brix_open_precheck` **after** the byte-hygiene gate
+  (schema only ever sees clean bytes) and only when `conf->opaque_strict`; a violation
+  refuses the open with `kXR_ArgInvalid`, the offending key named in the log, before any
+  handler parses. Plumbing mirrors D-1 (`ngx_flag_t opaque_strict` srv-conf field +
+  `NGX_CONF_UNSET` init + `ngx_conf_merge_value(...,0)` + `brix_opaque_strict` flag
+  directive). **Documented opt-in scope** (why not always-on beyond the divergence
+  caveat): the walk splits on top-level `&`, so a value embedding a nested URL query with
+  a raw `&` would see the nested pair as a sibling — conforming clients percent-encode a
+  nested query and TPC passes source/dest CGI in dedicated `tpc.scgi`/`tpc.dcgi` keys, so
+  it does not arise in practice. Tests: C unit `tests/c/test_opaque_schema.c` (10 asserts,
+  registered in `cmdscripts/c_simple_units.py`, green via
+  `test_c_simple_units.py::…[opaque_schema]`) + raw-wire `tests/test_opaque_strict.py` 4
+  green — success (well-formed opaque opens under strict), error (`oss.asize=abc` →
+  `kXR_error`/`kXR_ArgInvalid`), security-negative (unknown key `evilparam` rejected the
+  same), and a **strict-off parity** case (the same unknown key opens unchanged, proving
+  the tier never regresses default behaviour). Byte-hygiene §L2 (17) still green after the
+  `brix_open_precheck` restructure; VFS seam + metric-cardinality gates clean. [R78]
+- **FINDING-SECCOMP-1 / hyper-hardening D-3 (audit+enforce landed, 2026-07-18):**
+  the worker privilege model was already strong (unprivileged operation,
+  `PR_SET_NO_NEW_PRIVS`, full capability drop) but had **no syscall allowlist**, and
+  the identity-impersonation broker necessarily retains `CAP_SETUID` — so a worker-code
+  exploit that reaches the broker is root-equivalent (CWE-250/CWE-269 residual). Added a
+  per-worker seccomp-BPF filter, tri-state opt-in `brix_seccomp off|audit|enforce`
+  (default off), installed once at the **tail of `init_process`** (`src/core/config/process.c`)
+  so only the steady-state serving syscall set needs allowlisting; the process-global mode
+  is the strictest value across all enabled server blocks. **Enforce** kills
+  `execve`/`execveat`/`ptrace`/`process_vm_readv`/`process_vm_writev`
+  (`SCMP_ACT_KILL_PROCESS` → SIGSYS) and `EPERM`s any other non-allowlisted syscall
+  (fail-safe default: a forgotten syscall degrades one call, never crashes the worker);
+  **audit** is log-only (`SCMP_ACT_LOG`) so an operator can converge the allowlist from the
+  kernel audit trail before flipping to enforce. Two-file split per the ngx-free-core
+  convention: `src/core/seccomp/seccomp_core.c` holds the allowlist/deny tables + the
+  libseccomp build+load with zero ngx deps (so the *shipped* tables are the ones the C unit
+  test drives), `src/core/seccomp/seccomp.c` is the thin ngx wrapper (mode translation,
+  `ngx_log_error` sink, operator NOTICE). Syscalls are named as **strings resolved at
+  runtime** via `seccomp_syscall_resolve_name()` (skipped on `__NR_SCMP_ERROR`) — one table
+  serves every arch AND does not fail to *compile* against a libseccomp whose headers
+  predate a syscall (this build lacks the `__SNR_openat2`/`__SNR_epoll_pwait2` macros the
+  compile-time `SCMP_SYS()` would need); this also keeps INVARIANT #12 (VFS seam) clean
+  since every syscall name is a string literal, never a call. Built behind
+  `-DBRIX_HAVE_SECCOMP` (config probes `pkg-config libseccomp`, else a `-lseccomp` link
+  probe); **without libseccomp the wrapper fails closed** for audit/enforce so an operator
+  never silently serves unfiltered. GOTCHA (build): a new `.c` in the source list needs a
+  full `./configure` re-run, not just `make`. GOTCHA (test infra): run the integration test
+  against an alternate binary via `TEST_NGINX_BIN=<path>` — this lets D-3 be verified from a
+  private build tree without relinking the shared standing-fleet binary under running
+  workers (the `live_suite_frozen_nginx` hazard). Verified: C unit `tests/c/test_seccomp.c`
+  7/7 (execve+ptrace SIGSYS-killed under enforce, `chroot` EPERM'd not killed = fail-safe
+  proof, allowlisted `getpid` survives, audit never kills, off is a no-op, installed counts
+  = non-empty allow + exactly 5 deny) + integration `tests/test_seccomp_enforce.py` 3/3
+  (a real worker round-trips live kXR `stat` + `xrdcp` GET + PUT under **both** enforce and
+  audit — allowlist-completeness proof — with the `worker syscall filter active (mode=…)`
+  NOTICE logged; `brix_seccomp bogus` refused by `nginx -t`). Clean full rebuild links
+  `-lseccomp`; VFS seam guard OK. Reference `[R74]` in the hyper-hardening plan.
+- **FINDING-NEGCACHE-1 / hyper-hardening E-4 (landed, 2026-07-18):** metadata-harvesting
+  (repeated `kXR_stat`/`kXR_locate` on non-existent paths) and floods were rate-limited by
+  **IP only, not authenticated identity** (CWE-770 resource-exhaustion / enumeration).
+  Landed in two independent parts. **Part 1 — subject-keyed rate limiting.** The Phase-25
+  leaky-bucket limiter already keyed on identity dimensions incl. the GSI subject DN; added a
+  sixth `BRIX_RL_KEY_SUBJECT` (`key=subject`) keying on the WLCG/JWT token `sub` claim so a
+  *token*-authenticated flood is throttled per-identity, not just per-IP. Mirrors the DN
+  recipe exactly: enum value in `ratelimit.h`; `rl_key_sub_hash()` emitting `sub:<8 hex>`
+  (FNV-1a32 so the raw subject never reaches a metric label — INVARIANT #8) with the
+  invariant-5 IP fallback for anonymous; stream + HTTP key builders; and the `"subject"`
+  parser token. **Part 2 — negative-path backoff (the new defense).** New opt-in stream
+  directive `brix_negcache_backoff off | <threshold> <window_seconds> <wait_seconds>`
+  (default off). A per-principal (token subject → GSI DN → client IP) SHM direct-mapped
+  sliding-window counter of *missing-path* lookups: once a principal crosses `threshold`
+  misses inside `window`, the slot **arms** and the core paces it to at most one served miss
+  per `wait` interval — every excess miss returns `kXR_wait`. The design turns on the stock
+  XRootD client's `kXR_wait` semantics (sleep, then re-send the *same* request): each lookup
+  still **completes** on its retry one interval later (no request is ever wedged, unlike a
+  naive "wait on every miss" that would loop the client forever on a genuinely-absent path),
+  while a harvest loop is throttled to ~one path per `wait`. A legitimate client rarely
+  misses, so it never arms; and because enforcement sits only on the `ENOENT`/not-found
+  branch, a real file on an over-budget connection still resolves immediately (the throttle
+  targets misses, not the principal). Two-file split per the ngx-free-core convention:
+  `src/core/negcache/negcache_core.c` is pure arithmetic over a caller-owned slot array (so
+  the *shipped* logic is what the C unit drives), `negcache.c` is the thin ngx wrapper owning
+  the SHM slot array — slab-allocated via `brix_shm_table_alloc` so it never clobbers the
+  slab-pool header (INVARIANT #10) — plus principal-hash derivation and the config setter.
+  Fail-open on an unattached zone or misconfigured rule (availability-first). GOTCHA (design):
+  answering *every* over-threshold miss with `kXR_wait` hangs the stock client forever on a
+  truly-missing path (it retries the same request into the same throttle); the min-interval
+  "serve one per `wait`, throttle the rest" model is what makes the throttle both effective
+  and non-wedging. GOTCHA (test infra): the raw-wire XRootD client in
+  `tests/test_phase25_ratelimit.py` (`_xrd_stat`/status codes) drives the wire directly, and
+  two loopback source IPs (127.0.0.1 vs 127.0.0.2 → two distinct principals) prove per-identity
+  isolation without needing token infrastructure. Verified: C unit `tests/c/test_negcache.c`
+  4/4 (arm→pace→release, window decay, per-principal isolation + 4 fail-open guards, zero-key
+  bucketing) + integration `tests/test_negcache_backoff.py` 3/3 (a stat-harvest loop trips
+  `kXR_wait` while a real file still stats+opens on the same connection; a second source-IP
+  identity is served not throttled; `brix_negcache_backoff abc` refused by `nginx -t`) +
+  `test_phase25_ratelimit.py::test_subject_key_wired_and_parses` (SUBJECT markers + both-plane
+  `key=subject` parse); full ratelimit suite 24/24; VFS-seam + metric-cardinality gates clean.
+  References `[R75]` (negcache) / `[R76]` (subject key) in the hyper-hardening plan.
+- **FINDING-MINSEC-1 / hyper-hardening D-1 (landed, 2026-07-18):** protocol-downgrade
+  protection. The TLS *version* floor was already good (1.2/1.3-only ctx), but `brix_tls`
+  only **advertises** an in-protocol TLS upgrade (`kXR_ableTLS`/`kXR_gotoTLS`) — a client is
+  free to finish `kXR_login`/`kXR_auth` in cleartext and then transact, i.e. walk the
+  *negotiated session* below the operator's intended posture (CWE-757 downgrade). New
+  per-server directive `brix_min_sec_level none|compat|intense` (default `none`) enforces a
+  session floor — a **distinct axis** from `brix_security_level`, which governs `kXR_sigver`
+  request *signing* (0–4), not transport/identity. **none** = no floor; **compat** = the
+  session transport must be TLS-active (`c->ssl->connection` set — true after the in-protocol
+  upgrade), else every data/metadata opcode is refused `kXR_error`/`kXR_TLSRequired` (3028);
+  **intense** = compat **plus** a non-anonymous identity, so an `auth=none` listener (which
+  authenticates nobody) is refused `kXR_NotAuthorized` (3010) even over TLS. Enforced in
+  `brix_min_sec_enforce()` (`src/protocols/root/handshake/policy.c`) wired into
+  `brix_dispatch()` **after** `brix_dispatch_session_opcode` so the login/auth/protocol/bind/
+  TLS-upgrade handshake is never blocked — every opcode reaching the gate is a data request;
+  fail-closed shape mirrors `brix_signing_enforce_level`. Pairs with A-1 (upstream TLS peer
+  verification) so neither the client nor the upstream leg can be independently downgraded.
+  Plumbing: enum `brix_min_sec_levels` (module_enums.c), conf field `min_sec_level`
+  (srv_conf_fields_cache.inc, `NGX_CONF_UNSET_UINT`→merge 0), directive
+  (directives_security.inc), `BRIX_MIN_SEC_*` macros + decl (handshake.h). GOTCHA (test
+  design): the "at/above proceeds" case drives the **genuine in-protocol upgrade** from the
+  raw Python client — initial + `kXR_protocol` (which already advertises `kXR_ableTLS` in
+  body[4]=0x02) in cleartext, then the `brix_tls` server sets `tls_pending` and switches to a
+  server-side TLS handshake, which the client completes (`ssl.wrap_socket`) before finishing
+  `kXR_login` inside the tunnel — because the naive shortcut, `listen ... ssl`
+  (nginx-terminated TLS) on a brix stream block, **SIGSEGVs the worker** (brix owns TLS via
+  the upgrade and does not expect `c->ssl` set at accept; unsupported mode, logged as an
+  out-of-scope follow-up). Verified: `tests/test_min_sec_level.py` 4/4 (cleartext-vs-compat
+  dropped with `kXR_TLSRequired` on a real readable file · in-protocol-TLS-vs-compat proceeds
+  · anonymous-over-TLS-vs-intense `kXR_NotAuthorized` · `brix_min_sec_level banana` refused by
+  `nginx -t`); sibling suites (negcache backoff 3, phase-25 ratelimit 24) 27/27 green;
+  VFS-seam + metric-cardinality gates clean. References `[R77]` in the hyper-hardening plan.
+- **FINDING-MITM-1 / hyper-hardening A-1 (fail-closed default landed, 2026-07-18):** the two
+  outbound TLS legs — the redirector's `kXR_gotoTLS` upgrade (`brix_upstream_tls`) and the
+  terminating tap proxy (`brix_tap_proxy_upstream_tls`) — both re-send the client's
+  `kXR_login` over the upstream channel after the handshake. The peer-authentication crypto
+  (context `SSL_VERIFY_PEER` + `X509_VERIFY_PARAM_set1_host`, pre-handshake `SSL_set1_host`,
+  and a belt-and-braces `SSL_get_verify_result() != X509_V_OK` abort in each handshake-done
+  callback — `[R1]`–`[R12]`) was already in the tree, but only fired **when a CA was
+  configured**; a leg turned on WITHOUT a CA emitted a `[warn]` and proceeded UNVERIFIED —
+  MITM-able (CWE-295). Loading a trust store without `SSL_VERIFY_PEER` is inert (OpenSSL
+  clients default to `SSL_VERIFY_NONE`), and a completed handshake means only "a TLS session
+  exists," not "the peer is trusted." **Fix:** `brix_server_setup_tls()` now **fails closed** —
+  a TLS leg that is on without a CA is refused at `nginx -t` (`emerg`) on both legs, gated by
+  new flags `upstream_ssl_verify` / `proxy.upstream_ssl_verify` (directives
+  `brix_upstream_tls_verify` / `brix_tap_proxy_upstream_tls_verify`, default **on**); the loud
+  `..._tls_verify off` opt-out is the only way past the gate (documented legacy-interop escape
+  hatch, still `[warn]`s). The proxy leg also gained the previously-missing
+  `brix_tap_proxy_upstream_tls_ca` / `_name` directives — the CTX fields existed and were
+  merged but had no parser, so proxy-leg verification was unconfigurable. No shipped or test
+  config enables `upstream_tls` today, so nothing regresses. Verified:
+  `tests/test_upstream_tls_verify.py` 11 green (5 source-assert holding the R1–R12 crypto +
+  6 config-gate: CA-present accepted, no-CA refused with the exact `refusing an
+  unauthenticated` reason, explicit `..._tls_verify off` accepted — across both legs); VFS-seam
+  + metric-cardinality gates clean. The live-MITM handshake negatives (untrusted-chain /
+  wrong-host abort with no `kXR_login` leak) rest on the already-landed crypto plus a
+  fake-TLS-origin fixture, deferred. References `[R79]` in the hyper-hardening plan.
+- **FINDING-OCSP-NONCE-1 / hyper-hardening A-6 item 2 (missing-nonce hard-fail landed,
+  2026-07-18):** the GSI OCSP client builds each request with an anti-replay nonce
+  (`OCSP_request_add1_nonce`), but the nonce was never actually checked in the mainline:
+  `do_ocsp_request()` freed the `OCSP_REQUEST` before returning, so `check_ocsp_response()`
+  always ran with `req_for_nonce == NULL` and its nonce branch was dead code. A signed,
+  still-valid, nonce-less GOOD response captured off the (typically plaintext-HTTP) OCSP
+  fetch could therefore be replayed past the revocation check (CWE-294). **Fix:**
+  `do_ocsp_request()` now hands the built request back to the caller via an
+  `OCSP_REQUEST **req_out` out-param (pre-cleared to NULL, freed on every failure path,
+  set only on success); the two live sites in `ocsp.c` own and free it after verify.
+  `check_ocsp_response()` gained an `int require_nonce` gate: when set, a response that
+  omits the request nonce (`OCSP_check_nonce < 0`) frees the BASICRESP and returns -1
+  (deny) rather than warning through — a nonce *mismatch* (`== 0`) already denied and still
+  does. Wired to `brix_ocsp_conf_t.require_nonce` (init `NGX_CONF_UNSET`, merge default
+  **0/off**) and the new `brix_ocsp_require_nonce on|off` stream directive, threaded
+  `auth.c → brix_ocsp_check_cert → ocsp_check_urls`; the staple-fetch loop passes
+  `require_nonce = 0`. **Default OFF, deliberately**: most CA OCSP responders serve
+  pre-signed, nonce-less responses (RFC 5019 lightweight profile), so a hard-fail-by-default
+  would break real-world revocation checking — the operator opts in, mirroring the D-2
+  `brix_opaque_strict` precedent. Verified: `tests/test_ocsp_require_nonce.py` 8 green
+  (request threaded out · mismatch always denies · missing-nonce denies only when required ·
+  conf default-off · directive registered · `nginx -t` on/off parse + non-flag rejected);
+  VFS-seam + metric-cardinality gates clean (no data-path or metric change). References
+  `[R80]` in the hyper-hardening plan.
+- **FINDING-AUTHZ-SENTINEL-1 / hyper-hardening C-3 (audit + guard landed,
+  2026-07-18):** the response helpers `brix_send_ok`, `brix_send_error` and
+  `BRIX_RETURN_ERR` all return `NGX_OK` — meaning "wire response queued / handled",
+  NOT "authenticated" — so any handler that read a bare `NGX_OK` as "verified,
+  continue" would be an auth bypass (CWE-697/CWE-288); the class had two historical
+  instances (the SSS deny→NULL-deref bypass funnelled to `NGX_DONE`, and a proxy
+  branch that gated on `logged_in`, an intermediate step, not the verdict). **Audit
+  (2026-07-18):** the design is sound — the session verdict is a single flag,
+  `ctx->login.auth_done`, and the authorization choke point gates on it, never on a
+  return code: request processing is unreachable until `handshake/policy.c` confirms
+  `logged_in && auth_done`, and the proxy branch (`handshake/dispatch.c`) gates on
+  `auth_done`. All nine sites that raise the verdict sit on a verified-success path —
+  the seven credential handlers (`auth/{gsi/auth,gsi/token,host,krb5,pwd,sss,unix}`)
+  set it only after their deny path has `BRIX_RETURN_ERR`'d out, and the two
+  session-plane sites are legitimate: anonymous login (`session/login.c`,
+  `gsi/auth.c` `BRIX_AUTH_NONE`) and secondary-stream bind (`session/bind.c`, which
+  inherits the primary's verified state only after the sessid is confirmed in the
+  registry — the deny at the registry-miss returns `kXR_NotAuthorized` early). No
+  live instance. **Regression guard:** `tools/ci/check_auth_verdict_sentinel.sh`
+  (wired into `.github/workflows/guards.yml`) confines `login.auth_done = 1` to those
+  nine sanctioned files — a new proxy/TPC/dispatch/op site that marks a session
+  authenticated fails CI, forcing the assignment into an auth handler where the
+  verified-success precondition is reviewable; the guard takes an optional scan-dir so
+  its own tests can inject a synthetic tree. Verified: `tests/test_source_guards.py`
+  (real tree clean, sanctioned setter passes, rogue-proxy setter refused). References
+  `[R81]` in the hyper-hardening plan.
 - **Weak-symbol credential-store linkage (found+fixed 2026-06-26 via the
   clientconf suite):** `xrdc_cred_store_new` (`client/lib/cred.c`)
   registers credential handlers (x509/bearer/sss/krb5/s3keys) through

@@ -469,13 +469,20 @@ typedef struct {
     void                     *cookie;
 } vfs_copy_ctx_t;
 
+/* Depth-carrying recursive core; brix_vfs_copytree() is a depth-0 wrapper.  The
+ * depth threads through the subdir/entry helpers (rather than resetting at the
+ * public entry each level) so BRIX_FS_TREE_MAX_DEPTH actually bounds the C-stack
+ * recursion (D-6/T2). */
+static ngx_int_t vfs_copytree_run(const vfs_copy_ctx_t *ctx, const char *src,
+    const char *dst, ngx_uint_t depth);
+
 /* Recursively copy one confined child directory src_child→dst_child: mkdir the
  * dst (tolerating EEXIST), copy fattrs + run meta_cb when requested, then recurse
- * via brix_vfs_copytree. Factored out of the copytree loop to keep that loop's
+ * one level deeper. Factored out of the copytree loop to keep that loop's
  * per-entry dispatch flat. Returns NGX_OK on success, NGX_ERROR on any step. */
 static ngx_int_t
 vfs_copytree_subdir(const vfs_copy_ctx_t *ctx, const char *src_child,
-    const char *dst_child, mode_t mode)
+    const char *dst_child, mode_t mode, ngx_uint_t depth)
 {
     if (brix_mkdir_confined_canon(ctx->log, ctx->root_canon, dst_child,
                                   mode & 0777) != 0
@@ -492,8 +499,7 @@ vfs_copytree_subdir(const vfs_copy_ctx_t *ctx, const char *src_child,
     {
         return NGX_ERROR;
     }
-    return brix_vfs_copytree(ctx->log, ctx->root_canon, src_child, dst_child,
-                             ctx->preserve_xattrs, ctx->meta_cb, ctx->cookie);
+    return vfs_copytree_run(ctx, src_child, dst_child, depth + 1);
 }
 
 /* Copy one readdir entry of a copytree walk. Builds the src/dst child paths,
@@ -503,7 +509,7 @@ vfs_copytree_subdir(const vfs_copy_ctx_t *ctx, const char *src_child,
  * abort it. */
 static ngx_int_t
 vfs_copytree_entry(const vfs_copy_ctx_t *ctx, const char *src, const char *dst,
-    const struct dirent *de)
+    const struct dirent *de, ngx_uint_t depth)
 {
     char        src_child[BRIX_MAX_PATH];
     char        dst_child[BRIX_MAX_PATH];
@@ -528,13 +534,50 @@ vfs_copytree_entry(const vfs_copy_ctx_t *ctx, const char *src, const char *dst,
     }
 
     if (S_ISDIR(sb.st_mode)) {
-        return vfs_copytree_subdir(ctx, src_child, dst_child, sb.st_mode);
+        return vfs_copytree_subdir(ctx, src_child, dst_child, sb.st_mode, depth);
     }
     if (S_ISREG(sb.st_mode)) {
         return brix_vfs_copyfile(ctx->log, ctx->root_canon, src_child, dst_child,
                                  ctx->preserve_xattrs, ctx->meta_cb, ctx->cookie);
     }
     return NGX_OK;   /* symlink / special → skip */
+}
+
+/* Depth-carrying recursive core for brix_vfs_copytree(). */
+static ngx_int_t
+vfs_copytree_run(const vfs_copy_ctx_t *ctx, const char *src, const char *dst,
+    ngx_uint_t depth)
+{
+    DIR           *dp;
+    struct dirent *de;
+    ngx_int_t      rc = NGX_OK;
+
+    /* D-6/T2: bound the independent C-stack recursion so a hostile deep source
+     * tree aborts cleanly instead of overflowing the worker stack. */
+    if (depth > BRIX_FS_TREE_MAX_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                      "brix: copytree depth cap (%d) exceeded at \"%s\"",
+                      BRIX_FS_TREE_MAX_DEPTH, src);
+        errno = ELOOP;
+        return NGX_ERROR;
+    }
+
+    /* Enumerate as the mapped user (a 0700 user-private collection would EACCES
+     * a bare worker opendir). */
+    dp = brix_opendir_confined_canon(ctx->log, ctx->root_canon, src);
+    if (dp == NULL) {
+        return NGX_ERROR;
+    }
+
+    while ((de = readdir(dp)) != NULL) {
+        rc = vfs_copytree_entry(ctx, src, dst, de, depth);
+        if (rc != NGX_OK) {
+            break;
+        }
+    }
+
+    (void) closedir(dp);
+    return rc;
 }
 
 /* Recursively copy a confined directory tree src→dst. See vfs.h. */
@@ -544,24 +587,6 @@ brix_vfs_copytree(ngx_log_t *log, const char *root_canon, const char *src,
     void *cookie)
 {
     vfs_copy_ctx_t ctx = { log, root_canon, preserve_xattrs, meta_cb, cookie };
-    DIR           *dp;
-    struct dirent *de;
-    ngx_int_t      rc = NGX_OK;
 
-    /* Enumerate as the mapped user (a 0700 user-private collection would EACCES
-     * a bare worker opendir). */
-    dp = brix_opendir_confined_canon(log, root_canon, src);
-    if (dp == NULL) {
-        return NGX_ERROR;
-    }
-
-    while ((de = readdir(dp)) != NULL) {
-        rc = vfs_copytree_entry(&ctx, src, dst, de);
-        if (rc != NGX_OK) {
-            break;
-        }
-    }
-
-    (void) closedir(dp);
-    return rc;
+    return vfs_copytree_run(&ctx, src, dst, 0);
 }

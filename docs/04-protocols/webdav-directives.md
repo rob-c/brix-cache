@@ -184,7 +184,154 @@ OAuth2 scope to request in the token grant. Common values: `storage.read`, `stor
 
 Sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on the `SSL_CTX` for this server in postconfiguration. Without this, nginx's TLS layer rejects RFC 3820 proxy certificates with error 40 (`proxy certificates not allowed`) even when `ssl_verify_client optional_no_ca` is set.
 
+### `brix_ssl_client_capath <dir>`
+
+**Context:** `server` (HTTP) · **Default:** unset
+
+Adds an OpenSSL **hashed CA directory** (the `/etc/grid-security/certificates`
+IGTF layout — `<subject_hash>.0` files) to the server's TLS client-verify
+trust store in postconfiguration. Stock nginx's `ssl_client_certificate` /
+`ssl_trusted_certificate` are file-only, so a fail-closed
+`ssl_verify_client on` front leg could not otherwise consume a grid host's
+trust-anchor directory without synthesizing a bundle file. Additive: CAs from
+`ssl_client_certificate` stay trusted, and that directive is still required by
+nginx core when `ssl_verify_client on` is set (point it at any single CA file
+— it also feeds the advertised-CA list; OpenSSL-based clients send their
+configured cert regardless). Hashed lookup resolves issuers at verify time,
+so newly installed CA packages are honoured without a reload. An unusable
+path (missing, or not a directory) is a **fatal** config error — this
+directive is the trust perimeter, and silently loading nothing would reject
+every client with an opaque handshake alert.
+
+```nginx
+server {
+    listen 443 ssl;
+    ssl_certificate         /etc/grid-security/hostcert.pem;
+    ssl_certificate_key     /etc/grid-security/hostkey.pem;
+    ssl_client_certificate  /etc/grid-security/certificates/aaa4b7c8.0;  # any one CA file
+    brix_ssl_client_capath  /etc/grid-security/certificates;             # the real trust
+    ssl_verify_client       on;
+    brix_webdav_proxy_certs on;
+}
+```
+
+To avoid hand-picking the hash file, replace the `ssl_client_certificate`
+line with `brix_client_certificate_folder` (below).
+
 In normal TLS deployments, put this in the `server {}` block so the SSL context is patched for the whole virtual server.
+
+---
+
+### `brix_client_certificate_folder <dir>`
+
+**Context:** `server` (HTTP) · **Default:** unset
+
+Auto-picks the `ssl_client_certificate` value from an OpenSSL **hashed CA
+directory** at config-parse time: reads the first (leaf) certificate of this
+server's own `ssl_certificate`, hashes its **issuer** name, probes
+`<dir>/<hash>.0` … `.9` for the file whose subject matches, and assigns that
+path to the stock `ssl_client_certificate` machinery. A grid host that ships
+only `/etc/grid-security/certificates` gets a fail-closed
+`ssl_verify_client on` config with **zero hand-picked hash files** — and it
+keeps tracking the CA package when the issuer's file is re-hashed.
+
+Constraints (all violations are **fatal** at `nginx -t`):
+
+- Must appear **after** `ssl_certificate` in the same `server {}` — it needs
+  the hostcert to resolve the issuer.
+- Mutually exclusive with an explicit `ssl_client_certificate` for the same
+  server (one source of truth).
+- The folder must exist, and it must contain a `<hash>.N` file whose subject
+  equals the hostcert's issuer — a miss loads nothing into the trust
+  perimeter, so it refuses to start rather than opaquely rejecting every
+  client.
+- Variable (`$…`) `ssl_certificate` values cannot be resolved at parse time
+  and are rejected.
+
+The picked file serves both stock roles: trust anchor and advertised-CA list
+entry. Combine with `brix_ssl_client_capath` (above) to trust the **whole**
+directory while the picked file feeds the advertised list:
+
+```nginx
+server {
+    listen 443 ssl;
+    ssl_certificate                /etc/grid-security/hostcert.pem;
+    ssl_certificate_key            /etc/grid-security/hostkey.pem;
+    brix_client_certificate_folder /etc/grid-security/certificates;  # replaces ssl_client_certificate
+    brix_ssl_client_capath         /etc/grid-security/certificates;  # trust every IGTF CA
+    ssl_verify_client              on;
+    brix_webdav_proxy_certs        on;
+}
+```
+
+---
+
+### `brix_proxy_ssl_capath <dir>`
+
+**Context:** `location` (HTTP) · **Default:** unset
+
+The back-leg counterpart of `brix_ssl_client_capath`: makes
+`proxy_ssl_verify on` consume an OpenSSL **hashed CA directory** instead of
+the file-only `proxy_ssl_trusted_certificate`. At parse time it seeds the
+stock `proxy_ssl_trusted_certificate` with one `<hash>.N` file from the
+directory (satisfying nginx's mandatory-file check for `proxy_ssl_verify`);
+at postconfiguration it adds the **whole directory** to this location's
+upstream trust store as a hashed lookup, so every installed CA is trusted
+and IGTF package updates are honoured without a reload.
+
+Constraints (all violations are **fatal** at `nginx -t`):
+
+- The location must contain `proxy_pass https://…` — without an upstream TLS
+  context the directive would silently protect nothing.
+- Mutually exclusive with an explicit `proxy_ssl_trusted_certificate` in the
+  same location (one source of truth).
+- The directory must exist and contain at least one `<hash>.N` CA file
+  (`.rN` CRLs don't count).
+- Location-exact: deliberately **not inherited** by nested locations —
+  configure it where the `proxy_pass` lives.
+
+```nginx
+location /arc/ {
+    proxy_pass                https://ce.example.org:443;
+    proxy_ssl_verify          on;
+    brix_proxy_ssl_capath     /etc/grid-security/certificates;  # replaces proxy_ssl_trusted_certificate
+    proxy_ssl_certificate     $brix_delegated_cred;
+    proxy_ssl_certificate_key $brix_delegated_cred;
+}
+```
+
+---
+
+### `$brix_delegated_cred` (variable)
+
+**Context:** any HTTP location (no brix handler required) · **Value:** path or `""`
+
+The verified TLS client's **delegated-credential path**: the end-entity DN of
+the client chain (RFC 3820 proxy certs are skipped) is mapped through the
+same key derivation the delegation endpoint uses when storing a credential
+(`x5h-` + SHA-256 prefix), and
+`<brix_storage_credential_dir>/<key>.pem` is resolved with an expiry check.
+Empty means "no usable credential" — **fail closed**: unverified client,
+proxy-only chain, missing file, expired proxy (logged at `info` with the DN),
+or a non-x509 credential kind (`.token`/`.s3`/`.keyring` cannot feed
+`proxy_ssl_certificate`) all yield `""`, and an empty
+`proxy_ssl_certificate` sends **no** client certificate at all.
+
+This replaces the hand-maintained `map $ssl_client_s_dn_legacy $cred` block
+in credential-forwarding gateways: no per-user entries, no regeneration and
+reload when a new user delegates, and the file is expiry-checked at use time.
+
+```nginx
+location /arc/ {
+    proxy_pass                https://ce.example.org:443;
+    proxy_ssl_certificate     $brix_delegated_cred;   # combined PEM serves
+    proxy_ssl_certificate_key $brix_delegated_cred;   # cert+chain AND key
+}
+```
+
+Identity comes from the TLS layer directly (`SSL_get_verify_result`, the same
+signal as `$ssl_client_verify`), so the variable works in plain `proxy_pass`
+locations with no brix handler enabled.
 
 ---
 

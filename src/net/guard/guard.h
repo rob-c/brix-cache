@@ -32,8 +32,26 @@ typedef enum { GUARD_ALLOW, GUARD_BOUNCE } guard_verdict_t;
 
 typedef enum {
     GUARD_R_NONE, GUARD_R_SIGNATURE, GUARD_R_GRAMMAR,
-    GUARD_R_NOTFOUND, GUARD_R_AUTHFAIL
+    GUARD_R_NOTFOUND, GUARD_R_AUTHFAIL, GUARD_R_NOTROOT,
+    GUARD_R_PROXYABUSE,     /* forward-proxy abused to reach a non-allowlisted
+                            * remote (open-proxy / SSRF probe) */
+    GUARD_R_TAMPER          /* content failed CVMFS integrity verification —
+                            * CAS hash or manifest/whitelist signature mismatch
+                            * on a fill (tampered / MITM'd / corrupted origin) */
 } guard_reason_t;
+
+/* First-bytes wire-protocol guess for a connection opened on a root:// port.
+ * GUARD_WIRE_ROOT = the fixed 20-byte kXR client handshake (or a zero-prefix
+ * still consistent with one); every other value is a client NOT speaking root,
+ * to be logged and dropped. Ordered most-to-least specific for the audit. */
+typedef enum {
+    GUARD_WIRE_ROOT,     /* kXR ClientInitHandShake (or its leading zero-prefix) */
+    GUARD_WIRE_TLS,      /* TLS record: handshake / ClientHello */
+    GUARD_WIRE_HTTP,     /* HTTP request line (web scanner) */
+    GUARD_WIRE_SSH,      /* SSH client banner */
+    GUARD_WIRE_EMPTY,    /* connected, sent nothing (bannergrab / idle probe) */
+    GUARD_WIRE_JUNK      /* anything else — unrecognized binary/text */
+} guard_wire_t;
 
 typedef struct {
     const char       *ip;          /* remote addr, adapter-supplied, NUL-term */
@@ -93,6 +111,15 @@ int guard_signature_match(const guard_ruleset_t *rs,
 int guard_grammar_ok(const guard_ruleset_t *rs, guard_op_class_t op,
     const char *path, size_t len);
 
+/* Classify the FIRST bytes of a connection on a root:// port as speaking the
+ * kXR handshake or not. Returns the wire guess; GUARD_WIRE_ROOT means the
+ * bytes are (a prefix of) the 20-byte kXR ClientInitHandShake and must be
+ * forwarded. *need_more is set to 1 only when buf is a zero-prefix shorter
+ * than the full signature (verdict deferred until more bytes arrive), else 0.
+ * Pure: no allocation, no I/O — buf need not be NUL-terminated. */
+guard_wire_t guard_classify_handshake(const unsigned char *buf, size_t len,
+    int *need_more);
+
 /* ---- audit formatting (guard_audit.c) ---- */
 
 /* Format one flagged request as a single key=value line (fail2ban-friendly)
@@ -106,6 +133,10 @@ const char *guard_reason_str(guard_reason_t r);
 
 /* Op-class -> stable lowercase token. */
 const char *guard_op_str(guard_op_class_t op);
+
+/* Wire guess -> stable lowercase token used in the notroot audit line's path
+ * field ("root", "tls-clienthello", "http-request", "ssh-banner", …). */
+const char *guard_wire_str(guard_wire_t w);
 
 /* ---- ruleset construction (guard_ruleset.c) ---- */
 

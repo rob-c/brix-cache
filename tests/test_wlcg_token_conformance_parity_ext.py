@@ -134,6 +134,7 @@ def probe(proto, token, path="/test.txt", write=False):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_hdr_01_crit_empty_reject(proto):
     """HDR-01: crit=[] empty array → reject (RFC 7515 §4.1.11 / rule 37).
 
@@ -148,6 +149,7 @@ def test_ext_hdr_01_crit_empty_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_hdr_02_crit_non_array_reject(proto):
     """HDR-02: crit="exp" scalar string → reject (RFC 7515 §4.1.11 / rule 37).
 
@@ -161,6 +163,7 @@ def test_ext_hdr_02_crit_non_array_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_hdr_03_crit_lists_alg_reject(proto):
     """HDR-03: crit=["alg"] lists a registered JWS parameter → reject (rule 38).
 
@@ -176,6 +179,7 @@ def test_ext_hdr_03_crit_lists_alg_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_hdr_04_crit_missing_name_reject(proto):
     """HDR-04: crit=["kid"] but kid absent from header → reject (rule 37).
 
@@ -190,6 +194,7 @@ def test_ext_hdr_04_crit_missing_name_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_hdr_05_x5c_injection_reject(proto):
     """HDR-05: x5c header with self-signed attacker cert, signed by attacker key → reject (SEC).
 
@@ -205,6 +210,7 @@ def test_ext_hdr_05_x5c_injection_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_hdr_06_jku_accept(proto):
     """HDR-06: jku header present, signed by main key → accept (jku ignored, rule 28).
 
@@ -220,6 +226,7 @@ def test_ext_hdr_06_jku_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_hdr_07_typ_at_jwt_accept(proto):
     """HDR-07: typ=at+jwt access-token type designator → accept (RFC 9068 / rule 75).
 
@@ -234,6 +241,7 @@ def test_ext_hdr_07_typ_at_jwt_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_hdr_08_typ_missing_accept(proto):
     """HDR-08: typ claim absent from header entirely → accept (rule 70 characterize).
 
@@ -252,6 +260,7 @@ def test_ext_hdr_08_typ_missing_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_ndt_01_numericdate_negative_accept(proto):
     """NDT-01: nbf=-1 negative NumericDate (before Unix epoch) → accept (rule 3).
 
@@ -266,6 +275,7 @@ def test_ext_ndt_01_numericdate_negative_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_ndt_02_numericdate_huge_accept(proto):
     """NDT-02: exp=99999999999999999999 huge integer far future → accept (rule 3).
 
@@ -281,6 +291,7 @@ def test_ext_ndt_02_numericdate_huge_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_ndt_03_exp_null_reject(proto):
     """NDT-03: exp=null non-number type → reject (RFC 7519 §4.1.4 / rule 1).
 
@@ -294,6 +305,7 @@ def test_ext_ndt_03_exp_null_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_ndt_04_temporal_within_skew_accept(proto):
     """NDT-04: exp=now-20 s, within default 30 s clock-skew window → accept.
 
@@ -314,6 +326,7 @@ def test_ext_ndt_04_temporal_within_skew_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_clm2_01_iss_non_string_reject(proto):
     """CLM2-01: iss=12345 numeric value → reject (RFC 7519 §4.1.1 / rule 4).
 
@@ -335,6 +348,7 @@ def test_ext_clm2_01_iss_non_string_reject(proto):
 )
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_clm2_02_iat_after_exp_reject(proto):
     """CLM2-02: iat > exp (issued after expiry) → RFC mandates reject (rule 155).
 
@@ -352,6 +366,7 @@ def test_ext_clm2_02_iat_after_exp_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_clm2_03_nbf_after_exp_reject(proto):
     """CLM2-03: nbf=now+3600 far future not-before, exp=now+10 → reject (rule 155).
 
@@ -367,6 +382,7 @@ def test_ext_clm2_03_nbf_after_exp_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_clm2_04_dup_claim_names_reject(proto):
     """CLM2-04: duplicate aud keys in payload JSON → reject (RFC 7159 §4 / rule 21).
 
@@ -382,6 +398,7 @@ def test_ext_clm2_04_dup_claim_names_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_clm2_05_missing_exp_reject(proto):
     """CLM2-05: exp claim absent → reject (RFC 7519 §4.1.4).
 
@@ -400,6 +417,7 @@ def test_ext_clm2_05_missing_exp_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_scp2_01_segment_boundary_reject(proto):
     """SCP2-01: scope=storage.read:/atl, path=/atlas/ok.txt → reject (rule 117).
 
@@ -415,6 +433,7 @@ def test_ext_scp2_01_segment_boundary_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_scp2_02_stage_implies_read_accept(proto):
     """SCP2-02: scope=storage.stage:/atlas, GET /atlas/ok.txt → accept.
 
@@ -429,6 +448,7 @@ def test_ext_scp2_02_stage_implies_read_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_scp2_03_storage_no_path_reject(proto):
     """SCP2-03: scope="storage.read" (no colon, no path) → reject (rule 112).
 
@@ -444,6 +464,7 @@ def test_ext_scp2_03_storage_no_path_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_scp2_04_compute_scope_no_storage_reject(proto):
     """SCP2-04: scope="compute.read:/queue", GET /test.txt → reject (rule 118).
 
@@ -459,6 +480,7 @@ def test_ext_scp2_04_compute_scope_no_storage_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_scp2_05_scope_reordered_accept(proto):
     """SCP2-05: scope="storage.read:/atlas storage.write:/cms", GET /atlas/ok.txt → accept.
 
@@ -478,6 +500,7 @@ def test_ext_scp2_05_scope_reordered_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_alg2_01_none_with_sig_reject(proto):
     """ALG2-01: alg=none header with non-empty signature segment → reject (rule 55 / SEC).
 
@@ -493,6 +516,7 @@ def test_ext_alg2_01_none_with_sig_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_alg2_02_alg_lowercase_reject(proto):
     """ALG2-02: alg="rs256" lowercase variant → reject (RFC 7515 §4.1.1 / rule 54).
 
@@ -508,6 +532,7 @@ def test_ext_alg2_02_alg_lowercase_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_alg2_03_rs384_unsupported_reject(proto):
     """ALG2-03: alg=RS384, kid=test-key-1 → reject (RS384 not in {RS256, ES256}).
 
@@ -521,6 +546,7 @@ def test_ext_alg2_03_rs384_unsupported_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_alg2_04_ps256_unsupported_reject(proto):
     """ALG2-04: alg=PS256 (RSA-PSS SHA-256) → reject (PS256 not accepted).
 
@@ -534,6 +560,7 @@ def test_ext_alg2_04_ps256_unsupported_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_alg2_05_weak_rsa_signed_reject(proto):
     """ALG2-05: RS256 signed with 1024-bit RSA key (kid=weak-rsa) → reject (rule 50 / SEC).
 
@@ -554,6 +581,7 @@ def test_ext_alg2_05_weak_rsa_signed_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_wlcg2_01_valid_root_scope_accept(proto):
     """WLCG2-01: valid RS256 token with storage.read:/ → accept (positive baseline).
 
@@ -568,6 +596,7 @@ def test_ext_wlcg2_01_valid_root_scope_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_wlcg2_02_wlcg_groups_accept(proto):
     """WLCG2-02: token with wlcg.groups=["/wlcg"] extra claim → accept (rule 119).
 
@@ -583,6 +612,7 @@ def test_ext_wlcg2_02_wlcg_groups_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_wlcg2_03_modify_scope_read_denied_reject(proto):
     """WLCG2-03: scope=storage.modify:/atlas, GET /atlas/ok.txt → reject.
 
@@ -603,6 +633,7 @@ def test_ext_wlcg2_03_modify_scope_read_denied_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_extra_01_wlcg_missing_ver_accept(proto):
     """EXTRA-01: wlcg.ver claim absent → accept (WLCG rule 101, advisory).
 
@@ -617,6 +648,7 @@ def test_ext_extra_01_wlcg_missing_ver_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_extra_02_aud_empty_array_reject(proto):
     """EXTRA-02: aud=[] empty JSON array → reject (RFC 7519 §4.1.3).
 
@@ -631,6 +663,7 @@ def test_ext_extra_02_aud_empty_array_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_extra_03_scope_empty_path_accept(proto):
     """EXTRA-03: scope="storage.read:" (colon, empty path) → accept (root scope).
 
@@ -647,6 +680,7 @@ def test_ext_extra_03_scope_empty_path_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_extra_04_scope_unnormalized_reject(proto):
     """EXTRA-04: scope path contains /../ traversal → reject (rules 113/141).
 
@@ -670,6 +704,7 @@ def test_ext_extra_04_scope_unnormalized_reject(proto):
 )
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_ext_extra_05_sub_non_string_reject(proto):
     """EXTRA-05: sub=["a","b"] array value → RFC mandates reject (rules 4/6).
 

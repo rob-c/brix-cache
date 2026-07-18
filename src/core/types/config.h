@@ -28,6 +28,9 @@
  * it is safe to include from this header. (FRM-dissolution: was ../frm/frm.h.) */
 #include "core/config/tape_stage_conf.h"
 
+/* E-4 negative-path backoff rule (brix_negcache_conf_t). Pulls only ngx_core. */
+#include "core/negcache/negcache.h"
+
 /* ---- Helper structs used inside ngx_stream_brix_srv_conf_t ---- */
 
 typedef struct {

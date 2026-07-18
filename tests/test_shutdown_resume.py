@@ -24,47 +24,35 @@ import shutil
 import socket
 import subprocess
 import time
+from pathlib import Path
 
 import pytest
 
-from config_templates import render_config
-from settings import HOST, BIND_HOST
+from settings import HOST, BIND_HOST, NGINX_BIN, free_port
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(180)
+pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness]
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+def _require_xrdcp():
+    """Build the resilient client; skip cleanly when it (or nginx) is absent."""
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+    subprocess.run(["make", "-C", CLIENT_DIR, "xrdcp"],
+                   capture_output=True, text=True, timeout=240)
+    if not os.path.exists(XRDCP):
+        pytest.skip("xrdcp build failed")
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
 
-def _port_up(host, port):
-    try:
-        with socket.create_connection((host, port), timeout=1):
-            return True
-    except OSError:
-        return False
-
-
-def _master_pid(root):
-    return int((root / "nginx.pid").read_text().strip())
-
-
-def _worker_pids(master):
-    """Live worker pids = children of the nginx master."""
-    out = subprocess.run(
-        ["ps", "-o", "pid", "--no-headers", "--ppid", str(master)],
-        capture_output=True, text=True,
-    ).stdout
-    return [int(x) for x in out.split()]
+def _worker_pids(lifecycle, name):
+    """Live worker pids of the harness-owned instance (master's worker children)."""
+    return [pid for pid, cmd in lifecycle.process_snapshot(name) if "worker" in cmd]
 
 
 def _alive(pid):
@@ -75,50 +63,35 @@ def _alive(pid):
         return False
 
 
-@pytest.fixture()
-def srv(tmp_path_factory):
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
-    subprocess.run(["make", "-C", CLIENT_DIR, "xrdcp"],
-                   capture_output=True, text=True, timeout=240)
-    if not os.path.exists(XRDCP):
-        pytest.skip("xrdcp build failed")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+DUAL_NAME = "lc-shutdown-resume-dual"
 
-    root = tmp_path_factory.mktemp("shutdown")
-    data = root / "data"
-    data.mkdir(parents=True)
-    rport = _free_port()
-    hport = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_shutdown_resume_dual.conf",
-        BASE_DIR=root,
-        BIND_HOST=BIND_HOST,
-        ROOT_PORT=rport,
-        HTTP_PORT=hport,
-        DATA_DIR=data,
+
+@pytest.fixture()
+def srv(lifecycle):
+    _require_xrdcp()
+    ep = lifecycle.start(NginxInstanceSpec(
+        name=DUAL_NAME,
+        template="nginx_lc_shutdown_resume_dual.conf",
+        protocol="root",
+        extra_ports={"HTTP_PORT": free_port(HOST)},
+        template_values={"BIND_HOST": BIND_HOST},
+        reason="fast worker teardown + mid-transfer resume across reload/restart",
     ))
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, rport) and _port_up(HOST, hport):
-            break
-        time.sleep(0.1)
-    yield {"root": root, "conf": conf, "data": data, "rport": rport, "hport": hport}
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    yield {
+        "lc": lifecycle,
+        "name": DUAL_NAME,
+        "data": Path(ep.data_root),
+        "rport": ep.port,
+        "hport": ep.extra_ports["HTTP_PORT"],
+    }
 
 
 def test_idle_connection_does_not_block_fast_teardown(srv):
     """An idle root:// connection must not pin a draining worker: the old
     worker exits within a couple of seconds of reload, not at worker_shutdown_
     timeout (which is unset here = would otherwise hang indefinitely)."""
-    master = _master_pid(srv["root"])
-    old = _worker_pids(master)
+    lc, name = srv["lc"], srv["name"]
+    old = _worker_pids(lc, name)
     assert old, "no worker running"
 
     # Park an idle root:// connection (handshake then sit).
@@ -126,8 +99,7 @@ def test_idle_connection_does_not_block_fast_teardown(srv):
     s.sendall(b"\x00" * 16 + b"\x00\x00\x07\xd0")  # 20-byte client hello
 
     try:
-        subprocess.run([NGINX_BIN, "-c", str(srv["conf"]), "-s", "reload"],
-                       capture_output=True)
+        lc.reload(name)
         deadline = time.time() + 15
         while time.time() < deadline:
             if all(not _alive(p) for p in old):
@@ -140,7 +112,7 @@ def test_idle_connection_does_not_block_fast_teardown(srv):
         s.close()
     # let a fresh worker come up for the next test
     for _ in range(50):
-        if _worker_pids(_master_pid(srv["root"])):
+        if _worker_pids(lc, name):
             break
         time.sleep(0.1)
 
@@ -173,7 +145,7 @@ def _xrdcp_under_chaos(srv, argv, verify_path, want_md5,
 
     warmup_glob: if set, wait until a matching file is non-empty before the first
     kill, so severs land on an established, actively-flowing transfer."""
-    master = _master_pid(srv["root"])
+    lc, name = srv["lc"], srv["name"]
     env = dict(os.environ, XRDC_MAX_STALL_MS="60000")
     proc = subprocess.Popen([XRDCP, "-f", *argv],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -182,7 +154,7 @@ def _xrdcp_under_chaos(srv, argv, verify_path, want_md5,
         _wait_progress(warmup_glob)
     kills = 0
     while proc.poll() is None and kills < n_kills:
-        for w in _worker_pids(master):    # force a true TCP sever
+        for w in _worker_pids(lc, name):  # force a true TCP sever (master respawns)
             try:
                 os.kill(w, 9)
                 kills += 1
@@ -265,50 +237,33 @@ def test_webdav_upload_resumes_across_restart(srv, tmp_path):
     assert not leftover, f"uncommitted resume partial left behind: {leftover}"
 
 
-def test_upload_resume_stage_dir(tmp_path_factory):
+def test_upload_resume_stage_dir(lifecycle, tmp_path):
     """Uploads stage on a CONFIGURABLE directory (brix_stage_dir) — typically a
     fast caching device — then commit to the storage.  Prefers /dev/shm (tmpfs, a
     different device) to exercise the cross-device copy commit; the partial lives
     in the stage dir during transfer, survives worker-kills, lands byte-exact on
     storage, and the stage dir is emptied on commit."""
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
-    subprocess.run(["make", "-C", CLIENT_DIR, "xrdcp"],
-                   capture_output=True, text=True, timeout=240)
-    if not os.path.exists(XRDCP) or not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip("xrdcp/nginx unavailable")
-
-    root = tmp_path_factory.mktemp("stagedir")
-    data = root / "data"
-    data.mkdir(parents=True)
+    _require_xrdcp()
     shm = "/dev/shm"
     if os.path.isdir(shm) and os.access(shm, os.W_OK):
         stage = os.path.join(shm, f"xrd-stage-{os.getpid()}")  # tmpfs => cross-device
     else:
-        stage = str(root / "stage")
+        stage = str(tmp_path / "stage")
     os.makedirs(stage, exist_ok=True)
-    rport = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_shutdown_resume_stage.conf",
-        BASE_DIR=root,
-        BIND_HOST=BIND_HOST,
-        PORT=rport,
-        DATA_DIR=data,
-        STAGE_DIR=stage,
-    ))
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
+    name = "lc-shutdown-resume-stage"
     try:
-        for _ in range(50):
-            if _port_up(HOST, rport):
-                break
-            time.sleep(0.1)
-        srv = {"root": root, "conf": conf, "data": data, "rport": rport}
+        ep = lifecycle.start(NginxInstanceSpec(
+            name=name,
+            template="nginx_lc_shutdown_resume_stage.conf",
+            protocol="root",
+            template_values={"BIND_HOST": BIND_HOST, "STAGE_DIR": stage},
+            reason="staged root upload resume across mid-transfer worker kills",
+        ))
+        data = Path(ep.data_root)
+        rport = ep.port
+        srv = {"lc": lifecycle, "name": name, "data": data, "rport": rport}
 
-        src = root / "src.bin"
+        src = tmp_path / "src.bin"
         payload = os.urandom(1 << 20) * 128
         src.write_bytes(payload)
         src_md5 = hashlib.md5(payload).hexdigest()
@@ -324,27 +279,24 @@ def test_upload_resume_stage_dir(tmp_path_factory):
         assert not glob.glob(os.path.join(stage, "*.xrdresume*")), \
             "staged partial/marker left on the stage device after commit"
     finally:
-        subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"],
-                       capture_output=True)
-        time.sleep(0.3)
         shutil.rmtree(stage, ignore_errors=True)
 
 
-def test_stage_reaper_recovers_stranded_upload(tmp_path_factory):
+def test_stage_reaper_recovers_stranded_upload(lifecycle, tmp_path):
     """A COMPLETE upload left in the cache by a worker death mid-commit (a partial
     + a '.commit' marker naming its final path) is tracked across the restart: the
     startup stage-out reaper moves it to storage byte-exact and clears the cache."""
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip("nginx unavailable")
-    root = tmp_path_factory.mktemp("reap")
-    data = root / "data"
+    data = tmp_path / "data"
     data.mkdir(parents=True)
     shm = "/dev/shm"
     stage = os.path.join(shm, f"xrd-reap-{os.getpid()}") \
-        if os.path.isdir(shm) and os.access(shm, os.W_OK) else str(root / "stage")
+        if os.path.isdir(shm) and os.access(shm, os.W_OK) else str(tmp_path / "stage")
     os.makedirs(stage, exist_ok=True)
 
-    # Seed a stranded COMPLETE partial + its pending-commit marker.
+    # Seed a stranded COMPLETE partial + its pending-commit marker.  The final
+    # path lives under a test-owned export, so pin it as the instance data_root.
     payload = os.urandom(1 << 20) * 32
     src_md5 = hashlib.md5(payload).hexdigest()
     part = os.path.join(stage, "deadbeefcafe0001.xrdresume.part")
@@ -354,22 +306,15 @@ def test_stage_reaper_recovers_stranded_upload(tmp_path_factory):
     with open(part + ".commit", "w") as f:
         f.write(str(final))
 
-    rport = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(render_config(
-        "nginx_shutdown_resume_reaper.conf",
-        BASE_DIR=root,
-        BIND_HOST=BIND_HOST,
-        PORT=rport,
-        DATA_DIR=data,
-        STAGE_DIR=stage,
-    ))
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        shutil.rmtree(stage, ignore_errors=True)
-        pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
     try:
+        lifecycle.start(NginxInstanceSpec(
+            name="lc-shutdown-resume-reaper",
+            template="nginx_lc_shutdown_resume_reaper.conf",
+            protocol="root",
+            data_root=str(data),
+            template_values={"BIND_HOST": BIND_HOST, "STAGE_DIR": stage},
+            reason="startup stage-out reaper recovers a stranded upload",
+        ))
         # reaper first tick ~1s after startup
         for _ in range(50):
             if final.exists():
@@ -381,7 +326,4 @@ def test_stage_reaper_recovers_stranded_upload(tmp_path_factory):
         assert not glob.glob(os.path.join(stage, "*.xrdresume*")), \
             "cache not cleared after stage-out recovery"
     finally:
-        subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"],
-                       capture_output=True)
-        time.sleep(0.3)
         shutil.rmtree(stage, ignore_errors=True)

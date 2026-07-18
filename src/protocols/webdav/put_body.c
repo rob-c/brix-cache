@@ -28,7 +28,7 @@
 
 typedef struct {
     ngx_http_request_t  *r;
-    brix_vfs_staged_t *staged;   /* VFS-owned staged temp (pool-allocated) */
+    brix_vfs_writer_t   *writer;  /* VFS-owned write session (pool-allocated) */
     size_t               len;
     ssize_t              nwritten;
     int                  io_errno;
@@ -94,20 +94,16 @@ webdav_put_aio_thread(void *data, ngx_log_t *log)
 
     /*
      * Phase 31 W2: stream the body straight from nginx's own request buffers
-     * to the staged temp fd — no full-body contiguous copy.  The body for this
+     * into the write session — no full-body contiguous copy.  The body for this
      * path is all in-memory bufs anchored in r->pool (the caller gates spooled
      * bodies to the synchronous streaming path), so they are stable for the
-     * lifetime of the request (held alive by r->main->count++).  This helper
-     * only does pwrite(2), so it is safe to run on the thread pool — no nginx
-     * pool allocation or event-loop calls.
+     * lifetime of the request (held alive by r->main->count++).  The writer does
+     * only pwrite(2)/staged-write here (the commit + verify read-back are deferred
+     * to the done handler on the event thread), so it is safe on the thread pool —
+     * no nginx pool allocation or event-loop calls.  The writer dispatches the
+     * POSIX-temp-fd vs driver-object path internally.
      */
-    /* A driver-backed (object) staged target has no kernel fd — stream the body
-     * through the staged-write primitive; otherwise write straight to the temp fd. */
-    if (brix_vfs_staged_is_driver(t->staged)
-            ? brix_http_body_write_to_staged(t->r, t->staged) != NGX_OK
-            : brix_http_body_write_to_fd(t->r, brix_vfs_staged_fd(t->staged),
-                                           t->path, NULL) != NGX_OK)
-    {
+    if (brix_http_body_write_to_writer(t->r, t->writer) != NGX_OK) {
         t->io_errno = errno;
         t->nwritten = -1;
         return;
@@ -136,14 +132,15 @@ webdav_put_aio_done(ngx_event_t *ev)
                              t->path);
         brix_dashboard_http_error(r, "webdav PUT async write failed");
         brix_dashboard_http_finish(r);
-        /* Abort the staged temp (close + unlink) — the final path is untouched. */
-        brix_vfs_staged_abort(t->staged, 1);
+        /* Abort the session (close + unlink temp) — the final path is untouched. */
+        brix_vfs_writer_abort(t->writer);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
-    /* Atomically publish the completed temp onto the final path. */
-    if (brix_vfs_staged_commit(t->staged, 0) != NGX_OK) {
+    /* Atomically publish the completed temp onto the final path (folding the
+     * verify read-back when the export opts in; a mismatch unlinks + fails). */
+    if (brix_vfs_writer_commit(t->writer) != NGX_OK) {
         brix_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
                              "brix_webdav: async staged commit failed for: "
                              "\"%s\"", t->path);
@@ -171,7 +168,7 @@ webdav_put_aio_done(ngx_event_t *ev)
  */
 typedef struct {
     const char               *path;         /* final commit-target path       */
-    brix_vfs_staged_t        *staged;       /* open staged temp               */
+    brix_vfs_writer_t        *writer;       /* open write session             */
     brix_http_body_summary_t  body_summary; /* body shape/byte count          */
     brix_codec_id_t           put_codec;    /* Content-Encoding codec (or id) */
     int                       created;      /* 1 = new file (→ 201 on commit) */
@@ -218,14 +215,14 @@ webdav_put_try_threaded(ngx_http_request_t *r,
     if (task == NULL) {
         brix_dashboard_http_error(r, "webdav PUT task allocation failed");
         brix_dashboard_http_finish(r);
-        brix_vfs_staged_abort(bctx->staged, 1);
+        brix_vfs_writer_abort(bctx->writer);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return WEBDAV_PUT_DONE;
     }
 
     t = task->ctx;
     t->r = r;
-    t->staged = bctx->staged;  /* transfer staged ownership to the task */
+    t->writer = bctx->writer;  /* transfer session ownership to the task */
     t->len = bctx->body_summary.bytes;
     t->created = bctx->created;
     ngx_cpystrn((u_char *) t->path, (u_char *) bctx->path, sizeof(t->path));
@@ -241,7 +238,7 @@ webdav_put_try_threaded(ngx_http_request_t *r,
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
         brix_dashboard_http_error(r, "webdav PUT task post failed");
         brix_dashboard_http_finish(r);
-        brix_vfs_staged_abort(t->staged, 1);
+        brix_vfs_writer_abort(t->writer);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return WEBDAV_PUT_DONE;
     }
@@ -286,7 +283,7 @@ webdav_put_select_codec(ngx_http_request_t *r, webdav_put_body_ctx_t *bctx)
             brix_dashboard_http_error(r,
                 "webdav PUT unsupported Content-Encoding");
             brix_dashboard_http_finish(r);
-            brix_vfs_staged_abort(bctx->staged, 1);
+            brix_vfs_writer_abort(bctx->writer);
             webdav_metrics_finalize_request(r,
                 NGX_HTTP_UNSUPPORTED_MEDIA_TYPE);
             return WEBDAV_PUT_DONE;
@@ -304,7 +301,7 @@ webdav_put_select_codec(ngx_http_request_t *r, webdav_put_body_ctx_t *bctx)
             brix_dashboard_http_error(r,
                 "webdav PUT empty body with Content-Encoding");
             brix_dashboard_http_finish(r);
-            brix_vfs_staged_abort(bctx->staged, 1);
+            brix_vfs_writer_abort(bctx->writer);
             webdav_metrics_finalize_request(r,
                 NGX_HTTP_UNSUPPORTED_MEDIA_TYPE);
             return WEBDAV_PUT_DONE;
@@ -351,35 +348,38 @@ webdav_put_write_sync(ngx_http_request_t *r, webdav_put_body_ctx_t *bctx)
     }
 
     if (bctx->put_codec != BRIX_CODEC_IDENTITY) {
-        if (brix_vfs_staged_is_driver(bctx->staged)) {
-            /* Content-Encoding decode targets a kernel fd; an object
-             * backend exposes none. Decode-to-staged is a follow-up. */
+        /* A Content-Encoding decode writes plaintext straight to the session's
+         * kernel temp fd (the decode engine owns the streaming + bomb guard);
+         * a driver-backed object exposes no fd (NGX_INVALID_FILE) →
+         * decode-to-object is a follow-up. These bytes bypass the writer's CRC
+         * accumulator, so a verifying session leaves them unverified (its commit
+         * read-back is a no-op when nothing went through the accumulator) —
+         * verify-on-write does not cover coded bodies. */
+        ngx_fd_t wfd = brix_vfs_writer_fd(bctx->writer);
+        if (wfd == NGX_INVALID_FILE) {
             errno = ENOSYS;
             wrc = NGX_ERROR;
             decode_status = NGX_HTTP_NOT_IMPLEMENTED;
         } else {
-            wrc = brix_http_body_decode_to_fd(r,
-                                                brix_vfs_staged_fd(bctx->staged),
-                                                bctx->path, bctx->put_codec,
+            wrc = brix_http_body_decode_to_fd(r, wfd, bctx->path,
+                                                bctx->put_codec,
                                                 BRIX_DECODE_MAX_OUTPUT,
                                                 &bctx->body_summary,
                                                 &decode_status);
         }
-    } else if (brix_vfs_staged_is_driver(bctx->staged)) {
-        wrc = brix_http_body_write_to_staged(r, bctx->staged);
     } else {
-        wrc = brix_http_body_write_to_fd(r,
-                                            brix_vfs_staged_fd(bctx->staged),
-                                            bctx->path, &bctx->body_summary);
+        /* Identity body: one common verified-write call — the writer dispatches
+         * memory bufs, spooled temp-fd bufs, and driver-object targets. */
+        wrc = brix_http_body_write_to_writer(r, bctx->writer);
     }
     if (wrc != NGX_OK) {
         brix_dashboard_http_error(r, "webdav PUT body write failed");
         brix_dashboard_http_finish(r);
-        /* Abort the staged temp — the final path is never touched, so a
-         * failed write (e.g. a corrupt/over-large Content-Encoding that
-         * fails to decode) can never leave a readable partial object. The
-         * decode path reports the precise status (413 bomb / 400 corrupt). */
-        brix_vfs_staged_abort(bctx->staged, 1);
+        /* Abort the session — the final path is never touched, so a failed
+         * write (e.g. a corrupt/over-large Content-Encoding that fails to
+         * decode) can never leave a readable partial object. The decode path
+         * reports the precise status (413 bomb / 400 corrupt). */
+        brix_vfs_writer_abort(bctx->writer);
         webdav_metrics_finalize_request(r, decode_status);
         return WEBDAV_PUT_DONE;
     }
@@ -415,7 +415,7 @@ webdav_put_write_sync(ngx_http_request_t *r, webdav_put_body_ctx_t *bctx)
 webdav_put_step_t
 webdav_put_stream_body(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
-    brix_vfs_staged_t *staged, int created)
+    brix_vfs_writer_t *writer, int created)
 {
     webdav_put_body_ctx_t bctx;
 
@@ -427,12 +427,12 @@ webdav_put_stream_body(ngx_http_request_t *r,
 
     ngx_memzero(&bctx, sizeof(bctx));
     bctx.path      = path;
-    bctx.staged    = staged;
+    bctx.writer    = writer;
     bctx.created   = created;
     bctx.put_codec = BRIX_CODEC_IDENTITY;
 
     if (brix_http_body_summary(r, &bctx.body_summary) != NGX_OK) {
-        brix_vfs_staged_abort(staged, 1);
+        brix_vfs_writer_abort(writer);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return WEBDAV_PUT_DONE;
     }

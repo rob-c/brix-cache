@@ -27,16 +27,17 @@ Run:
 import os
 import socket
 import struct
-import subprocess
 import threading
 import time
 
 import pytest
 
-from settings import HOST, NGINX_BIN, free_port
+from server_registry import NginxInstanceSpec
+from settings import HOST, free_port
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 H = HOST
-_DIR = os.path.join(os.environ.get("TMPDIR", "/tmp"), "xrd_cms_resilience")
 
 # CMS wire constants — mirror src/net/cms/cms_internal.h
 CMS_RR_LOGIN  = 0
@@ -118,95 +119,21 @@ def _wait_closed(sock, timeout):
 
 
 # ---------------------------------------------------------------------------
-# nginx helpers
-# ---------------------------------------------------------------------------
-
-def _mkdirs(*paths):
-    for p in paths:
-        os.makedirs(p, exist_ok=True)
-
-
-def _write_conf(name, body):
-    base = os.path.join(_DIR, name)
-    _mkdirs(base, os.path.join(base, "logs"))
-    conf = os.path.join(base, f"{name}.conf")
-    with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 128; }}\n"
-            f"stream {{\n{body}}}\n")
-    return conf
-
-
-def _start_nginx(conf):
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-    time.sleep(0.3)
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        return False, chk.stderr[-400:]
-    started = subprocess.run([NGINX_BIN, "-c", conf], capture_output=True,
-                             text=True)
-    if started.returncode != 0:
-        return False, started.stderr[-400:]
-    return True, ""
-
-
-def _stop_nginx(conf):
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-
-
-def _wait_port(port, timeout=15.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            socket.create_connection((H, port), timeout=0.5).close()
-            return True
-        except OSError:
-            time.sleep(0.2)
-    return False
-
-
-def _require_nginx():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-
-
-# ---------------------------------------------------------------------------
 # CMS *server* fixture (manager accepting data nodes) with tight deadlines
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def cms_server():
+@pytest.fixture
+def cms_server(lifecycle):
     """A CMS server with short login/idle deadlines and a small cap so the
-    accept-side hardening can be observed quickly."""
-    _require_nginx()
-    port = int(os.environ.get("TEST_CMSR_SRV_PORT") or free_port())
-    data_dir = os.path.join(_DIR, "srv_data")
-    _mkdirs(data_dir)
-    body = (
-        f"    server {{\n"
-        f"        listen 0.0.0.0:{port};\n"
-        f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
-        f"        brix_manager_mode on;\n"
-        f"        brix_cms_server on;\n"
-        f"        brix_cms_server_interval 1;\n"
-        f"        brix_cms_server_login_timeout 2s;\n"
-        f"        brix_cms_server_idle_timeout 3s;\n"
-        f"        brix_cms_server_max_connections 2;\n"
-        f"    }}\n")
-    conf = _write_conf("cmssrv", body)
-    ok, err = _start_nginx(conf)
-    if not ok:
-        pytest.skip(f"cms-server config rejected (CMS unsupported?): {err}")
-    try:
-        if not _wait_port(port):
-            pytest.skip("cms-server nginx did not come up")
-        yield port
-    finally:
-        _stop_nginx(conf)
+    accept-side hardening can be observed quickly. Returns its listen port."""
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-cms-resilience-server",
+        template="nginx_cms_resilience_server.conf",
+        protocol="root",
+        readiness="tcp",
+        reason="CMS resilience: accept-side login/idle/cap hardening.",
+    ))
+    return ep.port
 
 
 # ---------------------------------------------------------------------------
@@ -428,42 +355,31 @@ class ManagerPeer:
                     pass
 
 
-@pytest.fixture(scope="module")
-def silent_manager_node():
+@pytest.fixture
+def silent_manager_node(lifecycle):
     """A Python manager peer that goes silent + a data node dialing it with a
     short cms_read_timeout, so the node's read-liveness failover can be seen."""
-    _require_nginx()
     mgr_port = int(os.environ.get("TEST_CMSR_MGR_PORT") or free_port())
-    node_port = int(os.environ.get("TEST_CMSR_NODE_PORT") or free_port())
-    data_dir = os.path.join(_DIR, "node_data")
-    _mkdirs(data_dir)
     try:
         peer = ManagerPeer(mgr_port)
     except OSError as exc:
         pytest.skip(f"could not bind manager peer: {exc}")
 
-    body = (
-        f"    server {{\n"
-        f"        listen 0.0.0.0:{node_port};\n"
-        f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
-        f"        brix_listen_port {node_port};\n"
-        f"        brix_cms_manager {H}:{mgr_port};\n"
-        f"        brix_cms_paths /;\n"
-        f"        brix_cms_interval 1;\n"
-        f"        brix_cms_read_timeout 3s;\n"
-        f"    }}\n")
-    conf = _write_conf("node", body)
-    ok, err = _start_nginx(conf)
-    if not ok:
-        peer.close()
-        pytest.skip(f"node config rejected (CMS client unsupported?): {err}")
     try:
-        if not _wait_port(node_port):
-            peer.close()
-            pytest.skip("data-node nginx did not come up")
+        lifecycle.start(NginxInstanceSpec(
+            name="lc-cms-resilience-node",
+            template="nginx_cms_resilience_node.conf",
+            protocol="root",
+            readiness="tcp",
+            template_values={"MANAGER_PORT": mgr_port},
+            reason="CMS resilience: client read-liveness failover.",
+        ))
+    except Exception:
+        peer.close()
+        raise
+    try:
         yield peer
     finally:
-        _stop_nginx(conf)
         peer.close()
 
 

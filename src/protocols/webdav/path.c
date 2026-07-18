@@ -27,7 +27,7 @@ map_resolve_rc(int rc)
 ngx_int_t
 webdav_resolve_destination_path(ngx_log_t *log, const char *op_label,
     const char *root_canon, const char *decoded_path,
-    char *out, size_t outsz)
+    char *out, size_t outsz, ngx_flag_t allow_internal)
 {
     char   stripped[PATH_MAX];
     size_t dlen;
@@ -45,7 +45,8 @@ webdav_resolve_destination_path(ngx_log_t *log, const char *op_label,
     memcpy(stripped, decoded_path, dlen);
     stripped[dlen] = '\0';
 
-    rc = brix_http_resolve_path(root_canon, stripped, out, outsz);
+    rc = brix_http_resolve_path_ex(root_canon, stripped, out, outsz,
+                                   allow_internal ? 1u : 0u);
     if (rc == 0)
         return NGX_OK;
     /* 404 from shared resolver → parent doesn't exist → 409 Conflict */
@@ -63,6 +64,8 @@ ngx_http_brix_webdav_resolve_path(ngx_http_request_t *r,
     ngx_int_t decode_rc;
     size_t    uri_dlen;
     int       rc;
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     decode_rc = webdav_urldecode(r->uri.data, r->uri.len,
                                  uri_decoded, sizeof(uri_decoded));
@@ -78,7 +81,11 @@ ngx_http_brix_webdav_resolve_path(ngx_http_request_t *r,
     while (uri_dlen > 1 && uri_decoded[uri_dlen - 1] == '/')
         uri_decoded[--uri_dlen] = '\0';
 
-    rc = brix_http_resolve_path(root_canon, uri_decoded, out, outsz);
+    /* A trusted cache-store endpoint (brix_cache_store_endpoint on) may GET/PUT
+     * an internal <key>.cinfo sidecar over this surface; every other location
+     * keeps the reserved-name 404 guard (allow_internal 0). */
+    rc = brix_http_resolve_path_ex(root_canon, uri_decoded, out, outsz,
+                                   conf->common.cache_store_endpoint ? 1u : 0u);
     switch (rc) {
     case 0:   return NGX_OK;
     case 403: return NGX_HTTP_FORBIDDEN;

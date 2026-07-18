@@ -20,6 +20,7 @@ from settings import (
     CA_CERT,
     HOST,
     PROXY_STD,
+    REGISTRY_ROOT,
     SERVER_CERT,
     SERVER_KEY,
     TEST_ROOT,
@@ -41,8 +42,12 @@ def webdav_auth_cache_nginx():
     manual_port = WEBDAV_AUTH_CACHE_MANUAL_PORT
     nginx_port = WEBDAV_AUTH_CACHE_NGINX_PORT
     data_root = os.path.join(TEST_ROOT, "data-webdav-auth-cache")
+    # The registry launcher writes every instance's log under its own prefix
+    # (REGISTRY_ROOT/<name>/logs) — NOT the retired bash "dedicated/<name>" tree.
+    # Pointing at the old path read a stale log from a previous fleet incarnation
+    # and the "GSI auth OK source=nginx" assertion never matched the live run.
     log_path = os.path.join(
-        TEST_ROOT, "dedicated", "webdav-auth-cache", "logs", "error.log"
+        REGISTRY_ROOT, "webdav-auth-cache", "logs", "error.log"
     )
 
     os.makedirs(data_root, exist_ok=True)
@@ -64,6 +69,7 @@ def _read_log(path):
         return fh.read()
 
 
+@pytest.mark.registry_server("webdav-auth-cache")
 def test_cached_ca_store_built_once_and_reused(webdav_auth_cache_nginx):
     info = webdav_auth_cache_nginx
     # The trust store is built ONCE at config-merge time. That emits an
@@ -91,6 +97,7 @@ def test_cached_ca_store_built_once_and_reused(webdav_auth_cache_nginx):
     assert "GSI auth OK source=manual" in runtime_after
 
 
+@pytest.mark.registry_server("webdav-auth-cache")
 def test_keepalive_reuses_tls_connection_auth_cache(webdav_auth_cache_nginx):
     info = webdav_auth_cache_nginx
 
@@ -110,6 +117,7 @@ def test_keepalive_reuses_tls_connection_auth_cache(webdav_auth_cache_nginx):
     ), log
 
 
+@pytest.mark.registry_server("webdav-auth-cache")
 def test_nginx_verified_client_cert_fast_path(webdav_auth_cache_nginx):
     info = webdav_auth_cache_nginx
 

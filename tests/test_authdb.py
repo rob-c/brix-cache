@@ -231,6 +231,7 @@ def _gsi_env(proxy: str) -> dict:
     return env
 
 
+@pytest.mark.registry_server("authdb")
 def test_public_read(authdb_nginx):
     """u * /public rl: everyone can stat."""
     for proxy in (PROXY_STD, PROXY_CMS, PROXY_ATLAS):
@@ -241,6 +242,7 @@ def test_public_read(authdb_nginx):
         assert r.returncode == 0, f"stat failed for {proxy}: {r.stderr.decode()}"
 
 
+@pytest.mark.registry_server("authdb")
 def test_public_write_denied(authdb_nginx):
     """u * /public rl: write is denied (no 'w' priv)."""
     r = subprocess.run(
@@ -250,6 +252,7 @@ def test_public_write_denied(authdb_nginx):
     assert r.returncode != 0, "write to /public should be denied"
 
 
+@pytest.mark.registry_server("authdb")
 def test_cms_vo_read(authdb_nginx):
     """g cms /cms r: CMS VO proxy can stat."""
     r = subprocess.run(
@@ -259,6 +262,7 @@ def test_cms_vo_read(authdb_nginx):
     assert r.returncode == 0, f"CMS VO stat failed: {r.stderr.decode()}"
 
 
+@pytest.mark.registry_server("authdb")
 def test_cms_vo_denied_for_atlas(authdb_nginx):
     """g cms /cms r: ATLAS VO proxy is denied."""
     r = subprocess.run(
@@ -268,6 +272,7 @@ def test_cms_vo_denied_for_atlas(authdb_nginx):
     assert r.returncode != 0, "ATLAS VO access to /cms should be denied"
 
 
+@pytest.mark.registry_server("authdb")
 def test_user_private_write(authdb_nginx):
     """u * /private rw: authenticated users can write."""
     r = subprocess.run(
@@ -277,6 +282,7 @@ def test_user_private_write(authdb_nginx):
     assert r.returncode == 0, f"private write failed: {r.stderr.decode()}"
 
 
+@pytest.mark.registry_server("authdb")
 def test_unlisted_path_denied(authdb_nginx):
     """Paths absent from authdb are denied."""
     other = os.path.join(AUTHDB_DATA, "other")
@@ -291,6 +297,7 @@ def test_unlisted_path_denied(authdb_nginx):
     assert r.returncode != 0, "access to /other (not in authdb) should be denied"
 
 
+@pytest.mark.registry_server("authdb")
 def test_host_rule_exact_peer_read(authdb_nginx):
     """p 127.0.0.1 /host r (or ::1) authorizes the loopback peer."""
     r = subprocess.run(
@@ -300,6 +307,7 @@ def test_host_rule_exact_peer_read(authdb_nginx):
     assert r.returncode == 0, f"host authdb rule did not match: {r.stderr.decode()}"
 
 
+@pytest.mark.registry_server("authdb")
 def test_host_rule_cidr_peer_read(authdb_nginx):
     """p 127.0.0.0/8 /hostcidr r (or ::1/128) authorizes via CIDR."""
     r = subprocess.run(
@@ -309,6 +317,7 @@ def test_host_rule_cidr_peer_read(authdb_nginx):
     assert r.returncode == 0, f"host CIDR authdb rule did not match: {r.stderr.decode()}"
 
 
+@pytest.mark.registry_server("authdb")
 def test_host_rule_nonmatching_peer_denied(authdb_nginx):
     """A p-rule for an unrelated network must not authorize this peer."""
     r = subprocess.run(

@@ -21,12 +21,16 @@
 
 #include "cvmfs/client/client.h"
 #include "cvmfs/config/cvmfs_conf.h"
+#include "cvmfs/walk/walk.h"
 #include "net/proxy_env.h"
+#include "net/cpool.h"
 #include "brixcvmfs_internal.h"
 
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
@@ -74,13 +78,46 @@ static void url_host(const char *url, char *sch, size_t sl, char *host, size_t h
     *port = (p[n] == ':') ? atoi(p + n + 1) : (strcmp(sch, "https") == 0 ? 443 : 80);
 }
 
+/* Persistent easy handles, pooled through the generic brix_cpool (the SAME
+ * slot/mutex/condvar engine the xrootdfs root:// and WebDAV-metadata paths use —
+ * uniformity across the two FUSE drivers, phase-86). libcurl's connection cache
+ * lives on the handle, so keeping handles across fetches is what keeps
+ * origin/proxy connections alive (keepalive reuse = fewer handshakes for a DPI
+ * middlebox to interfere with). checkout() hands a caller exclusive ownership of
+ * one handle for the duration of a transfer (libcurl easy handles are NOT
+ * concurrency-safe), so the foreground FUSE loop and the background prefetch
+ * worker each borrow their own handle without racing. Every per-request option
+ * is re-set on each call below, so no stale request state survives reuse; `-o
+ * fresh` still forces a new connection per request. */
+#define BRIX_CURL_POOL_SLOTS 4     /* foreground (-s serialized) + prefetch + slack */
+static brix_cpool *g_curl_pool;
+
+/* brix_cpool vtable: a slot's opaque conn memory is one CURL* easy handle. */
+static int curl_slot_connect(void *conn, void *ctx, brix_status *st) {
+    (void) ctx;                                  /* no shared endpoint template */
+    CURL *c = curl_easy_init();
+    if (c == NULL) { brix_status_set(st, XRDC_EIO, 0, "curl_easy_init failed"); return -1; }
+    *(CURL **) conn = c;
+    return 0;
+}
+static void curl_slot_close(void *conn) {
+    CURL *c = *(CURL **) conn;
+    if (c != NULL) { curl_easy_cleanup(c); *(CURL **) conn = NULL; }
+}
+static const brix_cpool_vtbl CURL_VT = { sizeof(CURL *), curl_slot_connect, curl_slot_close };
+
+static void transport_cleanup(void) {
+    if (g_curl_pool != NULL) { brix_cpool_destroy(g_curl_pool); g_curl_pool = NULL; }
+}
+
 /* One GET of `url`, RESUMING from `*got` bytes already in `out` (HTTP Range).
  * Appends new bytes and updates *got. Returns the CURLcode. If a resume request
  * comes back 200 (server ignored Range), the freshly re-sent from-0 bytes are
  * slid to the front so the buffer stays a valid prefix. */
-static CURLcode http_get_range(const char *proxy, const char *url,
+static CURLcode http_get_range(CURL **slot, const char *proxy, const char *url,
                                unsigned char *out, size_t outcap, size_t *got) {
-    CURL *c = curl_easy_init();
+    if (*slot == NULL) *slot = curl_easy_init();
+    CURL *c = *slot;
     if (c == NULL) return CURLE_FAILED_INIT;
 
     size_t      start = *got;
@@ -94,12 +131,11 @@ static CURLcode http_get_range(const char *proxy, const char *url,
     curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(c, CURLOPT_FAILONERROR, 1L);         /* HTTP >=400 → error */
     curl_easy_setopt(c, CURLOPT_TCP_KEEPALIVE, 1L);
-    if (start > 0)
-        curl_easy_setopt(c, CURLOPT_RESUME_FROM_LARGE, (curl_off_t) start);
-    if (g_tcfg.fresh_connect) {
-        curl_easy_setopt(c, CURLOPT_FRESH_CONNECT, 1L);
-        curl_easy_setopt(c, CURLOPT_FORBID_REUSE, 1L);
-    }
+    /* Reused handle: set these unconditionally so a prior request's resume
+     * offset / freshness flags can never leak into this one. */
+    curl_easy_setopt(c, CURLOPT_RESUME_FROM_LARGE, (curl_off_t) start);
+    curl_easy_setopt(c, CURLOPT_FRESH_CONNECT, g_tcfg.fresh_connect ? 1L : 0L);
+    curl_easy_setopt(c, CURLOPT_FORBID_REUSE, g_tcfg.fresh_connect ? 1L : 0L);
     /* Proxy precedence: env proxy wins; else CVMFS-config proxy; else force direct. */
     char sch[8], thost[256]; int tport;
     url_host(url, sch, sizeof(sch), thost, sizeof(thost), &tport);
@@ -125,7 +161,6 @@ static CURLcode http_get_range(const char *proxy, const char *url,
     } else {
         *got = sink.len;
     }
-    curl_easy_cleanup(c);
     return rc;
 }
 
@@ -144,7 +179,11 @@ static int to_https(const char *url, char *buf, size_t n) {
  * hash-verify are owned by the fetch layer. */
 static int brixcvmfs_transport(const char *proxy, const char *host, const char *rel,
                                unsigned char *out, size_t outcap, size_t *outlen, void *ud) {
-    (void) ud;
+    (void) ud;                                    /* handles now come from g_curl_pool */
+    brix_status st; brix_status_clear(&st);
+    CURL **slot = brix_cpool_checkout(g_curl_pool, &st);  /* CURL** == the classic slot */
+    if (slot == NULL) return -1;
+
     char httpurl[1024];
     snprintf(httpurl, sizeof(httpurl), "%s/%s", host, rel);
 
@@ -152,6 +191,7 @@ static int brixcvmfs_transport(const char *proxy, const char *host, const char *
     int    hard_cap = 64;                 /* absolute ceiling on resume attempts */
     int    stalls  = 0;
     size_t got = 0, last = 0;
+    int    ret = -1;
 
     for (int i = 0; i < hard_cap; i++) {
         char httpsbuf[1024];
@@ -159,12 +199,18 @@ static int brixcvmfs_transport(const char *proxy, const char *host, const char *
                           && to_https(httpurl, httpsbuf, sizeof(httpsbuf)));
         const char *url = use_https ? httpsbuf : httpurl;
 
-        CURLcode rc = http_get_range(proxy, url, out, outcap, &got);
-        if (rc == CURLE_OK) { *outlen = got; return 0; }
+        CURLcode rc = http_get_range(slot, proxy, url, out, outcap, &got);
+        if (rc == CURLE_OK) { *outlen = got; ret = 0; break; }
 
         /* hard 4xx over plain http = mirror lacks the object → fail over. A 4xx on
          * the https probe just means no TLS — fall through to http. */
         if (rc == CURLE_HTTP_RETURNED_ERROR && !use_https) break;
+
+        /* Range-blind server: libcurl aborts a resumed request answered 200 with
+         * CURLE_RANGE_ERROR before any body byte reaches the sink, so resume can
+         * never progress there — throw away the partial prefix and restart the
+         * whole object from 0 (the fetch layer's hash check keeps this safe). */
+        if (rc == CURLE_RANGE_ERROR) { got = 0; last = 0; }
 
         if (got > last) { last = got; stalls = 0; }   /* progress → keep resuming */
         else if (++stalls > budget) break;            /* no progress → give up route */
@@ -173,7 +219,11 @@ static int brixcvmfs_transport(const char *proxy, const char *host, const char *
         struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
         nanosleep(&ts, NULL);
     }
-    return -1;
+    /* A libcurl easy handle stays healthy across transfers (it owns its own
+     * connection cache and re-establishes internally), so always check it back
+     * in reusable — never health-drop. */
+    brix_cpool_checkin(g_curl_pool, slot, 1);
+    return ret;
 }
 
 /* ---- path mapping: FUSE "/" is the catalog root "" ---------------------- */
@@ -193,11 +243,183 @@ cvmfs_client_t *brixcvmfs_client(void)             { return g_cl; }
 const char     *brixcvmfs_cat_path(const char *p)  { return cat_path(p); }
 long            brixcvmfs_mono_now(void)           { return mono_now(); }
 
+/* TTL-gated refresh + pin-drift audit: when the mount is pinned and a verified
+ * upstream manifest has moved past the pin, log ONE audit line per drift
+ * transition (re-armed if upstream returns to the pin), keep serving the pin. */
+static void brix_refresh(void) {
+    static int drift_logged = 0;
+    cvmfs_client_refresh(g_cl, mono_now());
+    char up[48];
+    if (cvmfs_client_pin_drift(g_cl, up, sizeof(up))) {
+        if (!drift_logged) {
+            char pin[48];
+            cvmfs_hash_to_hex(&g_cl->pin_root, 0, pin, sizeof(pin));
+            fprintf(stderr, "brixcvmfs: audit signal=pindrift repo=%s pinned=%s "
+                    "upstream=%s serving=pinned\n", g_cl->config.name, pin, up);
+            drift_logged = 1;
+        }
+    } else {
+        drift_logged = 0;
+    }
+}
+
+/* ---- predictive prefetch (phase-85 F4) ---------------------------------- *
+ * Opt-in subtree readahead: the first readdir of a directory queues it for a
+ * background worker that walks the catalog subtree (cvmfs_walk_subtree) and
+ * pre-pulls every referenced CAS object into the shared cache, so subsequent
+ * opens are cache hits. The worker owns its OWN failover state, scratch and
+ * CAS-store handle (puts are O_EXCL+rename atomic, so sharing the cache
+ * DIRECTORY with the foreground is safe); its libcurl handle is borrowed from
+ * the shared g_curl_pool per fetch (exclusive checkout, so it never races the
+ * FUSE loop's handle). Bounded by a byte budget;
+ * prefetch errors are always swallowed — they can never fail a foreground op. */
+
+#define BRIX_PF_QCAP     32
+#define BRIX_PF_SEENCAP  512
+#define BRIX_PF_OBJCAP   (32u * 1024u * 1024u)
+
+typedef struct {
+    int             enabled;
+    int             depth;                 /* nested-catalog descent budget */
+    long            budget;                /* bytes; <= 0 = unbounded */
+    long            spent;
+    int             capped;                /* budget hit: audit once, drain queue */
+    char            tmp_dir[512];
+    char            cache_dir[512];
+    int             cache_dirfd;           /* dup'd overlay dirfd, or -1 */
+    long            quota;
+    pthread_t       tid;
+    pthread_mutex_t mu;
+    pthread_cond_t  cv;
+    struct { char path[1024]; cvmfs_hash_t root; } q[BRIX_PF_QCAP];
+    int             qh, qn;
+    uint64_t        seen[BRIX_PF_SEENCAP]; /* FNV-1a of queued dir paths */
+    int             nseen;
+    cvmfs_failover_t fo;                   /* worker-owned failover state */
+    cvmfs_failover_t fo0;                  /* pristine snapshot (blacklist reset) */
+} brix_prefetch_t;
+
+static brix_prefetch_t g_pf = { .cache_dirfd = -1 };
+
+static uint64_t pf_fnv1a(const char *s) {
+    uint64_t h = 1469598103934665603ull;
+    for (; *s; s++) { h ^= (unsigned char) *s; h *= 1099511628211ull; }
+    return h;
+}
+
+typedef struct {
+    cvmfs_fetch_ctx_t *fx;
+    unsigned char     *out;
+} pf_walk_ud_t;
+
+static int pf_visit(const cvmfs_walk_item_t *it, void *ud) {
+    pf_walk_ud_t *p = ud;
+    if (it->kind == CVMFS_WALK_CATALOG) return 0;   /* the walk itself cached it */
+    if (g_pf.budget > 0 && g_pf.spent >= g_pf.budget) {
+        if (!g_pf.capped) {
+            g_pf.capped = 1;
+            fprintf(stderr, "brixcvmfs: audit signal=prefetchcap repo=%s "
+                    "budget=%ld spent=%ld (prefetch stopped, foreground unaffected)\n",
+                    g_cl->config.name, g_pf.budget, g_pf.spent);
+        }
+        return 1;
+    }
+    size_t n = 0;
+    if (cvmfs_fetch_object(p->fx, &it->hash, it->suffix,
+                           p->out, BRIX_PF_OBJCAP, &n, mono_now()) == 0)
+        g_pf.spent += (long) n;
+    else
+        g_pf.fo = g_pf.fo0;   /* one bad object blacklists its route — restore the
+                               * pristine snapshot so it can't shadow the sweep */
+    return 0;   /* fetch errors never stop the sweep */
+}
+
+static void *pf_main(void *arg) {
+    (void) arg;
+    brix_cas_store_t cache;
+    int crc = g_pf.cache_dirfd >= 0
+        ? brix_cas_init_at(&cache, g_pf.cache_dirfd, g_pf.quota)
+        : brix_cas_init(&cache, g_pf.cache_dir, g_pf.quota);
+    unsigned char *scratch = malloc(BRIX_PF_OBJCAP);
+    unsigned char *out     = malloc(BRIX_PF_OBJCAP);
+    if (crc != 0 || scratch == NULL || out == NULL) {
+        free(scratch); free(out);
+        return NULL;                       /* prefetch unavailable, mount unaffected */
+    }
+
+    cvmfs_fetch_ctx_t fx;
+    memset(&fx, 0, sizeof(fx));
+    fx.fo = &g_pf.fo;
+    fx.cache = &cache;
+    fx.transport = brixcvmfs_transport;
+    fx.transport_ud = NULL;                /* handle borrowed from g_curl_pool per fetch */
+    fx.store_form = CVMFS_STORE_COMPRESSED;
+    fx.scratch = scratch;
+    fx.scratch_cap = BRIX_PF_OBJCAP;
+
+    for (;;) {
+        pthread_mutex_lock(&g_pf.mu);
+        while (g_pf.qn == 0) pthread_cond_wait(&g_pf.cv, &g_pf.mu);
+        char path[1024];
+        cvmfs_hash_t root = g_pf.q[g_pf.qh].root;
+        snprintf(path, sizeof(path), "%s", g_pf.q[g_pf.qh].path);
+        g_pf.qh = (g_pf.qh + 1) % BRIX_PF_QCAP;
+        g_pf.qn--;
+        pthread_mutex_unlock(&g_pf.mu);
+
+        if (g_pf.capped) continue;         /* drain silently once the budget is hit */
+        pf_walk_ud_t ud = { &fx, out };
+        cvmfs_walk_subtree(&fx, &root, g_pf.tmp_dir, path, g_pf.depth,
+                           pf_visit, &ud, mono_now());
+    }
+    return NULL;
+}
+
+/* FUSE-thread side: queue `path` once. Drops silently when the queue is full
+ * or the path was already prefetched — advisory readahead, never a failure. */
+static void pf_enqueue(const char *path) {
+    if (!g_pf.enabled) return;
+    uint64_t h = pf_fnv1a(path);
+    for (int i = 0; i < g_pf.nseen; i++)
+        if (g_pf.seen[i] == h) return;
+    if (g_pf.nseen < BRIX_PF_SEENCAP) g_pf.seen[g_pf.nseen++] = h;
+
+    pthread_mutex_lock(&g_pf.mu);
+    if (g_pf.qn < BRIX_PF_QCAP) {
+        int slot = (g_pf.qh + g_pf.qn) % BRIX_PF_QCAP;
+        snprintf(g_pf.q[slot].path, sizeof(g_pf.q[slot].path), "%s", path);
+        g_pf.q[slot].root = g_cl->pin_set ? g_cl->pin_root
+                                          : g_cl->manifest.root_catalog;
+        g_pf.qn++;
+        pthread_cond_signal(&g_pf.cv);
+    }
+    pthread_mutex_unlock(&g_pf.mu);
+}
+
+/* Called once between mount and fuse_main (still single-threaded): snapshot the
+ * failover set and start the worker. Failure to start just disables prefetch. */
+static void pf_start(int depth, long budget, const char *tmp_dir,
+                     const char *cache_dir, int cache_dirfd, long quota) {
+    g_pf.depth = depth;
+    g_pf.budget = budget;
+    snprintf(g_pf.tmp_dir, sizeof(g_pf.tmp_dir), "%s", tmp_dir);
+    snprintf(g_pf.cache_dir, sizeof(g_pf.cache_dir), "%s", cache_dir);
+    g_pf.cache_dirfd = cache_dirfd >= 0 ? dup(cache_dirfd) : -1;
+    g_pf.quota = quota;
+    g_pf.fo = g_pf.fo0 = g_cl->fo;         /* snapshot; worker state evolves alone */
+    pthread_mutex_init(&g_pf.mu, NULL);
+    pthread_cond_init(&g_pf.cv, NULL);
+    if (pthread_create(&g_pf.tid, NULL, pf_main, NULL) == 0) {
+        pthread_detach(g_pf.tid);
+        g_pf.enabled = 1;
+    }
+}
+
 /* ---- FUSE ops (read-only) ---------------------------------------------- */
 
 int brixcvmfs_op_getattr(const char *path, struct stat *st, struct fuse_file_info *fi) {
     (void) fi;
-    cvmfs_client_refresh(g_cl, mono_now());     /* TTL-gated: no-op until due */
+    brix_refresh();                             /* TTL-gated: no-op until due */
     cvmfs_client_reap_tick(g_cl, mono_now());   /* quota-gated: no-op until due */
     cvmfs_dirent_t e;
     int rc = cvmfs_client_resolve(g_cl, cat_path(path), &e, mono_now());
@@ -225,11 +447,12 @@ static void readdir_emit(const cvmfs_dirent_t *e, void *ud) {
 int brixcvmfs_op_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                       off_t off, struct fuse_file_info *fi, enum fuse_readdir_flags fl) {
     (void) off; (void) fi; (void) fl;
-    cvmfs_client_refresh(g_cl, mono_now());   /* TTL-gated: no-op until due */
+    brix_refresh();                           /* TTL-gated: no-op until due */
     filler(buf, ".", NULL, 0, 0);
     filler(buf, "..", NULL, 0, 0);
     readdir_ctx_t r = { buf, filler };
-    int n = cvmfs_catalog_readdir(g_cl->root_catalog, cat_path(path), readdir_emit, &r);
+    int n = cvmfs_client_readdir(g_cl, cat_path(path), readdir_emit, &r, mono_now());
+    if (n >= 0) pf_enqueue(cat_path(path));   /* first listing = prefetch signal */
     return n < 0 ? -EIO : 0;
 }
 
@@ -278,19 +501,49 @@ int brixcvmfs_op_getxattr(const char *path, const char *name, char *value, size_
 }
 
 int brixcvmfs_op_listxattr(const char *path, char *list, size_t size) {
-    (void) path;
-    int n = cvmfs_client_listxattr(list, size);
+    int n = cvmfs_client_listxattr(g_cl, cat_path(path), list, size, mono_now());
     if (size == 0)          return n;
     if ((size_t) n > size)  return -ERANGE;
     return n;
 }
 
-/* every mutating op is refused */
+/* access(2): the fs is read-only, so any W_OK is refused up front; X_OK is
+ * honored against the node's mode bits (a 0644 file has no execute bit). R_OK /
+ * F_OK on a world-readable RO tree always succeed. Mirrors official cvmfs. */
+int brixcvmfs_op_access(const char *path, int mask) {
+    cvmfs_dirent_t e;
+    int rc = cvmfs_client_resolve(g_cl, cat_path(path), &e, mono_now());
+    if (rc < 0)  return -EIO;
+    if (rc == 0) return -ENOENT;
+    if (mask & W_OK) return -EROFS;                 /* read-only filesystem */
+    if ((mask & X_OK) && !(e.mode & (S_IXUSR | S_IXGRP | S_IXOTH))) return -EACCES;
+    return 0;
+}
+
+/* every mutating op is refused with EROFS — a read-only filesystem returns
+ * EROFS for the whole write family, not the kernel's default ENOSYS/EPERM. */
 static int ro_erofs(void) { return -EROFS; }
 static int op_mkdir(const char *p, mode_t m) { (void)p;(void)m; return ro_erofs(); }
 static int op_unlink(const char *p) { (void)p; return ro_erofs(); }
 static int op_write(const char *p, const char *b, size_t s, off_t o, struct fuse_file_info *fi)
     { (void)p;(void)b;(void)s;(void)o;(void)fi; return ro_erofs(); }
+static int op_rmdir(const char *p) { (void)p; return ro_erofs(); }
+static int op_rename(const char *f, const char *t, unsigned int fl)
+    { (void)f;(void)t;(void)fl; return ro_erofs(); }
+static int op_symlink(const char *tgt, const char *p) { (void)tgt;(void)p; return ro_erofs(); }
+static int op_link(const char *f, const char *t) { (void)f;(void)t; return ro_erofs(); }
+static int op_chmod(const char *p, mode_t m, struct fuse_file_info *fi)
+    { (void)p;(void)m;(void)fi; return ro_erofs(); }
+static int op_chown(const char *p, uid_t u, gid_t g, struct fuse_file_info *fi)
+    { (void)p;(void)u;(void)g;(void)fi; return ro_erofs(); }
+static int op_truncate(const char *p, off_t o, struct fuse_file_info *fi)
+    { (void)p;(void)o;(void)fi; return ro_erofs(); }
+static int op_utimens(const char *p, const struct timespec tv[2], struct fuse_file_info *fi)
+    { (void)p;(void)tv;(void)fi; return ro_erofs(); }
+static int op_setxattr(const char *p, const char *n, const char *v, size_t s, int f)
+    { (void)p;(void)n;(void)v;(void)s;(void)f; return ro_erofs(); }
+static int op_removexattr(const char *p, const char *n) { (void)p;(void)n; return ro_erofs(); }
+static int op_mknod(const char *p, mode_t m, dev_t d) { (void)p;(void)m;(void)d; return ro_erofs(); }
 
 static const struct fuse_operations brixcvmfs_ops = {
     .getattr  = brixcvmfs_op_getattr,
@@ -301,9 +554,21 @@ static const struct fuse_operations brixcvmfs_ops = {
     .statfs   = brixcvmfs_op_statfs,
     .getxattr  = brixcvmfs_op_getxattr,
     .listxattr = brixcvmfs_op_listxattr,
+    .access   = brixcvmfs_op_access,
     .mkdir    = op_mkdir,
     .unlink   = op_unlink,
     .write    = op_write,
+    .rmdir       = op_rmdir,
+    .rename      = op_rename,
+    .symlink     = op_symlink,
+    .link        = op_link,
+    .chmod       = op_chmod,
+    .chown       = op_chown,
+    .truncate    = op_truncate,
+    .utimens     = op_utimens,
+    .setxattr    = op_setxattr,
+    .removexattr = op_removexattr,
+    .mknod       = op_mknod,
 };
 
 /* ---- front-end --------------------------------------------------------- */
@@ -359,6 +624,9 @@ typedef struct {
     int   fresh;               /* -o fresh: fresh connection per request */
     int   tls;                 /* -o tls: prefer https:// */
     int   retries;            /* -o retries=<N> (-1 = from config/default) */
+    int   prefetch;            /* -o prefetch=<DEPTH>: subtree readahead (-1 = off) */
+    long  prefetch_budget;     /* -o prefetch_budget=<BYTES> (0 = unbounded) */
+    char  pin[128];            /* -o pin=<HASH>: pin the root catalog (reproducible mount) */
     char  cache_dir[512];      /* -o cache=<DIR> (implies non-clever) */
     char  writes_dir[512];     /* -o writes=<DIR> (cvmfs-rw overlay location) */
     char  fuse_extra[512];     /* passthrough -o tokens, comma-joined */
@@ -374,6 +642,10 @@ static void opts_o_list(char *list, brix_opts_t *o) {
         else if (strcmp(t, "tls") == 0)      o->tls = 1;
         else if (strncmp(t, "quota=", 6) == 0)   o->quota_mb = atoi(t + 6);
         else if (strncmp(t, "retries=", 8) == 0) o->retries = atoi(t + 8);
+        else if (strncmp(t, "prefetch=", 9) == 0)        o->prefetch = atoi(t + 9);
+        else if (strncmp(t, "prefetch_budget=", 16) == 0) o->prefetch_budget = atol(t + 16);
+        else if (strncmp(t, "pin=", 4) == 0)
+            snprintf(o->pin, sizeof(o->pin), "%s", t + 4);
         else if (strncmp(t, "cache=", 6) == 0)
             snprintf(o->cache_dir, sizeof(o->cache_dir), "%s", t + 6);
         else if (strncmp(t, "writes=", 7) == 0)
@@ -388,7 +660,7 @@ static void opts_o_list(char *list, brix_opts_t *o) {
 
 static void parse_opts(int argc, char **argv, int start, brix_opts_t *o) {
     memset(o, 0, sizeof(*o));
-    o->clever = 1; o->retries = -1;
+    o->clever = 1; o->retries = -1; o->prefetch = -1;
     char obuf[512];
     for (int i = start; i < argc; i++) {
         if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
@@ -447,12 +719,24 @@ static long brixcvmfs_resolve_quota(const cvmfs_conf_t *cf, long quota_override)
 }
 
 /* Load the repo master key: $BRIXCVMFS_PUBKEY overrides the config default path.
- * Returns the allocated key blob (caller frees) + `*klen`, or NULL on read
- * failure (message already printed). */
+ * A config-derived CVMFS_KEYS_DIR/<domain>.pub that does not exist falls back to
+ * the key-chain DIRECTORY itself (stock layouts rotate keys as e.g.
+ * keys/cern.ch/cern-it4.cern.ch.pub with no cern.ch.pub; load_master_key
+ * concatenates every *.pub and the verifier tries each). Returns the allocated
+ * key blob (caller frees) + `*klen`, or NULL on read failure (message printed). */
 static unsigned char *brixcvmfs_load_repo_key(const cvmfs_client_t *cl, size_t *klen) {
-    const char *keypath = getenv("BRIXCVMFS_PUBKEY");
-    if (keypath == NULL) keypath = cl->config.master_pub_path;
+    const char *env_key = getenv("BRIXCVMFS_PUBKEY");
+    const char *keypath = env_key ? env_key : cl->config.master_pub_path;
     unsigned char *master = load_master_key(keypath, klen);
+    if (master == NULL && env_key == NULL) {
+        char chain[512];
+        snprintf(chain, sizeof(chain), "%s", keypath);
+        char *slash = strrchr(chain, '/');
+        if (slash != NULL && slash != chain) {
+            *slash = '\0';
+            master = load_master_key(chain, klen);
+        }
+    }
     if (master == NULL)
         fprintf(stderr, "brixcvmfs: cannot read master key %s\n", keypath);
     return master;
@@ -490,12 +774,19 @@ static void brixcvmfs_prepare_cache_dir(const char *repo, const char *cache_dir_
  * default/env path). quota/retries fall back to the config cascade when the
  * override is unset (<=0 quota, <0 retries). Returns a mounted client or NULL. */
 static cvmfs_client_t *brixcvmfs_open(const char *repo, const char *cache_dir_override,
-                                      int cache_dirfd, long quota_override, int retries_override) {
+                                      int cache_dirfd, long quota_override, int retries_override,
+                                      const char *pin_opt) {
     cvmfs_client_t *cl = calloc(1, sizeof(*cl));
     if (cl == NULL) { fprintf(stderr, "brixcvmfs: out of memory\n"); return NULL; }
 
     if (cvmfs_repo_config_defaults(repo, &cl->config) != 0) {
         fprintf(stderr, "brixcvmfs: '%s' is not a fully-qualified repo name\n", repo);
+        free(cl); return NULL;
+    }
+
+    const char *pin = (pin_opt != NULL && pin_opt[0]) ? pin_opt : getenv("BRIXCVMFS_PIN");
+    if (pin != NULL && pin[0] && cvmfs_client_pin_root(cl, pin) != 0) {
+        fprintf(stderr, "brixcvmfs: bad pin '%s' (want a root-catalog hash)\n", pin);
         free(cl); return NULL;
     }
 
@@ -519,13 +810,23 @@ static cvmfs_client_t *brixcvmfs_open(const char *repo, const char *cache_dir_ov
                                 cache_dir, sizeof(cache_dir));
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
+    /* Bring the shared curl-handle pool up before the mount fetches the root
+     * catalog (eager slot-0 connect surfaces a curl_easy_init failure here). */
+    brix_status pst; brix_status_clear(&pst);
+    g_curl_pool = brix_cpool_create(&CURL_VT, NULL, BRIX_CURL_POOL_SLOTS, &pst);
+    if (g_curl_pool == NULL) {
+        fprintf(stderr, "brixcvmfs: curl handle pool init failed: %s\n", pst.msg);
+        curl_global_cleanup();
+        free(cl); return NULL;
+    }
     int mrc = cvmfs_client_mount(cl, repo, master, klen,
                                  cache_dirfd < 0 ? cache_dir : NULL, tmp_dir,
                                  quota, cache_dirfd, brixcvmfs_transport, NULL, mono_now());
     free(master);
     if (mrc != 0) {
         fprintf(stderr, "brixcvmfs: mount of %s failed (trust/catalog error %d)\n", repo, mrc);
-        curl_global_cleanup();
+        transport_cleanup();
+    curl_global_cleanup();
         free(cl); return NULL;
     }
     return cl;
@@ -534,7 +835,7 @@ static cvmfs_client_t *brixcvmfs_open(const char *repo, const char *cache_dir_ov
 /* --check: verify the trust chain + root catalog and print a summary WITHOUT
  * mounting (the stock `cvmfs_config chksetup` analog). Exit 0 = healthy. */
 static int brixcvmfs_check(const char *repo) {
-    cvmfs_client_t *cl = brixcvmfs_open(repo, NULL, -1, 0, -1);
+    cvmfs_client_t *cl = brixcvmfs_open(repo, NULL, -1, 0, -1, NULL);
     if (cl == NULL) return 1;
 
     long now = mono_now();
@@ -566,9 +867,69 @@ static int brixcvmfs_check(const char *repo) {
     printf("HEALTHY\n");
 
     cvmfs_client_umount(cl);
+    transport_cleanup();
     curl_global_cleanup();
     free(cl);
     return root_ok ? 0 : 1;
+}
+
+/* --prewarm (phase-85 F5): walk the WHOLE snapshot (the pin when
+ * $BRIXCVMFS_PIN is set, else the current root) and pull every referenced CAS
+ * object into the local cache, so a shared cache dir is fully warm before a
+ * job wave. No mount, single-threaded: reuses the client's own fetch ctx.
+ * Exit 0 = every object landed; a fetch error or a tampered catalog ⇒ 1. */
+typedef struct {
+    cvmfs_fetch_ctx_t *fx;
+    unsigned char     *out;
+    cvmfs_failover_t   fo0;   /* pristine snapshot (blacklist reset, cf. F4) */
+    long               objs, bytes, errs;
+} prewarm_ud_t;
+
+static int prewarm_visit(const cvmfs_walk_item_t *it, void *ud) {
+    prewarm_ud_t *p = ud;
+    if (it->kind == CVMFS_WALK_CATALOG) return 0;   /* the walk itself caches it */
+    size_t n = 0;
+    if (cvmfs_fetch_object(p->fx, &it->hash, it->suffix,
+                           p->out, BRIX_PF_OBJCAP, &n, mono_now()) == 0) {
+        p->objs++;
+        p->bytes += (long) n;
+    } else {
+        p->errs++;
+        *p->fx->fo = p->fo0;  /* one bad object blacklists its route — restore
+                               * so it can't shadow the rest of the sweep */
+    }
+    return 0;
+}
+
+static int brixcvmfs_prewarm(const char *repo) {
+    cvmfs_client_t *cl = brixcvmfs_open(repo, NULL, -1, 0, -1, NULL);
+    if (cl == NULL) return 1;
+
+    prewarm_ud_t ud = { &cl->fetch, malloc(BRIX_PF_OBJCAP), cl->fo, 0, 0, 0 };
+    int rc = -1;
+    if (ud.out != NULL) {
+        const cvmfs_hash_t *root = cl->pin_set ? &cl->pin_root
+                                               : &cl->manifest.root_catalog;
+        rc = cvmfs_walk_catalog(&cl->fetch, root, cl->catalog_tmp,
+                                INT_MAX, prewarm_visit, &ud, mono_now());
+        char hex[48];
+        cvmfs_hash_to_hex(root, 0, hex, sizeof(hex));
+        printf("CVMFS-brix prewarm: %s\n", repo);
+        printf("  root catalog ... %s%s\n", hex, cl->pin_set ? " (pinned)" : "");
+        printf("  objects ........ %ld fetched (%ld bytes)\n", ud.objs, ud.bytes);
+        printf("  errors ......... %ld%s\n", ud.errs,
+               rc != 0 ? " (walk aborted: catalog fetch/verify failure)" : "");
+        printf("%s\n", rc == 0 && ud.errs == 0 ? "WARM" : "INCOMPLETE");
+    } else {
+        fprintf(stderr, "brixcvmfs: out of memory\n");
+    }
+    free(ud.out);
+
+    cvmfs_client_umount(cl);
+    transport_cleanup();
+    curl_global_cleanup();
+    free(cl);
+    return rc == 0 && ud.errs == 0 ? 0 : 1;
 }
 
 /* Resolve the clever-overlay cache: unless an explicit cache (-o cache= or
@@ -617,6 +978,9 @@ static int brixcvmfs_run_fuse(char *arg0, const char *mnt, const brix_opts_t *o)
     fargv[fargc++] = arg0;
     fargv[fargc++] = (char *) mnt;
     fargv[fargc++] = (char *) "-s";
+    /* Flag the kernel mount read-only (matches official cvmfs2) — the pure-ro
+     * build only. The --rw overlay build is genuinely writable, so must not. */
+    if (!brixcvmfs_rw) { fargv[fargc++] = (char *) "-o"; fargv[fargc++] = (char *) "ro"; }
     for (int i = 0; i < o->nflags && fargc < 20; i++) fargv[fargc++] = o->flags[i];
     if (o->fuse_extra[0]) { fargv[fargc++] = (char *) "-o"; fargv[fargc++] = (char *) o->fuse_extra; }
 
@@ -639,14 +1003,29 @@ static int brixcvmfs_mount_run(char *arg0, const char *repo, const char *mnt,
     int rw_rc = brixcvmfs_setup_rw_overlay(mnt, o);
     if (rw_rc != 0) { if (cache_dirfd >= 0) close(cache_dirfd); return rw_rc; }
 
-    cvmfs_client_t *cl = brixcvmfs_open(repo, cache_override, cache_dirfd, quota, o->retries);
+    cvmfs_client_t *cl = brixcvmfs_open(repo, cache_override, cache_dirfd, quota, o->retries,
+                                        o->pin);
     if (cl == NULL) { if (cache_dirfd >= 0) close(cache_dirfd); return 1; }
     g_cl = cl;
+
+    /* F4 predictive prefetch: -o prefetch=<depth> or $BRIXCVMFS_PREFETCH. */
+    const char *env_pf = getenv("BRIXCVMFS_PREFETCH");
+    int pf_depth = o->prefetch >= 0 ? o->prefetch : (env_pf ? atoi(env_pf) : -1);
+    if (pf_depth >= 0) {
+        const char *env_pb = getenv("BRIXCVMFS_PREFETCH_BUDGET");
+        long pf_budget = o->prefetch_budget > 0 ? o->prefetch_budget
+                       : (env_pb ? atol(env_pb) : 0);
+        char pf_cache[512] = "";
+        brixcvmfs_prepare_cache_dir(repo, cache_override, cache_dirfd,
+                                    pf_cache, sizeof(pf_cache));
+        pf_start(pf_depth, pf_budget, cl->catalog_tmp, pf_cache, cache_dirfd, quota);
+    }
 
     int rc = brixcvmfs_run_fuse(arg0, mnt, o);
 
     if (brixcvmfs_rw && brixcvmfs_teardown_rw != NULL) brixcvmfs_teardown_rw();
     cvmfs_client_umount(cl);
+    transport_cleanup();
     curl_global_cleanup();
     if (cache_dirfd >= 0) close(cache_dirfd);
     free(cl);
@@ -659,11 +1038,14 @@ static int brixcvmfs_mount_run(char *arg0, const char *repo, const char *mnt,
 int brixcvmfs_main(int argc, char **argv) {
     if (argc >= 3 && strcmp(argv[1], "--check") == 0)
         return brixcvmfs_check(argv[2]);
+    if (argc >= 3 && strcmp(argv[1], "--prewarm") == 0)
+        return brixcvmfs_prewarm(argv[2]);
 
     if (argc < 3) {
         fprintf(stderr,
             "usage: brixcvmfs <repo.fqrn> <mountpoint> [fuse-opts]\n"
-            "       brixcvmfs --check <repo.fqrn>\n");
+            "       brixcvmfs --check <repo.fqrn>\n"
+            "       brixcvmfs --prewarm <repo.fqrn>\n");
         return 2;
     }
 

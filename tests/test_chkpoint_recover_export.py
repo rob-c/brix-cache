@@ -37,7 +37,6 @@ it is exactly where the config-time check gives false assurance.
 
 import os
 import re
-import shutil
 import socket
 import struct
 import subprocess
@@ -45,7 +44,10 @@ import time
 
 import pytest
 
-from settings import free_port, HOST, BIND_HOST
+from settings import HOST, BIND_HOST
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
@@ -73,17 +75,6 @@ def _recv_exact(s, n):
             raise EOFError("connection closed mid-response")
         b += c
     return b
-
-
-def _port_up(port, timeout=5.0):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection((HOST, port), timeout=0.3):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
 
 
 def _serves(port, timeout=6):
@@ -114,41 +105,22 @@ def _serves(port, timeout=6):
 
 
 class _Export:
-    """A throwaway anonymous root:// server over a private export root."""
+    """A throwaway anonymous root:// server over a private export root, driven
+    through the registry LifecycleHarness."""
 
-    def __init__(self):
-        self.port = free_port()
-        base = os.environ.get("TMPDIR") or "/tmp"
-        self.root = os.path.join(base, f"ckp-recover-{self.port}")
-        shutil.rmtree(self.root, ignore_errors=True)
+    def __init__(self, lifecycle, tmp_path):
+        self._lc = lifecycle
+        self.root = str(tmp_path)
         self.data = os.path.join(self.root, "data")
-        self.logs = os.path.join(self.root, "logs")
-        for d in (self.data, self.logs, os.path.join(self.root, "conf")):
-            os.makedirs(d, exist_ok=True)
+        os.makedirs(self.data, exist_ok=True)
         # Default: an export the worker can WRITE, under either harness identity.
         # As root the worker is `nobody` and would otherwise be denied by this
         # root-owned tree (0755) — which is the very condition freeze() sets up
         # deliberately, so it must not be the accidental default here.
         os.chmod(self.root, 0o755)
         os.chmod(self.data, 0o777)
-        self.errlog = os.path.join(self.logs, "error.log")
-        self.conf = os.path.join(self.root, "conf", "nginx.conf")
-        with open(self.conf, "w") as f:
-            f.write(f"""worker_processes 1;
-error_log {self.errlog} info;
-pid {self.root}/nginx.pid;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{self.port};
-        brix_root on;
-        brix_storage_backend posix:{self.data};
-        brix_auth none;
-        brix_allow_write on;
-        brix_access_log {self.logs}/access.log;
-    }}
-}}
-""")
+        self.port = None
+        self.errlog = None
 
     def file(self, relpath, data=b"x\n", mode=0o644):
         full = os.path.join(self.data, relpath.lstrip("/"))
@@ -170,43 +142,46 @@ stream {{
         os.chmod(self.data, 0o555)
 
     def start(self, expect_serving=True):
-        t = subprocess.run([NGINX_BIN, "-t", "-c", self.conf],
-                           capture_output=True, text=True)
-        assert t.returncode == 0, f"nginx -t failed: {t.stderr}"
-        subprocess.run([NGINX_BIN, "-c", self.conf], capture_output=True)
-        # The master binds the listener before forking the worker, so a port that
-        # is merely "up" proves nothing; settle briefly so worker init (and any
-        # fatal exit) has landed in the log either way.
-        _port_up(self.port, timeout=5.0)
+        ep = self._lc.start(NginxInstanceSpec(
+            name="lc-chkpoint-recover",
+            template="nginx_lc_chkpoint_recover.conf",
+            protocol="root",
+            template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": self.data},
+            reason="startup checkpoint recovery vs export writability"))
+        self.port = ep.port
+        self.errlog = os.path.join(ep.prefix, "logs", "error.log")
+        # The master binds the listener before forking the worker, so harness
+        # TCP-readiness proves the listener is up but not that worker init (the
+        # recovery pass, or any fatal exit) has landed in the log yet; settle
+        # briefly so the log-based assertions see it either way.
         time.sleep(0.6)
 
     def log(self):
+        if self.errlog is None:
+            return ""
         try:
             with open(self.errlog, "r", errors="replace") as f:
                 return f.read()
         except FileNotFoundError:
             return ""
 
-    def stop(self):
-        subprocess.run([NGINX_BIN, "-c", self.conf, "-s", "stop"],
-                       capture_output=True)
-        # Undo freeze() so the tree is removable regardless of how the test ended.
+    def unfreeze(self):
+        # Undo freeze() so pytest's tmp_path teardown can remove the tree.
         try:
             os.chmod(self.data, 0o755)
         except OSError:
             pass
-        shutil.rmtree(self.root, ignore_errors=True)
 
 
 @pytest.fixture
-def export():
+def export(lifecycle, tmp_path):
     if not _have_nginx():
         pytest.skip("nginx binary unavailable or built without checkpoint recovery")
-    srv = _Export()
+    srv = _Export(lifecycle, tmp_path)
     try:
         yield srv
     finally:
-        srv.stop()
+        srv.unfreeze()
 
 
 # The unwritable-export condition is only REACHABLE when the worker's identity

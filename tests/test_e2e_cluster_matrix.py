@@ -178,6 +178,7 @@ class TestNginxManagerMultipleDS:
         ]:
             _skip_if_port_closed(port, label)
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-ms-redir", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_locate_redirects_to_registered_ds(self):
         """kXR_locate from the nginx manager returns a redirect to a registered DS."""
         name = f"ms_locate_{uuid.uuid4().hex[:8]}.bin"
@@ -197,6 +198,7 @@ class TestNginxManagerMultipleDS:
         finally:
             sock.close()
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-ms-redir", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_xrdcp_read_follows_redirect_multi_ds(self, tmp_path):
         """xrdcp reads through the nginx manager; redirect to DS and content is correct."""
         payload = os.urandom(32 * 1024)
@@ -214,6 +216,7 @@ class TestNginxManagerMultipleDS:
             got = fh.read()
         assert _md5(got) == _md5(payload)
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-ms-redir", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_xrdfs_stat_through_nginx_manager(self):
         """xrdfs stat returns the correct file size after redirect from nginx manager."""
         payload = os.urandom(4096)
@@ -227,6 +230,7 @@ class TestNginxManagerMultipleDS:
             f"Expected size {len(payload)} in stat output, got:\n{out}"
         )
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-ms-redir", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_multiple_concurrent_reads_across_ds_pool(self, tmp_path):
         """Section 3B.1: Parallel reads are spread across both DS nodes without errors."""
         import concurrent.futures
@@ -275,6 +279,7 @@ class TestNginxDataNode:
             _skip_if_port_closed(port, label)
         yield
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-esc-sub", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_brix_manager_redirects_to_nginx_data(self, tmp_path):
         """xrootd CMS manager redirects to nginx data node; xrdcp reads correctly."""
         payload = os.urandom(16 * 1024)
@@ -292,6 +297,7 @@ class TestNginxDataNode:
             got = fh.read()
         assert _md5(got) == _md5(payload)
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-esc-sub", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_nginx_data_node_stat(self):
         """Stat of a file on the nginx data node returns correct metadata via xrootd manager."""
         payload = b"stat-test-" + os.urandom(100)
@@ -327,6 +333,7 @@ class TestMultiTierEscalation:
         ]:
             _skip_if_port_closed(port, label)
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-sub", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_locate_escalates_to_meta_manager(self):
         """kXR_locate to the nginx sub-manager is escalated to the meta-manager."""
         name = f"escalate_locate_{uuid.uuid4().hex[:8]}.bin"
@@ -345,6 +352,7 @@ class TestMultiTierEscalation:
         finally:
             sock.close()
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-sub", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_xrdcp_follows_multi_tier_redirect(self, tmp_path):
         """xrdcp follows a redirect chain through sub-manager → meta-manager → leaf."""
         payload = os.urandom(32 * 1024)
@@ -362,6 +370,7 @@ class TestMultiTierEscalation:
             got = fh.read()
         assert _md5(got) == _md5(payload), "Content mismatch after 3-tier redirect"
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-3t-sub", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2")
     def test_path_not_local_triggers_escalation(self):
         """A path that does not exist on the sub-manager must escalate, not fail."""
         name = f"escalate_notlocal_{uuid.uuid4().hex[:8]}.bin"
@@ -399,6 +408,7 @@ class TestSpaceAndQuotaRelay:
         ]:
             _skip_if_port_closed(port, label)
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2", "cluster-slots-redir")
     def test_locate_uses_space_aware_selection(self):
         """Redirector returns a data server based on space availability."""
         name = f"slots_{uuid.uuid4().hex[:8]}.bin"
@@ -415,6 +425,7 @@ class TestSpaceAndQuotaRelay:
         finally:
             sock.close()
 
+    @pytest.mark.registry_servers("cluster-3t-leaf", "cluster-esc-leaf", "cluster-ms-ds1", "cluster-ms-ds2", "cluster-slots-ds1", "cluster-slots-ds2", "cluster-slots-redir")
     def test_xrdcp_completes_via_space_selected_ds(self, tmp_path):
         """xrdcp reads complete successfully via space-selected data server."""
         payload = os.urandom(8 * 1024)

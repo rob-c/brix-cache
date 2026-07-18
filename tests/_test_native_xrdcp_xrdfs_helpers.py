@@ -380,12 +380,16 @@ def _fs(native_xrdfs, *args, timeout=15):
 
 import socket as _m8_socket
 
-from settings import ROOT_TPC_NGINX_PORT, ROOT_TPC_REF_PORT
+from settings import LOG_DIR, ROOT_TPC_NGINX_PORT, ROOT_TPC_REF_PORT
 
 TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
 ROOT_TPC_DATA = os.path.join(TEST_ROOT, "data-root-tpc")
 ROOT_TPC_REF_DATA = os.path.join(TEST_ROOT, "data-root-tpc-ref")
-ANON_ACCESS_LOG = os.path.join(TEST_ROOT, "logs", "brix_access_anon.log")
+# The registry launcher writes the main instance's access log under its own
+# prefix (REGISTRY_ROOT/main/logs, exported as settings.LOG_DIR) — NOT the retired
+# bash TEST_ROOT/logs tree.  The old path read a frozen log from a previous fleet,
+# so the kXR_bind stream-count assertion saw zero fresh entries.
+ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 
 def _port_open(port):

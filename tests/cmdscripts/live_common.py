@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from pathlib import Path
+import atexit
 import hashlib
 import os
 import shutil
@@ -21,12 +22,49 @@ class LiveFailure(RuntimeError):
     """A failed external command with its captured diagnostic output."""
 
 
+_FROZEN_NGINX: Path | None = None
+
+
+def freeze_nginx(src: str | Path) -> Path:
+    """Return a private, immutable copy of the nginx binary.
+
+    The shared build tree's ``objs/nginx`` can be relinked by a concurrent
+    incremental build; ``exec`` of a binary during its relink window fails with
+    EACCES, surfacing as a flaky ``PermissionError`` the moment a live scenario
+    spawns a server.  Copy the binary once per test process to a stable path so
+    every scenario spawns a frozen binary no build can disturb.  The copy is
+    validated (``nginx -v``) and retried, so a binary caught mid-relink is never
+    frozen in a half-written state.  Falls back to the live path if no stable
+    copy can be taken.
+    """
+    global _FROZEN_NGINX
+    if _FROZEN_NGINX is not None and _FROZEN_NGINX.exists():
+        return _FROZEN_NGINX
+    src = Path(src)
+    if not src.exists():
+        return src
+    frozen = Path(tempfile.gettempdir()) / f"brix-live-nginx-{os.getpid()}" / "nginx"
+    frozen.parent.mkdir(parents=True, exist_ok=True)
+    for _ in range(6):
+        try:
+            shutil.copy2(src, frozen)
+            frozen.chmod(0o755)
+            if subprocess.run([str(frozen), "-v"], capture_output=True).returncode == 0:
+                _FROZEN_NGINX = frozen
+                atexit.register(shutil.rmtree, frozen.parent, ignore_errors=True)
+                return frozen
+        except OSError:
+            pass  # source mid-relink (EACCES/ETXTBSY/short read) — retry
+        time.sleep(0.5)
+    return src
+
+
 class LiveRun(AbstractContextManager["LiveRun"]):
     """Own a temporary live-test topology and every process it starts."""
 
     def __init__(self, label: str, nginx: str | Path | None = None) -> None:
         self.root = Path(tempfile.mkdtemp(prefix=f"{label}."))
-        self.nginx = Path(nginx or os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
+        self.nginx = freeze_nginx(nginx or os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
         self.processes: list[subprocess.Popen[str]] = []
         self.pidfiles: list[Path] = []
 

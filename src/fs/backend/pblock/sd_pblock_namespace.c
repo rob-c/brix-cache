@@ -33,19 +33,33 @@
 
 #include "sd_pblock_catalog.h"
 #include "pblock_store.h"        /* packed-block storage engine (split out) */
+#include "pblock_fault.h"        /* F7 crash points */
+#include "pblock_ctl.h"          /* F17 audit log */
+#include "pblock_csi.h"          /* F3 per-block CRC32c integrity */
+#include "pblock_quota.h"
+#include "pblock_nearline.h"     /* Phase-83 F4 nearline residency rows */
+#include "pblock_anomaly.h"      /* Phase-83 F9 consistency anomalies */
 #include "sd_pblock_internal.h"
+#include "pblock_locks.h"        /* Phase-83 F15 mandatory lease enforcement */
+#include "pblock_refs.h"         /* Phase-83 F10 refcounted blobs + dedup */
+#include "pblock_snap.h"         /* Phase-83 F6 snapshots / fixture reset */
+#include "pblock_hist.h"         /* Phase-83 F11 versioning + trash/undelete */
 
 #include <errno.h>
 #include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
 
-/* Per-open directory state (dir->state); local to the iteration slots. */
+/* Per-open directory state (dir->state); local to the iteration slots. The
+ * dir path is kept for the F9 list-lag filter (entries hide by full path). */
 typedef struct {
     pblock_catalog_iter *it;
+    char                 dir[1024];
 } pblock_dir_t;
 
 /* ---- namespace ------------------------------------------------------------ */
@@ -66,6 +80,26 @@ sd_pblock_stat(brix_sd_instance_t *inst, const char *path,
         errno = ENOENT;
         return NGX_ERROR;
     }
+    /* F12/F13: an object recorded under a transform the current export is not
+     * configured for is undecodable — refuse it at the metadata boundary (EIO)
+     * so no read fast-path (sendfile/pread) ever serves its transformed bytes as
+     * another kind. Directories carry no transform (xform stays ""). */
+    if (!meta.is_dir
+        && pblock_xform_kind_from_name(meta.xform) != st->xform.kind)
+    {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    /* F9: a fresh creation is invisible to stat for the visibility window
+     * (S3 HEAD-after-PUT), and a fresh update may serve the pre-update row
+     * for the stale window (S3 HEAD-after-overwrite). */
+    if (st->lab != NULL) {
+        if (pblock_anomaly_hidden(st, path)) {
+            errno = ENOENT;
+            return NGX_ERROR;
+        }
+        (void) pblock_anomaly_stale(st, path, &meta.size, &meta.mtime);
+    }
     pblock_fill_sd_stat(&meta, path, out);
     return NGX_OK;
 }
@@ -77,12 +111,25 @@ sd_pblock_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     pblock_meta     meta;
     int             rc;
 
+    /* F6: rmdir on the reserved control namespace drops a snapshot — handled
+     * before any real catalog work (there is no such directory to remove). */
+    if (st->snap && is_dir && pblock_snap_ctl_path(path)) {
+        return pblock_snap_ctl_rmdir(st, path) == 0 ? NGX_OK : NGX_ERROR;
+    }
+
     rc = pblock_catalog_lookup(st->cat, path, &meta);
     if (rc < 0) {
         return NGX_ERROR;
     }
     if (rc == 1) {
         errno = ENOENT;
+        return NGX_ERROR;
+    }
+
+    /* F15: a live foreign lease must not be dissolvable by deleting the file
+     * under it — EBUSY (kXR_FileLocked / 423) until it is released/expires.
+     * The plain slot has no requester identity, so uid 0 (the service). */
+    if (st->locks && pblock_locks_ns_check(st, path, 0) != 0) {
         return NGX_ERROR;
     }
 
@@ -107,9 +154,41 @@ sd_pblock_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     }
 
     if (!meta.is_dir) {
-        pblock_remove_blocks(st, meta.blob_id, meta.size, meta.block_size);
+        /* F11: move the object into the trash BEFORE releasing it. trash_push
+         * holds its blob, so the release below only decrements (a copy-on-write
+         * transfer of the reference to the trash row). A failed push is
+         * fail-open — the unlink just frees the blob as usual, no trash entry. */
+        if (st->trash) {
+            (void) pblock_hist_trash_push(st, path, &meta);
+        }
+        /* F10-aware release: the last reference removes blocks + csi rows
+         * (byte-identical to the pre-F10 path with refs off); a still-shared
+         * blob just loses one reference. */
+        pblock_refs_release(st, meta.blob_id, meta.size, meta.block_size);
+        if (st->nearline) {                  /* F4: residency dies with the file */
+            pblock_nearline_drop(st, path);
+        }
+        if (st->lab != NULL) {               /* F9: event history dies with it */
+            pblock_anomaly_drop(st, path);
+        }
+        if (st->locks) {                     /* F15: stale/own rows die with it */
+            pblock_locks_drop(st, path);
+        }
+        /* F7: blocks are gone but the row still points at them — a crash here
+         * leaves a dangling catalog row for pblock-fsck to flag and --gc. */
+        pblock_lab_crash(st->lab, "before_unlink_row");
     }
-    return pblock_catalog_remove(st->cat, path) == 0 ? NGX_OK : NGX_ERROR;
+    {
+        ngx_int_t rc2 = pblock_catalog_remove(st->cat, path) == 0
+                            ? NGX_OK : NGX_ERROR;
+
+        if (st->audit) {                                 /* F17 */
+            pblock_audit_log(st->cat, is_dir ? "rmdir" : "unlink", path, "",
+                             meta.uid, meta.gid, rc2 == NGX_OK ? 0 : -1,
+                             rc2 == NGX_OK ? 0 : errno);
+        }
+        return rc2;
+    }
 }
 
 /* sd_pblock_mkdir_as — mkdir recording (uid, gid) as the new directory's
@@ -122,6 +201,24 @@ sd_pblock_mkdir_as(brix_sd_instance_t *inst, const char *path, mode_t mode,
     pblock_state_t *st = inst->state;
     pblock_meta     meta;
 
+    /* F11: mkdir /.pblock/undelete/<path> pops <path> out of the trash — handled
+     * before any real catalog work, and before the F6 dispatch since it owns a
+     * distinct reserved sub-namespace. Service-only for the same reason as F6. */
+    if (st->trash && pblock_hist_ctl_mkdir_match(path)) {
+        return pblock_hist_ctl_mkdir(st, path) == 0 ? NGX_OK : NGX_ERROR;
+    }
+
+    /* F6: mkdir on the reserved control namespace takes/restores a snapshot —
+     * handled before any real catalog work. Reached only through the inner
+     * (service) mkdir path, so snapshot control is service-only. */
+    if (st->snap && pblock_snap_ctl_path(path)) {
+        return pblock_snap_ctl_mkdir(st, path) == 0 ? NGX_OK : NGX_ERROR;
+    }
+
+    if (pblock_quota_admit(st, uid, 0, 1) != 0) {        /* F5 */
+        return NGX_ERROR;
+    }
+
     memset(&meta, 0, sizeof(meta));
     meta.is_dir = 1;
     meta.mtime  = meta.ctime = pblock_now();
@@ -130,7 +227,16 @@ sd_pblock_mkdir_as(brix_sd_instance_t *inst, const char *path, mode_t mode,
     meta.gid    = gid;
     /* One INSERT — the PRIMARY KEY constraint is the existence check (EEXIST),
      * so no separate lookup is needed. */
-    return pblock_catalog_create(st->cat, path, &meta) == 0 ? NGX_OK : NGX_ERROR;
+    {
+        ngx_int_t rc2 = pblock_catalog_create(st->cat, path, &meta) == 0
+                            ? NGX_OK : NGX_ERROR;
+
+        if (st->audit) {                                 /* F17 */
+            pblock_audit_log(st->cat, "mkdir", path, "", uid, gid,
+                             rc2 == NGX_OK ? 0 : -1, rc2 == NGX_OK ? 0 : errno);
+        }
+        return rc2;
+    }
 }
 
 ngx_int_t
@@ -192,8 +298,18 @@ sd_pblock_drop_dst(pblock_state_t *st, const char *dst,
             return NGX_ERROR;
         }
     } else {
-        pblock_remove_blocks(st, dmeta->blob_id, dmeta->size,
-                             dmeta->block_size);
+        /* F10-aware release (see sd_pblock_unlink). */
+        pblock_refs_release(st, dmeta->blob_id, dmeta->size,
+                            dmeta->block_size);
+    }
+    if (st->nearline) {                      /* F4: overwritten dst is replaced */
+        pblock_nearline_drop(st, dst);
+    }
+    if (st->lab != NULL) {                   /* F9: replaced dst's history too */
+        pblock_anomaly_drop(st, dst);
+    }
+    if (st->locks) {                         /* F15: replaced dst's rows too */
+        pblock_locks_drop(st, dst);
     }
     return pblock_catalog_remove(st->cat, dst) == 0 ? NGX_OK : NGX_ERROR;
 }
@@ -215,6 +331,15 @@ sd_pblock_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
         return NGX_ERROR;
     }
 
+    /* F15: renaming a leased src (or over a leased dst) is the classic lock
+     * bypass — refuse while any live foreign lease exists on either name. */
+    if (st->locks
+        && (pblock_locks_ns_check(st, src, 0) != 0
+            || pblock_locks_ns_check(st, dst, 0) != 0))
+    {
+        return NGX_ERROR;
+    }
+
     rc = pblock_catalog_lookup(st->cat, dst, &dmeta);
     if (rc < 0) {
         return NGX_ERROR;
@@ -231,7 +356,25 @@ sd_pblock_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
 
     /* Blocks are id-addressed, so moving the catalog row carries the content
      * with it (and reparents a directory subtree) without touching any bytes. */
-    return pblock_catalog_rename(st->cat, src, dst) == 0 ? NGX_OK : NGX_ERROR;
+    {
+        ngx_int_t rc2 = pblock_catalog_rename(st->cat, src, dst) == 0
+                            ? NGX_OK : NGX_ERROR;
+
+        if (rc2 == NGX_OK && st->nearline) { /* F4: residency follows the path */
+            pblock_nearline_rename(st, src, dst);
+        }
+        if (rc2 == NGX_OK && st->lab != NULL) {  /* F9: events follow the path */
+            pblock_anomaly_rename(st, src, dst);
+        }
+        if (rc2 == NGX_OK && st->locks) {    /* F15: leases follow the path */
+            pblock_locks_rename(st, src, dst);
+        }
+        if (st->audit) {                                 /* F17 */
+            pblock_audit_log(st->cat, "rename", src, dst, 0, 0,
+                             rc2 == NGX_OK ? 0 : -1, rc2 == NGX_OK ? 0 : errno);
+        }
+        return rc2;
+    }
 }
 
 /* sd_pblock_server_copy_as — server-side copy whose destination row is owned
@@ -257,6 +400,71 @@ sd_pblock_server_copy_as(brix_sd_instance_t *inst, const char *src,
     if (smeta.is_dir) {
         errno = EISDIR;
         return NGX_ERROR;
+    }
+
+    if (st->quota) {                                     /* F5 */
+        pblock_meta dexist;
+        int         drc = pblock_catalog_lookup(st->cat, dst, &dexist);
+
+        if (pblock_quota_admit(st, uid,
+                (int64_t) smeta.size - (drc == 0 ? dexist.size : 0),
+                drc == 0 ? 0 : 1) != 0)
+        {
+            return NGX_ERROR;
+        }
+    }
+
+    if (st->refs) {                                      /* F10: CoW copy */
+        /* O(metadata) copy: both rows share the source blob; the first write
+         * to either breaks the share at open. No bytes move. */
+        pblock_meta dexist;
+        int         dhad = pblock_catalog_lookup(st->cat, dst, &dexist) == 0;
+
+        if (pblock_refs_bump(st, smeta.blob_id, smeta.size,
+                             smeta.block_size) != 0)
+        {
+            return NGX_ERROR;
+        }
+        memset(&dmeta, 0, sizeof(dmeta));
+        memcpy(dmeta.blob_id, smeta.blob_id, sizeof(dmeta.blob_id));
+        dmeta.is_dir     = 0;
+        dmeta.size       = smeta.size;
+        dmeta.block_size = smeta.block_size;
+        dmeta.mtime      = dmeta.ctime = pblock_now();
+        dmeta.mode       = smeta.mode;
+        dmeta.uid        = uid;
+        dmeta.gid        = gid;
+        if (pblock_catalog_put(st->cat, dst, &dmeta) != 0) {
+            int err = errno;
+
+            pblock_refs_release(st, smeta.blob_id, smeta.size,
+                                smeta.block_size);
+            errno = err;
+            return NGX_ERROR;
+        }
+        if (dhad && !dexist.is_dir) {    /* the replaced dst's blob loses a ref */
+            pblock_refs_release(st, dexist.blob_id, dexist.size,
+                                dexist.block_size);
+        }
+        if (st->lab != NULL) {                           /* F9 */
+            if (dhad) {
+                pblock_anomaly_updated(st, dst, dexist.size, dexist.mtime);
+            } else {
+                pblock_anomaly_created(st, dst);
+            }
+        }
+        if (bytes_out != NULL) {
+            *bytes_out = (off_t) smeta.size;
+        }
+        /* No csi flush: the shared blob's integrity rows already exist. */
+        if (st->audit) {                                 /* F17 */
+            char aux[32];
+
+            snprintf(aux, sizeof(aux), "cow=1 w=%lld",
+                     (long long) smeta.size);
+            pblock_audit_log(st->cat, "copy", dst, aux, uid, gid, 0, 0);
+        }
+        return NGX_OK;
     }
 
     memset(&dmeta, 0, sizeof(dmeta));
@@ -291,15 +499,43 @@ sd_pblock_server_copy_as(brix_sd_instance_t *inst, const char *src,
     dmeta.uid        = uid;
     dmeta.gid        = gid;
 
-    if (pblock_catalog_put(st->cat, dst, &dmeta) != 0) {
-        int err = errno;
+    {
+        pblock_meta dexist;
+        int         dhad = 0;
 
-        pblock_remove_blocks(st, dmeta.blob_id, smeta.size, smeta.block_size);
-        errno = err;
-        return NGX_ERROR;
+        /* F9: is this copy a create or an overwrite of dst? The pre-put row
+         * is what a stale stat will serve. */
+        if (st->lab != NULL) {
+            dhad = pblock_catalog_lookup(st->cat, dst, &dexist) == 0;
+        }
+        if (pblock_catalog_put(st->cat, dst, &dmeta) != 0) {
+            int err = errno;
+
+            pblock_remove_blocks(st, dmeta.blob_id, smeta.size,
+                                 smeta.block_size);
+            errno = err;
+            return NGX_ERROR;
+        }
+        if (st->lab != NULL) {
+            if (dhad) {
+                pblock_anomaly_updated(st, dst, dexist.size, dexist.mtime);
+            } else {
+                pblock_anomaly_created(st, dst);
+            }
+        }
     }
     if (bytes_out != NULL) {
         *bytes_out = (off_t) smeta.size;
+    }
+    if (st->csi) {                                       /* F3: tag the copy */
+        (void) pblock_csi_flush(st, dmeta.blob_id, dmeta.size,
+                                dmeta.block_size, 0, INT64_MAX);
+    }
+    if (st->audit) {                                     /* F17 */
+        char aux[32];
+
+        snprintf(aux, sizeof(aux), "w=%lld", (long long) smeta.size);
+        pblock_audit_log(st->cat, "copy", dst, aux, uid, gid, 0, 0);
     }
     return NGX_OK;
 }
@@ -352,6 +588,7 @@ sd_pblock_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
         free(pd);
         return NULL;
     }
+    snprintf(pd->dir, sizeof(pd->dir), "%s", path);
     dir->inst  = inst;
     dir->state = pd;
     return dir;
@@ -360,14 +597,27 @@ sd_pblock_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
 ngx_int_t
 sd_pblock_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
 {
-    pblock_dir_t *pd = d->state;
-    int           rc = pblock_catalog_readdir(pd->it, out->name,
-                                              sizeof(out->name));
+    pblock_dir_t   *pd = d->state;
+    pblock_state_t *st = d->inst->state;
 
-    if (rc < 0) {
-        return NGX_ERROR;
+    for ( ;; ) {
+        int rc = pblock_catalog_readdir(pd->it, out->name, sizeof(out->name));
+
+        if (rc < 0) {
+            return NGX_ERROR;
+        }
+        if (rc == 1) {
+            return NGX_DONE;
+        }
+        /* F9: list lag — a listing omits entries created within the armed
+         * window (S3 LIST-after-PUT). */
+        if (st->lab != NULL
+            && pblock_anomaly_list_hidden(st, pd->dir, out->name))
+        {
+            continue;
+        }
+        return NGX_OK;
     }
-    return rc == 1 ? NGX_DONE : NGX_OK;
 }
 
 ngx_int_t

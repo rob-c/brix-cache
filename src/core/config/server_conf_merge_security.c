@@ -206,6 +206,8 @@ brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->unix_trust_remote,   prev->unix_trust_remote, 0);
     ngx_conf_merge_ptr_value(conf->host_allow,      prev->host_allow,      NULL);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
+    ngx_conf_merge_uint_value(conf->min_sec_level, prev->min_sec_level, 0);
+    ngx_conf_merge_value(conf->opaque_strict, prev->opaque_strict, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
     /* kTLS default ON (unified with the HTTP plane); SSL_OP_ENABLE_KTLS is a
      * transparent no-op when the negotiated cipher/kernel cannot offload. */
@@ -377,6 +379,17 @@ brix_merge_srv_iouring_advertise(ngx_stream_brix_srv_conf_t *conf,
      * anyone who wants best-effort enable. */
     ngx_conf_merge_uint_value(conf->io_uring,
                               prev->io_uring, BRIX_IO_URING_OFF);
+    /* D-3: seccomp filter default OFF — strictly opt-in (audit-first rollout). */
+    ngx_conf_merge_uint_value(conf->seccomp,
+                              prev->seccomp, BRIX_SECCOMP_OFF);
+    /* E-4: negative-path backoff default OFF (threshold 0) — availability-first,
+     * strictly opt-in. window_ms/backoff_s only matter when threshold > 0. */
+    ngx_conf_merge_uint_value(conf->negcache.threshold,
+                              prev->negcache.threshold, 0);
+    ngx_conf_merge_uint_value(conf->negcache.window_ms,
+                              prev->negcache.window_ms, 0);
+    ngx_conf_merge_uint_value(conf->negcache.backoff_s,
+                              prev->negcache.backoff_s, 0);
     ngx_conf_merge_value(conf->io_uring_queue_depth,
                          prev->io_uring_queue_depth,
                          BRIX_IO_URING_QUEUE_DEPTH);

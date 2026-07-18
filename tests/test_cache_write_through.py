@@ -134,11 +134,13 @@ def write_through_async_server(test_env):
 class TestCacheReadThrough:
     """Cache-only server: connectivity and basic file access."""
 
+    @pytest.mark.registry_server("cache-only")
     def test_server_accepts_brix_session(self, cache_only_server):
         """Cache-only server must accept a complete XRootD login."""
         sock, _ = _establish_session(cache_only_server["host"], cache_only_server["port"])
         sock.close()
 
+    @pytest.mark.registry_server("cache-only")
     def test_read_seeded_file(self, cache_only_server, tmp_path):
         """test.txt seeded by start_dedicated_nginx must be readable."""
         url = (f"root://{cache_only_server['host']}"
@@ -151,6 +153,7 @@ class TestCacheReadThrough:
         )
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("cache-only")
     def test_stat_seeded_file(self, cache_only_server):
         """kXR_stat on test.txt must return kXR_ok from the cache server."""
         sock, sid = _establish_session(cache_only_server["host"], cache_only_server["port"])
@@ -169,6 +172,7 @@ class TestCacheReadThrough:
 class TestWriteThroughSync:
     """WT-sync server: connectivity and round-trip write+read with checksum."""
 
+    @pytest.mark.registry_server("wt-sync")
     def test_server_accepts_brix_session(self, write_through_sync_server):
         """WT-sync server must accept a complete XRootD login."""
         sock, _ = _establish_session(
@@ -176,6 +180,7 @@ class TestWriteThroughSync:
         )
         sock.close()
 
+    @pytest.mark.registry_server("wt-sync")
     def test_read_seeded_file(self, write_through_sync_server, tmp_path):
         """test.txt seeded by start_dedicated_nginx must be readable."""
         url = (f"root://{write_through_sync_server['host']}"
@@ -188,6 +193,7 @@ class TestWriteThroughSync:
         )
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("wt-sync")
     def test_write_and_read_back(self, write_through_sync_server, tmp_path):
         """File written to WT-sync server must be readable back with identical content."""
         payload = os.urandom(4096)
@@ -223,6 +229,7 @@ class TestWriteThroughSync:
 class TestWriteThroughAsync:
     """WT-async server: connectivity and round-trip write+read with checksum."""
 
+    @pytest.mark.registry_server("wt-async")
     def test_server_accepts_brix_session(self, write_through_async_server):
         """WT-async server must accept a complete XRootD login."""
         sock, _ = _establish_session(
@@ -230,6 +237,7 @@ class TestWriteThroughAsync:
         )
         sock.close()
 
+    @pytest.mark.registry_server("wt-async")
     def test_read_seeded_file(self, write_through_async_server, tmp_path):
         """test.txt seeded by start_dedicated_nginx must be readable."""
         url = (f"root://{write_through_async_server['host']}"
@@ -242,6 +250,7 @@ class TestWriteThroughAsync:
         )
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("wt-async")
     def test_write_and_read_back(self, write_through_async_server, tmp_path):
         """File written to WT-async server must be readable back with identical content."""
         payload = os.urandom(4096)
@@ -281,6 +290,7 @@ class TestWTChecksumConsistency:
     """Write-through data integrity: SHA-256 of written payload matches read-back."""
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("wt-sync")
     def test_sync_checksum_matches(self, write_through_sync_server, tmp_path):
         """64 KiB write through WT-sync server: read-back SHA-256 must match original."""
         payload = os.urandom(64 * 1024)
@@ -313,6 +323,7 @@ class TestWTChecksumConsistency:
         )
 
     @pytest.mark.requires_local_server
+    @pytest.mark.registry_server("wt-async")
     def test_async_checksum_matches(self, write_through_async_server, tmp_path):
         """64 KiB write through WT-async server: read-back SHA-256 must match original."""
         payload = os.urandom(64 * 1024)

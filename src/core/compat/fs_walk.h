@@ -9,6 +9,20 @@
 #include <sys/types.h>
 
 /*
+ * BRIX_FS_TREE_MAX_DEPTH — hard recursion-depth ceiling for the confined tree
+ * ops that recurse on the C stack independently of the max_depth-capped
+ * vfs_walk_dir(): brix_fs_remove_tree_confined(), brix_vfs_copytree(), and the
+ * driver-level brix_vfs_driver_rmtree().  Without it, an attacker-nested
+ * directory tree (deep MKCOL/PUT nesting) drives unbounded recursion into a
+ * worker stack overflow — a crash-class DoS (D-6/T2).  A hostile tree past this
+ * depth must abort with an error, not fault.  Each frame carries a few KiB of
+ * on-stack path buffers, so 512 levels stays well inside an 8 MiB worker stack
+ * while dwarfing any legitimate collection depth (the ingress path already caps
+ * a single request at 32 components).
+ */
+#define BRIX_FS_TREE_MAX_DEPTH  512
+
+/*
  * brix_fs_walk_entry_t — directory walk entry passed to callback.
  *
  * WHAT: Struct containing path, name, stat info, and recursion depth for each file/directory

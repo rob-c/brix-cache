@@ -8,6 +8,7 @@
  * does that raw compare and also sidesteps the crypto-policy SHA-1 set_md gate.
  */
 #include "cvmfs/signature/verify.h"
+#include "cvmfs/object/object.h"
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -57,6 +58,27 @@ static int rsa_pkcs1_verify_raw(EVP_PKEY *pub, const unsigned char *msg, size_t 
     return rsa_verify_pkcs1(pub, di, sizeof(di), sig, slen) ? 0 : -1;
 }
 
+/* Bind the parsed body to the RSA-signed hash line. The hash line is CVMFS's own
+ * printed digest of the body up to and including "--\n"; recomputing it and
+ * comparing is what makes the signature cover the WHOLE artifact. Without it the
+ * signature covers only the literal hash-line text, leaving every KV field and
+ * fingerprint above "--" unauthenticated (an attacker keeps the hash-line +
+ * signature and rewrites the body). Fail-closed: an unparsed/mismatched hash
+ * line is treated as unbound. */
+static int body_bound_to_hash(const unsigned char *body, size_t body_len,
+                              const cvmfs_hash_t *signed_hash) {
+    if (signed_hash->len == 0) return 0;
+    /* Stock CVMFS hashes the body up to but EXCLUDING the "--\n" separator
+     * (verified against live stratum-1 .cvmfspublished/.cvmfswhitelist); the
+     * parsers record signed_body_len THROUGH the separator as the parse
+     * offset, so strip it here. */
+    if (body_len < 3) return 0;
+    body_len -= 3;
+    cvmfs_hash_t got;
+    if (cvmfs_object_hash(signed_hash->algo, body, body_len, &got) != 0) return 0;
+    return cvmfs_hash_eq(&got, signed_hash);
+}
+
 /* Parse an X.509 cert from PEM or, failing that, DER — real CVMFS cert objects
  * are DER, but our own fixtures and some tools emit PEM. */
 static X509 *cert_from_pem(const unsigned char *pem, size_t len) {
@@ -83,7 +105,9 @@ int cvmfs_verify_manifest(const cvmfs_manifest_t *m, const unsigned char *cert_p
                 : -1;
     EVP_PKEY_free(pk);
     X509_free(x);
-    return rc;
+    if (rc != 0) return rc;
+    /* The signature is authentic — now bind it to the manifest body. */
+    return body_bound_to_hash(m->signed_body, m->signed_body_len, &m->signed_hash) ? 0 : -1;
 }
 
 int cvmfs_cert_fingerprint(const unsigned char *cert_pem, size_t cert_len, char *out, size_t outlen) {
@@ -124,5 +148,9 @@ int cvmfs_verify_whitelist(const cvmfs_whitelist_t *w, const unsigned char *mast
         if (ok) { rc = 0; break; }
     }
     BIO_free(b);
-    return rc;
+    if (rc != 0) return rc;
+    /* Master signature is authentic — bind it to the whitelist body so the
+     * fingerprint list (and expiry) cannot be edited under a valid signature.
+     * This is what defeats the keyless substitute-cert forgery. */
+    return body_bound_to_hash(w->signed_body, w->signed_body_len, &w->signed_hash) ? 0 : -1;
 }

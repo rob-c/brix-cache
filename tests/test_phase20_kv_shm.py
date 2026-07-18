@@ -11,18 +11,23 @@ Three layers of coverage:
      traffic with 429 and that the KV Prometheus counters are exported.
 """
 
+import itertools
 import os
 import socket
-import subprocess
 import time
 from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN, free_port, free_ports, HOST, BIND_HOST
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+from settings import free_port, free_ports, HOST
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = "/tmp/xrd-test/data"
+
+_SEQ = itertools.count()
 
 
 # --------------------------------------------------------------------------- #
@@ -76,108 +81,71 @@ def test_phase20_session_registry_is_runtime_sized():
 # config helpers                                                               #
 # --------------------------------------------------------------------------- #
 
-def _nginx_check(conf_text, tmp_path):
-    """Run `nginx -t` against conf_text; return (rc, combined output)."""
-    prefix = tmp_path
-    (prefix / "logs").mkdir(exist_ok=True)
-    conf = prefix / "nginx.conf"
-    conf.write_text(conf_text)
-    proc = subprocess.run(
-        [NGINX_BIN, "-t", "-p", str(prefix), "-c", str(conf)],
-        capture_output=True, text=True,
-    )
-    return proc.returncode, proc.stdout + proc.stderr
+@pytest.fixture()
+def kv_check():
+    """Config-test harness: render the committed stream template with the given
+    top-level zone lines and per-server directives, run nginx -t, and return
+    (rc, combined stdout+stderr) — the emerg messages ride stderr."""
+    harness = LifecycleHarness()
 
+    def run(stream_zones, server_body):
+        name = f"lc-phase20-kv-{next(_SEQ)}"
+        harness.register(NginxInstanceSpec(
+            name=name, template="nginx_phase20_kv_stream.conf",
+            protocol="root", readiness="tcp",
+            template_values={"STREAM_ZONES": stream_zones,
+                             "SERVER_BODY": server_body}))
+        harness.launcher.render_nginx(harness.spec(name))
+        r = harness.nginx_test(name, check=False)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
 
-HEADER = (
-    "error_log {logs}/error.log info;\n"
-    "pid {logs}/nginx.pid;\n"
-    "events {{ worker_connections 64; }}\n"
-)
-
-
-@pytest.fixture(autouse=True)
-def _require_binary():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+    try:
+        yield run
+    finally:
+        harness.close()
 
 
 # --------------------------------------------------------------------------- #
 # 2. Config validation                                                         #
 # --------------------------------------------------------------------------- #
 
-def test_kv_directives_parse(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
+def test_kv_directives_parse(kv_check):
+    rc, out = kv_check(
+        """
         brix_kv_zone tkn 16m key=32  val=5120;
         brix_kv_zone ac   4m key=32  val=8;
         brix_kv_zone rl   2m key=256 val=16;
-        server {{
-            listen {BIND_HOST}:{free_port()};
-            brix_root on;
-            brix_storage_backend posix:{DATA_DIR};
-            brix_auth none;
+""",
+        """
             brix_session_slots 4096;
             brix_token_cache zone=tkn;
             brix_auth_cache  zone=ac ttl=15;
             brix_rate_limit  zone=rl rate=200r/s burst=500 key=dn;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
+""")
     assert rc == 0, out
 
 
-def test_token_cache_rejects_undersized_zone(tmp_path):
+def test_token_cache_rejects_undersized_zone(kv_check):
     # val too small for brix_token_claims_t -> must be rejected.
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        brix_kv_zone tkn 1m key=32 val=16;
-        server {{
-            listen {BIND_HOST}:{free_port()};
-            brix_root on;
-            brix_storage_backend posix:{DATA_DIR};
-            brix_auth none;
-            brix_token_cache zone=tkn;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
+    rc, out = kv_check(
+        "        brix_kv_zone tkn 1m key=32 val=16;\n",
+        "            brix_token_cache zone=tkn;\n")
     assert rc != 0
     assert "too small" in out
 
 
-def test_unknown_zone_is_rejected(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        server {{
-            listen {BIND_HOST}:{free_port()};
-            brix_root on;
-            brix_storage_backend posix:{DATA_DIR};
-            brix_auth none;
-            brix_auth_cache zone=does_not_exist;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
+def test_unknown_zone_is_rejected(kv_check):
+    rc, out = kv_check(
+        "",
+        "            brix_auth_cache zone=does_not_exist;\n")
     assert rc != 0
     assert "unknown zone" in out
 
 
-def test_rate_limit_requires_rate_and_burst(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + f"""
-    stream {{
-        brix_kv_zone rl 2m key=256 val=16;
-        server {{
-            listen {BIND_HOST}:{free_port()};
-            brix_root on;
-            brix_storage_backend posix:{DATA_DIR};
-            brix_auth none;
-            brix_rate_limit zone=rl;
-        }}
-    }}
-    """
-    rc, out = _nginx_check(conf, tmp_path)
+def test_rate_limit_requires_rate_and_burst(kv_check):
+    rc, out = kv_check(
+        "        brix_kv_zone rl 2m key=256 val=16;\n",
+        "            brix_rate_limit zone=rl;\n")
     assert rc != 0
     assert "rate_limit" in out
 
@@ -207,54 +175,19 @@ def _wait_port(port, timeout=10):
 
 
 @pytest.fixture
-def rate_limited_server(tmp_path):
-    logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    (tmp_path / "tmp").mkdir(exist_ok=True)
-    conf = HEADER.format(logs=logs) + f"""
-    http {{
-        client_body_temp_path {tmp_path}/tmp;
-        proxy_temp_path        {tmp_path}/tmp;
-        fastcgi_temp_path      {tmp_path}/tmp;
-        uwsgi_temp_path        {tmp_path}/tmp;
-        scgi_temp_path         {tmp_path}/tmp;
-        access_log off;
-
-        brix_kv_zone h_rl 2m key=256 val=16;
-
-        server {{
-            listen {BIND_HOST}:{WEBDAV_PORT};
-            location / {{
-                brix_webdav      on;
-                brix_storage_backend posix:{DATA_DIR};
-                brix_webdav_auth none;
-                brix_rate_limit  zone=h_rl rate=1r/s burst=2 key=ip;
-            }}
-        }}
-        server {{
-            listen {BIND_HOST}:{METRICS_PORT};
-            location /metrics {{ brix_metrics on; }}
-        }}
-    }}
-    """
-    conf_path = tmp_path / "nginx.conf"
-    conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
-    proc = subprocess.Popen(
-        [NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
+def rate_limited_server():
+    harness = LifecycleHarness()
     try:
-        if not _wait_port(WEBDAV_PORT) or not _wait_port(METRICS_PORT):
-            out = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-            proc.terminate()
-            pytest.skip(f"rate-limit test server did not start: {out}")
+        harness.start(NginxInstanceSpec(
+            name="lc-phase20-ratelimit",
+            template="nginx_phase20_kv_http.conf",
+            protocol="http", readiness="tcp",
+            port=WEBDAV_PORT,
+            extra_ports={"METRICS_PORT": METRICS_PORT}))
+        assert _wait_port(METRICS_PORT), "metrics listener did not come up"
         yield
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        harness.close()
 
 
 def _http_get(port, path, host=HOST):

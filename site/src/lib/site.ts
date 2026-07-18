@@ -79,4 +79,6 @@ export const PRODUCT_PAGES: NavItem[] = [
   { label: 'brixMount', href: '/brixmount' },
   { label: 'Tools', href: '/tools' },
   { label: 'Evidence', href: '/evidence' },
+  { label: 'FAQ', href: '/faq' },
+  { label: 'Only here', href: '/only-here' },
 ];

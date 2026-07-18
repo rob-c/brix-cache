@@ -43,6 +43,9 @@ webdav_copy_errno_to_status(int err)
     case ENOTEMPTY:    status = BRIX_NS_NOT_EMPTY; break;
     case ENAMETOOLONG: status = BRIX_NS_TOO_LONG;  break;
     case ENOSPC:       status = BRIX_NS_NO_SPACE;  break;
+#ifdef EDQUOT
+    case EDQUOT:       status = BRIX_NS_NO_SPACE;  break;
+#endif
     case EBUSY:
     case EINVAL:       status = BRIX_NS_CONFLICT;  break;
     default:           status = BRIX_NS_IO_ERROR;  break;
@@ -503,7 +506,8 @@ webdav_copy_resolve_pair(ngx_http_request_t *r,
     rc = webdav_resolve_destination_path(r->connection->log, "COPY",
                                          conf->common.root_canon,
                                          req->dest_decoded, req->dst_path,
-                                         sizeof(req->dst_path));
+                                         sizeof(req->dst_path),
+                                         conf->common.cache_store_endpoint);
     if (rc != NGX_OK) {
         return rc;
     }

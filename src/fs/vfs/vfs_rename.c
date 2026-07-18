@@ -16,6 +16,7 @@
  *       observes the operation as BRIX_METRIC_OP_RENAME on every path.
  */
 #include "vfs_internal.h"
+#include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: leaf-dispatch bypasses the decorator's own evict */
 
 /* Thread-safe confined rename (no pool alloc, no metric) — relocates the
  * namespace rename into the VFS layer for off-thread / pool-less callers (kXR_mv,
@@ -133,15 +134,25 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
             }
         }
 
+        const char *src_key = brix_vfs_export_relative(ctx, path);
+        const char *dst_key = brix_vfs_export_relative(ctx,
+                                  (const char *) dst->resolved.data);
+
         rc = (drv->rename != NULL)
-            ? brix_sd_rename_maybe_cred(leaf,
-                  brix_vfs_export_relative(ctx, path),
-                  brix_vfs_export_relative(ctx,
-                      (const char *) dst->resolved.data),
-                  0, use_cred ? &cred : NULL)
+            ? brix_sd_rename_maybe_cred(leaf, src_key, dst_key, 0,
+                  use_cred ? &cred : NULL)
             : (errno = ENOTSUP, NGX_ERROR);
 
         saved_errno = errno;
+        brix_sd_ucred_wipe(&store);   /* secret consumed by rename; erase (A-4/T4) */
+
+        /* The leaf dispatch above skips the cache decorator's own rename evict,
+         * so drop both endpoints from the store here to keep it coherent. */
+        if (rc == NGX_OK) {
+            brix_sd_cache_evict(ctx->sd, src_key);
+            brix_sd_cache_evict(ctx->sd, dst_key);
+        }
+
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
                                   rc, saved_errno, start);
         return rc;

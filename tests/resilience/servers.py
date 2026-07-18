@@ -26,6 +26,9 @@ import subprocess
 import sys
 import time
 
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+
 # --- Layout ------------------------------------------------------------------
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -154,135 +157,77 @@ def ensure_pki():
 
 # --- nginx (GSI) --------------------------------------------------------------
 
-_NGINX_CONF = """\
-worker_processes 1;
-daemon off;
-error_log {logs}/error.log error;
-pid {logs}/nginx.pid;
-
-events {{ worker_connections 1024; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth gsi;
-        brix_allow_write on;
-        brix_certificate     {server_cert};
-        brix_certificate_key {server_key};
-        brix_trusted_ca      {ca_cert};
-        brix_access_log {logs}/brix_access_gsi.log;
-    }}
-}}
-"""
-
-
 class NginxGsi:
-    """A dedicated nginx serving root://+GSI on its own port and data root.
+    """A dedicated nginx serving root://+GSI on its own port and data root,
+    owned by the phase-81 registry harness.
 
     The module is compiled into NGINX_BIN (the repo's objs/nginx), so no
-    load_module line is needed.  Runs with `daemon off` so the Popen handle is
-    the master and teardown is a single terminate()."""
+    load_module line is needed.  The harness renders the committed
+    ``nginx_resilience_gsi.conf`` template on an auto-assigned port with its own
+    export tree; ``.data`` (the export root) and ``.port`` keep the surface the
+    resilience harness and fault-proxy expect."""
 
-    def __init__(self, port=NGINX_GSI_PORT):
-        self.port = port
-        self.prefix = os.path.join(PREFIX, "nginx")
-        self.data = os.path.join(self.prefix, "data")
-        self.logs = os.path.join(self.prefix, "logs")
-        self.conf = os.path.join(self.prefix, "conf", "nginx.conf")
-        self.proc = None
+    def __init__(self, port=None):
+        self._port = port
+        self.harness = None
+        self.port = None
+        self.data = None
 
     def __enter__(self):
-        if not os.path.isfile(NGINX_BIN):
-            raise RuntimeError(f"nginx binary not found: {NGINX_BIN}")
-        for d in (self.data, self.logs, os.path.dirname(self.conf)):
-            os.makedirs(d, exist_ok=True)
-        with open(self.conf, "w") as fh:
-            fh.write(_NGINX_CONF.format(
-                port=self.port, data=self.data, logs=self.logs,
-                server_cert=SERVER_CERT, server_key=SERVER_KEY, ca_cert=CA_CERT,
-            ))
-        env = dict(os.environ)
-        env.pop("LD_LIBRARY_PATH", None)
-        self.proc = subprocess.Popen(
-            [NGINX_BIN, "-p", self.prefix, "-c", "conf/nginx.conf"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
-        )
-        _wait_port(self.port, proc=self.proc)
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-gsi",
+            template="nginx_resilience_gsi.conf",
+            port=self._port,
+            protocol="root",
+            readiness="tcp",
+            template_values={
+                "SERVER_CERT": SERVER_CERT,
+                "SERVER_KEY": SERVER_KEY,
+                "CA_CERT": CA_CERT,
+            },
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
         return self
 
     def __exit__(self, *exc):
-        if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
+        if self.harness is not None:
+            self.harness.close()
         return False
 
 
 # --- nginx (anonymous, no auth) ----------------------------------------------
 
-_NGINX_ANON_CONF = """\
-worker_processes 1;
-daemon off;
-error_log {logs}/error.log error;
-pid {logs}/nginx.pid;
-
-events {{ worker_connections 1024; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-        brix_allow_write on;
-        brix_access_log {logs}/brix_access_anon.log;
-    }}
-}}
-"""
-
-
 class NginxAnon:
     """A dedicated nginx serving root:// with NO authentication (`brix_auth
     none`) on its own port and data root — for tests that exercise the data plane
     (read/write, resilience) without depending on the GSI/PKI machinery.  Same
-    lifecycle as NginxGsi; uses a separate prefix so the two never collide."""
+    registry-harness lifecycle as NginxGsi; a separate instance name keeps the
+    two export trees from colliding."""
 
     def __init__(self, port=None):
-        self.port = port or free_port()
-        self.prefix = os.path.join(PREFIX, "nginx_anon")
-        self.data = os.path.join(self.prefix, "data")
-        self.logs = os.path.join(self.prefix, "logs")
-        self.conf = os.path.join(self.prefix, "conf", "nginx.conf")
-        self.proc = None
+        self._port = port
+        self.harness = None
+        self.port = None
+        self.data = None
 
     def __enter__(self):
-        if not os.path.isfile(NGINX_BIN):
-            raise RuntimeError(f"nginx binary not found: {NGINX_BIN}")
-        for d in (self.data, self.logs, os.path.dirname(self.conf)):
-            os.makedirs(d, exist_ok=True)
-        with open(self.conf, "w") as fh:
-            fh.write(_NGINX_ANON_CONF.format(
-                port=self.port, data=self.data, logs=self.logs))
-        env = dict(os.environ)
-        env.pop("LD_LIBRARY_PATH", None)
-        self.proc = subprocess.Popen(
-            [NGINX_BIN, "-p", self.prefix, "-c", "conf/nginx.conf"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
-        )
-        _wait_port(self.port, proc=self.proc)
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-anon",
+            template="nginx_resilience_anon.conf",
+            port=self._port,
+            protocol="root",
+            readiness="tcp",
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
         return self
 
     def __exit__(self, *exc):
-        if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
+        if self.harness is not None:
+            self.harness.close()
         return False
 
 

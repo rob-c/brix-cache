@@ -4,7 +4,10 @@ import re
 from pathlib import Path
 
 CONFIG_DIR = Path(__file__).resolve().parent / "configs"
-_PLACEHOLDER_RE = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
+# A template placeholder is a BARE ``{KEY}``.  nginx's own brace-variable syntax
+# ``${request_time}`` (used in log_format) must NOT be mistaken for one: the
+# negative lookbehind excludes any ``{...}`` immediately preceded by ``$``.
+_PLACEHOLDER_RE = re.compile(r"(?<!\$)\{[A-Za-z_][A-Za-z0-9_]*\}")
 
 
 def unresolved_placeholders(text):

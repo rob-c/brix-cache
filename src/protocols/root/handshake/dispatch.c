@@ -55,6 +55,18 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /*
+     * D-1: enforce the session-posture floor (brix_min_sec_level).  Placed after
+     * the session opcodes are dispatched so the login/auth/protocol/bind/TLS-
+     * upgrade handshake is never blocked; every opcode reaching here is a
+     * data/metadata request, so a below-floor (cleartext, or anonymous under
+     * intense) session is refused before it can touch the proxy or the FS.
+     */
+    rc = brix_min_sec_enforce(ctx, c, conf);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
+        return rc;
+    }
+
+    /*
      * Proxy mode: all post-login file-system opcodes go to the upstream.
      *
      * SECURITY (fail-closed): gate on ctx->login.auth_done, NOT merely ctx->login.logged_in.

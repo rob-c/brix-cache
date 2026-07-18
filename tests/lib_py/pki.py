@@ -88,7 +88,7 @@ def substitute_config(src: Path, dest: Path, env: dict[str, str] | None = None) 
         "AUTHDB_PATH": values.get("AUTHDB_PATH", str(ref_dir / "authdb")),
         "CACHE_DIR": values.get("CACHE_DIR", str(data_dir / "cache")),
         "STAGE_CMD": values.get("STAGE_CMD", "/bin/true"),
-        "KRB5_KEYTAB": values.get("KRB5_KEYTAB", str(test_root / "krb5/brix.keytab")),
+        "KRB5_KEYTAB": values.get("KRB5_KEYTAB", str(test_root / "krb5/xrootd.keytab")),
     }
     values.update(computed)
     render_cfg(src, dest, **values)

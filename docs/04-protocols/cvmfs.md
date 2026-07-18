@@ -705,6 +705,45 @@ Experimental status is structural: own directives (`brix_scvmfs*`), own
 suite (`tests/run_scvmfs.sh`), excluded from the acceptance gate and the
 pilot; it can slip or be cut without touching the `cvmfs://` deliverable.
 
+### 8.1 Verifying proxy (phase-85 F1): `brix_cvmfs_verify_manifest`
+
+`brix_cvmfs_verify_manifest <master.pub>` pins the repository master public
+key on the location. Every MANIFEST-class fill (`.cvmfspublished` /
+`.cvmfswhitelist`) is then verified **on the fill thread, before commit**,
+mirroring the FUSE client's trust chain: whitelist signature vs the master
+key → whitelist expiry → manifest certificate fingerprint listed in the
+whitelist → manifest signature vs that certificate → manifest `N` field
+names this repo (cross-repo splice rejection). `.cvmfsreflog` is unsigned
+in stock CVMFS and passes unverified. A definitive failure quarantines the
+bytes, fails the fill (5xx — tampered metadata is never committed or
+served) and emits the guard-core `signal=cvmfs_tamper` line with the
+**origin** authority in the ip field (`[xrootd-guard-cvmfs_tamper]` jail,
+maxretry=1). A chain that cannot be evaluated (e.g. the certificate fetch
+itself fails) is an outage, not tampering: EIO, no audit line. Directive
+absent = transparent pass-through, exactly the pre-phase-85 behavior.
+Suite: `tests/test_cvmfs_verify_manifest.py`.
+
+### 8.2 Token-gated repos (phase-85 F3): `brix_cvmfs_repo_authz`
+
+`brix_cvmfs_repo_authz <repo-fqrn|*> <scitokens.cfg>` — multi-occurrence;
+each entry gates one repo (or `*` = every repo, first match wins) behind a
+READ-scope WLCG/SciToken validated against the named issuer registry (the
+same engine as the scvmfs bearer path; registries are built at config
+load, misconfigurations fail `nginx -t`). The gate runs right after
+classification and covers **every** class — CAS, signed metadata, geo:
+
+* valid READ-scope bearer → served exactly as an open repo;
+* missing / invalid / out-of-scope bearer → **401** + guard-core
+  `signal=authfail proto=cvmfs` (`[xrootd-guard-authfail]` jail);
+* a gated repo on a **cleartext** connection → **400** before any token is
+  examined (a bearer must never ride cleartext — the scvmfs transport
+  gate, applied per-repo);
+* repos not matched by any entry stay world-readable — the directive
+  absent or non-matching is exactly today's open behavior.
+
+Suite: `tests/test_cvmfs_repo_authz.py`. The FUSE/mount-side gate is
+future work.
+
 ---
 
 ## 9. Observability (T16)

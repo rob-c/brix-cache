@@ -2,8 +2,10 @@
 #include "stat.h"
 #include "net/cms/cns.h"            /* §6 CNS inventory stat answer */
 #include "fs/vfs/vfs.h"            /* path stat via the VFS seam */
+#include "fs/vfs/vfs_backend_registry.h"   /* F5: driver space slot for statvfs */
 #include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 #include "protocols/root/path/op_path.h"
+#include "core/negcache/negcache.h"    /* E-4: stat-harvest backoff */
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"
 #include "net/cms/cms_internal.h"
@@ -34,6 +36,28 @@ brix_make_vfs_body(ngx_stream_brix_srv_conf_t *conf, char *out, size_t outsz)
     long long      free_mb = 0, total_mb = 0;
     int            util = 0;
     int            nrw = conf->common.allow_write ? 1 : 0;
+
+    /* Phase-83 F5: a backend implementing the optional `space` slot reports its
+     * own quota-aware logical space (pblock: quota total minus rollup usage);
+     * only exports without a space model fall back to raw statvfs(2). */
+    {
+        brix_sd_instance_t *inst = brix_vfs_backend_resolve(root, ngx_cycle->log);
+
+        if (inst != NULL && inst->driver->space != NULL) {
+            brix_sd_space_t sp;
+
+            if (inst->driver->space(inst, &sp) == NGX_OK) {
+                free_mb  = (long long) (sp.free_bytes  / 1048576u);
+                total_mb = (long long) (sp.total_bytes / 1048576u);
+                if (total_mb > 0) {
+                    util = (int) (100.0 * (double) (total_mb - free_mb)
+                                  / (double) total_mb);
+                }
+                snprintf(out, outsz, "%d %lld %d 0 0 0", nrw, free_mb, util);
+                return;
+            }
+        }
+    }
 
     if (statvfs(root, &vfs) == 0) {
         unsigned long bs = vfs.f_frsize ? vfs.f_frsize : vfs.f_bsize;
@@ -416,6 +440,22 @@ stat_query_path(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (stat_vfs_query(ctx, c, conf, tgt) != 0) {
+        /* E-4: a missing path from a principal already over its miss budget is
+         * answered with kXR_wait instead of NotFound, throttling a stat-harvest
+         * loop while a legitimate client (which rarely misses) sails through. */
+        if (errno == ENOENT && conf->negcache.threshold > 0) {
+            unsigned w = brix_negcache_note_miss(ctx, conf->negcache.threshold,
+                                                 conf->negcache.window_ms,
+                                                 conf->negcache.backoff_s);
+            if (w > 0) {
+                ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                    "xrootd negcache: kXR_wait %ud for STAT miss %s",
+                    w, tgt->reqpath);
+                BRIX_OP_ERR(ctx, BRIX_OP_STAT);
+                *rc = brix_send_wait(ctx, c, w);
+                return 0;
+            }
+        }
         BRIX_BAIL_ERR(ctx, c, BRIX_OP_STAT, "STAT", tgt->reqpath,
                         "-", brix_kxr_from_errno(errno),
                         strerror(errno), rc);

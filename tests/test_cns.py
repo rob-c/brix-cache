@@ -17,15 +17,16 @@ Run:
 import os
 import socket
 import struct
-import subprocess
 import sys
 import time
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
-from config_templates import render_config  # noqa: E402
-from settings import NGINX_BIN, free_port, BIND_HOST  # noqa: E402
+from server_registry import NginxInstanceSpec  # noqa: E402
+from settings import free_port, BIND_HOST  # noqa: E402
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 kXR_login, kXR_open, kXR_write, kXR_close, kXR_stat = 3007, 3010, 3019, 3003, 3017
 kXR_ok, kXR_error = 0, 4003
@@ -86,62 +87,33 @@ def _stat(port, path):
     return st, body
 
 
-@pytest.fixture(scope="module")
-def cluster(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
+@pytest.fixture
+def cluster(lifecycle, tmp_path_factory):
     base = tmp_path_factory.mktemp("cns")
-    mgr_log = base / "mgr"; mgr_log.mkdir()
-    ds_log = base / "ds"; ds_log.mkdir()
     data = base / "data"; data.mkdir()
-    mgr_port = free_port()
     cms_port = free_port()
-    ds_port = free_port()
 
-    mgr_conf = render_config("nginx_cns_manager.conf",
-                             LOG_DIR=mgr_log,
-                             BIND_HOST=BIND_HOST,
-                             MANAGER_PORT=mgr_port,
-                             CMS_PORT=cms_port)
-    ds_conf = render_config("nginx_cns_data.conf",
-                            LOG_DIR=ds_log,
-                            BIND_HOST=BIND_HOST,
-                            DATA_PORT=ds_port,
-                            DATA_DIR=data,
-                            CMS_PORT=cms_port)
-    (base / "mgr.conf").write_text(mgr_conf)
-    (base / "ds.conf").write_text(ds_conf)
-
-    procs = []
-    for name in ("mgr", "ds"):
-        p = subprocess.Popen([NGINX_BIN, "-c", str(base / f"{name}.conf"),
-                              "-p", str(base / name)],
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        procs.append(p)
-
-    def up(port):
-        for _ in range(100):
-            try:
-                socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-                return True
-            except OSError:
-                time.sleep(0.1)
-        return False
-
-    if not (up(mgr_port) and up(cms_port) and up(ds_port)):
-        for p in procs:
-            p.terminate()
-        pytest.skip("cluster did not start")
+    mgr = lifecycle.start(NginxInstanceSpec(
+        name="lc-cns-manager",
+        template="nginx_cns_manager.conf",
+        protocol="root",
+        readiness="tcp",
+        extra_ports={"CMS_PORT": cms_port},
+        reason="CNS manager (brix_cns collect) + CMS server port.",
+    ))
+    ds = lifecycle.start(NginxInstanceSpec(
+        name="lc-cns-data",
+        template="nginx_cns_data.conf",
+        protocol="root",
+        readiness="tcp",
+        data_root=str(data),
+        template_values={"CMS_PORT": cms_port},
+        reason="CNS data server (brix_cns emit) CMS-linked to the manager.",
+    ))
 
     # Let the data server's CMS link to the manager come up + log in.
     time.sleep(6)
-    yield mgr_port, ds_port
-    for p in procs:
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+    yield mgr.port, ds.port
 
 
 def test_manager_stats_written_file_from_cns(cluster):

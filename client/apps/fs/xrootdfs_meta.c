@@ -45,8 +45,8 @@ xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
     brix_status_clear(&st);
     if (g_web) {
         char pbuf[XRDC_PATH_MAX];
-        if (brix_web_stat(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)), g_bearer,
-                          g_web_verify, g_web_ca, &si, &st) != 0) {
+        if (brix_web_stat_pooled(g_web_pool, srv_path(path, pbuf, sizeof(pbuf)),
+                                 &si, &st) != 0) {
             return xfs_err(&st);
         }
         xfs_fill_stat(&si, stbuf);
@@ -80,8 +80,8 @@ xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
     brix_status_clear(&st);
     if (g_web) {
         char pbuf[XRDC_PATH_MAX];
-        if (brix_web_readdir(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)), g_bearer,
-                             g_web_verify, g_web_ca, &ents, &n, &st) != 0) {
+        if (brix_web_readdir_pooled(g_web_pool, srv_path(path, pbuf, sizeof(pbuf)),
+                                    &ents, &n, &st) != 0) {
             return xfs_err(&st);
         }
     } else {

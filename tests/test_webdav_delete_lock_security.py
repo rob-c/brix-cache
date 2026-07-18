@@ -206,6 +206,7 @@ def _sanity():
 
 class TestDeleteNonEmptyCollection:
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_delete_nonempty_collection_returns_409(self):
         """src/protocols/webdav/namespace.c sets opts.require_empty_dir = 1, so DELETE of
         a non-empty collection maps BRIX_NS_NOT_EMPTY -> 409 Conflict."""
@@ -233,6 +234,7 @@ class TestDeleteNonEmptyCollection:
 
 class TestUnlock:
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_unlock_wrong_token_fails(self):
         """A LOCK held under one token cannot be released with a DIFFERENT
         (well-formed-but-wrong) token.  lock.c CRYPTO_memcmp mismatch -> 409
@@ -259,6 +261,7 @@ class TestUnlock:
         _unlock(path, f"<{real}>")
         _sanity()
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_unlock_malformed_token_missing_header(self):
         """UNLOCK with NO Lock-Token header is malformed per RFC 4918 §9.11.1.
         webdav_handle_unlock returns NGX_HTTP_BAD_REQUEST -> 400 before any
@@ -270,6 +273,7 @@ class TestUnlock:
         assert st == 400, f"UNLOCK without Lock-Token must be 400, got {st}"
         _sanity()
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_unlock_malformed_token_garbage_value(self):
         """UNLOCK carrying a syntactically-garbage Lock-Token on an UNLOCKED
         resource: the header is present (so not 400) but matches no active lock
@@ -283,6 +287,7 @@ class TestUnlock:
             f"garbage Lock-Token on an unlocked resource should be 400/409, got {st}"
         _sanity()
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_unlock_nonexistent_resource(self):
         """UNLOCK of a path that does not exist (and holds no lock).  With a
         Lock-Token header present, the handler resolves the path then finds no
@@ -302,6 +307,7 @@ class TestUnlock:
 
 class TestLockConflict:
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_second_exclusive_lock_conflicts(self):
         """An exclusive write LOCK exists; a second LOCK without the matching
         If header must be refused.  lock.c: existing active lock + no If match
@@ -328,6 +334,7 @@ class TestLockConflict:
         _unlock(path, f"<{tok}>")
         _sanity()
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_shared_lock_supported_or_conflicts_cleanly(self):
         """LOCK advertises both exclusive and shared write lockentries
         (lock.c webdav_lock_append_supported).  A shared LOCK request must
@@ -360,6 +367,7 @@ class TestLockConflict:
 
 class TestHeaderInjection:
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_crlf_in_destination_rejected(self):
         """A Destination header with embedded CRLF + a smuggled response line
         must NOT cause response splitting and must NOT escape the export root.
@@ -402,6 +410,7 @@ class TestHeaderInjection:
             "injected CR/LF tail was honoured as part of the destination path"
         _sanity()
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_crlf_in_custom_header_sanitized(self):
         """A custom request header whose value carries CRLF + a smuggled
         response line must be rejected/sanitised by nginx — the injected header
@@ -431,6 +440,7 @@ class TestHeaderInjection:
 
 class TestMkcol:
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_mkcol_with_body_rejected_415(self):
         """RFC 4918 §9.3.1: a MKCOL request carrying a body whose entity the
         server does not understand SHOULD be rejected with 415 Unsupported
@@ -457,6 +467,7 @@ class TestMkcol:
             _delete(coll)
         _sanity()
 
+    @pytest.mark.registry_server("webdav-dellock")
     def test_mkcol_missing_intermediate_returns_409(self):
         """RFC 4918 §9.3.1: MKCOL where an intermediate collection is absent
         MUST fail with 409 Conflict.  namespace.c maps both a NOT_FOUND path

@@ -91,6 +91,52 @@ int main(void)
     CHECK(guard_classify_post(&off, &nf) == GUARD_R_NONE);
     CHECK(guard_classify_post(&off, &af) == GUARD_R_NONE);
 
+    /* --- wire-level handshake classifier --- */
+    {
+        int nm;
+        /* full 20-byte kXR ClientInitHandShake: 12 zeros, fourth=htonl(4),
+         * fifth=htonl(2012) — forwarded, verdict final. */
+        unsigned char root_hs[20] = {
+            0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,4, 0,0,0x07,0xDC };
+        CHECK(guard_classify_handshake(root_hs, 20, &nm) == GUARD_WIRE_ROOT);
+        CHECK(nm == 0);
+        /* zero-prefix shorter than the signature -> defer (need_more) */
+        CHECK(guard_classify_handshake(root_hs, 8, &nm) == GUARD_WIRE_ROOT);
+        CHECK(nm == 1);
+        CHECK(guard_classify_handshake(root_hs, 16, &nm) == GUARD_WIRE_ROOT);
+        CHECK(nm == 0);                 /* fourth complete: decided, forward */
+        /* 16+ zero-led bytes but fourth != htonl(4) -> not root */
+        unsigned char zero_bad[16] = { 0 };
+        CHECK(guard_classify_handshake(zero_bad, 16, &nm) == GUARD_WIRE_JUNK);
+        CHECK(nm == 0);
+        /* non-root clients knocking on the root port */
+        unsigned char tls[3] = { 0x16, 0x03, 0x01 };  /* TLS ClientHello */
+        CHECK(guard_classify_handshake(tls, 3, &nm) == GUARD_WIRE_TLS);
+        CHECK(guard_classify_handshake((const unsigned char *) "GET / HTTP/1.1",
+                                       14, &nm) == GUARD_WIRE_HTTP);
+        CHECK(guard_classify_handshake((const unsigned char *) "OPTIONS * ",
+                                       10, &nm) == GUARD_WIRE_HTTP);
+        CHECK(guard_classify_handshake((const unsigned char *) "SSH-2.0-x",
+                                       9, &nm) == GUARD_WIRE_SSH);
+        CHECK(guard_classify_handshake((const unsigned char *) "", 0, &nm)
+              == GUARD_WIRE_EMPTY);
+        CHECK(guard_classify_handshake((const unsigned char *) "\xde\xad\xbe",
+                                       3, &nm) == GUARD_WIRE_JUNK);
+        /* "GET" without the trailing space is NOT misread as HTTP */
+        CHECK(guard_classify_handshake((const unsigned char *) "GETX", 4, &nm)
+              == GUARD_WIRE_JUNK);
+        /* wire tokens */
+        CHECK(strcmp(guard_wire_str(GUARD_WIRE_ROOT), "root") == 0);
+        CHECK(strcmp(guard_wire_str(GUARD_WIRE_TLS), "tls-clienthello") == 0);
+        CHECK(strcmp(guard_wire_str(GUARD_WIRE_HTTP), "http-request") == 0);
+        CHECK(strcmp(guard_wire_str(GUARD_WIRE_SSH), "ssh-banner") == 0);
+        CHECK(strcmp(guard_wire_str(GUARD_WIRE_EMPTY), "empty") == 0);
+        CHECK(strcmp(guard_wire_str(GUARD_WIRE_JUNK), "junk") == 0);
+        CHECK(strcmp(guard_reason_str(GUARD_R_NOTROOT), "notroot") == 0);
+        CHECK(strcmp(guard_reason_str(GUARD_R_PROXYABUSE), "proxyabuse") == 0);
+        CHECK(strcmp(guard_reason_str(GUARD_R_TAMPER), "cvmfs_tamper") == 0);
+    }
+
     /* --- audit format --- */
     char line[512];
     guard_request_t sigreq = { "203.0.113.9","arc",GUARD_OP_READ,
@@ -101,6 +147,35 @@ int main(void)
     CHECK(strcmp(line,
         "2026-07-01T12:00:00Z ip=203.0.113.9 proto=arc signal=signature "
         "op=read path=\"/wp-login.php\" status=403") == 0);
+    /* notroot line: op=handshake, wire guess in the path, status=0 */
+    guard_request_t nrreq = { "192.0.2.5","root",GUARD_OP_HANDSHAKE,
+                              "tls-clienthello",15,0,OUTCOME_PENDING,0 };
+    CHECK(guard_audit_format(&nrreq, GUARD_R_NOTROOT,
+                             "2026-07-01T12:00:00Z", line, sizeof(line)) > 0);
+    CHECK(strcmp(line,
+        "2026-07-01T12:00:00Z ip=192.0.2.5 proto=root signal=notroot "
+        "op=handshake path=\"tls-clienthello\" status=0") == 0);
+    /* proxyabuse line: op=read, the attempted upstream authority in the path,
+     * status=403 (the reject that fed it) */
+    guard_request_t pareq = { "203.0.113.44","cvmfs",GUARD_OP_READ,
+                              "evil.example.com:8000",21,0,OUTCOME_PENDING,403 };
+    CHECK(guard_audit_format(&pareq, GUARD_R_PROXYABUSE,
+                             "2026-07-01T12:00:00Z", line, sizeof(line)) > 0);
+    CHECK(strcmp(line,
+        "2026-07-01T12:00:00Z ip=203.0.113.44 proto=cvmfs signal=proxyabuse "
+        "op=read path=\"evil.example.com:8000\" status=403") == 0);
+    /* cvmfs_tamper line: the offending ORIGIN authority rides the ip field
+     * (the tamper actor is upstream, not the client), the failed object key
+     * rides the path, status=502 (the gateway error the client saw) */
+    guard_request_t tpreq = { "s1.bad.example.org","cvmfs",GUARD_OP_READ,
+                              "/cvmfs/repo.io/data/ab/cdef",27,0,
+                              OUTCOME_PENDING,502 };
+    CHECK(guard_audit_format(&tpreq, GUARD_R_TAMPER,
+                             "2026-07-01T12:00:00Z", line, sizeof(line)) > 0);
+    CHECK(strcmp(line,
+        "2026-07-01T12:00:00Z ip=s1.bad.example.org proto=cvmfs "
+        "signal=cvmfs_tamper op=read path=\"/cvmfs/repo.io/data/ab/cdef\" "
+        "status=502") == 0);
     /* token maps */
     CHECK(strcmp(guard_reason_str(GUARD_R_AUTHFAIL), "authfail") == 0);
     CHECK(strcmp(guard_reason_str(GUARD_R_NOTFOUND), "notfound") == 0);

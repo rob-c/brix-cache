@@ -65,16 +65,20 @@ ocsp_build_request(OCSP_CERTID *id)
  * The caller must call OCSP_RESPONSE_free() on the returned pointer.
  * Returns NULL on any network or protocol error.
  */
-/* HOW: Parses the OCSP URL via parse_ocsp_url() into an ocsp_url_t. Builds the OCSP_REQUEST (id + nonce) via ocsp_build_request(). Opens the responder BIO via ocsp_open_bio() (plain TCP or verifying TLS with SNI). Bounds the connect (ocsp_connect_bio) and, for HTTPS, the handshake+verify (ocsp_tls_handshake) under BRIX_OCSP_TIMEOUT_SECS. Sends via OCSP_sendreq_bio(), then tears down the connection (cbio then ssl_ctx) and the request. Returns NULL on any network/protocol failure. */
+/* HOW: Parses the OCSP URL via parse_ocsp_url() into an ocsp_url_t. Builds the OCSP_REQUEST (id + nonce) via ocsp_build_request(). Opens the responder BIO via ocsp_open_bio() (plain TCP or verifying TLS with SNI). Bounds the connect (ocsp_connect_bio) and, for HTTPS, the handshake+verify (ocsp_tls_handshake) under BRIX_OCSP_TIMEOUT_SECS. Sends the request and reads the reply through an OCSP_REQ_CTX whose response length is capped at OCSP_MAX_RESPONSE_BYTES (A-6/T2 — an untrusted responder must not stream an unbounded body), then tears down the connection (cbio then ssl_ctx) and the request. Returns NULL on any network/protocol failure or if the reply exceeds the cap. */
 OCSP_RESPONSE *
 do_ocsp_request(ngx_log_t *log, const char *url,
-    X509 *leaf, X509 *issuer, OCSP_CERTID *id)
+    X509 *leaf, X509 *issuer, OCSP_CERTID *id, OCSP_REQUEST **req_out)
 {
     ocsp_url_t     u;
     char           hostport[320];
     OCSP_REQUEST  *req  = NULL;
     OCSP_RESPONSE *resp = NULL;
+    OCSP_REQ_CTX  *rctx;
+    int            rc;
     ocsp_conn_t    conn;
+
+    *req_out = NULL;
 
     if (parse_ocsp_url(url, &u) != 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -114,16 +118,47 @@ do_ocsp_request(ngx_log_t *log, const char *url,
         return NULL;
     }
 
-    resp = OCSP_sendreq_bio(conn.cbio, u.path, req);
-
-    ocsp_conn_free(&conn);
-    OCSP_REQUEST_free(req);
-
-    if (resp == NULL) {
+    /* A2/T2: bound the response body.  The one-shot sendreq_bio helper reads
+     * under only OpenSSL's internal default cap; drive the request context
+     * ourselves so we pin the ceiling at OCSP_MAX_RESPONSE_BYTES — an untrusted
+     * (and usually
+     * plaintext/MITM-able) responder must not stream an unbounded body into the
+     * worker.  Blocking BIO + SO_RCVTIMEO bound the wait; the -1 retry arm
+     * covers a spurious BIO_should_retry. */
+    rctx = OCSP_sendreq_new(conn.cbio, u.path, req, -1);
+    if (rctx == NULL) {
+        ocsp_conn_free(&conn);
+        OCSP_REQUEST_free(req);
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "brix_ocsp: no response from \"%s\"", url);
+                      "brix_ocsp: cannot build request context for \"%s\"", url);
+        return NULL;
+    }
+    OCSP_set_max_response_length(rctx, OCSP_MAX_RESPONSE_BYTES);
+
+    do {
+        rc = OCSP_sendreq_nbio(&resp, rctx);
+    } while (rc == -1 && BIO_should_retry(conn.cbio));
+
+    OCSP_REQ_CTX_free(rctx);
+    ocsp_conn_free(&conn);
+
+    if (rc <= 0 || resp == NULL) {
+        /* rc == 0 also fires when the reply exceeded OCSP_MAX_RESPONSE_BYTES:
+         * OpenSSL aborts the read at the cap and returns failure. */
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix_ocsp: no valid response from \"%s\" (capped at %d bytes)",
+                      url, OCSP_MAX_RESPONSE_BYTES);
+        if (resp != NULL) {
+            OCSP_RESPONSE_free(resp);
+            resp = NULL;
+        }
+        OCSP_REQUEST_free(req);
+        return NULL;
     }
 
+    /* Success: hand the request (with its nonce) to the caller for the nonce
+     * match; the caller owns it now and frees it after check_ocsp_response(). */
+    *req_out = req;
     return resp;
 }
 
@@ -138,7 +173,8 @@ do_ocsp_request(ngx_log_t *log, const char *url,
 /* HOW: Checks response status — returns -1 if not successful. Extracts the BASICRESP via OCSP_response_get1_basic(). Optionally verifies the response signature against a trust store (NULL means use OpenSSL defaults). If original request is available, checks nonce match — mismatch causes failure; missing nonce is a warning only. Finds certificate status via OCSP_resp_find_status() and maps to GOOD(0)/REVOKED(-1)/UNKNOWN(1) using a switch on the V_OCSP_CERTSTATUS_* enum. */
 int
 check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
-    X509_STORE *store, OCSP_CERTID *id, OCSP_REQUEST *req_for_nonce)
+    X509_STORE *store, OCSP_CERTID *id, OCSP_REQUEST *req_for_nonce,
+    int require_nonce)
 {
     OCSP_BASICRESP *bresp;
     int             status, reason;
@@ -169,7 +205,18 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
     if (req_for_nonce != NULL) {
         int nonce_rc = OCSP_check_nonce(req_for_nonce, bresp);
         if (nonce_rc < 0) {
-            /* nonce present in request but missing in response — warn, don't fail */
+            /* Nonce present in request but missing in response.  A missing nonce
+             * lets an on-path attacker replay a captured (still-signed) GOOD
+             * response.  Under brix_ocsp_require_nonce this is a hard failure
+             * (A-6 item 2); otherwise warn only — most CA responders serve
+             * pre-signed, nonce-less responses, so hard-fail is opt-in. */
+            if (require_nonce) {
+                ngx_log_error(NGX_LOG_WARN, log, 0,
+                              "brix_ocsp: nonce missing in OCSP response and "
+                              "brix_ocsp_require_nonce is on — denying (replay guard)");
+                OCSP_BASICRESP_free(bresp);
+                return -1;
+            }
             ngx_log_error(NGX_LOG_WARN, log, 0,
                           "brix_ocsp: nonce missing in OCSP response");
         } else if (nonce_rc == 0) {

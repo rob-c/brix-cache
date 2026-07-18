@@ -175,7 +175,7 @@ Five ways a credential gets into (or is synthesized for) a user session:
                                      consumers: T1 ns-ops, T2/.token,
                                      T6 root stream, T7 http bearer,
                                      .s3/.keyring open_cred, TPC pull,
-                                     proxy_ssl_certificate maps (ARC)
+                                     $brix_delegated_cred back leg (ARC)
 ```
 
 Trust/exposure comparison — the most important table on this page:
@@ -208,7 +208,7 @@ own key) and deposits it whole.
         │──────────────────────────────────────────────────►│
         │                                                   │ 3. parse chain
         │                                                   │ 4. PKIX-verify vs
-        │                                                   │    brix_webdav_cafile
+        │                                                   │    cafile / cadir
         │                                                   │ 5. EEC DN == ctx->dn
         │                                                   │    (STRICT equality)
         │                                                   │ 6. store VERBATIM ->
@@ -221,7 +221,8 @@ Handler: `src/protocols/webdav/delegation.c` (T8 sections). Enabled by
 `brix_delegation_endpoint on` inside a location that also has `brix_webdav
 on`, **`brix_allow_write on`** (a read-only export 403s the PUT before
 delegation dispatch — empirically rediscovered every time), `brix_webdav_auth
-required`, `brix_webdav_cafile`, and `brix_storage_credential_dir`.
+required`, `brix_webdav_cafile` (or `brix_webdav_cadir` for a hashed CA
+directory), and `brix_storage_credential_dir`.
 
 Two properties discovered the hard way, now encoded as security-negative
 tests in `tests/test_arc_httpg_proxy.py`:
@@ -372,11 +373,11 @@ extended minting to the `root://` stream listener.
 | S3-origin SigV4 | Phase 3 T3 | `.s3` → per-open signer re-init |
 | RADOS/CephX | Ceph-peruser | `.keyring` → per-user `rados_t` (LRU-cached) |
 | TPC pull | F6 | in-memory assembled credential (not the store) |
-| **generic nginx back leg** (ARC-CE front proxy) | — | `map $ssl_client_s_dn_legacy` → `proxy_ssl_certificate(_key) <stored .pem>` — works because the stored file is complete |
+| **generic nginx back leg** (ARC-CE front proxy) | — | `proxy_ssl_certificate(_key) $brix_delegated_cred` — the variable re-derives the x5h store key from the verified chain's EEC DN, works because the stored file is complete |
 
 That last row is the pattern the ARC-CE lab uses and the reason the T4 gap
-was user-visible: `proxy_ssl_certificate_key $arc_cred` needs the key block
-in the mapped file. See
+was user-visible: `proxy_ssl_certificate_key $brix_delegated_cred` needs the
+key block in the resolved file. See
 [arc-ce-httpg-front-proxy.md](../05-operations/arc-ce-httpg-front-proxy.md).
 
 ---

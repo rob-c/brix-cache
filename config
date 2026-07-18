@@ -22,6 +22,36 @@
 # For full RELRO/BIND_NOW, defaulted below (NGX_LD_OPT); override with --with-ld-opt.
 CFLAGS="$CFLAGS -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -Wformat -Werror=format-security -Wvla -Wstrict-prototypes -Wold-style-definition"
 
+# Additional exploit-mitigation flags that are NOT universally supported by the
+# compiler in $CC, so they are probed one-by-one and appended only when the
+# compiler accepts them.  This keeps the build portable across the gcc/clang
+# versions in the fleet (the RHEL-9 build host is gcc 11.5, which has
+# -fzero-call-used-regs but not -ftrivial-auto-var-init).
+#   -fzero-call-used-regs=used-gpr  wipe call-used GPRs on function return, so a
+#                                   later ROP/JOP gadget can't harvest leftover
+#                                   pointer/secret values from registers (GCC 11+).
+#   -ftrivial-auto-var-init=zero    zero-initialise otherwise-uninitialised
+#                                   automatic variables, killing a broad class of
+#                                   uninitialised-stack info leaks (GCC 12+/Clang).
+brix_cc_supports() {
+    # Compile an empty TU with the candidate flag; treat any diagnostic that
+    # names the flag (unrecognised/unsupported) as "not supported".
+    _brix_probe_out=`echo 'int main(void){return 0;}' \
+        | ${CC:-cc} $1 -x c -c -o /dev/null - 2>&1`
+    if [ $? -eq 0 ] && [ -z "$_brix_probe_out" ]; then
+        return 0
+    fi
+    return 1
+}
+for _brix_hflag in -fzero-call-used-regs=used-gpr -ftrivial-auto-var-init=zero; do
+    if brix_cc_supports "$_brix_hflag"; then
+        CFLAGS="$CFLAGS $_brix_hflag"
+        echo " + xrootd: hardening flag accepted: $_brix_hflag"
+    else
+        echo " + xrootd: hardening flag skipped (compiler lacks it): $_brix_hflag"
+    fi
+done
+
 # Link hardening for the dynamic module (.so). Appended unless the operator
 # already passed equivalent flags via --with-ld-opt. Full RELRO + BIND_NOW make
 # the GOT read-only after startup; noexecstack marks the stack non-executable.
@@ -157,6 +187,30 @@ if [ -n "$BRIX_ENABLE_IO_URING" ] \
     CFLAGS="$CFLAGS $(pkg-config --cflags liburing) -DBRIX_HAVE_LIBURING=1"
     BRIX_URING_LIBS="$(pkg-config --libs liburing)"   # normally: -luring
     echo " + xrootd: io_uring disk-I/O backend enabled (liburing $(pkg-config --modversion liburing))"
+fi
+
+# D-3: per-worker seccomp-BPF syscall filter (hyper-hardening §D-3). Compiled in
+# whenever libseccomp is present (-DBRIX_HAVE_SECCOMP + -lseccomp); the directive
+# still defaults OFF so linking it never changes runtime behaviour until an
+# operator opts in with `brix_seccomp audit|enforce`. Without libseccomp the .c
+# compiles a fail-closed stub (audit/enforce refuse to start; off is a no-op).
+# BRIX_SECCOMP_LIBS is appended to the stream module's ngx_module_libs below so
+# the DYNAMIC .so resolves seccomp_* at dlopen. Probe pkg-config, then the
+# header/lib directly (bzip2 style) since some distros ship no libseccomp.pc.
+BRIX_SECCOMP_LIBS=""
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libseccomp; then
+    CFLAGS="$CFLAGS $(pkg-config --cflags libseccomp) -DBRIX_HAVE_SECCOMP=1"
+    BRIX_SECCOMP_LIBS="$(pkg-config --libs libseccomp)"   # normally: -lseccomp
+    echo " + xrootd: seccomp syscall filter enabled (libseccomp $(pkg-config --modversion libseccomp))"
+elif printf '#include <seccomp.h>\nint main(void){return seccomp_init(0)==0;}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
+     && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lseccomp >/dev/null 2>&1; then
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
+    CFLAGS="$CFLAGS -DBRIX_HAVE_SECCOMP=1"
+    BRIX_SECCOMP_LIBS="-lseccomp"
+    echo " + xrootd: seccomp syscall filter enabled (-lseccomp)"
+else
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
+    echo " + xrootd: seccomp syscall filter disabled (install libseccomp-devel to enable)"
 fi
 
 # Compression codecs (phase-42). The shared codec abstraction (src/core/compat/codec_*.c)
@@ -405,6 +459,17 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_store.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_ctl.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_fault.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_csi.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_quota.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_nearline.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_anomaly.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.h \
                         $ngx_addon_dir/src/core/config/tape_stage_conf.h \
                         $ngx_addon_dir/src/fs/path/path.h \
                         $ngx_addon_dir/src/protocols/root/read/clone.h \
@@ -462,6 +527,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/compat/checksum.h \
                         $ngx_addon_dir/src/core/compat/codec_core.h \
                         $ngx_addon_dir/src/core/compat/crc32c.h \
+                        $ngx_addon_dir/src/core/compat/wverify.h \
                         $ngx_addon_dir/src/core/http/etag.h \
                         $ngx_addon_dir/src/core/compat/crypto.h \
                         $ngx_addon_dir/src/core/compat/hex.h \
@@ -558,6 +624,17 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_store.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_ctl.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_fault.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_csi.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_quota.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_nearline.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_anomaly.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.h \
                         $ngx_addon_dir/src/fs/cache/open.h \
                         $ngx_addon_dir/src/protocols/webdav/xrdhttp.h \
                         $ngx_addon_dir/src/core/compat/time.h \
@@ -609,6 +686,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/stream/module_definition.c \
     $ngx_addon_dir/src/core/compat/checksum.c \
     $ngx_addon_dir/src/core/compat/checksum_core.c \
+    $ngx_addon_dir/src/core/compat/wverify.c \
+    $ngx_addon_dir/src/core/compat/cred_stage.c \
     $ngx_addon_dir/src/core/compat/crc32c.c \
     $ngx_addon_dir/src/core/compat/crc64.c \
     $ngx_addon_dir/src/core/compat/crc32_ieee.c \
@@ -687,6 +766,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs/vfs_open.c \
     $ngx_addon_dir/src/fs/vfs/vfs_open_adopt.c \
     $ngx_addon_dir/src/fs/vfs/vfs_open_handle.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_wverify.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_writer.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_registry.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_registry_source.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config.c \
@@ -742,6 +823,17 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_striper.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_io.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_ctl.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_fault.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_csi.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_quota.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_nearline.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_anomaly.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_namespace.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_staged.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_ident.c \
@@ -770,6 +862,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/stage/sd_stage_write.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_fill.c \
+    $ngx_addon_dir/src/fs/backend/cache/sd_cache_manifest.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_partial.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_forward.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_policy.c \
@@ -816,6 +909,10 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/upstream/directives.c \
     $ngx_addon_dir/src/fs/cache/directives.c \
     $ngx_addon_dir/src/core/config/process.c \
+    $ngx_addon_dir/src/core/seccomp/seccomp_core.c \
+    $ngx_addon_dir/src/core/seccomp/seccomp.c \
+    $ngx_addon_dir/src/core/negcache/negcache_core.c \
+    $ngx_addon_dir/src/core/negcache/negcache.c \
     $ngx_addon_dir/src/core/config/process_timers.c \
     $ngx_addon_dir/src/core/config/process_server_init.c \
     $ngx_addon_dir/src/core/config/postconfiguration.c \
@@ -908,6 +1005,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/path/mkdir.c \
     $ngx_addon_dir/src/protocols/root/path/stat_body.c \
     $ngx_addon_dir/src/protocols/root/path/strip_cgi.c \
+    $ngx_addon_dir/src/protocols/root/path/opaque_validate.c \
     $ngx_addon_dir/src/protocols/root/path/extract.c \
     $ngx_addon_dir/src/auth/authz/find_rule.c \
     $ngx_addon_dir/src/fs/path/canonical.c \
@@ -956,6 +1054,11 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/verify.c \
     $ngx_addon_dir/src/fs/cache/fill_retry.c \
     $ngx_addon_dir/shared/cvmfs/grammar/classify.c \
+    $ngx_addon_dir/shared/cvmfs/grammar/hash.c \
+    $ngx_addon_dir/shared/cvmfs/object/object.c \
+    $ngx_addon_dir/shared/cvmfs/signature/manifest.c \
+    $ngx_addon_dir/shared/cvmfs/signature/whitelist.c \
+    $ngx_addon_dir/shared/cvmfs/signature/verify.c \
     $ngx_addon_dir/src/fs/cache/origin/s3_transport.c \
     $ngx_addon_dir/src/fs/cache/origin/pelican_register.c \
     $ngx_addon_dir/src/fs/cache/lock.c \
@@ -1238,7 +1341,7 @@ ngx_module_deps="$ngx_brix_stream_deps \
 # jansson (token/JWT JSON), libxml2 (compat XML helpers), krb5 (krb5 auth).
 # Loaded first (RTLD_GLOBAL) per mod-xrootd.conf, so its symbols also back the
 # thin HTTP modules that share this code.
-ngx_module_libs="-lssl -lcrypto $BRIX_JANSSON_LIBS $BRIX_XML2_LIBS $BRIX_KRB5_LIBS $BRIX_CODEC_LIBS $BRIX_URING_LIBS $BRIX_CEPH_LIBS $BRIX_SQLITE_LIBS"
+ngx_module_libs="-lssl -lcrypto $BRIX_JANSSON_LIBS $BRIX_XML2_LIBS $BRIX_KRB5_LIBS $BRIX_CODEC_LIBS $BRIX_URING_LIBS $BRIX_CEPH_LIBS $BRIX_SQLITE_LIBS $BRIX_SECCOMP_LIBS"
 CORE_LIBS="$CORE_LIBS -lssl -lcrypto"
 xrd_emit_module
 
@@ -1487,6 +1590,17 @@ ngx_module_deps="$ngx_addon_dir/src/protocols/s3/s3.h \
                  $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                  $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_store.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_ctl.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_fault.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_csi.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_quota.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_nearline.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_anomaly.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.h \
                  $ngx_addon_dir/src/fs/cache/open.h \
                  $ngx_addon_dir/src/core/compat/hex.h \
                  $ngx_addon_dir/src/core/compat/time.h \
@@ -1601,6 +1715,33 @@ ngx_module_deps="$ngx_addon_dir/src/net/cms/server.h"
 ngx_module_libs=
 xrd_emit_module
 
+# phase-82: GridFTP / FTP control-channel gateway (self-contained STREAM
+# module).  Terminates an RFC 959 control channel and bridges STOR/RETR/LIST to
+# the VFS seam.  P82.3 adds the RFC 2228 GSI security layer (gsiftp://) via the
+# mem-BIO GSSAPI engine in src/auth/gssapi/gsi_mech.c.
+ngx_module_type=STREAM
+ngx_module_name=ngx_stream_brix_ftp_module
+ngx_module_srcs="$ngx_addon_dir/src/protocols/gridftp/ftp_module.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ftp_dc_sec.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_io.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_reply.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_path.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_dispatch.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_cmd.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_sec.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_data.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_tls.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_xfer.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_mode_e.c \
+                 $ngx_addon_dir/src/auth/gssapi/gsi_mech.c"
+ngx_module_deps="$ngx_addon_dir/src/protocols/gridftp/ftp_gateway.h \
+                 $ngx_addon_dir/src/protocols/gridftp/ftp_dc_sec.h \
+                 $ngx_addon_dir/src/protocols/gridftp/ftp_eblock.h \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev.h \
+                 $ngx_addon_dir/src/auth/gssapi/gsi_mech.h"
+ngx_module_libs=
+xrd_emit_module
+
 # ---------------------------------------------------------------------------
 # phase-47 W1: for the DYNAMIC build, emit ONE combined .so containing every
 # non-filter module accumulated above.  ngx_module_type is cosmetic here — each
@@ -1628,7 +1769,8 @@ if [ "$ngx_module_link" = DYNAMIC ]; then
                      ngx_http_brix_s3_module \
                      ngx_http_brix_cvmfs_module \
                      ngx_http_brix_dashboard_module \
-                     ngx_stream_brix_cms_srv_module"
+                     ngx_stream_brix_cms_srv_module \
+                     ngx_stream_brix_ftp_module"
     ngx_module_incs="$ngx_addon_dir/src $ngx_addon_dir/shared"
     ngx_module_srcs="$xrd_comb_srcs"
     ngx_module_deps="$xrd_dyn_deps"

@@ -340,7 +340,8 @@ pblock_catalog_open(const char *db_path, int busy_timeout_ms)
                "  ctime INTEGER NOT NULL DEFAULT 0,"
                "  mode INTEGER NOT NULL DEFAULT 0,"
                "  uid INTEGER NOT NULL DEFAULT 0,"
-               "  gid INTEGER NOT NULL DEFAULT 0);") != 0
+               "  gid INTEGER NOT NULL DEFAULT 0,"
+               "  xform TEXT NOT NULL DEFAULT '');") != 0
         || cat_exec(cat,
                "CREATE INDEX IF NOT EXISTS objects_parent"
                "  ON objects(parent);") != 0
@@ -383,6 +384,9 @@ pblock_catalog_open(const char *db_path, int busy_timeout_ms)
         NULL, NULL, NULL);
     sqlite3_exec(cat->db,
         "ALTER TABLE objects ADD COLUMN gid INTEGER NOT NULL DEFAULT 0;",
+        NULL, NULL, NULL);
+    sqlite3_exec(cat->db,
+        "ALTER TABLE objects ADD COLUMN xform TEXT NOT NULL DEFAULT '';",
         NULL, NULL, NULL);
 
     /* Namespace lookup cache (best-effort: a calloc failure just disables it —

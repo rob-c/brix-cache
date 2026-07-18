@@ -86,7 +86,7 @@ s3_put_body_mode(const brix_http_body_summary_t *summary)
  */
 void
 s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    brix_vfs_staged_t *staged, const char *fs_path, ngx_uint_t body_mode)
+    brix_vfs_writer_t *writer, const char *fs_path, ngx_uint_t body_mode)
 {
     const char        *root_canon = cf->common.root_canon;
     ngx_table_elt_t   *dcl;
@@ -97,7 +97,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     dcl = brix_http_find_header(r, "x-amz-decoded-content-length",
                                   sizeof("x-amz-decoded-content-length") - 1);
     if (dcl == NULL || dcl->value.len == 0) {
-        brix_vfs_staged_abort(staged, 1);
+        brix_vfs_writer_abort(writer);
         s3_put_finalize_client_error(r, NGX_HTTP_BAD_REQUEST,
             "MissingContentLength",
             "Streaming upload is missing x-amz-decoded-content-length.");
@@ -106,7 +106,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     for (i = 0; i < dcl->value.len; i++) {
         u_char d = dcl->value.data[i];
         if (d < '0' || d > '9') {
-            brix_vfs_staged_abort(staged, 1);
+            brix_vfs_writer_abort(writer);
             s3_put_finalize_client_error(r, NGX_HTTP_BAD_REQUEST,
                 "InvalidArgument",
                 "x-amz-decoded-content-length is not a valid length.");
@@ -122,13 +122,13 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         s3_chunk_aio_t    *t;
 
         if (task == NULL) {
-            brix_vfs_staged_abort(staged, 1);
+            brix_vfs_writer_abort(writer);
             s3_put_finalize_error(r);
             return;
         }
         t = task->ctx;                  /* ngx_thread_task_alloc zeroes ctx */
         t->r         = r;
-        t->staged    = staged;
+        t->writer    = writer;
         t->expected  = expected;
         t->body_mode = body_mode;
         s3_build_chunk_verify(r, cf, &t->verify);   /* W6a */
@@ -139,7 +139,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         brix_task_bind(task, s3_chunk_aio_thread, s3_chunk_aio_done);
 
         if (ngx_thread_task_post(pool, task) != NGX_OK) {
-            brix_vfs_staged_abort(staged, 1);
+            brix_vfs_writer_abort(writer);
             s3_put_finalize_error(r);
             return;
         }
@@ -154,14 +154,14 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         int                status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
         s3_build_chunk_verify(r, cf, &verify);   /* W6a */
-        if (s3_aws_chunked_decode_to_fd(r, brix_vfs_staged_fd(staged), fs_path, expected,
+        if (s3_aws_chunked_decode_to_fd(r, brix_vfs_writer_fd(writer), fs_path, expected,
                                         &trailer, &status, NULL, &verify)
             != NGX_OK)
         {
-            s3_chunk_decode_failed(r, root_canon, staged, status);
+            s3_chunk_decode_failed(r, root_canon, writer, status);
             return;
         }
-        s3_chunk_finalize(r, root_canon, fs_path, staged, &trailer, expected,
+        s3_chunk_finalize(r, root_canon, fs_path, writer, &trailer, expected,
                           body_mode);
     }
 }

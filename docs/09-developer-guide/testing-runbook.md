@@ -143,7 +143,7 @@ Both endpoints serve `/tmp/xrd-test/data` — the tests verify **semantic equiva
 
 ```bash
 # Start both nginx-xrootd AND reference XrdHttp server
-tests/manage_test_servers.sh start all
+(cd tests && python3 -m cmdscripts.manage_test_servers start-all)
 
 # Run just the new XrdHttp tests
 pytest tests/test_xrdhttp_*.py -v

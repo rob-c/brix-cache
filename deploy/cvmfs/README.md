@@ -1,5 +1,15 @@
 # CVMFS site cache on nginx-xrootd — deployment runbook
 
+> **Client-side automount stack** (this directory also ships it): the
+> `brixMount autofs` umbrella daemon gives stock-client-style `/cvmfs`
+> automounting with zero autofs/systemd dependency (WSL2/container-friendly).
+> Payload here: `mount.cvmfs`, `auto.cvmfs`, the default config+keys tree
+> under `etc/cvmfs/`, `install-automount.sh` (portable installer for non-RPM
+> hosts, `--dry-run` supported) and `brixcvmfs-automount-boot.sh` (WSL2
+> `[boot] command=` helper). RPM users: `brix-cvmfs-automount` +
+> `brix-cvmfs-config` subpackages. Full cookbook:
+> **docs/05-operations/cvmfs-automount.md**.
+
 A drop-in replacement for the Squid layer between your worker nodes and the
 CVMFS Stratum-1s, with two properties Squid does not have: **corrupt origin
 transfers are never admitted to the cache** (CAS verify-on-fill) and

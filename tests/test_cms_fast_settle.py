@@ -33,14 +33,9 @@ import time
 
 import pytest
 
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 
-NGINX_BIN = os.environ.get("LIFECYCLE_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-
-pytestmark = pytest.mark.skipif(
-    not os.path.isfile(NGINX_BIN),
-    reason=f"nginx binary not built at {NGINX_BIN}",
-)
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 
 def _free_port():
@@ -93,43 +88,34 @@ class StubManager:
 
 
 class Node:
-    """A self-provisioned nginx-xrootd CMS data node pointed at a manager port."""
+    """A registry-lifecycle nginx-xrootd CMS data node pointed at a manager port."""
 
-    def __init__(self, prefix, mgr_port, log_level="notice", extra=""):
-        self.prefix = prefix
+    def __init__(self, harness, index, mgr_port, data_root, log_level="notice", extra=""):
+        self._harness = harness
         self.mgr_port = mgr_port
-        self.conf = os.path.join(prefix, "conf", "nginx.conf")
-        self.elog = os.path.join(prefix, "logs", "error.log")
-        self.listen = _free_port()
-        for sub in ("conf", "logs", "data"):
-            os.makedirs(os.path.join(prefix, sub), exist_ok=True)
-        # nginx master runs as root here, so the worker drops to the built-in
-        # 'nobody' user. The checkpoint-recovery lock is created INSIDE the
-        # export, so the export dir must be writable by that worker user (the
-        # fleet exports are 0777 for the same reason). Without this the worker
-        # fails the recovery lock with EACCES and exits fatally before it can
-        # register with the CMS manager.
-        os.chmod(os.path.join(prefix, "data"), 0o777)
-        with open(self.conf, "w") as fh:
-            fh.write(render_config(
-                "nginx_cms_fast_settle_node.conf",
-                BASE_DIR=prefix,
-                LOG_LEVEL=log_level,
-                PORT=self.listen,
-                MANAGER_PORT=mgr_port,
-                EXTRA_DIRECTIVES=extra,
-            ))
+        self.elog = None
+        self._spec = NginxInstanceSpec(
+            name=f"lc-cms-fast-settle-{index}",
+            template="nginx_cms_fast_settle.conf",
+            protocol="root",
+            readiness="tcp",
+            data_root=data_root,
+            template_values={
+                "LOG_LEVEL": log_level,
+                "MANAGER_PORT": mgr_port,
+                "EXTRA_DIRECTIVES": extra,
+            },
+            reason="CMS fast-settle data node (stand-in TCP manager).",
+        )
 
     def start(self):
-        import subprocess
-        subprocess.run([NGINX_BIN, "-p", self.prefix, "-c", self.conf], check=True)
-
-    def stop(self):
-        import subprocess
-        subprocess.run([NGINX_BIN, "-p", self.prefix, "-c", self.conf, "-s", "stop"],
-                       stderr=subprocess.DEVNULL)
+        ep = self._harness.start(self._spec)
+        self.listen = ep.port
+        self.elog = os.path.join(ep.prefix, "logs", "error.log")
 
     def read_log(self):
+        if self.elog is None:
+            return ""
         try:
             with open(self.elog) as fh:
                 return fh.read()
@@ -151,8 +137,9 @@ class Node:
 
 
 @pytest.fixture
-def node_factory(tmp_path):
-    nodes, mgrs = [], []
+def node_factory(lifecycle, tmp_path):
+    mgrs = []
+    counter = {"n": 0}
 
     def _make(mgr_port=None, start_manager=False, **kw):
         port = mgr_port if mgr_port is not None else _free_port()
@@ -161,13 +148,22 @@ def node_factory(tmp_path):
             mgr = StubManager(port)
             mgr.start()
             mgrs.append(mgr)
-        node = Node(str(tmp_path / f"node{len(nodes)}"), port, **kw)
-        nodes.append(node)
+        idx = counter["n"]
+        counter["n"] += 1
+        # nginx master runs as root here, so the worker drops to the built-in
+        # 'nobody' user. The checkpoint-recovery lock is created INSIDE the
+        # export, so the export dir must be writable by that worker user (the
+        # fleet exports are 0777 for the same reason). Without this the worker
+        # fails the recovery lock with EACCES and exits fatally before it can
+        # register with the CMS manager.
+        data_root = str(tmp_path / f"node{idx}-data")
+        os.makedirs(data_root, exist_ok=True)
+        os.chmod(data_root, 0o777)
+        node = Node(lifecycle, idx, port, data_root, **kw)
         return node, port, mgr
 
     yield _make
-    for n in nodes:
-        n.stop()
+    # nginx nodes are stopped by the lifecycle harness fixture; stop the stubs.
     for m in mgrs:
         m.stop()
 

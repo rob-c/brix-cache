@@ -17,9 +17,9 @@ ngx_int_t brix_write_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
                                   int idx, int64_t offset, size_t wlen);
 
 /* Whole-object staged-commit adapter (phase-70) — append one kXR_write/pgwrite
- * block to the handle's VFS staged handle at the running sequential offset, then
- * reply. Invoked ONLY when ctx->files[idx].staged != NULL (a write open that
- * resolved to a backend LEAF with no random write, e.g. sd_http). Enforces
+ * block to the handle's brix_vfs_writer session at the running sequential offset,
+ * then reply. Invoked ONLY when ctx->files[idx].writer != NULL (a write open that
+ * resolved to a backend LEAF with no random write, e.g. sd_http/s3). Enforces
  * sequential append: an out-of-order offset is refused with kXR_Unsupported
  * (random-offset write to a whole-object backend is unsupported). `flat`/`flen`
  * carry the already-decoded plaintext bytes for pgwrite; a plain kXR_write passes

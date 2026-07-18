@@ -126,7 +126,7 @@ s3_handle_copy_object(ngx_http_request_t *r,
 
     /* Resolve source path — must stay within root_canon */
     if (!s3_resolve_key(cf->common.root_canon, src_key, src_fs_path,
-                        sizeof(src_fs_path)))
+                        sizeof(src_fs_path), cf->common.cache_store_endpoint))
     {
         return s3_fail(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
                        "Copy source path is not accessible.",

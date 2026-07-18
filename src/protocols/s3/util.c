@@ -112,13 +112,18 @@ int
  * Steps:
  *   1. Strip leading slashes from the key (S3 URLs have /bucket/key).
  *   2. Prepend exactly one slash so decoded_path starts with /.
- *   3. Call brix_http_resolve_path() which canonicalizes, URL-decodes,
+ *   3. Call brix_http_resolve_path_ex() which canonicalizes, URL-decodes,
  *      and confines the path to root.
+ *
+ * allow_internal: pass cf->common.cache_store_endpoint. Non-zero on a trusted
+ * cache-store endpoint permits internal sidecar keys (<key>.cinfo etc.); 0
+ * everywhere else keeps them invisible (default-deny — resolves as escape/miss).
  *
  * Returns: 1 on success (path is confined), 0 if escape detected or
  * buffer overflow.
  */
-s3_resolve_key(const char *root, const char *key, char *out, size_t outsz)
+s3_resolve_key(const char *root, const char *key, char *out, size_t outsz,
+    unsigned allow_internal)
 {
     char key_path[PATH_MAX];
     int  n;
@@ -131,7 +136,8 @@ s3_resolve_key(const char *root, const char *key, char *out, size_t outsz)
     if (n < 0 || (size_t) n >= sizeof(key_path))
         return 0;
 
-    return brix_http_resolve_path(root, key_path, out, outsz) == 0 ? 1 : 0;
+    return brix_http_resolve_path_ex(root, key_path, out, outsz,
+                                     allow_internal ? 1u : 0u) == 0 ? 1 : 0;
 }
 
 /*

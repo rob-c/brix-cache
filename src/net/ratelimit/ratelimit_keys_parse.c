@@ -40,13 +40,15 @@ rl_parse_key(ngx_conf_t *cf, ngx_str_t *v, brix_rl_rule_t *rule)
         rule->key_type = BRIX_RL_KEY_IP;
     } else if (type.len == 2 && ngx_strncmp(type.data, "dn", 2) == 0) {
         rule->key_type = BRIX_RL_KEY_DN;
+    } else if (type.len == 7 && ngx_strncmp(type.data, "subject", 7) == 0) {
+        rule->key_type = BRIX_RL_KEY_SUBJECT;
     } else if (type.len == 6 && ngx_strncmp(type.data, "volume", 6) == 0) {
         rule->key_type  = BRIX_RL_KEY_VOLUME;
         rule->key_match = prefix;        /* points into cf->args memory (persists) */
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "xrootd rate limit: unknown key \"%V\" (expected"
-            " vo|issuer|ip|dn|volume[:<prefix>])", &type);
+            " vo|issuer|ip|dn|subject|volume[:<prefix>])", &type);
         return NGX_ERROR;
     }
     return NGX_OK;

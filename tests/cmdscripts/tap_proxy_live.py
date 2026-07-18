@@ -384,6 +384,7 @@ CVMFS_CORE = [
     "shared/cvmfs/signature/verify.c",
     "shared/cvmfs/config/repo.c",
     "shared/cvmfs/config/cvmfs_conf.c",
+    "shared/cvmfs/walk/walk.c",
     "shared/cache/cas_store.c",
     "shared/net/proxy_env.c",
 ]
@@ -413,11 +414,28 @@ def _spawn_logged(run: LiveRun, argv: list[str], env: dict[str, str], stderr_pat
     return proc
 
 
-def _read_mount(path: Path) -> str:
-    try:
-        return path.read_text()
-    except OSError as exc:
-        return f"<error: {exc}>"
+def _await_mount(path: Path, expect: str, timeout: float = 30.0) -> str:
+    """Poll a FUSE-backed file until it reads the expected content (or times out).
+
+    The mount is spawned asynchronously and populates lazily over the network, so
+    the file is not readable the instant the process starts.  Polling to a
+    deadline replaces a fixed sleep that raced the mount coming up under
+    concurrent load; on a healthy system this returns within a second, so it adds
+    no wall-clock cost to the passing path.  Returns the last content or error
+    read, so a timed-out check still reports a meaningful diagnostic.
+    """
+    deadline = time.monotonic() + timeout
+    got = ""
+    while True:
+        try:
+            got = path.read_text().rstrip("\n")
+            if got == expect:
+                return got
+        except OSError as exc:
+            got = f"<error: {exc}>"
+        if time.monotonic() >= deadline:
+            return got
+        time.sleep(0.25)
 
 
 def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no nginx in this scenario
@@ -538,8 +556,7 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
                 {**mount_env, "http_proxy": f"http://127.0.0.1:{pport}", "BRIXCVMFS_CACHE": str(cache)},
                 err,
             )
-            time.sleep(3)
-            got = _read_mount(mnt / "hello").rstrip("\n")
+            got = _await_mount(mnt / "hello", expect)
             checks.append((got == expect, f"content via proxy [{got}]"))
             checks.append((_grep(err, f"using HTTP proxy 127.0.0.1:{pport}"), "reported proxy use ok"))
             checks.append((_grep(plog, f"GET-forward localhost:{hport}"), "proxy actually forwarded ok"))
@@ -561,8 +578,7 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
                 },
                 err2,
             )
-            time.sleep(3)
-            got = _read_mount(mnt / "hello").rstrip("\n")
+            got = _await_mount(mnt / "hello", expect)
             checks.append((got == expect, f"direct mount content [{got}]"))
             checks.append((plog.stat().st_size == 0, "no_proxy honored (direct) ok"))
             _fusermount(mnt)

@@ -28,6 +28,7 @@
 #include "xfer.h"                /* BRIX_XFER_* result vocabulary */
 #include "core/aio/aio.h"        /* brix_task_bind (mover thread-offload) */
 
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -119,7 +120,7 @@ brix_stage_submit(brix_stage_kind_t kind, brix_sd_instance_t *src,
 static void
 stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
     const char *src_key, const char *dst_key, const char *reqid,
-    brix_xfer_result_t res, ngx_log_t *log)
+    brix_xfer_result_t res, int last_errno, ngx_log_t *log)
 {
     if (res == BRIX_XFER_OK) {
         if (kind == BRIX_STAGE_FLUSH && src->driver->unlink != NULL) {
@@ -157,9 +158,16 @@ stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
          * the transient I/O error does not silently swallow the failure. */
     }
 
+    /* Transient failure (dead/unreachable origin): mark the durable record
+     * FAILED so a crash-visible, replayable row survives — the restart reconcile
+     * re-drives it. Left in the ACTIVE journal (never dead-letter): unlike a
+     * permanent deny, a transient origin outage is expected to clear. */
+    stage_journal_mark_failed(stage_journal_dir, reqid, last_errno);
+
     ngx_log_error(NGX_LOG_WARN, log, 0,
-        "xrootd stage: deferred %s of \"%s\" failed (reqid %s) - record kept",
-        brix_stage_kind_str(kind), dst_key, reqid);
+        "xrootd stage: deferred %s of \"%s\" failed (reqid %s errno %d) - "
+        "record marked FAILED, kept for retry",
+        brix_stage_kind_str(kind), dst_key, reqid, last_errno);
 }
 
 #if (NGX_THREADS)
@@ -179,6 +187,7 @@ typedef struct {
     brix_sd_instance_t *src;
     brix_sd_instance_t *dst;
     brix_xfer_result_t  res;
+    int                   last_errno;    /* mover errno, carried to the done event */
     ngx_log_t            *log;
     char                  reqid[40];
     char                  src_key[1024];
@@ -193,8 +202,10 @@ stage_flush_thread(void *data, ngx_log_t *log)
     const brix_stage_cred_t *credp = (t->cred.key[0] != '\0') ? &t->cred : NULL;
 
     (void) log;
+    errno = 0;
     t->res = stage_engine_run(t->kind, t->src, t->src_key, t->dst, t->dst_key,
                               credp);
+    t->last_errno = (t->res == BRIX_XFER_OK) ? 0 : errno;
 }
 
 static void
@@ -208,7 +219,7 @@ stage_flush_done(ngx_event_t *ev)
         stage_inflight--;
     }
     stage_complete(t->kind, t->src, t->src_key, t->dst_key, t->reqid, t->res,
-                   t->log);
+                   t->last_errno, t->log);
     ngx_destroy_pool(pool);              /* frees the task + ctx */
 }
 
@@ -241,6 +252,7 @@ stage_flush_offload(const stage_pending_t *p, ngx_thread_pool_t *pool)
     t->src  = p->src;
     t->dst  = p->dst;
     t->res  = BRIX_XFER_DST_ERR;
+    t->last_errno = EIO;
     t->log  = log;
     t->cred = p->cred;    /* copy owner identity for cred re-resolution in thread */
     snprintf(t->reqid, sizeof(t->reqid), "%s", p->reqid);
@@ -280,6 +292,7 @@ brix_stage_scheduler_tick(void)
     while (stage_pending_head != NULL && budget-- > 0) {
         stage_pending_t     *p = stage_pending_head;
         brix_xfer_result_t res;
+        int                  oerr;
         ngx_log_t           *log = (p->dst->log != NULL) ? p->dst->log
                                                          : p->src->log;
 
@@ -312,11 +325,13 @@ brix_stage_scheduler_tick(void)
         {
             const brix_stage_cred_t *credp =
                 (p->cred.key[0] != '\0') ? &p->cred : NULL;
+            errno = 0;
             res = stage_engine_run(p->kind, p->src, p->src_key, p->dst,
                                    p->dst_key, credp);
+            oerr = (res == BRIX_XFER_OK) ? 0 : errno;
         }
         stage_complete(p->kind, p->src, p->src_key, p->dst_key, p->reqid, res,
-                       log);
+                       oerr, log);
         free(p);
     }
 }

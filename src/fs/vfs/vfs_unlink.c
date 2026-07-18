@@ -18,6 +18,8 @@
  *       recursive.
  */
 #include "vfs_internal.h"
+#include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: leaf-dispatch bypasses the decorator's own evict */
+#include "core/compat/fs_walk.h"         /* BRIX_FS_TREE_MAX_DEPTH (shared recursion cap) */
 
 /* brix_vfs_driver_rmtree — depth-first delete of `logical` through the storage
  * driver: a file is unlinked directly; a directory has its children removed
@@ -39,9 +41,16 @@
  *       `leaf` for every driver call, and recurses with the same arguments. */
 static ngx_int_t
 brix_vfs_driver_rmtree(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
-    const char *logical, const brix_sd_cred_t *cred)
+    const char *logical, const brix_sd_cred_t *cred, ngx_uint_t depth)
 {
     brix_sd_stat_t st;
+
+    /* D-6/T2: bound the independent readdir recursion so a hostile deep remote
+     * collection aborts cleanly instead of overflowing the worker stack. */
+    if (depth > BRIX_FS_TREE_MAX_DEPTH) {
+        errno = ELOOP;
+        return NGX_ERROR;
+    }
 
     if (drv->stat == NULL || drv->unlink == NULL) {
         errno = ENOTSUP;
@@ -67,7 +76,9 @@ brix_vfs_driver_rmtree(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
                              (logical[0] == '/' && logical[1] == '\0')
                                  ? "" : logical,
                              de.name);
-                if (brix_vfs_driver_rmtree(leaf, drv, child, cred) != NGX_OK) {
+                if (brix_vfs_driver_rmtree(leaf, drv, child, cred, depth + 1)
+                    != NGX_OK)
+                {
                     drv->closedir(dir);
                     return NGX_ERROR;
                 }
@@ -141,7 +152,7 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
 
     if (recursive) {
         rc = brix_vfs_driver_rmtree(leaf, drv, logical,
-                                    use_cred ? &cred : NULL);
+                                    use_cred ? &cred : NULL, 0);
     } else if (drv->unlink != NULL) {
         rc = brix_sd_unlink_maybe_cred(leaf, logical,
                  require_empty_dir ? 1 : 0, use_cred ? &cred : NULL);
@@ -150,6 +161,13 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
         rc = NGX_ERROR;
     }
     saved_errno = errno;
+    brix_sd_ucred_wipe(&store);   /* secret consumed by unlink; erase (A-4/T4) */
+    if (rc == NGX_OK) {
+        /* The leaf dispatch above skipped the cache decorator's own unlink (and
+         * so its cstore evict); evict here so a DELETE does not leave a stale
+         * cached copy on the store. No-op when ctx->sd is not a cache. */
+        brix_sd_cache_evict(ctx->sd, logical);
+    }
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                               rc, saved_errno, start);
     return rc;

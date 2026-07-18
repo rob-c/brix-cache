@@ -100,7 +100,7 @@ brix_write_route_special(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * backend with no random write, so the block is APPENDED to a VFS staged
 	 * handle at the running offset and the object is PUT whole on sync/close.
 	 * Isolated early-return keeps the AIO/journal/wt fast path below unchanged. */
-	if (ctx->files[idx].staged != NULL) {
+	if (ctx->files[idx].writer != NULL) {
 		*out_rc = brix_write_staged(ctx, c, idx, w->offset, w->wlen);
 		return 1;
 	}

@@ -1,0 +1,378 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Band from '../components/Band.astro';
+import Cta from '../components/Cta.astro';
+import { url } from '../lib/site';
+
+// The exclusives page: capabilities you get from BriX-Cache and cannot get
+// from a stock XRootD deployment today. Admission rule: a feature appears here
+// only if it has no stock equivalent — "better" isn't enough, it must be
+// "absent". Each card states what stock does today, sourced from its own code
+// or docs, and cites where ours lives in the tree.
+
+interface Feature {
+  t: string;
+  d: string; // rendered with set:html
+  stock: string; // what the reference platform does today
+  cite: string;
+}
+
+interface Theme {
+  id: string;
+  eyebrow: string;
+  title: string;
+  accent?: 'root' | 'dav' | 's3';
+  variant: 'plain' | 'sunken' | 'ink';
+  intro: string;
+  features: Feature[];
+}
+
+const themes: Theme[] = [
+  {
+    id: 'identity',
+    eyebrow: 'Exclusive · identity',
+    title: 'Requests keep their owner, end to end.',
+    variant: 'plain',
+    intro:
+      'The defining exclusive: identity survives the proxy hop. Stock XRootD collapses every ' +
+      'proxied request onto one service credential; here, who you are travels with your bytes.',
+    features: [
+      {
+        t: 'Per-user backend credential forwarding',
+        d: `The server authenticates to origins and backends <em>as the requesting user</em> — a
+            per-identity GSI proxy, WLCG bearer token, S3 SigV4 key, or CephX keyring, selected through
+            one audited checkpoint. Deny mode fails a request before any origin operation can touch the
+            service credential.`,
+        stock: 'XrdPssConfig.cc: “We don\'t support credential forwarding, yet.”',
+        cite: 'docs/09-developer-guide/multi-user-backend-credentials-through-the-vfs.md',
+      },
+      {
+        t: 'Owner-preserving deferred write-back',
+        d: `Detached write-back flushes to the origin as the <em>original owner</em>: the identity is
+            persisted in a durable stage journal, re-resolved at flush time, and expiry-checked at time
+            of use. In deny mode, a permanently lapsed credential dead-letters the flush — it never
+            rides the service account instead.`,
+        stock: 'No equivalent: proxied writes carry the shared proxy identity.',
+        cite: 'src/fs/vfs/vfs_staged.c · stage journal',
+      },
+      {
+        t: 'SigV4 → x509 credential minting',
+        d: `An S3 client authenticated by SigV4 can be issued short-lived x509 credentials for onward
+            grid hops — bucket users participate in grid transfers without ever holding a certificate
+            themselves.`,
+        stock: 'No S3 server surface exists, so no such bridge can.',
+        cite: 'docs/09-developer-guide/history-security-and-credentials.md',
+      },
+      {
+        t: 'Per-request UNIX impersonation, red-teamed',
+        d: `Unprivileged workers apply per-request UNIX identity through a double-forked broker holding
+            only <span class="mono">CAP_SETUID/SETGID</span>. Nine adversarial red-team rounds — 224
+            growing to 3,842 checks — without a boundary breach.`,
+        stock: 'Identity mapping exists; a capability-isolated, red-teamed broker does not.',
+        cite: 'docs/09-developer-guide/history-security-and-credentials.md',
+      },
+      {
+        t: 'Identity-aware rate limiting',
+        d: `Limits and concurrency caps key on the authenticated principal — the mapped identity behind
+            the token or proxy — so one hostile or runaway user throttles alone, and per-principal
+            concurrency caps bound the blast radius.`,
+        stock: 'XrdThrottle keys on username only.',
+        cite: 'src/net/ratelimit/ · docs/07-security/threat-model.md',
+      },
+      {
+        t: 'Macaroons: issue, not just verify',
+        d: `Full macaroon lifecycle — the server both issues caveated, expiring macaroons and verifies
+            them, with expiry mandatory after an internal audit made it so.`,
+        stock: 'Macaroon support is verify-oriented; issuance depends on external services.',
+        cite: 'src/auth/token/ · history-security-and-credentials.md',
+      },
+    ],
+  },
+  {
+    id: 'surface',
+    eyebrow: 'Exclusive · protocol surface',
+    title: 'Doors stock never built.',
+    accent: 's3',
+    variant: 'sunken',
+    intro:
+      'One namespace, more ways in. These endpoints simply do not exist in a stock deployment — ' +
+      'no plugin, no config flag, no roadmap item you can enable.',
+    features: [
+      {
+        t: 'A real S3 server endpoint',
+        d: `~6,900 lines of native SigV4 REST: GET, HEAD, PUT, DELETE, ListObjectsV2, multipart upload —
+            served from the same tree as <span class="mono">root://</span> and
+            <span class="mono">davs://</span>. aws-cli and boto3 are first-class grid clients.`,
+        stock: 'S3 exists only as a client/backend; stock cannot serve S3.',
+        cite: 'src/protocols/s3/',
+      },
+      {
+        t: 'WebDAV class 2',
+        d: `LOCK, UNLOCK, and PROPPATCH alongside the class-1 verbs and HTTP third-party-copy — enough
+            for clients that demand real WebDAV semantics, not just GET/PUT over DAV headers.`,
+        stock: 'XrdHttp advertises DAV class 1: no locks, no property writes.',
+        cite: 'src/protocols/webdav/ · docs/04-protocols/webdav-directives.md',
+      },
+      {
+        t: 'HTTP-TPC with OIDC token exchange',
+        d: `Third-party copy can delegate via OIDC with RFC&nbsp;8693 token exchange — the token the
+            remote end receives is exchanged and scoped for that transfer, not a pass-through of the
+            user's bearer token.`,
+        stock: 'HTTP-TPC exists; RFC 8693 token-exchange delegation does not.',
+        cite: 'src/protocols/webdav/tpc_cred.c',
+      },
+      {
+        t: 'A maintained GridFTP door',
+        d: `A gsiftp gateway with GSI control and data channels, MODE E parallel streams with restart
+            markers, active and passive modes, and gsiftp↔gsiftp third-party copy — for ARC-CE fronts
+            and legacy fabric that cannot migrate on someone else's schedule.`,
+        stock: 'The Globus toolkit is EOL; the ecosystem answer is “migrate”.',
+        cite: 'src/protocols/gridftp/ · docs/05-operations/gridftp.md',
+      },
+      {
+        t: 'WLCG Storage Resource Reporting, built in',
+        d: `SRR served natively over HTTPS/JSON — the accounting endpoint WLCG operations asks for,
+            with no sidecar publisher, no cron job, no JSON template to hand-maintain.`,
+        stock: 'SRR publishing requires external tooling around the storage system.',
+        cite: 'docs/08-metrics-monitoring/ · SRR endpoint',
+      },
+      {
+        t: 'Three protocols, one file, simultaneously',
+        d: `The same physical file is reachable as <span class="mono">root://</span>,
+            <span class="mono">davs://</span>, and <span class="mono">s3://</span> at once — one auth
+            layer, one confinement rule, one cache, one metrics plane underneath all three. Not a
+            gateway translating protocols: peers over one VFS.`,
+        stock: 'root:// and HTTP coexist; a unified S3-inclusive tri-protocol namespace does not.',
+        cite: 'docs/11-architecture/overview.md',
+      },
+    ],
+  },
+  {
+    id: 'integrity',
+    eyebrow: 'Exclusive · integrity',
+    title: 'Trust, but verify. Then verify again.',
+    variant: 'plain',
+    intro:
+      'Checksums everywhere stock has them — and in the places stock leaves blank.',
+    features: [
+      {
+        t: 'CRC64 — both of them',
+        d: `<span class="mono">crc64</span> (CRC-64/XZ) and <span class="mono">crc64nvme</span>
+            calculators ship natively, alongside adler32, crc32c, md5, sha1, and sha256 — with the two
+            64-bit variants kept strictly distinct, encoded at the protocol edge.`,
+        stock: 'No CRC64 calculator ships with stock XRootD.',
+        cite: 'src/core/compat/checksum_core.c',
+      },
+      {
+        t: 'Self-verifying writes',
+        d: `Every write path — POSIX, block store, S3; sequential or parallel-stream — funnels through
+            one verified writer: a rolling, order-independent checksum accumulated as bytes arrive,
+            folded with read-back verification at commit. Mismatch means unlink and a client-visible
+            error, never a stored lie.`,
+        stock: 'Write-side self-verification of this shape has no stock equivalent.',
+        cite: 'src/fs/vfs/vfs_writer.c · src/core/compat/wverify.c',
+      },
+      {
+        t: 'Verified reads from storage',
+        d: `CSI verification checks what storage hands back against the record made at write time — a
+            bit-rotted block is an error you see, not a payload you serve.`,
+        stock: 'Read-path integrity depends on client-initiated checksum queries.',
+        cite: 'src/fs/backend/csi_verify.c',
+      },
+      {
+        t: 'OCSP with stapling',
+        d: `Live revocation checking with stapled responses — revoked certificates are refused without
+            every handshake paying an OCSP round-trip.`,
+        stock: 'CRL files only; no OCSP, no stapling.',
+        cite: 'src/auth/crypto/ocsp.c',
+      },
+    ],
+  },
+  {
+    id: 'client',
+    eyebrow: 'Exclusive · client side',
+    title: 'A clean-room client suite in the same box.',
+    accent: 'dav',
+    variant: 'ink',
+    intro:
+      'The server ships with its own complete, independently implemented client stack — ' +
+      'no dependency on upstream libXrdCl or libXrdSec anywhere in it.',
+    features: [
+      {
+        t: 'libxrdc and the tool belt',
+        d: `A C client library plus <span class="mono">xrdcp</span>, <span class="mono">xrdfs</span>,
+            diagnostics (<span class="mono">xrddiag</span>), and checksum verification
+            (<span class="mono">xrdckverify</span>) — built from the same in-tree protocol vocabulary
+            as the server, so client and server can never drift apart silently.`,
+        stock: 'One client implementation exists: libXrdCl. There is no independent second.',
+        cite: 'client/ · client/apps/README.md',
+      },
+      {
+        t: 'Three POSIX mount strategies',
+        d: `<span class="mono">xrootdfs</span> (FUSE, byte-exact under fault injection with zero EIO
+            surfaced), an <span class="mono">LD_PRELOAD</span> shim for FUSE-averse hosts, and
+            <span class="mono">brixMount</span> — a CVMFS-free writable union overlay for read-mostly
+            software trees.`,
+        stock: 'A FUSE client exists; the preload shim and writable overlay do not.',
+        cite: 'client/apps/fs/ · client/lib/fs/overlay.c',
+      },
+      {
+        t: 'Ceph migration tooling',
+        d: `The <span class="mono">brix-tools</span> package carries XrdCeph/CephFS migration utilities —
+            the off-ramp for sites leaving a striped-RADOS deployment is in the same RPM set as the
+            destination.`,
+        stock: 'Leaving XrdCeph is left as an exercise for the site.',
+        cite: 'packaging/rpm/ · brix-tools',
+      },
+      {
+        t: 'A client-side metadata benchmark',
+        d: `<span class="mono">metabench</span> measures stat/open/list behavior of any endpoint from
+            the client side — so capacity claims about your workload are measured, not modeled.`,
+        stock: 'No shipped metadata benchmark.',
+        cite: 'client/lib/observability/metabench/',
+      },
+    ],
+  },
+  {
+    id: 'operations',
+    eyebrow: 'Exclusive · operations',
+    title: 'Legible on the day it breaks.',
+    variant: 'sunken',
+    intro:
+      'Observability and failure handling designed for the operator at 3 a.m., not the framework.',
+    features: [
+      {
+        t: 'Prometheus-native, dashboard included',
+        d: `Metrics are a first-class HTTP endpoint with fixed, low-cardinality labels, plus a built-in
+            operational dashboard — scrape it with the stack you already run.`,
+        stock: 'Binary UDP f-stream/g-stream that needs a collector pipeline to become legible.',
+        cite: 'src/observability/',
+      },
+      {
+        t: 'Origin-failure absorption',
+        d: `A stuck origin is detected in seconds (2&nbsp;s connect / 4&nbsp;s stall defaults), retried
+            on fresh connections, and — when everything upstream is down — answered from cache with
+            stale-if-error. A client storm coalesces into a single upstream fill.`,
+        stock: 'No stale-if-error; no request coalescing.',
+        cite: 'src/fs/backend/cache/ · deploy/cvmfs/',
+      },
+      {
+        t: 'fail2ban, out of the box',
+        d: `Shipped filter and jail definitions turn the sanitized access log into an automatic
+            ban-hammer for scanners and brute-force noise — deploy-ready, not an exercise.`,
+        stock: 'No shipped fail2ban integration.',
+        cite: 'deploy/fail2ban/',
+      },
+      {
+        t: 'An SELinux policy that says yes',
+        d: `An optional RPM subpackage labels <span class="mono">/etc/grid-security</span> for
+            enforcing-mode hosts — the answer to the usual grid-service SELinux advice, which is to
+            turn SELinux off.`,
+        stock: 'No shipped SELinux policy module.',
+        cite: 'packaging/rpm/nginx-mod-brix-cache.spec',
+      },
+      {
+        t: 'A Kubernetes lab in the tree',
+        d: `Helm charts, in-cluster image builds with no external registry, and a remote suite that runs
+            the full ~390-file test set from a client pod against a server pod — the cloud-native
+            deployment story is tested CI infrastructure, not a blog post.`,
+        stock: 'Community charts exist; a tested in-tree k8s lab does not.',
+        cite: 'k8s-tests/',
+      },
+    ],
+  },
+];
+---
+
+<Layout
+  title="Only here"
+  description="Capabilities you get from BriX-Cache and cannot get from a stock XRootD deployment today: per-user credential forwarding, a real S3 server endpoint, WebDAV class 2, self-verifying writes, CRC64, a clean-room client suite, and more — each card states what stock does today."
+  accent="dav"
+>
+  <!-- HERO -->
+  <Band first={true}>
+    <div class="oh-hero">
+      <div class="stack">
+        <span class="eyebrow">The exclusives</span>
+        <h1 class="display">If you need these,<br />there is one place.</h1>
+        <p class="lede">
+          This page has a strict admission rule: a feature appears here only if a stock XRootD
+          deployment <em>cannot do it today</em> — better isn't enough, it has to be absent. Each
+          card states what stock does instead, sourced from its own code and docs, and cites where
+          ours lives in the tree. Comparisons where both sides play are on the
+          <a href={url('/faq#scoreboard')}>FAQ scoreboard</a>; this page is the other list.
+        </p>
+      </div>
+      <div class="term" aria-label="The one-line version">
+        <div class="term-title">the one-line version</div>
+        <div><span class="p">$</span> grep -rn "credential forwarding" XrdPss*</div>
+        <div><span class="c"># "We don't support credential forwarding, yet."</span></div>
+        <div class="mt"><span class="p">$</span> aws s3 ls s3://dteam/ <span class="c"># against stock</span></div>
+        <div><span class="c"># no such endpoint</span></div>
+        <div class="mt"><span class="p">$</span> aws s3 ls s3://dteam/ <span class="c"># against brix-cache</span></div>
+        <div><span class="k">2026-07-17  higgs-combined.root</span></div>
+      </div>
+    </div>
+  </Band>
+
+  {themes.map((theme) => (
+    <Band variant={theme.variant} id={theme.id} accent={theme.accent}>
+      <span class="eyebrow">{theme.eyebrow}</span>
+      <h2 class="display band-head">{theme.title}</h2>
+      <p class="lede muted oh-intro">{theme.intro}</p>
+      <div class="grid grid-2">
+        {theme.features.map((f) => (
+          <article class="panel oh-card">
+            <h3 class="oh-t">{f.t}</h3>
+            <p class="muted" set:html={f.d} />
+            <p class="oh-stock"><span class="oh-stock-label">stock today</span> {f.stock}</p>
+            <p class="mono oh-cite">{f.cite}</p>
+          </article>
+        ))}
+      </div>
+    </Band>
+  ))}
+
+  <Band>
+    <Cta
+      title="Absent there. Running here."
+      note="Every card cites the tree. If you can show a stock deployment doing one of these today, file an issue — we'll move it to the scoreboard and thank you in the commit."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .oh-hero { display: grid; gap: 2.5rem; align-items: center; }
+  @media (min-width: 900px) { .oh-hero { grid-template-columns: 1.05fr 0.95fr; gap: 3rem; } }
+  .band-head { margin: 0.5rem 0 1.4rem; max-width: 24ch; }
+  .oh-intro { margin: 0.4rem 0 1.6rem; }
+
+  .oh-card { display: flex; flex-direction: column; gap: 0.6rem; }
+  .oh-t {
+    font-family: var(--display); font-stretch: 112%; font-weight: 700;
+    font-size: 1.2rem; line-height: 1.1;
+  }
+  .oh-stock {
+    margin-top: auto;
+    font-size: 0.88rem;
+    border-top: var(--border-2);
+    padding-top: 0.6rem;
+  }
+  .oh-stock-label {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: var(--border-2);
+    padding: 0.12em 0.45em;
+    margin-right: 0.55ch;
+    vertical-align: 0.12em;
+    background: var(--paper);
+  }
+  .band--ink .oh-stock-label { background: transparent; border-color: var(--paper); }
+  .oh-cite { font-size: 0.72rem; color: var(--ink-2); word-break: break-word; }
+  .band--ink .oh-cite { color: #a8a29e; }
+  .term .mt { margin-top: 0.6rem; }
+</style>

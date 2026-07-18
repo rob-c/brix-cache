@@ -136,6 +136,7 @@ def probe(proto, token, path="/wtest_wr.txt", write=True):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_wr_01_write_scope_accept(proto):
     """WR-01: storage.write:/ token, PUT /wtest_wr01.txt → accept.
 
@@ -155,6 +156,7 @@ def test_wr_01_write_scope_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_wr_02_create_scope_accept(proto):
     """WR-02: storage.create:/ token, PUT /wtest_wr02.txt → accept.
 
@@ -175,6 +177,7 @@ def test_wr_02_create_scope_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_wr_03_read_scope_denies_write(proto):
     """WR-03: storage.read:/ token, PUT /wtest_wr03.txt → reject (key security case).
 
@@ -197,6 +200,7 @@ def test_wr_03_read_scope_denies_write(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_wr_04_modify_scope_accept(proto):
     """WR-04: storage.modify:/ token, PUT /wtest_wr04.txt → accept.
 
@@ -217,6 +221,7 @@ def test_wr_04_modify_scope_accept(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_wr_05_write_out_of_scope_reject(proto):
     """WR-05: scope="storage.write:/atlas", PUT /cms/wtest_wr05.txt → reject.
 
@@ -239,6 +244,7 @@ def test_wr_05_write_out_of_scope_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_wr_06_no_scope_reject(proto):
     """WR-06: no scope claim, PUT /wtest_wr06.txt → reject.
 
@@ -258,6 +264,7 @@ def test_wr_06_no_scope_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_wr_07_expired_write_reject(proto):
     """WR-07: expired token (exp = now - 3600) with storage.write:/ → reject.
 
@@ -277,6 +284,7 @@ def test_wr_07_expired_write_reject(proto):
 
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
+@pytest.mark.registry_servers("s3-token", "webdav-token")
 def test_wr_08_alg_none_write_reject(proto):
     """WR-08: alg=none unsigned token, PUT /wtest_wr08.txt → reject (SEC).
 

@@ -3,8 +3,8 @@
 Python ports of run_fwd_brix_brix.sh, run_fwd_brix_xrootd.sh,
 run_fwd_xrootd_brix.sh, fwd_b_token_forward_probe.sh, and
 run_transparent_relay.sh (tests/cmdscripts/fwd_matrix_live.py).  The live
-scenarios spin up real nginx/xrootd fleets, so they are opt-in: set
-PHASE81_RUN_LIVE_PORTS=1 to run them.
+scenarios spin up real nginx/xrootd fleets and run by default; set
+PHASE81_RUN_LIVE_PORTS=0 to skip them.
 """
 
 import os
@@ -46,8 +46,8 @@ def test_fwd_matrix_live_is_importable():
     ],
 )
 def test_fwd_matrix_live_scenario(scenario: str):
-    if os.environ.get("PHASE81_RUN_LIVE_PORTS") != "1":
-        pytest.skip("set PHASE81_RUN_LIVE_PORTS=1 to run live forwarding-matrix scenarios")
+    if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
+        pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip live forwarding-matrix scenarios")
     nginx = Path(os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
     if not nginx.exists():
         pytest.skip(f"nginx binary not found: {nginx}")

@@ -1,7 +1,7 @@
 # Deployment Hardening Guide
 
 **Status:** Reference for operators and package maintainers.  Covers the
-hardened systemd unit shipped in `packaging/nginx-xrootd.service`, the
+hardened systemd unit shipped in `packaging/brix-cache.service`, the
 kernel-enforced sandbox directives, and how they interact with the impersonate
 broker's privilege model.  Also cross-references the build-side hardening that
 is already on by default.
@@ -12,23 +12,23 @@ is already on by default.
 
 ```bash
 # Install the unit (do this once):
-install -m 644 packaging/nginx-xrootd.service /etc/systemd/system/
+install -m 644 packaging/brix-cache.service /etc/systemd/system/
 systemctl daemon-reload
 
 # Create the dedicated nginx config from the example:
-cp /etc/nginx/conf.d/brix-cache.conf.example /etc/nginx/nginx-xrootd.conf
-# Edit nginx-xrootd.conf; ensure the top-level block contains:
-#   pid /run/nginx-xrootd.pid;
+cp /etc/nginx/conf.d/brix-cache.conf.example /etc/nginx/brix-cache.conf
+# Edit brix-cache.conf; ensure the top-level block contains:
+#   pid /run/brix-cache.pid;
 
 # Enable and start:
-systemctl enable --now nginx-xrootd
+systemctl enable --now brix-cache
 
 # Verify the sandbox score after start:
-systemd-analyze security nginx-xrootd.service
+systemd-analyze security brix-cache.service
 ```
 
 The unit controls the system nginx binary (`/usr/sbin/nginx`) running a
-**dedicated configuration file** (`/etc/nginx/nginx-xrootd.conf`).  It is a
+**dedicated configuration file** (`/etc/nginx/brix-cache.conf`).  It is a
 separate systemd service, not a drop-in for `nginx.service`, so a site running
 stock nginx for other purposes keeps its own service untouched.
 
@@ -76,7 +76,7 @@ BIND_NOW automatically via the `config` script; PIE requires passing `-pie` via
 
 ## 3. systemd sandbox directives
 
-Every directive in `packaging/nginx-xrootd.service` is explained below.  The
+Every directive in `packaging/brix-cache.service` is explained below.  The
 commentary focuses on **why it is safe** given the impersonate broker's
 capability model and nginx's I/O pattern.
 
@@ -152,7 +152,7 @@ ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 PrivateDevices=true
-ReadWritePaths=/var/log/nginx /var/lib/nginx-xrootd /run
+ReadWritePaths=/var/log/nginx /var/lib/brix-cache /run
 ```
 
 `ProtectSystem=strict` makes `/usr`, `/boot`, and `/etc` read-only in the
@@ -178,15 +178,15 @@ closes the class of "read-only access to block devices via /dev" attacks.
 | Path | What is written |
 |---|---|
 | `/var/log/nginx` | Access logs (`brix_access*.log`, WebDAV, S3) |
-| `/var/lib/nginx-xrootd` | Export root + default upload stage dir |
-| `/run` | PID file (`/run/nginx-xrootd.pid`), nginx lock files, broker UNIX socket |
+| `/var/lib/brix-cache` | Export root + default upload stage dir |
+| `/run` | PID file (`/run/brix-cache.pid`), nginx lock files, broker UNIX socket |
 
 Additional paths to add when needed:
 
 ```ini
-ReadWritePaths=/var/log/nginx /var/lib/nginx-xrootd /run \
+ReadWritePaths=/var/log/nginx /var/lib/brix-cache /run \
                /mnt/fastcache/xrd-stage \   # if brix_stage_dir points here
-               /var/cache/nginx-xrootd       # if proxy_cache_path is configured
+               /var/cache/brix-cache       # if proxy_cache_path is configured
 ```
 
 ### 3.5 Syscall filter
@@ -307,7 +307,7 @@ None of these are modified by nginx or the xrootd module at runtime.
 After installing the unit on a systemd host:
 
 ```bash
-systemd-analyze security nginx-xrootd.service
+systemd-analyze security brix-cache.service
 ```
 
 A stock (unmodified) nginx.service on AlmaLinux 9 typically scores around
@@ -327,7 +327,7 @@ tool counts against the score).
 
 ### Mandatory adjustments before go-live
 
-- [ ] Edit `/etc/nginx/nginx-xrootd.conf`; set `pid /run/nginx-xrootd.pid;` at
+- [ ] Edit `/etc/nginx/brix-cache.conf`; set `pid /run/brix-cache.pid;` at
   the top level so the PID file matches `PIDFile=` in the unit.
 - [ ] Set `ReadWritePaths` to cover the actual export root (`brix_export`),
   log directory, and stage directory for this deployment.
@@ -380,7 +380,7 @@ SystemCallFilter=@system-service @setuid
 SystemCallFilter=~@debug @mount @reboot @swap @obsolete
 SystemCallArchitectures=native
 CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_NET_BIND_SERVICE
-ReadWritePaths=/var/log/nginx /var/lib/nginx-xrootd /run
+ReadWritePaths=/var/log/nginx /var/lib/brix-cache /run
 EOF
 systemctl daemon-reload && systemctl restart nginx
 ```

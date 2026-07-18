@@ -107,6 +107,7 @@ def _upload_part(key, upload_id, data, part=1):
         data=data, timeout=10)
 
 
+@pytest.mark.registry_server("s3-mpu")
 def test_regular_multipart_roundtrip_still_works(s3_mpu_server):
     # Guards the dispatcher reorder (UploadPartCopy branch moved before the
     # fs_path overwrite): a normal initiate → 2 parts → complete → GET must
@@ -121,6 +122,7 @@ def test_regular_multipart_roundtrip_still_works(s3_mpu_server):
         f"regular MPU round-trip broke: {g.status_code} {g.content!r}"
 
 
+@pytest.mark.registry_server("s3-mpu")
 def test_upload_part_copy_legit_source_works(s3_mpu_server):
     # Control: copying a real in-bucket object must succeed, else the negative
     # tests prove nothing.
@@ -132,6 +134,7 @@ def test_upload_part_copy_legit_source_works(s3_mpu_server):
     assert "CopyPartResult" in r.text
 
 
+@pytest.mark.registry_server("s3-mpu")
 def test_upload_part_copy_symlink_escape_blocked(s3_mpu_server):
     key = f"dst_{uuid.uuid4().hex}"
     uid = _initiate(key)
@@ -149,6 +152,7 @@ def test_upload_part_copy_symlink_escape_blocked(s3_mpu_server):
         assert HOST_SECRET not in g.content, "host /etc/passwd content leaked via UploadPartCopy"
 
 
+@pytest.mark.registry_server("s3-mpu")
 def test_upload_part_copy_dotdot_traversal_blocked(s3_mpu_server):
     key = f"dst_{uuid.uuid4().hex}"
     uid = _initiate(key)

@@ -32,39 +32,21 @@ Run:
 """
 
 import os
-import shutil
-import signal
 import socket
 import struct
-import subprocess
 import threading
 import time
 
 import pytest
 
-from settings import NGINX_BIN, SERVER_HOST, HOST, BIND_HOST, free_ports
+from server_registry import NginxInstanceSpec
+from settings import SERVER_HOST, HOST, BIND_HOST, free_port
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 H = SERVER_HOST
 
-# ---------------------------------------------------------------------------
-# Dedicated stack — unique high ports (>=12950) to avoid collisions with the
-# shared fleet and the other self-provisioned suites (mirror uses 12910-12929).
-# ---------------------------------------------------------------------------
-
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_cms_state_have_select")
-
-# All three are bound by this suite's own servers (nginx CMS-client listen,
-# python manager-peer bind, nginx CMS-server listen), so each gets a free OS
-# port to avoid colliding with the managed fleet or other self-contained
-# suites.  Env overrides are preserved.  free_ports(3) guarantees distinctness.
-_FREE_CLIENT, _FREE_MGR, _FREE_SRV = free_ports(3)
-
-# CMS-client nginx: nginx dials OUT to MGR_PORT; we play the manager there.
-CLIENT_NGINX_PORT = int(os.environ.get("TEST_CMSSHS_CLIENT_PORT") or _FREE_CLIENT)
-MGR_PORT          = int(os.environ.get("TEST_CMSSHS_MGR_PORT")    or _FREE_MGR)
-
-# CMS-server nginx: nginx LISTENS as a manager; we play a data node dialing IN.
-SRV_NGINX_PORT    = int(os.environ.get("TEST_CMSSHS_SRV_PORT")    or _FREE_SRV)
 
 
 # ---------------------------------------------------------------------------
@@ -220,161 +202,16 @@ class _ManagerPeer:
 
 
 # ===========================================================================
-# nginx provisioning helpers
-# ===========================================================================
-
-def _reachable(port, timeout=1.0):
-    try:
-        socket.create_connection((H, port), timeout=timeout).close()
-        return True
-    except OSError:
-        return False
-
-
-def _wait_port(port, up=True, timeout=15.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if _reachable(port, 0.5) == up:
-            return True
-        time.sleep(0.2)
-    return False
-
-
-def _mkdirs(*paths):
-    for p in paths:
-        os.makedirs(p, exist_ok=True)
-
-
-def _client_conf(name, port, data_dir, mgr_port):
-    """nginx as a CMS *client* (data node): plain xrootd server that subscribes
-    UP to our python manager peer via brix_cms_manager.  A short cms_interval
-    keeps the reconnect backoff small so the test connects quickly."""
-    base = os.path.join(_DIR, name)
-    _mkdirs(data_dir, os.path.join(base, "logs"))
-    conf = os.path.join(base, f"{name}.conf")
-    with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 128; }}\n"
-            f"stream {{\n"
-            f"    server {{\n"
-            f"        listen 0.0.0.0:{port};\n"
-            f"        brix_root on;\n"
-            f"        brix_storage_backend posix:{data_dir};\n"
-            f"        brix_auth none;\n"
-            f"        brix_allow_write on;\n"
-            f"        brix_cms_manager {HOST}:{mgr_port};\n"
-            f"        brix_cms_paths /;\n"
-            f"        brix_cms_interval 2;\n"
-            f"        brix_listen_port {port};\n"
-            f"    }}\n"
-            f"}}\n")
-    return conf
-
-
-def _server_conf(name, port, data_dir):
-    """nginx as a CMS *server* (manager): accepts inbound data-node logins on
-    the same stream port via brix_cms_server on; (no allowlist -> any peer)."""
-    base = os.path.join(_DIR, name)
-    _mkdirs(data_dir, os.path.join(base, "logs"))
-    conf = os.path.join(base, f"{name}.conf")
-    with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 128; }}\n"
-            f"stream {{\n"
-            f"    server {{\n"
-            f"        listen 0.0.0.0:{port};\n"
-            f"        brix_cms_server on;\n"
-            f"        brix_cms_server_interval 60;\n"
-            f"    }}\n"
-            f"}}\n")
-    return conf
-
-
-def _pidfile(conf):
-    return os.path.join(os.path.dirname(conf), "logs", "nginx.pid")
-
-
-def _kill_pidfile(conf):
-    """Best-effort: stop any nginx left running from a previous run/crash whose
-    pidfile sits beside this conf, so a stale master can't hold the port."""
-    pid_path = _pidfile(conf)
-    try:
-        with open(pid_path) as f:
-            pid = int(f.read().strip())
-    except (OSError, ValueError):
-        return
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except OSError:
-        pass
-    else:
-        # Give the master a moment to release the listen socket.
-        for _ in range(20):
-            try:
-                os.kill(pid, 0)
-            except OSError:
-                break
-            time.sleep(0.1)
-    try:
-        os.unlink(pid_path)
-    except OSError:
-        pass
-
-
-def _start_nginx(conf):
-    """Start nginx, skipping cleanly (never erroring) on a config the build
-    rejects (e.g. CMS directives not compiled in) or a port already in use."""
-    # Clear any leftover master from a crashed prior run first.
-    _kill_pidfile(conf)
-
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(
-            "nginx rejected the CMS test config (build may lack CMS "
-            f"directives): {chk.stderr.strip()[-300:]}")
-
-    run = subprocess.run([NGINX_BIN, "-c", conf],
-                         capture_output=True, text=True)
-    if run.returncode != 0:
-        # Typically EADDRINUSE from another instance on our dedicated port.
-        pytest.skip(
-            f"nginx failed to start for {conf}: "
-            f"{(run.stderr or run.stdout).strip()[-300:]}")
-
-
-def _stop_nginx(conf):
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"],
-                   capture_output=True)
-    # Fall back to the pidfile in case `-s stop` couldn't reach the master.
-    _kill_pidfile(conf)
-
-
-# ===========================================================================
 # Fixtures
 # ===========================================================================
 
-@pytest.fixture(scope="module")
-def client_stack():
+@pytest.fixture
+def client_stack(lifecycle):
     """nginx CMS-client subscribed to a python manager peer.  Yields the live
     accepted manager-side socket (after nginx LOGIN), plus the data dir."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if _reachable(MGR_PORT, 0.3) or _reachable(CLIENT_NGINX_PORT, 0.3):
-        pytest.skip("dedicated CMS-client ports already in use; another "
-                    "instance is running")
-
-    base = os.path.join(_DIR, "client")
-    shutil.rmtree(base, ignore_errors=True)
+    mgr_port = free_port()
     data_dir = os.path.join(_DIR, "client_data")
-    shutil.rmtree(data_dir, ignore_errors=True)
-    _mkdirs(data_dir)
+    os.makedirs(data_dir, exist_ok=True)
     # A real, in-root file the manager can probe with kYR_state.
     with open(os.path.join(data_dir, "held.bin"), "wb") as f:
         f.write(b"held-file-contents")
@@ -389,14 +226,23 @@ def client_stack():
     except OSError:
         pass  # symlink-escape test will skip if we couldn't plant it
 
-    peer = _ManagerPeer(MGR_PORT)
+    peer = _ManagerPeer(mgr_port)
     peer.start()
 
-    conf = _client_conf("client", CLIENT_NGINX_PORT, data_dir, MGR_PORT)
-    _start_nginx(conf)
     try:
-        if not _wait_port(CLIENT_NGINX_PORT):
-            pytest.skip("CMS-client nginx did not come up")
+        lifecycle.start(NginxInstanceSpec(
+            name="lc-cms-state-client",
+            template="nginx_cms_state_client.conf",
+            protocol="root",
+            readiness="tcp",
+            data_root=data_dir,
+            template_values={"MANAGER_PORT": mgr_port},
+            reason="CMS state/have/select: client-side wire conformance.",
+        ))
+    except Exception:
+        peer.stop()
+        raise
+    try:
         conn = peer.wait_login()
         if conn is None:
             pytest.skip("nginx never dialled in to the CMS manager peer "
@@ -404,30 +250,20 @@ def client_stack():
         yield {"conn": conn, "data_dir": data_dir, "peer": peer}
     finally:
         peer.stop()
-        _stop_nginx(conf)
 
 
-@pytest.fixture(scope="module")
-def server_stack():
+@pytest.fixture
+def server_stack(lifecycle):
     """nginx CMS-server (manager).  Yields the listen port for data-node
     sockets to dial into."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if _reachable(SRV_NGINX_PORT, 0.3):
-        pytest.skip("dedicated CMS-server port already in use; another "
-                    "instance is running")
-
-    base = os.path.join(_DIR, "server")
-    shutil.rmtree(base, ignore_errors=True)
-    data_dir = os.path.join(_DIR, "server_data")
-    conf = _server_conf("server", SRV_NGINX_PORT, data_dir)
-    _start_nginx(conf)
-    try:
-        if not _wait_port(SRV_NGINX_PORT):
-            pytest.skip("CMS-server nginx did not come up")
-        yield {"port": SRV_NGINX_PORT}
-    finally:
-        _stop_nginx(conf)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-cms-state-server",
+        template="nginx_cms_state_server.conf",
+        protocol="root",
+        readiness="tcp",
+        reason="CMS state/have/select: server-side kYR_gone conformance.",
+    ))
+    return {"port": ep.port}
 
 
 def _ping_sanity(conn, deadline_s=6.0):

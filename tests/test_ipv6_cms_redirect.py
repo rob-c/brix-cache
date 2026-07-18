@@ -290,6 +290,7 @@ class TestAdminBracketStrip:
     an IPv6 host segment sent in the REST URI so it matches the registry's bare
     canonical host.  GATING: the bracketed URI must be accepted (200), not 400."""
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_admin_register_ipv6_host_json_body(self):
         """REGRESSION/SMOKE: bare-literal host in the JSON body registers (the
         registry stores the address canonically bare)."""
@@ -298,6 +299,7 @@ class TestAdminBracketStrip:
         assert status == 200, data
         assert isinstance(data, dict) and data.get("result") == "registered", data
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_admin_drain_ipv6_host_uri_bracket_parse(self):
         """GATING: POST /cluster/servers/[::1]/PORT/drain — the bracketed host
         segment is split + stripped, so the drain targets the bare "::1" entry
@@ -310,6 +312,7 @@ class TestAdminBracketStrip:
         assert status == 200, data
         assert isinstance(data, dict) and data.get("result") == "drained", data
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_admin_undrain_ipv6_host_uri_bracket_parse(self):
         """GATING: POST /cluster/servers/[::1]/PORT/undrain after a drain — the
         bracket-stripped host matches the drained entry (200 undrained).  A
@@ -325,6 +328,7 @@ class TestAdminBracketStrip:
         assert status == 200, data
         assert isinstance(data, dict) and data.get("result") == "undrained", data
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_admin_remove_ipv6_host_uri_bracket_parse(self):
         """GATING: DELETE /cluster/servers/[::1]/PORT — canonical (bracket-
         stripped) host lookup removes the entry (200 removed)."""
@@ -335,6 +339,7 @@ class TestAdminBracketStrip:
         assert status == 200, data
         assert isinstance(data, dict) and data.get("result") == "removed", data
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_admin_register_full_lifecycle_ipv6_uris(self):
         """GATING: end-to-end register -> drain -> undrain -> remove using
         bracketed [::1] URIs throughout; every step round-trips a consistently
@@ -346,6 +351,7 @@ class TestAdminBracketStrip:
         assert _admin("POST", f"{base}/undrain")[0] == 200
         assert _admin("DELETE", base)[0] == 200
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_admin_malformed_ipv6_uri_rejected(self):
         """SECURITY-NEG: a non-numeric port segment -> 400 bad_uri; the parser
         rejects, never half-accepts a malformed bracketed URI."""
@@ -365,6 +371,7 @@ class TestDashboardClusterRoundTrip:
     """GET /brix/api/v1/cluster (dashboard/api.c:dashboard_fill_cluster) must
     round-trip the registered IPv6 host in the "servers" array unmangled."""
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_cluster_json_contains_registered_ipv6_host(self):
         """GATING: register [::1]:DS, then the cluster JSON lists a server whose
         "host" is the bare canonical "::1" at the right port — proving the host
@@ -387,6 +394,7 @@ class TestDashboardClusterRoundTrip:
         # literal here — bracketing happens only at wire/redirect emit time.
         assert "[" not in match[0]["host"], match[0]
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_cluster_json_requires_auth(self):
         """REGRESSION: the read-only cluster endpoint is auth-gated (no cookie ->
         401), so the round-trip assertion above proves an authenticated read."""
@@ -416,6 +424,7 @@ class TestManagerRedirectBracketing:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_cluster_locate_returns_redirect(self):
         """GATING: manager-mode kXR_locate for a registered path returns
         kXR_redirect (4004) whose port == the registered DS port."""
@@ -427,6 +436,7 @@ class TestManagerRedirectBracketing:
         port, host = _parse_redirect(body)
         assert port == DS_PORT, f"redirect port {port} != DS port {DS_PORT}"
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_cluster_locate_host_is_bracketed(self):
         """GATING: the redirect host field is the bracketed literal "[::1]", not
         the unparseable bare "::1" (response/control.c:71 bracket-on-emit)."""
@@ -442,6 +452,7 @@ class TestManagerRedirectBracketing:
         assert not host_only.startswith(IPV6_HOST), \
             "bare ::1 (unbracketed) leaked into the redirect host field"
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_cluster_open_returns_bracketed_redirect(self):
         """GATING: manager-mode kXR_open(read) for a registered path also
         redirects to the DS with a bracketed [::1] host and the right port."""
@@ -455,6 +466,7 @@ class TestManagerRedirectBracketing:
         assert host.split("?", 1)[0] == f"[{IPV6_HOST}]", \
             f"open redirect host {host!r} must be bracketed [::1]"
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_locate_and_open_redirect_to_same_target(self):
         """REGRESSION: locate and open select the same registered IPv6 target —
         both bracket the host identically, no per-opcode divergence."""
@@ -474,6 +486,7 @@ class TestManagerRedirectBracketing:
         assert lport == oport == DS_PORT
         assert lhost.split("?", 1)[0] == ohost.split("?", 1)[0] == f"[{IPV6_HOST}]"
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_raw_redirect_body_never_contains_bare_ipv6(self):
         """GATING (negative): the raw redirect body, after the 4-byte port, never
         starts with a bare "::1" — the bracket must precede the literal so a
@@ -503,6 +516,7 @@ class TestSkipDiscipline:
         # A port that is essentially never listening on ::1.
         assert reachable6(1, timeout=0.5) in (True, False)
 
+    @pytest.mark.registry_server("ipv6-mgr")
     def test_instance_down_skips_not_fails(self):
         """If the ipv6-mgr HTTP face is down, the http-gated tests skip; this
         test documents that contract by skipping itself when it is down."""

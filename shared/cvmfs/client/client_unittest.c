@@ -170,7 +170,11 @@ int main(void) {
     char wl_body[512];
     int wlbn = snprintf(wl_body, sizeof(wl_body),
         "20991231235959\nNtest.cern.ch\n%s\n--\n", fp);
-    const char wl_hash[] = "2222222222222222222222222222222222222222";
+    /* the signed hash line is the body's own digest EXCLUDING "--\n" (stock
+     * CVMFS coverage) — the verifier recomputes and binds it */
+    cvmfs_hash_t wl_bh; cvmfs_object_hash(CVMFS_HASH_SHA1,
+        (const unsigned char *)wl_body, (size_t)wlbn - 3, &wl_bh);
+    char wl_hash[64]; cvmfs_hash_to_hex(&wl_bh, 0, wl_hash, sizeof(wl_hash));
     unsigned char wl_sig[512];
     size_t wl_sl = cvmfs_sign(master, (const unsigned char *)wl_hash, strlen(wl_hash), wl_sig, sizeof(wl_sig));
     unsigned char whitelist[1024]; size_t wn = 0;
@@ -187,7 +191,9 @@ int main(void) {
     int mbn = snprintf(man_body, sizeof(man_body),
         "C%s\nB%ld\nX%s\nS1\nNtest.cern.ch\nT1700000000\nD240\n--\n",
         cat_hex, csz, cert_hex);
-    const char man_hash[] = "1111111111111111111111111111111111111111";
+    cvmfs_hash_t man_bh; cvmfs_object_hash(CVMFS_HASH_SHA1,
+        (const unsigned char *)man_body, (size_t)mbn - 3, &man_bh);
+    char man_hash[64]; cvmfs_hash_to_hex(&man_bh, 0, man_hash, sizeof(man_hash));
     unsigned char man_sig[512];
     size_t man_sl = cvmfs_sign(certpk, (const unsigned char *)man_hash, strlen(man_hash), man_sig, sizeof(man_sig));
     unsigned char manifest[1024]; size_t mn = 0;
@@ -219,6 +225,11 @@ int main(void) {
                                  (unsigned char *)master_pem, master_len,
                                  cache_dir, tmp_dir, 0, -1, mock_transport, &reg, now);
     CHECK(mrc == 0, "mount: trust chain verified + root catalog loaded");
+    if (mrc != 0) {
+        /* every later check dereferences the mounted catalog — bail, don't crash */
+        printf("%d checks, %d failed (aborted: mount failed)\n", g_checks, g_failed);
+        return 1;
+    }
 
     /* ---- resolve ---- */
     cvmfs_dirent_t e;
@@ -259,7 +270,7 @@ int main(void) {
     CHECK(cvmfs_client_getxattr(cl, "/", "user.bogus", xb, sizeof(xb), now) == -1,
           "unknown xattr → -1");                          /* negative */
 
-    char lb[256]; int ll = cvmfs_client_listxattr(lb, sizeof(lb));
+    char lb[256]; int ll = cvmfs_client_listxattr(cl, "/", lb, sizeof(lb), now);
     CHECK(ll > 0 && memmem(lb, ll, "user.revision", 13) != NULL, "listxattr includes revision");
 
     /* ---- TTL refresh (manifest D=240) ---- */

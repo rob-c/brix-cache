@@ -9,14 +9,14 @@
  * s3_chunk_finalize — post-decode steps that must run on the event loop:
  * commit the staged object, set the ETag, verify the (trailer or default)
  * checksum, store tags, and send 200.  Shared by the synchronous fallback and
- * the offload completion; `staged` has been written but not yet committed.
+ * the offload completion; `writer` has been written but not yet committed.
  */
 void
 s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
-    const char *fs_path, brix_vfs_staged_t *staged,
+    const char *fs_path, brix_vfs_writer_t *writer,
     const s3_chunk_trailer_t *trailer, uint64_t expected, ngx_uint_t body_mode)
 {
-    if (s3_commit_put(r, r->connection->log, root_canon, staged,
+    if (s3_commit_put(r, r->connection->log, root_canon, writer,
                       fs_path) != NGX_OK)
     {
         if (s3_put_commit_conflict(r)) {
@@ -82,12 +82,12 @@ s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
 }
 
 
-/* Decode-failure path: abort the staged temp and send the mapped S3 error. */
+/* Decode-failure path: abort the write session and send the mapped S3 error. */
 void
 s3_chunk_decode_failed(ngx_http_request_t *r, const char *root_canon,
-    brix_vfs_staged_t *staged, int http_status)
+    brix_vfs_writer_t *writer, int http_status)
 {
-    brix_vfs_staged_abort(staged, 1);
+    brix_vfs_writer_abort(writer);
     if (http_status >= 500) {
         s3_put_finalize_error(r);
     } else if (http_status == NGX_HTTP_FORBIDDEN) {
@@ -116,7 +116,7 @@ s3_chunk_aio_thread(void *data, ngx_log_t *log)
 
     (void) log;
     t->http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-    t->rc = s3_aws_chunked_decode_to_fd(t->r, brix_vfs_staged_fd(t->staged), t->fs_path,
+    t->rc = s3_aws_chunked_decode_to_fd(t->r, brix_vfs_writer_fd(t->writer), t->fs_path,
                                         t->expected, &t->trailer,
                                         &t->http_status, t->window,
                                         &t->verify);
@@ -162,9 +162,9 @@ s3_chunk_aio_done(ngx_event_t *ev)
     ngx_http_request_t *r = t->r;
 
     if (t->rc != NGX_OK) {
-        s3_chunk_decode_failed(r, t->root_canon, t->staged, t->http_status);
+        s3_chunk_decode_failed(r, t->root_canon, t->writer, t->http_status);
         return;
     }
-    s3_chunk_finalize(r, t->root_canon, t->fs_path, t->staged, &t->trailer,
+    s3_chunk_finalize(r, t->root_canon, t->fs_path, t->writer, &t->trailer,
                       t->expected, t->body_mode);
 }

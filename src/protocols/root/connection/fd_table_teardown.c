@@ -57,15 +57,14 @@ fhandle_unlink_staging(const char *abs_path, const char *root_canon,
 static void
 fhandle_release_descriptors(brix_file_t *file)
 {
-    /* Whole-object staged write adapter (phase-70): release the staged handle.
-     * If it was never committed (kXR_sync/close did not run — a disconnect or an
-     * aborted upload) drop the staged temp so no partial object is published. A
-     * committed handle already consumed its staged state; abort is then a no-op. */
-    if (file->staged != NULL) {
-        brix_vfs_staged_abort(file->staged, file->staged_committed ? 0 : 1);
-        file->staged              = NULL;
-        file->staged_expected_off = 0;
-        file->staged_committed    = 0;
+    /* Whole-object staged write adapter (phase-70): release the write session.
+     * brix_vfs_writer_abort is a no-op once the object was committed (kXR_sync/
+     * close ran); otherwise — a disconnect or an aborted upload — it drops the
+     * staged temp so no partial object is published. */
+    if (file->writer != NULL) {
+        brix_vfs_writer_abort(file->writer);
+        file->writer           = NULL;
+        file->staged_committed = 0;
     }
 
     if (file->sd_obj.driver != NULL) {

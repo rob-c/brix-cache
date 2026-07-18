@@ -13,72 +13,62 @@ observe:
   S  /metrics exports the new parity counters (migrate/purge/cmsd_have).
 
 These items are deferrable parity (none gates the MVP); this test pins the wiring.
+
+Throwaway nginx comes from the registry lifecycle harness.
 """
 
 import os
-import socket
-import subprocess
 import time
 import urllib.request
 
 import pytest
 
-from config_templates import render_config
-from settings import NGINX_BIN, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from server_registry import NginxInstanceSpec
+from server_launcher import RegistryCommandFailure
 
-PORT = int(os.environ.get("TEST_FRM_P4_STREAM", "11247"))
-METRICS_PORT = int(os.environ.get("TEST_FRM_P4_METRICS", "11248"))
+pytestmark = pytest.mark.uses_lifecycle_harness
+
+PORT = None
+METRICS_PORT = None
 
 
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
+@pytest.fixture
+def srv(lifecycle, tmp_path):
+    global PORT, METRICS_PORT
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
-    d = tmp_path_factory.mktemp("frmp4")
-    (d / "logs").mkdir()
-    data = d / "data"; data.mkdir()
-    queue = d / "frm.queue"
+    data = tmp_path / "data"; data.mkdir()
+    queue = tmp_path / "frm.queue"
 
-    conf = render_config("nginx_frm_phase4.conf",
-                         BASE_DIR=d,
-                         BIND_HOST=BIND_HOST,
-                         PORT=PORT,
-                         METRICS_PORT=METRICS_PORT,
-                         DATA_DIR=data,
-                         QUEUE_PATH=queue)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    deadline = time.time() + 10
-    up = False
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, METRICS_PORT), timeout=0.5).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip("server did not start: %s" % err[-300:])
+    metrics_port = free_port(HOST)
+    METRICS_PORT = metrics_port
+
+    try:
+        endpoint = lifecycle.start(NginxInstanceSpec(
+            name="lc-frm-phase4",
+            template="nginx_lc_frm_phase4.conf",
+            protocol="root",
+            extra_ports={"METRICS_PORT": metrics_port},
+            template_values={
+                "BIND_HOST": BIND_HOST,
+                "DATA_DIR": str(data),
+                "QUEUE_PATH": str(queue),
+            },
+            reason="frm phase-4 parity directives + purge-monitor scaffold"))
+    except (RegistryCommandFailure, RuntimeError) as exc:
+        # Preserves the original skip guards: the build may reject the Phase-4
+        # config (the brix_frm* directive surface was disabled in-source on
+        # 2026-06-30) or fail to come up.
+        pytest.skip("nginx rejected config or did not start: %s" % str(exc)[-300:])
+    PORT = endpoint.port
     time.sleep(1.5)   # let the purge monitor arm + tick once
 
     class S:
         pass
     s = S()
-    s.logfile = str(d / "logs" / "error.log")
+    s.logfile = os.path.join(endpoint.prefix, "logs", "error.log")
     yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def test_phase4_directives_accepted_and_started(srv):
@@ -88,6 +78,13 @@ def test_phase4_directives_accepted_and_started(srv):
     assert os.path.exists(srv.logfile)
 
 
+@pytest.mark.skip(reason="F6 purge-watermark monitor is retired by the src/frm "
+                         "dissolution: the legacy FRM queue/scheduler/purge "
+                         "worker-init no longer runs (see process_server_init.c) and "
+                         "the 'purge-watermark monitor armed'/SCAFFOLD notice is gone "
+                         "from source. Cache-tier eviction (brix_cache_store) now owns "
+                         "reclamation; there is no live purge monitor to arm. Skipped "
+                         "(not deleted) to re-arm if a purge monitor is reintroduced.")
 def test_purge_monitor_armed_and_is_scaffold(srv):
     log = open(srv.logfile, errors="replace").read()
     assert "purge-watermark monitor armed" in log, \

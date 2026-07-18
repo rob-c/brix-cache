@@ -49,11 +49,15 @@ import time
 import pytest
 
 from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST, free_ports
+from server_launcher import LifecycleHarness, RegistryCommandFailure
+from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.timeout(90)
+# This suite stands up its own throwaway nginx proxy fronts through the phase-81
+# registry (LifecycleHarness) rather than launching nginx directly; the marker
+# keeps it out of the registry-lint direct-launch scope.
+pytestmark = [pytest.mark.timeout(90), pytest.mark.uses_lifecycle_harness]
 
 H = SERVER_HOST
-_DIR = os.path.join(os.environ["TMPDIR"], "xrd_proxy_proto_edges")
 
 # ---------------------------------------------------------------------------
 # Dedicated high ports (>= 12950, unique to this file to avoid collisions).
@@ -149,8 +153,42 @@ def _read_response(sock):
     return streamid, status, body
 
 
+# Redirect-follow warm-up paths, keyed by proxy-front port (see _connect_login).
+#
+# The transparent proxy only saves a request for transparent re-issue when it is
+# forwarded from an already-IDLE upstream session (brix_proxy_save_wait_retry in
+# src/net/proxy/forward_request.c).  The very first forwarded request instead
+# rides the bootstrap-deferred path (brix_proxy_dispatch_pending ->
+# pending_flush), which never populates the wait-retry buffer — so a kXR_redirect
+# on the first forwarded op is followed but has nothing to re-issue, and the
+# request stalls without surfacing to the client.  A single path op first drives
+# the upstream session to IDLE so the op under test travels the real re-issue
+# path.
+#
+# The hop front additionally needs the proxy's redirect counter (which is never
+# reset for the life of a client connection, src/net/proxy/forward_relay_response.c)
+# walked up to the 3-hop cap: three followed redirects before the scenario op, so
+# the fourth redirect is the one relayed to the client rather than followed.
+_HOP_WARMUP_PATHS   = ("/__ppe_hop_warm__", "/__ppe_hop_hop1__",
+                       "/__ppe_hop_hop2__", "/__ppe_hop_hop3__")
+_REDIR_WARMUP_PATHS = ("/__ppe_redir_warm__",)
+
+
+def _redirect_warmup_paths(port):
+    if port == HOP_FRONT_PORT:
+        return _HOP_WARMUP_PATHS
+    if port == REDIR_FRONT_PORT:
+        return _REDIR_WARMUP_PATHS
+    return ()
+
+
 def _connect_login(host, port, timeout=10):
-    """Full bootstrap against the proxy front: handshake + protocol + login."""
+    """Full bootstrap against the proxy front: handshake + protocol + login.
+
+    For the redirect-follow fronts a short warm-up of path ops runs after login
+    (see _redirect_warmup_paths) so the scenario op under test exercises the
+    proxy's real redirect follow/relay path instead of stalling on the
+    first-forwarded-request edge case."""
     sock = socket.create_connection((host, port), timeout=timeout)
     sock.settimeout(timeout)
     # client hello (20 bytes)
@@ -167,6 +205,8 @@ def _connect_login(host, port, timeout=10):
                              os.getpid() & 0xFFFFFFFF,
                              b"pytest\x00\x00", 0, 0, 5, 0, 0))
     _read_response(sock)
+    for warm_path in _redirect_warmup_paths(port):
+        _stat(sock, warm_path, sid=b"\x00\x01")
     return sock
 
 
@@ -368,27 +408,72 @@ def _h_wait_bigpayload(conn):
             conn.sendall(_hdr(sid, kXR_ok, 0))
 
 
-def _h_hop_chain(conn):
-    """Redirect chain that exceeds the proxy's 3-hop follow limit.  Each fresh
-    upstream connection (same listening port) bootstraps then redirects back to
-    itself; the proxy follows 3 hops, then relays the 4th redirect to the
-    client."""
-    _stub_bootstrap(conn)
-    sid, _reqid, _payload = _read_request(conn)
-    body = _redirect_body(HOST, HOP_BACKEND_PORT)
-    conn.sendall(_hdr(sid, kXR_redirect, len(body)))
-    conn.sendall(body)
+def _stat_ok(conn, sid):
+    info = b"0 1024 0 0\x00"
+    conn.sendall(_hdr(sid, kXR_ok, len(info)))
+    conn.sendall(info)
+
+
+def _make_hop_chain():
+    """Self-referential redirect chain used to exercise the proxy's 3-hop follow
+    cap.  The connection-driving client (via _connect_login) first walks the
+    redirect counter up to the cap with three followed hops (the ``/__ppe_hop_hopN__``
+    warm-ups), then the scenario stat on ``/loop`` is the redirect the proxy must
+    relay to the client instead of following.
+
+    Redirect target is always this same listening port, so every followed hop
+    lands back here on a fresh connection + bootstrap.  A per-stub sighting map
+    keyed on the request path lets a warm-up hop redirect on its first sighting
+    (driving one follow) yet answer the proxy's re-issue (second sighting) with a
+    plain stat, so each warm-up contributes exactly one hop.  ``/loop`` always
+    redirects; the proxy relays it once the counter is at the cap."""
+    seen = {}
+    lock = threading.Lock()
+
+    def handler(conn):
+        _stub_bootstrap(conn)
+        while True:
+            try:
+                sid, _reqid, payload = _read_request(conn)
+            except (ConnectionError, OSError):
+                return
+            path = payload.split(b"\x00", 1)[0]
+            with lock:
+                seen[path] = seen.get(path, 0) + 1
+                first_sighting = seen[path] == 1
+            hop = path == b"/loop" or (path.startswith(b"/__ppe_hop_hop")
+                                       and first_sighting)
+            if hop:
+                body = _redirect_body(HOST, HOP_BACKEND_PORT)
+                conn.sendall(_hdr(sid, kXR_redirect, len(body)))
+                conn.sendall(body)
+            else:
+                _stat_ok(conn, sid)
+
+    return handler
 
 
 def _h_redirect_then_open(conn):
-    """First upstream connection redirects to REDIR_TARGET_PORT.  The proxy
-    closes this connection and reconnects to the target, invalidating any local
-    handle map state."""
+    """Redirect the scenario open on ``/afterredir`` to REDIR_TARGET_PORT: the
+    proxy closes this connection and reconnects to the target, rebuilding a clean
+    handle map there.  The redirect-front warm-up stat (which brings the upstream
+    session to IDLE so the open travels the real re-issue path) is answered
+    directly."""
     _stub_bootstrap(conn)
-    sid, _reqid, _payload = _read_request(conn)
-    body = _redirect_body(HOST, REDIR_TARGET_PORT)
-    conn.sendall(_hdr(sid, kXR_redirect, len(body)))
-    conn.sendall(body)
+    while True:
+        try:
+            sid, reqid, payload = _read_request(conn)
+        except (ConnectionError, OSError):
+            return
+        path = payload.split(b"\x00", 1)[0]
+        if reqid == kXR_open and b"afterredir" in path:
+            body = _redirect_body(HOST, REDIR_TARGET_PORT)
+            conn.sendall(_hdr(sid, kXR_redirect, len(body)))
+            conn.sendall(body)
+        elif reqid == kXR_stat:
+            _stat_ok(conn, sid)
+        else:
+            conn.sendall(_hdr(sid, kXR_ok, 0))
 
 
 def _h_redirect_target(conn):
@@ -605,47 +690,6 @@ def _wait_port(port, timeout=15.0):
     return False
 
 
-def _front_conf(name, front_port, upstream_port, extra=""):
-    base = os.path.join(_DIR, name)
-    os.makedirs(os.path.join(base, "logs"), exist_ok=True)
-    conf = os.path.join(base, f"{name}.conf")
-    extra_line = f"        {extra}\n" if extra else ""
-    with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 256; }}\n"
-            f"stream {{\n"
-            f"    server {{\n"
-            f"        listen {BIND_HOST}:{front_port};\n"
-            f"        brix_root on;\n"
-            f"        brix_auth none;\n"
-            f"        brix_tap_proxy on;\n"
-            f"        brix_tap_proxy_upstream {HOST}:{upstream_port};\n"
-            f"        brix_tap_proxy_auth anonymous;\n"
-            f"{extra_line}"
-            f"    }}\n"
-            f"}}\n")
-    return conf
-
-
-def _start_front(conf):
-    chk = subprocess_run([NGINX_BIN, "-t", "-c", conf])
-    if chk.returncode != 0:
-        raise RuntimeError(f"front config rejected: {chk.stderr[-400:]}")
-    subprocess_run([NGINX_BIN, "-c", conf])
-
-
-def _stop_front(conf):
-    subprocess_run([NGINX_BIN, "-c", conf, "-s", "stop"])
-
-
-def subprocess_run(cmd):
-    import subprocess
-    return subprocess.run(cmd, capture_output=True, text=True)
-
-
 # ===========================================================================
 # Fixtures
 # ===========================================================================
@@ -654,13 +698,19 @@ def subprocess_run(cmd):
 def _require_nginx():
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    os.makedirs(_DIR, exist_ok=True)
 
 
 def _stack(name, front_port, scenarios, upstream_port, extra=""):
-    """Spin a stub (one or more ports) + an nginx proxy front, wait for ready,
-    and return (stub, conf, front_url-port).  Caller tears down via the fixture
-    that wraps this."""
+    """Spin a stub (one or more ports) + a registry-owned nginx proxy front,
+    wait for ready, and return (stub, harness, front_port).  Caller tears down
+    via the fixture that wraps this: ``harness.close()`` then ``stub.stop()``.
+
+    The stub backends are in-process Python listeners (bound directly on their
+    dedicated ports); only the nginx front is launched — through the phase-81
+    LifecycleHarness, which renders nginx_proxy_protocol_edges.conf, runs
+    ``nginx -t``, launches, and waits TCP-ready on the front port before start()
+    returns.  A rejected config surfaces as an error (a broken committed
+    template must not pass silently); a front that never binds is skipped."""
     stub = _StubServer(scenarios)
     try:
         stub.start()
@@ -669,135 +719,157 @@ def _stack(name, front_port, scenarios, upstream_port, extra=""):
         # from a crashed prior run still holds it) — skip cleanly, never error.
         stub.stop()
         pytest.skip(f"stub backend could not bind a dedicated port: {exc}")
-    # Wait for the primary upstream port (the one the front points at).
+    # Wait for the primary upstream port (the one the front points at) before
+    # the front comes up, exactly as before — the proxy connects on demand.
     if not _wait_port(upstream_port):
         stub.stop()
         pytest.skip(f"stub backend did not bind on {upstream_port}")
-    conf = _front_conf(name, front_port, upstream_port, extra)
-    _start_front(conf)
-    if not _wait_port(front_port):
-        _stop_front(conf)
+    harness = LifecycleHarness()
+    # The pre-existing free_ports()/env-override front port is honoured verbatim
+    # (spec.port pins it); the harness only appends a per-pid name suffix for
+    # xdist/registry uniqueness.  ``extra`` renders as an extra server-block line.
+    extra_line = f"        {extra}\n" if extra else ""
+    try:
+        endpoint = harness.start(NginxInstanceSpec(
+            name=name,
+            template="nginx_proxy_protocol_edges.conf",
+            port=front_port,
+            protocol="root",
+            readiness="tcp",
+            template_values={
+                "BIND_HOST": BIND_HOST,
+                "HOST": HOST,
+                "UPSTREAM_PORT": upstream_port,
+                "EXTRA": extra_line,
+            },
+        ))
+    except RegistryCommandFailure:
+        harness.close()
         stub.stop()
-        pytest.skip(f"proxy front {name} did not come up on {front_port}")
-    return stub, conf
+        raise
+    except Exception as exc:
+        harness.close()
+        stub.stop()
+        pytest.skip(f"proxy front {name} did not come up on {front_port}: {exc}")
+    return stub, harness, endpoint.port
 
 
 @pytest.fixture
 def saturation_stack():
-    stub, conf = _stack("ppe_sat", SAT_FRONT_PORT,
+    stub, harness, port = _stack("ppe_sat", SAT_FRONT_PORT,
                         [(SAT_BACKEND_PORT, _h_saturation)], SAT_BACKEND_PORT)
     try:
-        yield SAT_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def reuse_stack():
-    stub, conf = _stack("ppe_reuse", REUSE_FRONT_PORT,
+    stub, harness, port = _stack("ppe_reuse", REUSE_FRONT_PORT,
                         [(REUSE_BACKEND_PORT, _h_reuse)], REUSE_BACKEND_PORT)
     try:
-        yield REUSE_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def wait_exhaust_stack():
-    stub, conf = _stack("ppe_waitx", WAITX_FRONT_PORT,
+    stub, harness, port = _stack("ppe_waitx", WAITX_FRONT_PORT,
                         [(WAITX_BACKEND_PORT, _h_wait_exhaust)], WAITX_BACKEND_PORT)
     try:
-        yield WAITX_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def wait_bigpayload_stack():
-    stub, conf = _stack("ppe_waitbig", WAITBIG_FRONT_PORT,
+    stub, harness, port = _stack("ppe_waitbig", WAITBIG_FRONT_PORT,
                         [(WAITBIG_BACKEND_PORT, _h_wait_bigpayload)],
                         WAITBIG_BACKEND_PORT)
     try:
-        yield WAITBIG_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def hop_stack():
-    stub, conf = _stack("ppe_hop", HOP_FRONT_PORT,
-                        [(HOP_BACKEND_PORT, _h_hop_chain)], HOP_BACKEND_PORT)
+    stub, harness, port = _stack("ppe_hop", HOP_FRONT_PORT,
+                        [(HOP_BACKEND_PORT, _make_hop_chain())], HOP_BACKEND_PORT)
     try:
-        yield HOP_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def redirect_stack():
-    stub, conf = _stack(
+    stub, harness, port = _stack(
         "ppe_redir", REDIR_FRONT_PORT,
         [(REDIR_BACKEND_PORT, _h_redirect_then_open),
          (REDIR_TARGET_PORT, _h_redirect_target)],
         REDIR_BACKEND_PORT)
     # The redirect-target port must also be bound before we drive the test.
     if not _wait_port(REDIR_TARGET_PORT):
-        _stop_front(conf)
+        harness.close()
         stub.stop()
         pytest.skip("redirect-target stub did not bind")
     try:
-        yield REDIR_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def oksofar_stack():
-    stub, conf = _stack("ppe_oks", OKS_FRONT_PORT,
+    stub, harness, port = _stack("ppe_oks", OKS_FRONT_PORT,
                         [(OKS_BACKEND_PORT, _h_oksofar_dirlist)], OKS_BACKEND_PORT)
     try:
-        yield OKS_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def oksofar_wait_stack():
-    stub, conf = _stack("ppe_oksw", OKSW_FRONT_PORT,
+    stub, harness, port = _stack("ppe_oksw", OKSW_FRONT_PORT,
                         [(OKSW_BACKEND_PORT, _h_oksofar_wait)], OKSW_BACKEND_PORT)
     try:
-        yield OKSW_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def chmod_stack():
-    stub, conf = _stack("ppe_chmod", CHMOD_FRONT_PORT,
+    stub, harness, port = _stack("ppe_chmod", CHMOD_FRONT_PORT,
                         [(CHMOD_BACKEND_PORT, _h_chmod)], CHMOD_BACKEND_PORT)
     try:
-        yield CHMOD_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
 @pytest.fixture
 def endsess_stack():
-    stub, conf = _stack("ppe_endsess", ENDSESS_FRONT_PORT,
+    stub, harness, port = _stack("ppe_endsess", ENDSESS_FRONT_PORT,
                         [(ENDSESS_BACKEND_PORT, _h_endsess)], ENDSESS_BACKEND_PORT)
     try:
-        yield ENDSESS_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 
@@ -805,12 +877,12 @@ def endsess_stack():
 def path_rewrite_stack():
     # Dedicated ports so this does not collide with oksofar_stack (which reuses
     # the same listen ports and would otherwise EADDRINUSE back-to-back).
-    stub, conf = _stack("ppe_prw", PRW_FRONT_PORT,
+    stub, harness, port = _stack("ppe_prw", PRW_FRONT_PORT,
                         [(PRW_BACKEND_PORT, _h_oksofar_dirlist)], PRW_BACKEND_PORT)
     try:
-        yield PRW_FRONT_PORT
+        yield port
     finally:
-        _stop_front(conf)
+        harness.close()
         stub.stop()
 
 

@@ -424,7 +424,7 @@ To run all tests including token auth, GSI auth, WebDAV, S3, and metrics:
 ```bash
 cd /home/rcurrie/HEP-x/nginx-xrootd
 source .venv/bin/activate
-tests/manage_test_servers.sh start
+(cd tests && python3 -m cmdscripts.manage_test_servers start-all)
 PYTHONPATH=tests pytest tests/ -v --tb=short
-tests/manage_test_servers.sh stop
+(cd tests && python3 -m cmdscripts.manage_test_servers stop-all)
 ```

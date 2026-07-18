@@ -11,12 +11,15 @@
 #define BRIX_CVMFS_WHITELIST_H
 
 #include <stddef.h>
+#include "cvmfs/grammar/hash.h"
 
 typedef struct {
     long                 expiry_utc;             /* epoch seconds */
+    char                 repo_name[256];         /* 'N' line fqrn, NUL-term ("" if absent) */
     char                 fingerprints[16][60];   /* "AA:BB:...", NUL-term */
     size_t               n_fingerprints;
-    const unsigned char *signed_body;      size_t signed_body_len;
+    const unsigned char *signed_body;      size_t signed_body_len;   /* thru "--\n" */
+    cvmfs_hash_t         signed_hash;      /* hash line after "--", parsed */
     const unsigned char *signed_hash_text; size_t signed_hash_text_len; /* RSA-signed */
     const unsigned char *signature;        size_t signature_len;
 } cvmfs_whitelist_t;

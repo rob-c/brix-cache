@@ -215,7 +215,7 @@ PYTHONPATH=tests pytest tests/<test-file>.py::Class::test_name -v
 PYTHONPATH=tests pytest tests/ -k "keyword" -v
 PYTHONPATH=tests pytest tests/ -v --tb=short
 TEST_CROSS_BACKEND=nginx pytest tests/<test-file>.py -v # cross-backend (nginx vs xrootd)
-tests/manage_test_servers.sh start|restart|stop
+(cd tests && python3 -m cmdscripts.manage_test_servers start-all|restart|stop-all|status)
 ```
 **Logs:** `/tmp/xrd-test/logs/` — `error.log`, `brix_access*.log`, `http_webdav_access.log`, `s3_access.log`
 

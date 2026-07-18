@@ -15,6 +15,7 @@
  */
 #include "cvmfs.h"
 #include "fs/path/path.h"
+#include "net/guard/guard.h"
 
 /* --- negative cache (T13) --------------------------------------------------
  * Per-worker fixed-size direct-mapped memo of recent 404s (the deliberate
@@ -81,10 +82,17 @@ brix_cvmfs_notify_status(ngx_http_request_t *r,
 static ngx_int_t
 cvmfs_reject(ngx_http_request_t *r, ngx_uint_t status, const char *cause)
 {
-    char safe_uri[512];
+    char   safe_uri[512];
+    char   raw[512];
+    size_t n;
 
-    brix_sanitize_log_string((const char *) r->uri.data, safe_uri,
-                               sizeof(safe_uri));
+    /* r->uri.data is NOT NUL-terminated (points into the request buffer);
+     * copy the exact uri span before sanitizing, or the sanitizer over-reads
+     * past uri.len (info-leak / log-injection). */
+    n = ngx_min(r->uri.len, sizeof(raw) - 1);
+    ngx_memcpy(raw, r->uri.data, n);
+    raw[n] = '\0';
+    brix_sanitize_log_string(raw, safe_uri, sizeof(safe_uri));
     ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
         "cvmfs-reject: method=%V uri=\"%s\" client=%V class=reject "
         "cause=\"%s\" "
@@ -94,6 +102,85 @@ cvmfs_reject(ngx_http_request_t *r, ngx_uint_t status, const char *cause)
 
     BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_REJECT]);
     return (ngx_int_t) status;
+}
+
+/* Emit one unified guard-core audit line (the fail2ban contract, proto=cvmfs)
+ * for this request.  `raw` is the wire-supplied span to ride the path field
+ * (sanitized here); it rides alongside, not instead of, the human-readable
+ * cvmfs-reject WARN. */
+static void
+cvmfs_guard_emit(ngx_http_request_t *r, guard_reason_t reason,
+    ngx_uint_t status, const char *raw, size_t rawlen, int cred_present)
+{
+    guard_request_t req;
+    char            ipbuf[64];
+    char            rawbuf[256];
+    char            san[256];
+    char            line[512];
+    char            ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
+    size_t          n, ts_len;
+
+    n = ngx_min(r->connection->addr_text.len, sizeof(ipbuf) - 1);
+    ngx_memcpy(ipbuf, r->connection->addr_text.data, n);
+    ipbuf[n] = '\0';
+
+    n = ngx_min(rawlen, sizeof(rawbuf) - 1);
+    ngx_memcpy(rawbuf, raw, n);
+    rawbuf[n] = '\0';
+
+    req.ip           = ipbuf;
+    req.proto        = "cvmfs";
+    req.op           = GUARD_OP_READ;
+    req.path         = san;
+    req.path_len     = brix_sanitize_log_string(rawbuf, san, sizeof(san));
+    req.cred_present = cred_present;
+    req.outcome      = OUTCOME_PENDING;
+    req.status_code  = (int) status;
+
+    ts_len = ngx_cached_http_log_iso8601.len;
+    if (ts_len >= sizeof(ts)) {
+        ts_len = sizeof(ts) - 1;
+    }
+    ngx_memcpy(ts, ngx_cached_http_log_iso8601.data, ts_len);
+    ts[ts_len] = '\0';
+
+    if (guard_audit_format(&req, reason, ts, line, sizeof(line)) > 0) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "%s", line);
+    }
+}
+
+/* signal=proxyabuse — a forward-proxy request tried to reach a non-allowlisted
+ * / wrong-scheme / malformed remote (the open-proxy / SSRF signal), banned by
+ * the [xrootd-guard-proxyabuse] jail.  The attempted upstream authority
+ * (host[:port], straight off the parsed absolute-form request line) rides the
+ * path field so the operator sees which arbitrary remote resource the actor
+ * was reaching for. */
+static void
+cvmfs_guard_proxyabuse(ngx_http_request_t *r, ngx_uint_t status)
+{
+    char            raw_auth[256];
+    const u_char   *auth_end;
+    size_t          alen;
+
+    /* host_start..host_end is the host; a ':' at host_end extends the span to
+     * uri_start to fold in the ":port".  Absent host_start can't happen here
+     * (this only runs on an absolute-form target), but guard it anyway. */
+    alen = 0;
+    if (r->host_start != NULL && r->host_end != NULL
+        && r->host_end > r->host_start)
+    {
+        auth_end = r->host_end;
+        if (r->uri_start != NULL && r->uri_start > r->host_end
+            && *r->host_end == ':')
+        {
+            auth_end = r->uri_start;
+        }
+        alen = ngx_min((size_t) (auth_end - r->host_start),
+                       sizeof(raw_auth) - 1);
+        ngx_memcpy(raw_auth, r->host_start, alen);
+    }
+
+    cvmfs_guard_emit(r, GUARD_R_PROXYABUSE, status, raw_auth, alen, 0);
 }
 
 /* Proxy mode (T14): an absolute-form request line names its upstream — allowlist
@@ -109,10 +196,12 @@ cvmfs_gate_proxy_bind(ngx_http_request_t *r,
 
     rc = brix_cvmfs_proxy_target(r, &lcf->cvmfs, &up_host, &up_port);
     if (rc == NGX_HTTP_FORBIDDEN) {
+        cvmfs_guard_proxyabuse(r, NGX_HTTP_FORBIDDEN);
         return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
                             "upstream authority not allowlisted");
     }
     if (rc == NGX_HTTP_BAD_REQUEST) {
+        cvmfs_guard_proxyabuse(r, NGX_HTTP_BAD_REQUEST);
         return cvmfs_reject(r, NGX_HTTP_BAD_REQUEST, "malformed proxy target");
     }
     if (rc == NGX_OK && !lcf->cvmfs.unified_origin) {
@@ -144,7 +233,9 @@ cvmfs_gate_cas(ngx_http_request_t *r,
     }
 
     if (lcf->cvmfs.negative_ttl > 0 && cvmfs_neg_check(&r->uri, ngx_time())) {
-        char neg_uri[512];
+        char   neg_uri[512];
+        char   raw[512];
+        size_t n;
 
         BRIX_CVMFS_METRIC_INC(negative_hits_total);
         if (ctx->repo != NULL) {
@@ -152,9 +243,12 @@ cvmfs_gate_cas(ngx_http_request_t *r,
         }
         ctx->cache_status = BRIX_CVMFS_CACHE_NEG;
         /* One NOTICE per absorbed 404: a client hammering missing objects shows
-         * as a stream of these (bounded by its own request rate). */
-        brix_sanitize_log_string((const char *) r->uri.data, neg_uri,
-                                   sizeof(neg_uri));
+         * as a stream of these (bounded by its own request rate). r->uri.data is
+         * NOT NUL-terminated — copy the exact span before sanitizing. */
+        n = ngx_min(r->uri.len, sizeof(raw) - 1);
+        ngx_memcpy(raw, r->uri.data, n);
+        raw[n] = '\0';
+        brix_sanitize_log_string(raw, neg_uri, sizeof(neg_uri));
         ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
             "cvmfs-neg: event=absorbed-404 client=%V uri=\"%s\" "
             "hint=\"repeated lines from one client = it is retrying a "
@@ -199,6 +293,30 @@ brix_cvmfs_gate(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
 
     /* per-repository accounting (bounded slot table — metrics.h) */
     ctx->repo = brix_cvmfs_repo_slot(ctx->url.repo, ctx->url.repo_len);
+
+    /* Token-gated repos (phase-85 F3) — evaluated BEFORE class routing so a
+     * gated repo's CAS, metadata, and geo traffic are all behind the gate. */
+    if (lcf->repo_authz != NULL) {
+        ngx_int_t arc = brix_cvmfs_repo_authz_eval(r, lcf);
+
+        if (arc == NGX_HTTP_UNAUTHORIZED) {
+            /* the guard-core authfail signal ([xrootd-guard-authfail] jail):
+             * unauthenticated probing of a private repo is the same actor
+             * shape as a credential brute-force elsewhere. */
+            cvmfs_guard_emit(r, GUARD_R_AUTHFAIL, NGX_HTTP_UNAUTHORIZED,
+                             (const char *) r->uri.data, r->uri.len,
+                             r->headers_in.authorization != NULL);
+            return cvmfs_reject(r, NGX_HTTP_UNAUTHORIZED,
+                                "repo requires a valid read-scope bearer token");
+        }
+        if (arc == NGX_HTTP_BAD_REQUEST) {
+            return cvmfs_reject(r, NGX_HTTP_BAD_REQUEST,
+                                "token-gated repo requires TLS");
+        }
+        if (arc != NGX_DECLINED) {
+            return arc;                     /* 414/500 plumbing failures */
+        }
+    }
 
     switch (ctx->url.cls) {
     case CVMFS_URL_CAS:

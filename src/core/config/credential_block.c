@@ -5,6 +5,7 @@
 #include "credential_block.h"
 #include "core/compat/cstr.h"
 #include "fs/vfs/vfs_backend_registry.h"   /* brix_vfs_backend_cred_t */
+#include "fs/backend/sd.h"                 /* enum brix_cred_mode (mode directive) */
 
 #include <fcntl.h>
 #include <string.h>
@@ -67,12 +68,63 @@ static const brix_credential_field_t  brix_credential_fields[] = {
     { NULL, 0, 0 },
 };
 
+/* Map a `mode` token to its brix_cred_mode value, or -1 when unrecognised. The
+ * tokens name the delegation strategy the consuming subsystem uses to present
+ * this identity to the upstream (sd.h §"How the per-open credential was
+ * obtained"): "passthrough" replays the user's own credential unmodified (a full
+ * X.509 proxy is a passthrough credential), "exchange" trades it for a backend-
+ * audienced one, "delegate"/"mint" obtain a fresh proxy, "select" forces the
+ * directory-based service credential, "auto" dispatches by the identity's auth
+ * method. */
+static ngx_int_t
+brix_credential_mode_token(const ngx_str_t *tok)
+{
+    static const struct { const char *k; enum brix_cred_mode v; } modes[] = {
+        { "select",      BRIX_CRED_SELECT },
+        { "passthrough", BRIX_CRED_PASSTHROUGH },
+        { "exchange",    BRIX_CRED_EXCHANGE },
+        { "delegate",    BRIX_CRED_DELEGATE },
+        { "mint",        BRIX_CRED_MINT },
+        { "auto",        BRIX_CRED_AUTO },
+    };
+    ngx_uint_t i;
+
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        if (tok->len == ngx_strlen(modes[i].k)
+            && ngx_strncmp(tok->data, modes[i].k, tok->len) == 0)
+        {
+            return (ngx_int_t) modes[i].v;
+        }
+    }
+    return -1;
+}
+
 static char *
 brix_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
 {
     brix_credential_t             *cred = conf;
     ngx_str_t                       *value = cf->args->elts;
     const brix_credential_field_t *fld;
+
+    /* `mode` is not a str/flag field — it parses a fixed token set into an enum. */
+    if (value[0].len == 4 && ngx_strncmp(value[0].data, "mode", 4) == 0) {
+        ngx_int_t m;
+
+        if (cf->args->nelts != 2) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_credential: \"mode\" takes exactly one argument");
+            return NGX_CONF_ERROR;
+        }
+        m = brix_credential_mode_token(&value[1]);
+        if (m < 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_credential: unknown mode \"%V\" (want select|passthrough|"
+                "exchange|delegate|mint|auto)", &value[1]);
+            return NGX_CONF_ERROR;
+        }
+        cred->mode = m;
+        return NGX_CONF_OK;
+    }
 
     for (fld = brix_credential_fields; fld->key != NULL; fld++) {
         if (value[0].len != ngx_strlen(fld->key)
@@ -174,6 +226,7 @@ brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     ngx_memzero(cred, sizeof(*cred));
+    cred->mode = NGX_CONF_UNSET;   /* distinguish "unset" from an explicit select */
     cred->name.data = (u_char *) brix_pstrdup_z(cf->pool, &value[1]);
     if (cred->name.data == NULL) {
         return NGX_CONF_ERROR;

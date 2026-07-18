@@ -170,14 +170,14 @@ def _sidecar_cell(run: LiveRun, label: str, kind: str, sport: int, bport: int,
         run.write(store_node / "nginx.conf", f"""daemon on; error_log {store_node}/logs/e.log info; pid {store_node}/nginx.pid;
 events {{ worker_connections 64; }}
 http {{ server {{ listen 127.0.0.1:{sport};
-  location / {{ brix_s3 on; brix_export {store_node}/store; brix_s3_bucket xrdcache; brix_allow_write on; }} }} }}
+  location / {{ brix_s3 on; brix_export {store_node}/store; brix_s3_bucket xrdcache; brix_allow_write on; brix_cache_store_endpoint on; }} }} }}
 """)
         store_url = f"s3://127.0.0.1:{sport}/xrdcache"
     else:
         run.write(store_node / "nginx.conf", f"""daemon on; error_log {store_node}/logs/e.log info; pid {store_node}/nginx.pid;
 events {{ worker_connections 64; }}
 http {{ client_body_temp_path {store_node}/tmp; server {{ listen 127.0.0.1:{sport};
-  location / {{ dav_methods PUT DELETE; brix_webdav on; brix_export {store_node}/store; brix_webdav_auth none; brix_allow_write on; }} }} }}
+  location / {{ dav_methods PUT DELETE; brix_webdav on; brix_export {store_node}/store; brix_webdav_auth none; brix_allow_write on; brix_cache_store_endpoint on; }} }} }}
 """)
         store_url = f"http://127.0.0.1:{sport}"
     node_conf = run.write(node / "nginx.conf", f"""daemon on; error_log {node}/logs/e.log info; pid {node}/nginx.pid;

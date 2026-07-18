@@ -193,6 +193,29 @@
       offsetof(ngx_stream_brix_srv_conf_t, proxy.upstream_tls),
       NULL },
 
+    { ngx_string("brix_tap_proxy_upstream_tls_ca"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, proxy.upstream_tls_ca),
+      NULL },
+
+    { ngx_string("brix_tap_proxy_upstream_tls_name"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, proxy.upstream_tls_name),
+      NULL },
+
+    /* A-1: peer verification is mandatory by default — nginx -t refuses
+     * brix_tap_proxy_upstream_tls without a CA unless this is explicitly off. */
+    { ngx_string("brix_tap_proxy_upstream_tls_verify"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, proxy.upstream_ssl_verify),
+      NULL },
+
     /* (legacy brix_proxy_* directives removed here — see the note above) */
 
     /* Phase 39: network-fault resilience (all off by default; 0 = disabled). */

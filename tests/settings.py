@@ -101,7 +101,11 @@ def url_host(h):
 PKI_DIR = os.path.join(TEST_ROOT, "pki")
 DATA_ROOT = os.path.join(TEST_ROOT, "data")
 TOKENS_DIR = os.path.join(TEST_ROOT, "tokens")
-LOG_DIR = os.path.join(TEST_ROOT, "logs")
+# The fleet logs the tests scrape (access/error/brix_access) are the main nginx's.
+# Under the registry launcher every instance writes to its own prefix
+# (REGISTRY_ROOT/<name>/logs), so the main instance's logs live there — not the
+# bash-era flat TEST_ROOT/logs.  Point log-reading tests at the real location.
+LOG_DIR = os.path.join(REGISTRY_ROOT, "main", "logs")
 
 # Fleet dedicated instances migrated off per-test self-start (started once by
 # start_all_dedicated; tests attach to these fixed ports and only seed data).

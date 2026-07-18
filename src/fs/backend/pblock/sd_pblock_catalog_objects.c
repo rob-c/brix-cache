@@ -47,7 +47,8 @@ pblock_catalog_lookup(pblock_catalog *cat, const char *path, pblock_meta *out)
     gen = nscache_gen(cat);     /* snapshot before the read we may cache */
 
     stmt = cat_prepare(cat,
-        "SELECT is_dir, blob_id, size, block_size, mtime, ctime, mode, uid, gid"
+        "SELECT is_dir, blob_id, size, block_size, mtime, ctime, mode, uid, gid,"
+        "       xform"
         "  FROM objects WHERE path = ?1;");
     if (stmt == NULL) {
         return -1;
@@ -78,6 +79,12 @@ pblock_catalog_lookup(pblock_catalog *cat, const char *path, pblock_meta *out)
     m.mode       = (uint32_t) sqlite3_column_int64(stmt, 6);
     m.uid        = (uint32_t) sqlite3_column_int64(stmt, 7);
     m.gid        = (uint32_t) sqlite3_column_int64(stmt, 8);
+    {
+        const unsigned char *xf = sqlite3_column_text(stmt, 9);
+
+        snprintf(m.xform, sizeof(m.xform), "%s",
+                 xf != NULL ? (const char *) xf : "");
+    }
     sqlite3_finalize(stmt);
 
     nscache_store(cat, path, &m, gen);
@@ -148,8 +155,8 @@ pblock_catalog_put(pblock_catalog *cat, const char *path,
     stmt = cat_prepare(cat,
         "INSERT OR REPLACE INTO objects"
         "  (path, parent, is_dir, blob_id, size, block_size, mtime, ctime,"
-        "   mode, uid, gid)"
-        "  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11);");
+        "   mode, uid, gid, xform)"
+        "  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12);");
     if (stmt == NULL) {
         return -1;
     }
@@ -164,6 +171,7 @@ pblock_catalog_put(pblock_catalog *cat, const char *path,
     sqlite3_bind_int64(stmt, 9, (sqlite3_int64) meta->mode);
     sqlite3_bind_int64(stmt, 10, (sqlite3_int64) meta->uid);
     sqlite3_bind_int64(stmt, 11, (sqlite3_int64) meta->gid);
+    sqlite3_bind_text(stmt, 12, meta->xform, -1, SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -195,8 +203,8 @@ pblock_catalog_create(pblock_catalog *cat, const char *path,
     stmt = cat_prepare(cat,
         "INSERT INTO objects"
         "  (path, parent, is_dir, blob_id, size, block_size, mtime, ctime,"
-        "   mode, uid, gid)"
-        "  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11);");
+        "   mode, uid, gid, xform)"
+        "  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12);");
     if (stmt == NULL) {
         return -1;
     }
@@ -211,6 +219,7 @@ pblock_catalog_create(pblock_catalog *cat, const char *path,
     sqlite3_bind_int64(stmt, 9, (sqlite3_int64) meta->mode);
     sqlite3_bind_int64(stmt, 10, (sqlite3_int64) meta->uid);
     sqlite3_bind_int64(stmt, 11, (sqlite3_int64) meta->gid);
+    sqlite3_bind_text(stmt, 12, meta->xform, -1, SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -303,6 +312,39 @@ pblock_catalog_touch(pblock_catalog *cat, const char *path, int64_t size,
         return 0;
     }
     return cat_fail(ENOENT);
+}
+
+int
+pblock_catalog_enumerate(pblock_catalog *cat, pblock_catalog_enum_cb cb,
+    void *ctx)
+{
+    sqlite3_stmt *stmt;
+    int           rc, aborted = 0;
+
+    stmt = cat_prepare(cat,
+        "SELECT path, is_dir, size, mtime FROM objects ORDER BY path;");
+    if (stmt == NULL) {
+        return -1;
+    }
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        const unsigned char *path = sqlite3_column_text(stmt, 0);
+
+        if (path == NULL) {
+            continue;
+        }
+        if (cb(ctx, (const char *) path, sqlite3_column_int(stmt, 1),
+               sqlite3_column_int64(stmt, 2), sqlite3_column_int64(stmt, 3)) != 0)
+        {
+            aborted = 1;
+            break;
+        }
+    }
+    sqlite3_finalize(stmt);
+    if (!aborted && rc != SQLITE_DONE) {
+        errno = EIO;
+        return -1;
+    }
+    return 0;
 }
 
 int

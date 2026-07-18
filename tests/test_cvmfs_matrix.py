@@ -2,8 +2,8 @@
 
 matrix and netem-lab need root plus ip/tc (network-namespace netem lab);
 spike-cas-hash contacts a real Stratum-1; cvmfs-baselines needs squid or
-varnish installed. All are opt-in: set PHASE81_RUN_LIVE_PORTS=1 to run them.
-The importability test always runs.
+varnish installed. They run by default; set PHASE81_RUN_LIVE_PORTS=0 to skip
+them. The importability test always runs.
 """
 
 import os
@@ -26,10 +26,11 @@ def test_cvmfs_matrix_scenarios_are_importable():
 
 
 @pytest.mark.optin
+@pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(cvmfs_matrix.SCENARIOS))
 def test_cvmfs_matrix_scenario(scenario: str):
-    if os.environ.get("PHASE81_RUN_LIVE_PORTS") != "1":
-        pytest.skip("set PHASE81_RUN_LIVE_PORTS=1 to run the netem/live-network CVMFS matrix ports")
+    if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
+        pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip the netem/live-network CVMFS matrix ports")
     try:
         rc = cvmfs_matrix.SCENARIOS[scenario]()
     except LiveSkip as exc:

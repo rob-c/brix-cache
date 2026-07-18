@@ -18,15 +18,13 @@ Run:
 import os
 import socket
 import struct
-import subprocess
-import sys
-import time
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
-from config_templates import render_config  # noqa: E402
-from settings import NGINX_BIN, free_port, BIND_HOST  # noqa: E402
+from settings import NGINX_BIN, BIND_HOST
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 kXR_login, kXR_open, kXR_read, kXR_write, kXR_close = 3007, 3010, 3013, 3019, 3003
 kXR_ok, kXR_error = 0, 4003
@@ -90,58 +88,31 @@ def _close(s, fhandle, sid=b"\x00\x0e"):
         return None
 
 
-def _start(tmp_path_factory, ssi_on):
-    base = str(tmp_path_factory.mktemp("ssi"))
-    data = os.path.join(base, "data")
-    os.makedirs(data)
-    port = free_port()
-    ssi = "  brix_ssi on;\n" if ssi_on else ""
-    cfg = os.path.join(base, "ssi.conf")
-    with open(cfg, "w") as f:
-        f.write(render_config("nginx_ssi_toggle.conf",
-                              BASE_DIR=base,
-                              BIND_HOST=BIND_HOST,
-                              PORT=port,
-                              DATA_DIR=data,
-                              SSI_DIRECTIVE=ssi))
-    p = subprocess.Popen([NGINX_BIN, "-c", cfg, "-p", base],
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        try:
-            socket.create_connection((BIND_HOST, port), timeout=0.5).close()
-            return p, port
-        except OSError:
-            time.sleep(0.1)
-    err = p.stderr.read().decode(errors="replace") if p.stderr else ""
-    p.terminate()
-    pytest.skip(f"ssi server did not start: {err}")
-
-
-@pytest.fixture(scope="module")
-def ssi_srv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
+@pytest.fixture()
+def ssi_srv(lifecycle):
+    if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip("nginx binary not found")
-    p, port = _start(tmp_path_factory, ssi_on=True)
-    yield port
-    p.terminate()
-    try:
-        p.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        p.kill()
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-ssi-on",
+        template="nginx_lc_ssi.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST,
+                         "SSI_DIRECTIVES": "        brix_ssi on;"},
+        reason="minimal SSI-enabled root:// stream server"))
+    return ep.port
 
 
-@pytest.fixture(scope="module")
-def ssi_off_srv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
+@pytest.fixture()
+def ssi_off_srv(lifecycle):
+    if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip("nginx binary not found")
-    p, port = _start(tmp_path_factory, ssi_on=False)
-    yield port
-    p.terminate()
-    try:
-        p.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        p.kill()
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-ssi-off",
+        template="nginx_lc_ssi.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "SSI_DIRECTIVES": ""},
+        reason="SSI-disabled root:// stream server (control)"))
+    return ep.port
 
 
 def test_echo_unary_roundtrip(ssi_srv):

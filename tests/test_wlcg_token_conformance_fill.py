@@ -221,6 +221,7 @@ def test_fil_sz_04_clearly_over_reject():
 # --- storage.read:/atlas (read accept, write reject) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_01_read_atlas_get_accept():
     """FIL-WG-01: storage.read:/atlas GET /atlas/ok.txt → accept (rule 114).
 
@@ -235,6 +236,7 @@ def test_fil_wg_01_read_atlas_get_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_02_read_atlas_put_reject():
     """FIL-WG-02: storage.read:/atlas PUT /atlas/wg_fill_02.txt → reject (rule 115).
 
@@ -250,6 +252,7 @@ def test_fil_wg_02_read_atlas_put_reject():
 # --- storage.write:/atlas (write accept, read reject) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_03_write_atlas_get_reject():
     """FIL-WG-03: storage.write:/atlas GET /atlas/ok.txt → reject.
 
@@ -262,6 +265,7 @@ def test_fil_wg_03_write_atlas_get_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_04_write_atlas_put_accept():
     """FIL-WG-04: storage.write:/atlas PUT /atlas/wg_fill_04.txt → accept.
 
@@ -277,6 +281,7 @@ def test_fil_wg_04_write_atlas_put_accept():
 # --- storage.create:/atlas (create = write accept, read reject) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_05_create_atlas_get_reject():
     """FIL-WG-05: storage.create:/atlas GET /atlas/ok.txt → reject (rule 115).
 
@@ -291,6 +296,7 @@ def test_fil_wg_05_create_atlas_get_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_06_create_atlas_put_accept():
     """FIL-WG-06: storage.create:/atlas PUT /atlas/wg_fill_06.txt → accept.
 
@@ -306,6 +312,7 @@ def test_fil_wg_06_create_atlas_put_accept():
 # --- storage.modify:/atlas (modify = write accept, read reject) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_07_modify_atlas_get_reject():
     """FIL-WG-07: storage.modify:/atlas GET /atlas/ok.txt → reject (rule 116).
 
@@ -320,6 +327,7 @@ def test_fil_wg_07_modify_atlas_get_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_08_modify_atlas_put_accept():
     """FIL-WG-08: storage.modify:/atlas PUT /atlas/wg_fill_08.txt → accept.
 
@@ -337,6 +345,7 @@ def test_fil_wg_08_modify_atlas_put_accept():
 # --- storage.stage:/atlas (stage = read accept per WLCG, write reject) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_09_stage_atlas_get_accept():
     """FIL-WG-09: storage.stage:/atlas GET /atlas/ok.txt → accept (bring-online = read).
 
@@ -352,6 +361,7 @@ def test_fil_wg_09_stage_atlas_get_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_10_stage_atlas_put_reject():
     """FIL-WG-10: storage.stage:/atlas PUT /atlas/wg_fill_10.txt → reject.
 
@@ -369,6 +379,7 @@ def test_fil_wg_10_stage_atlas_put_reject():
 # --- storage.read:/atlas storage.write:/atlas (both) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_11_read_and_write_atlas_get_accept():
     """FIL-WG-11: read:/atlas + write:/atlas combined GET /atlas/ok.txt → accept.
 
@@ -382,6 +393,7 @@ def test_fil_wg_11_read_and_write_atlas_get_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_12_read_and_write_atlas_put_accept():
     """FIL-WG-12: read:/atlas + write:/atlas combined PUT /atlas/wg_fill_12.txt → accept.
 
@@ -397,6 +409,7 @@ def test_fil_wg_12_read_and_write_atlas_put_accept():
 # --- Out-of-path variants: grant on /atlas, operation on /cms or /test.txt ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_13_read_atlas_get_cms_reject():
     """FIL-WG-13: storage.read:/atlas GET /cms/ok.txt → reject (scope boundary).
 
@@ -411,6 +424,7 @@ def test_fil_wg_13_read_atlas_get_cms_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_14_write_atlas_put_cms_reject():
     """FIL-WG-14: storage.write:/atlas PUT /cms/wg_fill_14.txt → reject (scope boundary).
 
@@ -424,6 +438,7 @@ def test_fil_wg_14_write_atlas_put_cms_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_15_read_atlas_get_testfile_reject():
     """FIL-WG-15: storage.read:/atlas GET /test.txt → reject (different root namespace).
 
@@ -437,6 +452,7 @@ def test_fil_wg_15_read_atlas_get_testfile_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_16_create_atlas_put_cms_reject():
     """FIL-WG-16: storage.create:/atlas PUT /cms/wg_fill_16.txt → reject.
 
@@ -453,6 +469,7 @@ def test_fil_wg_16_create_atlas_put_cms_reject():
 # --- Root scope ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_17_read_root_get_atlas_accept():
     """FIL-WG-17: storage.read:/ GET /atlas/ok.txt → accept (rule 114: root covers any sub).
 
@@ -466,6 +483,7 @@ def test_fil_wg_17_read_root_get_atlas_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_18_write_root_put_accept():
     """FIL-WG-18: storage.write:/ PUT /atlas/wg_fill_18.txt → accept (root write scope).
 
@@ -481,6 +499,7 @@ def test_fil_wg_18_write_root_put_accept():
 # --- Cross-grant: read on /cms, write on /atlas ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_19_read_cms_write_atlas_get_atlas_reject():
     """FIL-WG-19: read:/cms write:/atlas GET /atlas/ok.txt → reject (no read on /atlas).
 
@@ -495,6 +514,7 @@ def test_fil_wg_19_read_cms_write_atlas_get_atlas_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_20_read_cms_write_atlas_get_cms_accept():
     """FIL-WG-20: read:/cms write:/atlas GET /cms/ok.txt → accept (read on /cms present).
 
@@ -509,6 +529,7 @@ def test_fil_wg_20_read_cms_write_atlas_get_cms_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_21_read_cms_write_atlas_put_atlas_accept():
     """FIL-WG-21: read:/cms write:/atlas PUT /atlas/wg_fill_21.txt → accept.
 
@@ -524,6 +545,7 @@ def test_fil_wg_21_read_cms_write_atlas_put_atlas_accept():
 # --- Multi-scope read on two paths (FIL-WG-22 through FIL-WG-23) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_22_read_atlas_read_cms_get_atlas_accept():
     """FIL-WG-22: read:/atlas read:/cms GET /atlas/ok.txt → accept.
 
@@ -537,6 +559,7 @@ def test_fil_wg_22_read_atlas_read_cms_get_atlas_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_23_read_atlas_read_cms_get_cms_accept():
     """FIL-WG-23: read:/atlas read:/cms GET /cms/ok.txt → accept (second path in union).
 
@@ -553,6 +576,7 @@ def test_fil_wg_23_read_atlas_read_cms_get_cms_accept():
 # --- Sub-scope narrower than request ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_24_read_atlas_sub_get_atlas_root_reject():
     """FIL-WG-24: read:/atlas/sub GET /atlas/ok.txt → reject (scope narrower than request).
 
@@ -569,6 +593,7 @@ def test_fil_wg_24_read_atlas_sub_get_atlas_root_reject():
 # --- Write scope narrower than request (cross-read-scope PUT) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_25_write_atlas_read_cms_put_cms_reject():
     """FIL-WG-25: write:/atlas read:/cms PUT /cms/wg_fill_25.txt → reject (no write on /cms).
 
@@ -585,6 +610,7 @@ def test_fil_wg_25_write_atlas_read_cms_put_cms_reject():
 # --- Sibling-path rejection (rule 117) ---
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_wg_26_read_atlas_write_cms_put_atlas_reject():
     """FIL-WG-26: read:/atlas write:/cms GET /cms/ok.txt → reject (only read on /atlas not /cms).
 
@@ -746,6 +772,7 @@ def test_fil_aq_11_three_path_scope_get_database_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("token-strict")
 def test_fil_aq_12_strict_port_accept():
     """FIL-AQ-12: read:/ GET /test.txt on strict port 11119 → accept.
 
@@ -820,6 +847,7 @@ def test_fil_nc_01_root_random_string_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_nc_02_webdav_no_auth_header_reject():
     """FIL-NC-02: WebDAV 8446 GET /test.txt with no Authorization header → reject.
 
@@ -835,6 +863,7 @@ def test_fil_nc_02_webdav_no_auth_header_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("s3-token")
 def test_fil_nc_03_s3_no_auth_header_reject():
     """FIL-NC-03: S3 9002 GET /test.txt with no Authorization header → reject.
 
@@ -851,6 +880,7 @@ def test_fil_nc_03_s3_no_auth_header_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_nc_04_webdav_bearer_empty_token_reject():
     """FIL-NC-04: WebDAV 8446 Authorization: Bearer (empty string after scheme) → reject.
 
@@ -879,6 +909,7 @@ def test_fil_nc_05_root_empty_string_token_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("token-strict")
 def test_fil_nc_06_strict_port_no_credential_reject():
     """FIL-NC-06: strict port 11119 empty-string token → reject.
 
@@ -891,6 +922,7 @@ def test_fil_nc_06_strict_port_no_credential_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_nc_07_webdav_wrong_auth_scheme_reject():
     """FIL-NC-07: WebDAV 8446 Authorization: Basic dXNlcjpwYXNz → reject (wrong scheme).
 
@@ -908,6 +940,7 @@ def test_fil_nc_07_webdav_wrong_auth_scheme_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("s3-token")
 def test_fil_nc_08_s3_bearer_garbage_token_reject():
     """FIL-NC-08: S3 9002 Authorization: Bearer garbage.not.jwt → reject.
 
@@ -934,6 +967,7 @@ def test_fil_nc_09_root_three_junk_segments_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_nc_10_webdav_bearer_literal_null_reject():
     """FIL-NC-10: WebDAV 8446 Authorization: Bearer null → reject.
 
@@ -962,6 +996,7 @@ def test_fil_nc_11_root_alg_none_token_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_nc_12_webdav_truncated_sig_reject():
     """FIL-NC-12: WebDAV 8446 truncated-signature token → reject (rule 41).
 
@@ -983,6 +1018,7 @@ def test_fil_nc_12_webdav_truncated_sig_reject():
 # ===========================================================================
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_qt_01_query_authz_bearer_prefix_accept():
     """FIL-QT-01: ?authz=Bearer%20<token> on WebDAV 8446 → accept.
 
@@ -1000,6 +1036,7 @@ def test_fil_qt_01_query_authz_bearer_prefix_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_qt_02_query_authz_raw_token_accept():
     """FIL-QT-02: ?authz=<raw-token> (no Bearer prefix) on WebDAV 8446 → accept.
 
@@ -1017,6 +1054,7 @@ def test_fil_qt_02_query_authz_raw_token_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_qt_03_query_access_token_raw_accept():
     """FIL-QT-03: ?access_token=<raw-token> on WebDAV 8446 → accept.
 
@@ -1033,6 +1071,7 @@ def test_fil_qt_03_query_access_token_raw_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_qt_04_query_alg_none_reject():
     """FIL-QT-04: ?authz=<alg-none token> on WebDAV 8446 → reject.
 
@@ -1049,6 +1088,7 @@ def test_fil_qt_04_query_alg_none_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_qt_05_query_expired_token_reject():
     """FIL-QT-05: ?authz=<expired token> on WebDAV 8446 → reject (rule 10).
 
@@ -1064,6 +1104,7 @@ def test_fil_qt_05_query_expired_token_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_qt_06_query_scope_enforced_on_path_reject():
     """FIL-QT-06: ?authz=<read:/atlas token> path=/cms/ok.txt → reject (scope on query).
 
@@ -1081,6 +1122,7 @@ def test_fil_qt_06_query_scope_enforced_on_path_reject():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_qt_07_query_lowercase_bearer_prefix_accept():
     """FIL-QT-07: ?authz=bearer%20<token> (lowercase "bearer ") → accept (rule 81).
 
@@ -1103,6 +1145,7 @@ def test_fil_qt_07_query_lowercase_bearer_prefix_accept():
 
 
 @pytest.mark.tokenconf
+@pytest.mark.registry_server("webdav-token")
 def test_fil_qt_08_query_no_scope_token_reject():
     """FIL-QT-08: ?authz=<no-scope token> on WebDAV 8446 → reject (rule 112).
 

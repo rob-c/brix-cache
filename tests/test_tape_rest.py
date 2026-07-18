@@ -16,16 +16,15 @@ the API anonymously (allowed because the server requires no auth) over /api/v1/.
 
 import json
 import os
-import socket
-import subprocess
-import time
 import urllib.request
 import urllib.error
 
 import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST, free_port
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 HTTP_PORT = int(os.environ.get("TEST_TAPE_HTTP") or free_port())
 
@@ -56,16 +55,17 @@ def _jbody(b):
         return None
 
 
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
+@pytest.fixture
+def srv(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
-    d = tmp_path_factory.mktemp("taperest")
-    (d / "logs").mkdir()
+    d = tmp_path
     online = d / "online"; online.mkdir()
     tape = d / "realtape"; tape.mkdir()
     cache = d / "cache"; cache.mkdir()
     export = d / "export"; export.mkdir()
+    control = d / "control"; control.mkdir()
+    queue = d / "frm.queue"
 
     (online / "online.dat").write_bytes(b"resident\n")
     (tape / "online.dat").write_bytes(b"resident\n")
@@ -82,45 +82,28 @@ esac
 """)
     stagecmd.chmod(0o755)
 
-    conf = render_config("nginx_tape_rest.conf",
-                         BASE_DIR=d,
-                         STAGECMD=stagecmd,
-                         BIND_HOST=BIND_HOST,
-                         HTTP_PORT=HTTP_PORT,
-                         EXPORT_DIR=export,
-                         ONLINE_DIR=online,
-                         CACHE_DIR=cache)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    deadline = time.time() + 10
-    up = False
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, HTTP_PORT), timeout=0.5).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip("server did not start: %s" % err[-300:])
+    stream_port = free_port(BIND_HOST)
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-tape-rest",
+        template="nginx_lc_tape_rest.conf",
+        protocol="http",
+        extra_ports={"STREAM_PORT": stream_port},
+        template_values={"BIND_HOST": BIND_HOST,
+                         "EXPORT_DIR": str(export),
+                         "ONLINE_DIR": str(online),
+                         "CACHE_DIR": str(cache),
+                         "QUEUE_PATH": str(queue),
+                         "CONTROL_DIR": str(control)},
+        env={"BRIX_FRM_STAGECMD": str(stagecmd)},
+        reason="wlcg tape rest api"))
+
+    global HTTP_PORT
+    HTTP_PORT = ep.port
 
     class S:
         pass
     s = S()
     yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def test_archiveinfo_reports_locality(srv):

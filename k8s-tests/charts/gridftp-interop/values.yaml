@@ -1,0 +1,19 @@
+# gridftp-interop — a brix GridFTP gateway fronting a posix export, exercised by
+# the globus-url-copy / gfal2 interop matrix (remote-suite/tests/test_gridftp_interop.py).
+#
+# The gateway serves the SAME export on two listeners: a GSI-secured gsiftp port
+# and a cleartext ftp port (see topology-role/configs/gridftp_gateway.conf). The
+# GSI leg needs the standard grid-security host credential + trust anchors
+# mounted at /etc/grid-security (provided by the auth-authority chart in the lab
+# release, exactly as the gsi/token roles consume them).
+gridftp:
+  enabled: true
+  role:
+    name: gridftp
+    configKey: gridftp_gateway
+    ports:
+      - { name: gsiftp, port: 2811 }   # GSI control channel (globus-url-copy)
+      - { name: ftp,    port: 2810 }   # cleartext control channel (ftplib)
+    data: { root: /data/xrootd }
+    gridftp:
+      allowWrite: "on"

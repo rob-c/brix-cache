@@ -58,8 +58,31 @@
  *
  * The caller must map 400/404 to the appropriate protocol-level status;
  * for WebDAV COPY/MOVE destinations, 404 should be returned as 409 Conflict.
+ *
+ * This is a thin wrapper over brix_http_resolve_path_ex() with allow_internal=0
+ * — the default-deny behaviour every normal client surface requires.
  */
 int brix_http_resolve_path(const char *root_canon, const char *decoded_path,
     char *out, size_t outsz);
+
+/*
+ * WHAT: Same as brix_http_resolve_path(), plus an allow_internal switch. When
+ *       allow_internal is non-zero the internal-name → 404 guard is skipped so a
+ *       reserved sidecar/staging name (<key>.cinfo, .meta, stage markers, upload
+ *       temps) resolves normally; all other validation (NULL→403, depth/dotdot→403,
+ *       overflow→414) is identical and still runs. Returns 0 or an HTTP status.
+ *
+ * WHY:  A remote WebDAV/S3 cache-STORE endpoint legitimately PUTs and later GETs a
+ *       <key>.cinfo sidecar over the same HTTP surface, so on a location explicitly
+ *       configured as a trusted store (brix_cache_store_endpoint on) the reserved
+ *       name must be a valid target — while every normal client location keeps
+ *       allow_internal=0 and the reserved name stays invisible (404). The switch is
+ *       an explicit per-location opt-in, so default-deny is preserved everywhere.
+ *
+ * HOW:  Runs the NULL/depth/forbidden-component checks, then the internal-name
+ *       check ONLY when allow_internal is zero, then the lexical confined join.
+ */
+int brix_http_resolve_path_ex(const char *root_canon, const char *decoded_path,
+    char *out, size_t outsz, unsigned allow_internal);
 
 #endif /* BRIX_COMPAT_PATH_H */

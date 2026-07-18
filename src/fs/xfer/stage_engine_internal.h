@@ -68,6 +68,27 @@ void stage_journal_write(const stage_pending_t *p);
 void stage_journal_remove(const char *reqid);
 
 /*
+ * Durable-flush FAILURE persistence (write-back / tape write-out).
+ *
+ * A transient (non-denied) async FLUSH failure — the tape/remote origin was
+ * unreachable — must leave a recoverable FAILED record in the journal rather
+ * than being silently lost or left masquerading as QUEUED. Both helpers set
+ * state=BRIX_SREQ_FAILED, stamp last_errno + finished_at, and re-persist the
+ * record to its active journal slot (never dead-letter — a transient failure is
+ * retried by the scheduler tick or the restart reconcile).
+ *
+ * stage_journal_mark_failed reads the on-disk record by reqid (the scheduler
+ * completion path has only the reqid); stage_journal_bump_failed operates on a
+ * record the caller already holds (the reconcile path) and ALSO increments
+ * attempts, so a restart replay that re-drives a still-dead origin records the
+ * re-drive by a higher attempt count.
+ */
+void stage_journal_mark_failed(const char *journal_dir, const char *reqid,
+    int last_errno);
+void stage_journal_bump_failed(const char *journal_dir, brix_sreq_t *rec,
+    int last_errno);
+
+/*
  * The generic inline mover — defined in stage_engine.c, called by the scheduler
  * (inline + thread paths) and the front doors. Moves the whole object `src_key`
  * on `src` to `dst_key` on `dst`, applying optional per-user credential

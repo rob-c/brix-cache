@@ -32,6 +32,31 @@ ngx_int_t brix_signing_enforce_level(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 
 /*
+ * D-1 — brix_min_sec_level: session-posture floor enforced post-handshake.
+ * A separate axis from brix_security_level (which governs kXR_sigver request
+ * SIGNING): this governs the negotiated SESSION's transport/identity posture so
+ * a client cannot walk the connection below the operator's floor.
+ *   none    (0) — no floor (default).
+ *   compat  (1) — the session transport must be TLS-encrypted; a client that
+ *                 finished login/auth in cleartext is refused every data op.
+ *   intense (2) — compat + a non-anonymous authenticated identity (an auth=none
+ *                 listener has no identity to present, so it is below the floor).
+ * Pairs with A-1 so neither the client nor the upstream leg can be downgraded.
+ */
+#define BRIX_MIN_SEC_NONE     0
+#define BRIX_MIN_SEC_COMPAT   1
+#define BRIX_MIN_SEC_INTENSE  2
+
+/*
+ * brix_min_sec_enforce — enforce the configured brix_min_sec_level on the
+ * current (post-session-opcode) data/metadata request.  Refuses a below-floor
+ * session with kXR_TLSRequired (cleartext) or kXR_NotAuthorized (anonymous
+ * under intense).  Returns BRIX_DISPATCH_CONTINUE when at or above the floor.
+ */
+ngx_int_t brix_min_sec_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
+
+/*
  * brix_dispatch_require_login — reject the request with kXR_NotAuthorized if
  * the session has not completed kXR_login yet.
  *

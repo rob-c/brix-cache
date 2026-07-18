@@ -250,6 +250,9 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
                                 brix_vfs_export_relative(ctx, path),
                                 brix_vfs_to_sd_flags(flags), 0644,
                                 use_cred ? &ucred : NULL, &sderr);
+    /* The origin session (if any) has consumed the per-user secret; erase the
+     * worker-stack copy now so it does not outlive the open (A-4 / T4). */
+    brix_sd_ucred_wipe(&ustore);
     if (o == NULL) {
         brix_vfs_open_set_err(err_out, sderr);
         errno = sderr;

@@ -54,6 +54,7 @@ from settings import (
     BIND_HOST,
     CA_DIR,
     HOST,
+    NGINX_BIN,
     PKI_DIR,
     SERVER_CERT,
     SERVER_KEY,
@@ -63,8 +64,11 @@ from settings import (
     VOMS_KEY,
     VOMSDIR,
 )
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+pytestmark = pytest.mark.uses_lifecycle_harness
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
@@ -82,14 +86,6 @@ CHAOS_FQAN = "/chaos/Role=NULL/Capability=NULL"
 # ---------------------------------------------------------------------------
 # small helpers
 # ---------------------------------------------------------------------------
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
 
 def _clean_env(extra=None):
     """Env with all ambient credential vars stripped (so each call is explicit)."""
@@ -161,19 +157,6 @@ def _mint_voms_proxy(out):
                    check=True, capture_output=True)
 
 
-def _start_nginx(conf_path):
-    t = subprocess.run([NGINX_BIN, "-t", "-c", conf_path],
-                       capture_output=True, text=True)
-    assert t.returncode == 0, f"nginx -t failed for {conf_path}:\n{t.stderr}"
-    r = subprocess.run([NGINX_BIN, "-c", conf_path], capture_output=True, text=True)
-    assert r.returncode == 0, f"nginx start failed for {conf_path}:\n{r.stderr}"
-
-
-def _stop_nginx(conf_path):
-    subprocess.run([NGINX_BIN, "-c", conf_path, "-s", "quit"],
-                   capture_output=True)
-
-
 def _master_pid(pidfile):
     try:
         with open(pidfile) as f:
@@ -197,10 +180,17 @@ def _alive(pid):
 # ---------------------------------------------------------------------------
 
 class Inst:
-    def __init__(self, name, port, conf, pidfile, logfile):
+    """Registry handle for one mesh instance.
+
+    ``regname`` is the base registry name the LifecycleHarness owns (it appends a
+    per-pid suffix internally); ``pidfile``/``logfile`` come from the rendered
+    endpoint so the crash checks read exactly the launcher's files.
+    """
+
+    def __init__(self, name, regname, port, pidfile, logfile):
         self.name = name
+        self.regname = regname
         self.port = port
-        self.conf = conf
         self.pidfile = pidfile
         self.logfile = logfile
 
@@ -256,115 +246,99 @@ def mesh(tmp_path_factory):
     sss_data.mkdir()
     (gsi_data / "probe.txt").write_bytes(payload_gsi)
     (sss_data / "probe.txt").write_bytes(payload_sss)
+    # cache-gsi's own (empty) export root + posix read-cache store live outside
+    # the launcher prefix so the seeded data stays authoritative on the origin.
+    cache_gsi_export = root / "cache-gsi-export"
+    cache_gsi_store = root / "cache-gsi-store"
+    cache_gsi_export.mkdir()
+    cache_gsi_store.mkdir()
 
+    # The whole mesh is driven through the registry (LifecycleHarness): each
+    # instance renders a committed tests/configs/nginx_chaos_*.conf, runs
+    # `nginx -t`, launches, and is reaped on close().  Origins start first so the
+    # anon fronts can wire their upstream to the origin's launcher-assigned port.
+    harness = LifecycleHarness()
     insts = {}
 
-    def mk(name, body):
-        d = root / name
-        (d / "conf").mkdir(parents=True)
-        (d / "logs").mkdir(parents=True)
-        if not (d / "data").exists():
-            (d / "data").mkdir(parents=True)
-        (d / "cache").mkdir(parents=True, exist_ok=True)  # tier cache_store dir
-        port = _free_port()
-        conf = str(d / "conf" / "nginx.conf")
-        pidf = str(d / "logs" / "nginx.pid")
-        logf = str(d / "logs" / "error.log")
-        with open(conf, "w") as f:
-            f.write(body(port, d, pidf, logf))
-        insts[name] = Inst(name, port, conf, pidf, logf)
-        return insts[name]
+    def _inst(name, regname, endpoint):
+        inst = Inst(name, regname, endpoint.port, endpoint.pidfile,
+                    os.path.join(endpoint.prefix, "logs", "error.log"))
+        insts[name] = inst
+        return inst
 
-    # gsi-origin (X.509 backend)
-    gsi_origin = mk("gsi-origin", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
-events {{ worker_connections 128; }}
-stream {{ server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_export {gsi_data};
-    brix_auth gsi;
-    brix_certificate     {SERVER_CERT};
-    brix_certificate_key {SERVER_KEY};
-    brix_trusted_ca      {CA_DIR}/ca.pem;
-}} }}
-""")
+    try:
+        # gsi-origin (X.509 backend)
+        gsi_ep = harness.start(NginxInstanceSpec(
+            name="chaos-gsi-origin",
+            template="nginx_chaos_gsi_origin.conf",
+            protocol="root",
+            data_root=str(gsi_data),
+            readiness="tcp",
+            template_values={"BIND_HOST": BIND_HOST,
+                             "SERVER_CERT": SERVER_CERT,
+                             "SERVER_KEY": SERVER_KEY,
+                             "TRUSTED_CA": f"{CA_DIR}/ca.pem"},
+            reason="Chaos mixed-auth GSI origin data server.",
+        ))
+        gsi_origin = _inst("gsi-origin", "chaos-gsi-origin", gsi_ep)
 
-    # sss-origin (SSS backend)
-    sss_origin = mk("sss-origin", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
-events {{ worker_connections 128; }}
-stream {{ server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_export {sss_data};
-    brix_auth sss;
-    brix_sss_keytab {kt};
-}} }}
-""")
+        # sss-origin (SSS backend)
+        sss_ep = harness.start(NginxInstanceSpec(
+            name="chaos-sss-origin",
+            template="nginx_chaos_sss_origin.conf",
+            protocol="root",
+            data_root=str(sss_data),
+            readiness="tcp",
+            template_values={"BIND_HOST": BIND_HOST, "KEYTAB": kt},
+            reason="Chaos mixed-auth SSS origin data server.",
+        ))
+        sss_origin = _inst("sss-origin", "chaos-sss-origin", sss_ep)
 
-    # cache-gsi: anon front, X.509 UPSTREAM auth to gsi-origin (phase-64 tier
-    # grammar: the GSI origin is the storage backend, its credential a named
-    # brix_credential block, the local read cache a posix cache_store).
-    cache_gsi = mk("cache-gsi", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
-events {{ worker_connections 128; }}
-thread_pool chaos_cache threads=2 max_queue=8192;
-stream {{
-brix_credential chaosgsi {{ x509_proxy {proxy_pem}; ca_dir {CA_DIR}; }}
-server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_export {d}/data;
-    brix_auth none;
-    brix_allow_write off;
-    brix_thread_pool chaos_cache;
-    brix_storage_backend root://{BIND_HOST}:{gsi_origin.port};
-    brix_storage_credential chaosgsi;
-    brix_cache_store posix:{d}/cache;
-    brix_cache_export /;
-}} }}
-""")
+        # cache-gsi: anon front, X.509 UPSTREAM auth to gsi-origin.
+        cache_ep = harness.start(NginxInstanceSpec(
+            name="chaos-cache-gsi",
+            template="nginx_chaos_cache_gsi.conf",
+            protocol="root",
+            data_root=str(cache_gsi_export),
+            readiness="tcp",
+            template_values={"BIND_HOST": BIND_HOST,
+                             "PROXY_PEM": proxy_pem,
+                             "CA_DIR": CA_DIR,
+                             "GSI_ORIGIN_PORT": gsi_origin.port,
+                             "CACHE_DIR": str(cache_gsi_store)},
+            reason="Chaos mixed-auth anon front, X.509 upstream to gsi-origin.",
+        ))
+        cache_gsi = _inst("cache-gsi", "chaos-cache-gsi", cache_ep)
 
-    # proxy-sss: anon front, SSS UPSTREAM auth to sss-origin
-    proxy_sss = mk("proxy-sss", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
-events {{ worker_connections 128; }}
-stream {{ server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_auth none;
-    brix_tap_proxy on;
-    brix_tap_proxy_auth sss;
-    brix_sss_keytab {kt};
-    brix_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
-}} }}
-""")
+        # proxy-sss: anon front, SSS UPSTREAM auth to sss-origin.
+        proxy_ep = harness.start(NginxInstanceSpec(
+            name="chaos-proxy-sss",
+            template="nginx_chaos_proxy_sss.conf",
+            protocol="root",
+            readiness="tcp",
+            template_values={"BIND_HOST": BIND_HOST, "KEYTAB": kt,
+                             "SSS_ORIGIN_PORT": sss_origin.port},
+            reason="Chaos mixed-auth anon front, SSS upstream to sss-origin.",
+        ))
+        proxy_sss = _inst("proxy-sss", "chaos-proxy-sss", proxy_ep)
 
-    # proxy-sss-bad: SSS upstream with the WRONG keytab (negative path)
-    proxy_bad = mk("proxy-sss-bad", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
-events {{ worker_connections 128; }}
-stream {{ server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_auth none;
-    brix_tap_proxy on;
-    brix_tap_proxy_auth sss;
-    brix_sss_keytab {kt_bad};
-    brix_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
-}} }}
-""")
-
-    for inst in insts.values():
-        _start_nginx(inst.conf)
-    for inst in insts.values():
-        if not _wait_port(inst.port):
-            for i2 in insts.values():
-                _stop_nginx(i2.conf)
-            pytest.skip(f"{inst.name} never came up on {inst.port}")
+        # proxy-sss-bad: SSS upstream with the WRONG keytab (negative path).
+        proxy_bad_ep = harness.start(NginxInstanceSpec(
+            name="chaos-proxy-sss-bad",
+            template="nginx_chaos_proxy_sss.conf",
+            protocol="root",
+            readiness="tcp",
+            template_values={"BIND_HOST": BIND_HOST, "KEYTAB": kt_bad,
+                             "SSS_ORIGIN_PORT": sss_origin.port},
+            reason="Chaos mixed-auth negative front, wrong SSS upstream keytab.",
+        ))
+        proxy_bad = _inst("proxy-sss-bad", "chaos-proxy-sss-bad", proxy_bad_ep)
+    except Exception:
+        harness.close()
+        raise
 
     ctx = {
+        "harness": harness,
         "insts": insts,
         "cache_gsi": cache_gsi,
         "proxy_sss": proxy_sss,
@@ -376,8 +350,7 @@ stream {{ server {{
     }
     yield ctx
 
-    for inst in insts.values():
-        _stop_nginx(inst.conf)
+    harness.close()
     time.sleep(0.3)
 
 
@@ -456,6 +429,7 @@ def test_sss_wrong_upstream_key_rejected(mesh):
 
 def test_chaos_concurrent_mixed_auth_with_restarts(mesh):
     rng = random.Random(0xC4A05)
+    harness = mesh["harness"]
     fronts = [("x509", mesh["cache_gsi"].port, mesh["payload_gsi"]),
               ("sss", mesh["proxy_sss"].port, mesh["payload_sss"])]
     backends = [mesh["gsi_origin"], mesh["sss_origin"]]
@@ -489,10 +463,9 @@ def test_chaos_concurrent_mixed_auth_with_restarts(mesh):
                 break
             time.sleep(0.4)
             b = backends[rng.randrange(len(backends))]
-            _stop_nginx(b.conf)
+            harness.stop(b.regname)
             time.sleep(rng.uniform(0.1, 0.3))
-            _start_nginx(b.conf)
-            _wait_port(b.port)
+            harness.start_registered(b.regname)   # re-renders, launches, waits ready
 
     workers = [threading.Thread(target=worker, args=(i,)) for i in range(12)]
     agent = threading.Thread(target=chaos_agent)
@@ -507,8 +480,7 @@ def test_chaos_concurrent_mixed_auth_with_restarts(mesh):
     # Make sure the backends are up for the final assertions.
     for b in backends:
         if not _wait_port(b.port, tries=20):
-            _start_nginx(b.conf)
-            _wait_port(b.port)
+            harness.start_registered(b.regname)   # re-renders, launches, waits ready
 
     # 1) Nothing crashed — every instance's master is alive, no fatal signals.
     for inst in mesh["insts"].values():

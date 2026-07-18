@@ -383,9 +383,14 @@ sd_cache_close(brix_sd_obj_t *obj)
         free(p->bitmap);
         free(p);
     }
-    if (obj != NULL && obj->heap_shell) {
-        free(obj);
-    }
+    /* The shell is NOT freed here. driver->close releases the decorator state
+     * (source obj + cache fd + bitmap) only; the malloc'd shell (heap_shell) is
+     * owned by the caller that holds the object by pointer — brix_sd_obj_release()
+     * and the VFS adopt-fail path both do `close(o); if (o->heap_shell) free(o);`,
+     * and brix_vfs_adopt_obj() frees the original after copying it by value (and
+     * zeroes heap_shell on the embedded copy). Freeing it here double-frees the
+     * shell the moment this object is released by pointer or an adopt fails.
+     */
     return NGX_OK;
 }
 

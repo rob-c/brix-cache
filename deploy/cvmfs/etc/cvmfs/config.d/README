@@ -1,0 +1,13 @@
+Per-repository configuration for CVMFS-brix.
+
+A file named <fqrn>.conf here (e.g. atlas.cern.ch.conf) does two things:
+
+  1. Its KEY=value lines override the domain defaults for that repository
+     (cascade order: default.conf, default.d/*.conf, domain.d/<domain>.conf,
+     config.d/<fqrn>.conf, default.local).
+  2. Its presence "ghost-lists" the repository in the `brixMount autofs`
+     umbrella: the name shows up in a /cvmfs directory listing before the
+     repository is mounted, exactly like the stock autofs --ghost behaviour.
+
+An empty (or comment-only) <fqrn>.conf is therefore a valid way to advertise
+a repository that needs no per-repo overrides.

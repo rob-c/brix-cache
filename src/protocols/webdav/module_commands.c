@@ -58,6 +58,18 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       0,
       NULL },
 
+    /* Trusted remote cache-STORE endpoint (default OFF). When ON, this location
+     * permits internal sidecar names (<key>.cinfo/.meta/stage markers) as request
+     * targets so a cache node's origin-facing endpoint can PUT/GET them. Like
+     * brix_ktls above the shared setter writes BOTH the WebDAV and S3 loc-confs,
+     * so an S3-only store location is covered too. */
+    { ngx_string("brix_cache_store_endpoint"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      brix_http_set_cache_store_endpoint,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
     /* XrdAcc engine — registered once here; the shared setters populate both
      * the WebDAV and S3 loc-confs (valid in any http location). */
     { ngx_string("brix_authdb"),
@@ -201,6 +213,39 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, proxy_certs),
+      NULL },
+
+    /* Hashed CA directory added to the server's TLS client-verify store —
+     * lets ssl_verify_client trust /etc/grid-security/certificates directly
+     * (stock ssl_client_certificate is file-only).  Server-level, like
+     * brix_webdav_proxy_certs above. */
+    { ngx_string("brix_ssl_client_capath"),
+      NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, ssl_client_capath),
+      NULL },
+
+    /* Parse-time auto-pick of ssl_client_certificate from a hashed CA dir:
+     * resolves the <hash>.N file matching the issuer of the server's own
+     * ssl_certificate leaf and hands it to the stock directive machinery.
+     * Server-level only; must appear after ssl_certificate (handler enforces). */
+    { ngx_string("brix_client_certificate_folder"),
+      NGX_HTTP_SRV_CONF | NGX_CONF_TAKE1,
+      webdav_conf_client_cert_folder,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Hashed CA dir for the proxy back leg (proxy_ssl_verify): seeds the
+     * stock proxy_ssl_trusted_certificate with one <hash>.N file at parse
+     * time and adds the whole dir to the upstream SSL_CTX at postconfig.
+     * Location-exact — deliberately not merged/inherited. */
+    { ngx_string("brix_proxy_ssl_capath"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      webdav_conf_proxy_ssl_capath,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
       NULL },
 
     /* brix_allow_write / brix_read_only are owned by ngx_http_brix_common_module. */

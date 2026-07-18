@@ -185,6 +185,15 @@
       offsetof(ngx_stream_brix_srv_conf_t, common.allow_write),
       NULL },
 
+    /* Read-back CRC verify for whole-object staged writes (root:// upload to a
+     * non-random-write backend); off by default. Folds through brix_vfs_writer. */
+    { ngx_string("brix_verify_write"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.verify_write),
+      NULL },
+
     /* Hard read-only: when on, forces allow_write off so all writes are rejected
      * at the protocol edge (before the VFS, before token scope). Overrides
      * brix_allow_write on. */

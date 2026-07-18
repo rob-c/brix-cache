@@ -48,8 +48,11 @@ note matters: this is the `brix_rate_limit_zone` / `_rule` / `_bandwidth` /
 
 ## Key types & data structures
 
-- **`brix_rl_key_type_t`** (`ratelimit.h`) — the five identity dimensions:
-  `VO`, `ISSUER`, `IP`, `DN`, `VOLUME` (path-prefix match on `key_match`).
+- **`brix_rl_key_type_t`** (`ratelimit.h`) — the six identity dimensions:
+  `VO`, `ISSUER`, `IP`, `DN`, `SUBJECT` (WLCG/JWT token subject), `VOLUME`
+  (path-prefix match on `key_match`). `DN` and `SUBJECT` are FNV-1a32-hashed into
+  `dn:<8 hex>` / `sub:<8 hex>` so no raw identity reaches a metric label
+  (INVARIANT #8); both fall back to the client IP for an anonymous connection.
 - **`brix_rl_node_t`** — one slab-allocated per-principal bucket. `node.key`
   is the FNV-1a32 hash of the key string (rbtree ties broken by `key_str`
   bytes); carries `req_excess` (request bucket, stored ×1000 so a 1-request
@@ -101,7 +104,7 @@ brix_bandwidth_limit   zone=vo_limits key=volume:/store/tape rate=50m/s burst=10
 brix_concurrency_limit zone=vo_limits key=vo limit=16;
 ```
 
-`key=` accepts `vo | issuer | ip | dn | volume:<prefix>`; `zone=`, `key=`, and
+`key=` accepts `vo | issuer | ip | dn | subject | volume:<prefix>`; `zone=`, `key=`, and
 `rate=`/`limit=` are required (a zone unknown at rule-parse time is a hard config
 error).
 

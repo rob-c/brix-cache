@@ -66,6 +66,7 @@ extern int        g_max_stall;
 extern brix_mgr  *g_mgr;
 extern brix_opts  g_opts;
 extern brix_pool *g_pool;
+extern struct brix_cpool *g_web_pool;   /* Phase-86: pooled WebDAV metadata (web mounts) */
 extern size_t     g_readahead;
 extern int        g_streams;
 extern brix_url   g_url;

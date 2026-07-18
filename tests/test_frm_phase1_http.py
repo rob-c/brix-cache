@@ -20,27 +20,24 @@ the build serves S3 only with signed requests.
 """
 
 import os
-import socket
-import subprocess
-import time
 import urllib.request
 import urllib.error
 
 import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST, free_port
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
 
-# This is a SELF-CONTAINED server (its own nginx on its own ports).  The fixed
-# 11217/11218 it used to hard-code fall INSIDE the managed fleet's port range
-# (11094-11247), so when the suite runs with the fleet up the stream listener
-# hits "bind() to :11217 failed (Address already in use)" and the whole instance
-# fails to start — leaving /metrics unreachable.  Bind OS-assigned free ports
-# instead (overridable via env for debugging).
-STREAM_PORT = int(os.environ.get("TEST_FRM_P1_STREAM") or free_port())
-HTTP_PORT = int(os.environ.get("TEST_FRM_P1_HTTP") or free_port())
-S3_PORT = int(os.environ.get("TEST_FRM_P1_S3") or free_port())
-WEBDAV_PORT = int(os.environ.get("TEST_FRM_P1_WEBDAV") or free_port())
+pytestmark = pytest.mark.uses_lifecycle_harness
+
+# Ports are bound at fixture time: the primary /metrics HTTP listener comes from
+# the registry endpoint (HTTP_PORT); the secondary stream/S3/WebDAV listeners get
+# OS-assigned free ports passed through as extra_ports.  The fleet's fixed range
+# (11094-11247) is thereby avoided without hard-coding anything.
+STREAM_PORT = None
+HTTP_PORT = None
+S3_PORT = None
+WEBDAV_PORT = None
 
 
 from frm_helpers import xattr_ok as _xattr_ok
@@ -60,65 +57,45 @@ def _http(method, path, body=None, headers=None, timeout=5, port=None):
         return None, {}, b""
 
 
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
+@pytest.fixture
+def srv(lifecycle, tmp_path):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
-    d = tmp_path_factory.mktemp("frmp1")
+    d = tmp_path
     if not _xattr_ok(str(d)):
         pytest.skip("filesystem does not support user xattrs")
 
-    (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
     (data / "online.dat").write_bytes(b"resident-bytes\n")
     near = data / "near.dat"
     near.write_bytes(b"")
     os.setxattr(str(near), "user.frm.residency", b"nearline")
 
-    conf = render_config("nginx_frm_phase1_http.conf",
-                         BASE_DIR=d,
-                         DATA_DIR=data,
-                         BIND_HOST=BIND_HOST,
-                         STREAM_PORT=STREAM_PORT,
-                         HTTP_PORT=HTTP_PORT,
-                         S3_PORT=S3_PORT,
-                         WEBDAV_PORT=WEBDAV_PORT)
-    cp = d / "nginx.conf"
-    cp.write_text(conf)
+    stream_port = free_port()
+    s3_port = free_port()
+    webdav_port = free_port()
 
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name="lc-frm-phase1-http",
+        template="nginx_lc_frm_phase1_http.conf",
+        protocol="http",
+        extra_ports={"STREAM_PORT": stream_port,
+                     "S3_PORT": s3_port,
+                     "WEBDAV_PORT": webdav_port},
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
+        reason="frm phase-1 http staging"))
 
-    proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    deadline = time.time() + 10
-    up = False
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, HTTP_PORT), timeout=0.5).close()
-            socket.create_connection((HOST, S3_PORT), timeout=0.5).close()
-            socket.create_connection((HOST, WEBDAV_PORT), timeout=0.5).close()
-            up = True
-            break
-        except OSError:
-            time.sleep(0.1)
-    if not up:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip("server did not start: %s" % err[-300:])
+    global STREAM_PORT, HTTP_PORT, S3_PORT, WEBDAV_PORT
+    HTTP_PORT = endpoint.port
+    STREAM_PORT = stream_port
+    S3_PORT = s3_port
+    WEBDAV_PORT = webdav_port
 
     class S:
         pass
     s = S()
     s.data = str(data)
     yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def test_metrics_exposes_frm_families(srv):

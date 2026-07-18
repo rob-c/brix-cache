@@ -82,6 +82,14 @@ brix_upstream_tls_handshake_done(ngx_connection_t *uconn)
         return;
     }
 
+    /* Belt-and-braces: when verification is enabled on the CTX a bad chain/host
+     * already fails the handshake above; this makes the trust decision explicit
+     * and survives refactors. Harmless (X509_V_OK) when verification is off. */
+    if (SSL_get_verify_result(uconn->ssl->connection) != X509_V_OK) {
+        brix_upstream_abort(up, "upstream: TLS peer verification failed");
+        return;
+    }
+
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
                    "brix: upstream TLS handshake done; resending kXR_login");
 

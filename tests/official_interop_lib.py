@@ -21,8 +21,7 @@ import socket
 import subprocess
 import time
 
-from config_templates import render_config
-from settings import NGINX_BIN, TEST_ROOT
+from settings import TEST_ROOT
 
 BIND = "127.0.0.1"
 
@@ -53,10 +52,12 @@ os.umask(0)
 # (possibly on another xdist worker) and MUST be preserved. See
 # _wipe_stale_working_files().
 _IMPORT_TIME = time.time()
-# Legacy self-start defaults (kept for the few callers — test_official_interop.py,
-# test_deep_tree_special_files.py — that still drive start_our_server/
-# start_official_server directly; the differential srv fixtures now ATTACH to the
-# fleet, see start_pair / FLEET_* below).
+# Default ports for the standalone start_our_server / start_official_server pair
+# (test_official_interop.py, test_deep_tree_special_files.py).  start_our_server
+# now drives our nginx through the registry LifecycleHarness (port-pinned to the
+# caller's worker_port band); start_official_server still spawns the stock xrootd
+# daemon directly.  The differential srv fixtures instead spin an in-process pair
+# via start_pair — see start_pair / FLEET_* below.
 OUR_PORT = 13990
 OFF_PORT = 13991
 
@@ -478,24 +479,37 @@ def _wait_both(t=15.0):
     return _wait(FLEET_OUR_PORT, t) and _wait(FLEET_OFF_PORT, t)
 
 
-def start_pair(base, rich=True, our_port=OUR_PORT, off_port=OFF_PORT):
-    """ATTACH to the fleet's shared interop pair and seed the deterministic tree.
+_PAIR_SEQ = 0
 
-    No server is spun up here: the fleet starts our nginx-xrootd ("interop-our",
-    FLEET_OUR_PORT / FLEET_OUR_DATA) and the stock xrootd ("interop-off",
-    FLEET_OFF_PORT / FLEET_OFF_DATA) exactly once in start_all_dedicated, and every
-    conf module simply attaches — the same shape as tests/test_zip_member.py. The
-    `base`, `our_port`, `off_port` and `rich` arguments are kept for signature
-    compatibility with the old self-provisioning harness; `base` is unused and the
-    ports are fixed by the fleet (a module that hard-shifted ports would otherwise
-    reach a server that does not exist).
 
-    Returns (procs, ctx) with procs == [] (stop_pair is then a no-op — the fleet
-    owns lifecycle) and ctx carrying the same keys callers already use: our/off
-    root:// urls, our_data/off_data disk roots, and our_port/off_port for the
-    raw-wire clients. Raises RuntimeError if the fleet pair is not listening, so
-    the existing `except RuntimeError: pytest.skip(...)` in every srv fixture
-    turns a missing fleet into a clean skip (never a fixture ERROR)."""
+def start_pair(base=None, rich=True, our_port=None, off_port=None):
+    """Provision an in-process differential pair via the registry LifecycleHarness.
+
+    The differential-conformance fleet is no longer a fixed-port cross-process
+    standing fleet attached-to via start_all_dedicated; each conf module spins its
+    OWN pair in-process on dynamically-allocated ports, orchestrated by a
+    LifecycleHarness this call owns:
+      * "our server"  — our nginx-xrootd, template ``nginx_lc_interop_our.conf``
+      * "off server"  — the STOCK xrootd, kind="xrootd", template
+                        ``xrootd_interop_anon.cfg`` (the launcher spawns the real
+                        daemon and reaps its process group on teardown)
+    Both export the byte-identical deterministic tree seeded on FLEET_OUR_DATA /
+    FLEET_OFF_DATA. Under the in-process harness both servers run as the invoking
+    user, so their kXR stat flags already agree without root/nobody harmonisation
+    (harmonize_perms/chown_stock stay as belt-and-braces no-ops off-root).
+
+    The ``base``, ``our_port`` and ``off_port`` arguments are retained for
+    signature compatibility with the ~33 existing srv fixtures — they are ignored;
+    the harness owns port allocation. Returns (procs, ctx) where procs == the
+    owning harness list (stop_pair closes it) and ctx carries the same keys
+    callers use: our/off root:// urls, our_data/off_data disk roots, and
+    our_port/off_port for the raw-wire clients. Raises RuntimeError on launch
+    failure so each srv fixture's ``except RuntimeError: pytest.skip(...)`` turns a
+    missing toolchain / launch error into a clean skip, never a fixture ERROR."""
+    global _PAIR_SEQ
+    from server_launcher import LifecycleHarness
+    from server_registry import NginxInstanceSpec
+
     try:
         os.makedirs(FLEET_OUR_DATA, exist_ok=True)
         os.makedirs(FLEET_OFF_DATA, exist_ok=True)
@@ -507,19 +521,32 @@ def start_pair(base, rich=True, our_port=OUR_PORT, off_port=OFF_PORT):
         tree(FLEET_OUR_DATA)
         tree(FLEET_OFF_DATA)
         harmonize_perms(FLEET_OUR_DATA, FLEET_OFF_DATA)
-        # Give `nobody` ownership of the stock tree so its chmod/chown parity
-        # (owner-gated by POSIX) matches our root-run server (root cause #2).
         chown_stock(FLEET_OFF_DATA)
     except Exception as exc:                      # noqa: BLE001 — re-raise as skip
         raise RuntimeError(f"interop tree seed failed: {exc}") from exc
-    if not _wait_both():
-        raise RuntimeError(
-            f"fleet interop pair not listening on {FLEET_OUR_PORT}/{FLEET_OFF_PORT}"
-            " (start_all_dedicated must launch interop-our + interop-off)")
-    ctx = {"our": our_url(FLEET_OUR_PORT), "off": off_url(FLEET_OFF_PORT),
+
+    _PAIR_SEQ += 1
+    tag = "%s-%d" % (worker_tag(), _PAIR_SEQ)
+    harness = LifecycleHarness()
+    try:
+        our_ep = harness.start(NginxInstanceSpec(
+            name="lc-interop-our-%s" % tag,
+            template="nginx_lc_interop_our.conf",
+            protocol="root", readiness="tcp",
+            data_root=FLEET_OUR_DATA))
+        off_ep = harness.start(NginxInstanceSpec(
+            name="lc-interop-off-%s" % tag,
+            template="xrootd_interop_anon.cfg",
+            kind="xrootd", protocol="root", readiness="tcp",
+            data_root=FLEET_OFF_DATA))
+    except Exception as exc:                      # noqa: BLE001 — clean up, re-raise as skip
+        harness.close()
+        raise RuntimeError(f"interop pair launch failed: {exc}") from exc
+
+    ctx = {"our": our_url(our_ep.port), "off": off_url(off_ep.port),
            "our_data": FLEET_OUR_DATA, "off_data": FLEET_OFF_DATA,
-           "our_port": FLEET_OUR_PORT, "off_port": FLEET_OFF_PORT}
-    return [], ctx
+           "our_port": our_ep.port, "off_port": off_ep.port}
+    return [harness], ctx
 
 
 def _kill_proc(p):
@@ -548,8 +575,12 @@ def _kill_proc(p):
 
 
 def stop_pair(procs):
-    for p in procs:
-        _kill_proc(p)
+    for item in procs:
+        close = getattr(item, "close", None)
+        if callable(close):
+            item.close()          # in-process LifecycleHarness owns the pair
+        else:
+            _kill_proc(item)      # stock-xrootd Popen (start_official_server)
 
 
 def err_code(stderr_or_out):
@@ -565,17 +596,31 @@ def err_code(stderr_or_out):
 
 
 def start_our_server(base, data, port=OUR_PORT):
-    cfg = os.path.join(base, "our.conf")
-    with open(cfg, "w") as f:
-        f.write(render_config("nginx_official_interop_anon.conf",
-                              BASE_DIR=base,
-                              BIND_HOST=BIND,
-                              PORT=port,
-                              DATA_DIR=data))
-    p = subprocess.Popen([NGINX_BIN, "-c", cfg, "-p", base],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
-    return p if _wait(port) else None
+    """Start our nginx-xrootd anon server over ``data`` via the registry harness.
+
+    Returns the owning ``LifecycleHarness`` (truthy; tear down with
+    ``stop_pair([...])``, which routes it through ``.close()``), or ``None`` if
+    it failed to come up so the two direct callers — test_official_interop.py's
+    ``srv`` fixture and test_deep_tree_special_files.py's ``our`` fixture — keep
+    their ``if not proc: pytest.skip(...)`` contract.  The port is pinned to the
+    caller's ``port`` (a worker_port band) so ``our_url(port)`` still names the
+    live listener; ``base`` is retained for signature compatibility (the harness
+    owns its own prefix)."""
+    from server_launcher import LifecycleHarness
+    from server_registry import NginxInstanceSpec
+
+    harness = LifecycleHarness()
+    try:
+        harness.start(NginxInstanceSpec(
+            name="off-interop-our-%d" % port,
+            template="nginx_official_interop_anon.conf",
+            port=port, protocol="root", readiness="tcp",
+            data_root=data,
+            template_values={"BIND_HOST": BIND}))
+    except Exception:                                 # launch/bind failure -> clean skip
+        harness.close()
+        return None
+    return harness
 
 
 def start_official_server(base, data, port=OFF_PORT):

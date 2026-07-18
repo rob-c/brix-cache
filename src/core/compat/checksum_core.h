@@ -43,6 +43,20 @@ int brix_cksum_u64_obj(int kind, brix_sd_obj_t *obj, uint64_t *out);
 int brix_cksum_digest_obj(int kind, brix_sd_obj_t *obj, unsigned char *out,
                             unsigned int *outlen);
 
+/* Ranged variants — sum only the byte extent [start, start+len) instead of the
+ * whole object (the GridFTP CKSM off/len form, and any partial-range integrity
+ * check). start >= 0 is the first byte; len < 0 means "to EOF" (so (0, -1) is the
+ * whole object, and the plain _obj entries above are exactly that wrapper). A
+ * range that runs past EOF is clamped to the bytes that exist; start at/after EOF
+ * sums zero bytes (the kind's empty-input value). start < 0 ⇒ -1. Return 0 / -1. */
+int brix_cksum_u32_obj_range(int kind, brix_sd_obj_t *obj, off_t start,
+                             off_t len, uint32_t *out);
+int brix_cksum_u64_obj_range(int kind, brix_sd_obj_t *obj, off_t start,
+                             off_t len, uint64_t *out);
+int brix_cksum_digest_obj_range(int kind, brix_sd_obj_t *obj, off_t start,
+                                off_t len, unsigned char *out,
+                                unsigned int *outlen);
+
 /* Whole-file (pread from offset 0) 32-bit checksum for ADLER32/CRC32/CRC32C into
  * *out. Returns 0 / -1 (errno set on a read failure). */
 int brix_cksum_u32_fd(int kind, int fd, uint32_t *out);

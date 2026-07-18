@@ -14,14 +14,13 @@ so the throwaway server certificate never matters; only the CLIENT credential
 
 from __future__ import annotations
 
-import os
-import shutil
-import signal
 import subprocess
 import time
 from pathlib import Path
 
 import settings
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
 _SERVER_CERT: Path | None = None
 _SERVER_KEY: Path | None = None
@@ -46,104 +45,82 @@ def _ensure_server_cert(base: Path) -> tuple[Path, Path]:
 
 
 class WlcgInstance:
+    """A davs:// x509-conformance server, driven through the registry harness.
+
+    Each instance renders the committed ``nginx_wlcg_conformance.conf`` template
+    (shared with :class:`wlcg_conformance_fleet.ConformanceFleet`) via its own
+    ``LifecycleHarness`` — no nginx config is hand-rolled and no nginx process is
+    launched directly.  The port is registry-allocated and exposed as
+    ``davs_port`` for :meth:`attempt_davs`; ``reload()`` re-signals the same
+    instance so a hot change to the on-disk CA/CRL material takes effect without
+    a config-text change, exactly as the old ``-s reload`` path did.
+    """
+
+    _SEQ = 0
+
     def __init__(self, prefix, ca_dir=None, *, cafile=None, signing_policy="on",
                  crl="", crl_mode="try"):
         self.prefix = Path(prefix)
-        self.ca_dir = Path(ca_dir) if ca_dir else None
-        self.cafile = Path(cafile) if cafile else None
-        self.signing_policy = signing_policy
-        self.crl = crl
-        self.crl_mode = crl_mode
-
-        self.logs = self.prefix / "logs"
         self.data = self.prefix / "data"
-        self.tmp = self.prefix / "tmp"
-        for d in (self.prefix, self.logs, self.data, self.tmp):
-            d.mkdir(parents=True, exist_ok=True)
-        self.conf = self.prefix / "nginx.conf"
-        self.error_log = self.logs / "error.log"
-        (self.davs_port,) = settings.free_ports(1)
-        self._server_cert, self._server_key = _ensure_server_cert(
-            Path(settings.TEST_ROOT))
+        self.data.mkdir(parents=True, exist_ok=True)
+        cert, key = _ensure_server_cert(Path(settings.TEST_ROOT))
 
-    # -- config ------------------------------------------------------------- #
-    def render(self):
-        crl_line = (f"            brix_webdav_crl {self.crl};\n"
-                    if self.crl else "")
-        if self.cafile is not None:
-            ca_line = f"            brix_webdav_cafile   {self.cafile};\n"
+        # Whole-line trust/CRL injections, matching the template's {CA_LINE} /
+        # {CRL_LINE} seams (12-space indent + trailing newline baked in).
+        if cafile is not None:
+            ca_line = f"            brix_webdav_cafile   {Path(cafile)};\n"
         else:
-            ca_line = f"            brix_webdav_cadir    {self.ca_dir};\n"
-        return f"""\
-worker_processes 1;
-daemon on;
-master_process on;
-error_log {self.error_log} notice;
-pid {self.prefix}/nginx.pid;
-events {{ worker_connections 64; }}
-http {{
-    access_log off;
-    client_body_temp_path {self.tmp}/client;
-    proxy_temp_path {self.tmp}/proxy;
-    fastcgi_temp_path {self.tmp}/fastcgi;
-    uwsgi_temp_path {self.tmp}/uwsgi;
-    scgi_temp_path {self.tmp}/scgi;
-    server {{
-        listen {self.davs_port} ssl;
-        server_name localhost;
-        ssl_certificate     {self._server_cert};
-        ssl_certificate_key {self._server_key};
-        ssl_verify_client   optional_no_ca;
-        ssl_verify_depth    10;
-        brix_webdav_proxy_certs on;
-        location / {{
-            brix_webdav          on;
-            brix_storage_backend posix:{self.data};
-{ca_line}            brix_webdav_signing_policy {self.signing_policy};
-            brix_webdav_crl_mode {self.crl_mode};
-{crl_line}            brix_webdav_auth     required;
-        }}
-    }}
-}}
-"""
+            ca_line = f"            brix_webdav_cadir    {Path(ca_dir)};\n"
+        crl_line = f"            brix_webdav_crl {crl};\n" if crl else ""
 
-    def write(self):
-        self.conf.write_text(self.render())
+        WlcgInstance._SEQ += 1
+        self._name = f"lc-wlcginst-{WlcgInstance._SEQ}"
+        self._spec = NginxInstanceSpec(
+            name=self._name,
+            template="nginx_wlcg_conformance.conf",
+            protocol="https",
+            readiness="tcp",
+            data_root=str(self.data),
+            template_values={
+                "CERT": str(cert),
+                "KEY": str(key),
+                "CA_LINE": ca_line,
+                "CRL_LINE": crl_line,
+                "SIGNING_POLICY": signing_policy,
+                "CRL_MODE": crl_mode,
+            },
+        )
+        # Register up front so the port is reserved (for davs_port / attempt_davs)
+        # and configtest() can render + `nginx -t` without ever starting.
+        self._harness = LifecycleHarness()
+        self._registered = self._harness.register(self._spec)
+        self.davs_port = self._harness.endpoint(self._name).port
 
     # -- lifecycle ---------------------------------------------------------- #
-    def _nginx(self, *args, check=True):
-        return subprocess.run(
-            [settings.NGINX_BIN, "-p", str(self.prefix), "-c", str(self.conf),
-             *args],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            check=check)
-
     def configtest(self):
-        self.write()
-        return self._nginx("-t", check=False)
+        """Render the config and run ``nginx -t`` WITHOUT starting.
+
+        Returns a CompletedProcess whose ``stdout`` carries the combined
+        stdout+stderr (nginx writes its ``[emerg]`` diagnostic to stderr; the
+        old merged-stream ``_nginx`` put it on stdout, and callers assert on
+        ``.stdout``)."""
+        self._harness.launcher.render_nginx(self._registered)
+        result = self._harness.nginx_test(self._name, check=False)
+        return subprocess.CompletedProcess(
+            result.args, result.returncode,
+            stdout=(result.stdout or "") + (result.stderr or ""),
+            stderr=result.stderr)
 
     def start(self):
-        self.write()
-        self._nginx()               # daemonizes
+        self._harness.start_registered(self._name)   # render + nginx -t + launch
         self._wait_listening()
         return self
 
     def reload(self):
-        self.write()
-        self._nginx("-s", "reload")
-        time.sleep(0.5)             # let workers pick up the new store
+        self._harness.reload(self._name)
 
     def stop(self):
-        pidfile = self.prefix / "nginx.pid"
-        try:
-            pid = int(pidfile.read_text().strip())
-            os.kill(pid, signal.SIGQUIT)
-        except (FileNotFoundError, ValueError, ProcessLookupError):
-            self._nginx("-s", "quit", check=False)
-        for _ in range(50):
-            if not pidfile.exists():
-                break
-            time.sleep(0.1)
+        self._harness.close()                        # stop + unregister; idempotent
 
     def _wait_listening(self, timeout=10.0):
         deadline = time.time() + timeout

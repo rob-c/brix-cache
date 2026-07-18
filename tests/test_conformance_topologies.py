@@ -33,13 +33,13 @@ import time
 
 import pytest
 
+from server_registry import NginxInstanceSpec
 from settings import (
     DATA_ROOT,
     HOST,
     NGINX_ANON_PORT,
     REF_BRIX_PORT,
     SERVER_HOST,
-    free_port,
 )
 
 # These tests provision multi-server topologies and run the FULL conformance suite
@@ -51,28 +51,16 @@ from settings import (
 # timeout so the subprocess raises TimeoutExpired first and the test fails cleanly.
 # serial: spawns 4 full nested conformance runs that hammer the shared reference
 # xrootd with concurrent dirlists — only reliable run one-at-a-time, not in the pool.
-pytestmark = [pytest.mark.timeout(420), pytest.mark.serial]
+pytestmark = [pytest.mark.timeout(420), pytest.mark.serial,
+              pytest.mark.uses_lifecycle_harness]
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 H = SERVER_HOST
 ANON = NGINX_ANON_PORT          # fleet nginx serving DATA_ROOT (the storage backend)
-_DIR = os.path.join(os.environ["TMPDIR"], "xrd_conf_topo")
-
-# Dedicated port block for the provisioned fronts: each front binds its OWN
-# listener, so every port below must be a free OS port (env override honored)
-# to avoid colliding with the managed fleet or other self-contained tests.
-PROXY_PORT     = int(os.environ.get("TEST_CT_PROXY_PORT") or free_port())
-MESH_HOP1_PORT = int(os.environ.get("TEST_CT_MESH_HOP1_PORT") or free_port())
-MESH_HOP2_PORT = int(os.environ.get("TEST_CT_MESH_HOP2_PORT") or free_port())
-CLU_REDIR_PORT = int(os.environ.get("TEST_CT_CLU_REDIR_PORT") or free_port())
-CLU_CMS_PORT   = int(os.environ.get("TEST_CT_CLU_CMS_PORT") or free_port())
-CLU_DS_PORT    = int(os.environ.get("TEST_CT_CLU_DS_PORT") or free_port())
-MIRROR_PORT    = int(os.environ.get("TEST_CT_MIRROR_PORT") or free_port())
-MIRROR_RW_PORT = int(os.environ.get("TEST_CT_MIRROR_RW_PORT") or free_port())
 
 
 # ---------------------------------------------------------------------------
-# Low-level nginx + connectivity helpers
+# Connectivity helper
 # ---------------------------------------------------------------------------
 
 def _reachable(port, timeout=1.0):
@@ -83,84 +71,60 @@ def _reachable(port, timeout=1.0):
         return False
 
 
-def _write_conf(name, body):
-    run = os.path.join(_DIR, f"{name}-run")
-    os.makedirs(os.path.join(run, "logs"), exist_ok=True)
-    conf = os.path.join(_DIR, f"{name}.conf")
-    with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {run}/logs/error.log info;\n"
-            f"pid {run}/nginx.pid;\n"
-            f"events {{ worker_connections 256; }}\n"
-            f"{body}\n")
-    return conf
-
-
-def _start(conf):
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        raise RuntimeError(f"config {conf} rejected: {chk.stderr[-400:]}")
-    subprocess.run([NGINX_BIN, "-c", conf], capture_output=True)
-
-
-def _stop(conf):
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-
-
 # ---------------------------------------------------------------------------
-# Topology builders — each returns (front_url, [conf_paths])
+# Topology builders — each provisions its fronts on the LifecycleHarness (which
+# owns teardown) and returns the client-facing front URL.  The upstream storage
+# (the shared DATA_ROOT nginx on ANON) and the reference xrootd (REF_BRIX_PORT)
+# are the managed standing fleet, unchanged.
 # ---------------------------------------------------------------------------
 
-def _stream(port, inner):
-    return f"stream {{\n    server {{\n        listen 0.0.0.0:{port};\n{inner}\n    }}\n}}"
-
-
-def _build_proxy():
+def _build_proxy(lifecycle):
     """One transparent proxy hop in front of the DATA_ROOT nginx (ANON)."""
-    conf = _write_conf("proxy", _stream(PROXY_PORT,
-        f"        brix_root on; brix_auth none;\n"
-        f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{ANON}; brix_tap_proxy_auth anonymous;"))
-    _start(conf)
-    return f"root://{H}:{PROXY_PORT}", [conf]
+    ep = lifecycle.start(NginxInstanceSpec(
+        name="lc-ct-proxy", template="nginx_conformance_topo_tap.conf",
+        protocol="root", readiness="tcp",
+        template_values={"UPSTREAM": f"{HOST}:{ANON}"},
+        reason="Single transparent tap-proxy hop in front of the shared DATA_ROOT nginx.",
+    ))
+    return f"root://{H}:{ep.port}"
 
 
-def _build_mesh():
+def _build_mesh(lifecycle):
     """Two stacked proxy hops: hop2 -> hop1 -> ANON (nginx->nginx->nginx)."""
-    c1 = _write_conf("mesh1", _stream(MESH_HOP1_PORT,
-        f"        brix_root on; brix_auth none;\n"
-        f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{ANON}; brix_tap_proxy_auth anonymous;"))
-    c2 = _write_conf("mesh2", _stream(MESH_HOP2_PORT,
-        f"        brix_root on; brix_auth none;\n"
-        f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{MESH_HOP1_PORT}; brix_tap_proxy_auth anonymous;"))
-    _start(c1)
-    _start(c2)
-    return f"root://{H}:{MESH_HOP2_PORT}", [c2, c1]
+    hop1 = lifecycle.start(NginxInstanceSpec(
+        name="lc-ct-mesh1", template="nginx_conformance_topo_tap.conf",
+        protocol="root", readiness="tcp",
+        template_values={"UPSTREAM": f"{HOST}:{ANON}"},
+        reason="Mesh hop 1: tap-proxy to the shared DATA_ROOT nginx.",
+    ))
+    hop2 = lifecycle.start(NginxInstanceSpec(
+        name="lc-ct-mesh2", template="nginx_conformance_topo_tap.conf",
+        protocol="root", readiness="tcp",
+        template_values={"UPSTREAM": f"{HOST}:{hop1.port}"},
+        reason="Mesh hop 2: tap-proxy to hop 1.",
+    ))
+    return f"root://{H}:{hop2.port}"
 
 
-def _build_cluster():
+def _build_cluster(lifecycle):
     """CMS redirector + a data server that serves DATA_ROOT and registers '/'."""
-    redir = _write_conf("clu_redir",
-        "stream {\n"
-        f"    server {{\n        listen 0.0.0.0:{CLU_REDIR_PORT};\n"
-        "        brix_root on; brix_auth none; brix_manager_mode on;\n"
-        "    }\n"
-        f"    server {{\n        listen 0.0.0.0:{CLU_CMS_PORT};\n"
-        "        brix_cms_server on;\n    }\n}")
-    ds = _write_conf("clu_ds", _stream(CLU_DS_PORT,
-        f"        brix_root on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
-        f"        brix_allow_write on;\n"
-        f"        brix_cms_manager {HOST}:{CLU_CMS_PORT};\n"
-        f"        brix_cms_paths /;\n"
-        f"        brix_cms_interval 2;\n"
-        f"        brix_listen_port {CLU_DS_PORT};"))
-    _start(redir)
-    _start(ds)
-    return f"root://{H}:{CLU_REDIR_PORT}", [redir, ds]
+    from settings import free_port
+    cms_port = free_port()
+    redir = lifecycle.start(NginxInstanceSpec(
+        name="lc-ct-clu-redir", template="nginx_conformance_topo_cluster_redir.conf",
+        protocol="root", readiness="tcp", extra_ports={"CMS_PORT": cms_port},
+        reason="Cluster redirector (manager mode) + CMS server port.",
+    ))
+    lifecycle.start(NginxInstanceSpec(
+        name="lc-ct-clu-ds", template="nginx_conformance_topo_cluster_ds.conf",
+        protocol="root", readiness="tcp", data_root=DATA_ROOT,
+        template_values={"CMS_MANAGER": f"{HOST}:{cms_port}"},
+        reason="Cluster data server serving the shared DATA_ROOT, registers '/' with the redirector.",
+    ))
+    return f"root://{H}:{redir.port}"
 
 
-def _build_mirror(port=MIRROR_PORT, name="mirror"):
+def _build_mirror(lifecycle, name="mirror"):
     """nginx+xrootd traffic-mirror front: serves the shared DATA_ROOT to the
     client AND shadow-replays read-path traffic to the official xrootd daemon
     (REF_BRIX_PORT).  The client is served by the nginx front; the official
@@ -169,21 +133,18 @@ def _build_mirror(port=MIRROR_PORT, name="mirror"):
     official server, so a green run proves nginx serves identically to the
     server it mirrors.  Writes are not mirrored (read-path only), but the front
     and the official server export the same DATA_ROOT directory, so writes made
-    through the front are visible to the official server for read-back."""
-    conf = _write_conf(name, _stream(port,
-        f"        brix_root on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
-        f"        brix_allow_write on;\n"
-        f"        brix_stream_mirror_url {HOST}:{REF_BRIX_PORT};\n"
-        # Mirror the full read-path opcode set INCLUDING query/Qcksum.  The
-        # mirror only actually replays self-contained requests (read-only opens,
-        # path-based stat/statx, locate, dirlist, query) and treats a shadow
-        # "not supported" (the official has no checksum) as benign — so this
-        # "just works" in front of an official xrootd with no spurious
-        # divergence (handle-based read/readv and write opens are skipped).
-        f"        brix_mirror_opcodes open read readv stat statx dirlist query;\n"
-        f"        brix_mirror_log_diverge on;"))
-    _start(conf)
-    return f"root://{H}:{port}", [conf]
+    through the front are visible to the official server for read-back.
+
+    Returns (front_url, log_dir) — the caller inspects the harness log dir for
+    mirror-divergence lines.
+    """
+    ep = lifecycle.start(NginxInstanceSpec(
+        name=f"lc-ct-{name}", template="nginx_conformance_topo_mirror.conf",
+        protocol="root", readiness="tcp", data_root=DATA_ROOT,
+        template_values={"MIRROR_URL": f"{HOST}:{REF_BRIX_PORT}"},
+        reason="Traffic-mirror front over the shared DATA_ROOT, shadow-replaying to the official xrootd.",
+    ))
+    return f"root://{H}:{ep.port}", os.path.join(ep.prefix, "logs")
 
 
 TOPOLOGIES = {
@@ -241,7 +202,6 @@ def _require_nginx():
     """Every test here provisions nginx fronts, so the binary is mandatory."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    os.makedirs(_DIR, exist_ok=True)
 
 
 def _require_fleet_backends():
@@ -274,57 +234,54 @@ def probe_file():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("topo", list(TOPOLOGIES))
-def test_full_conformance_through_topology(topo, probe_file):
+def test_full_conformance_through_topology(topo, probe_file, lifecycle):
     _require_fleet_backends()
     builder = TOPOLOGIES[topo]
-    confs = []
+    front_url = builder(lifecycle)
+    if isinstance(front_url, tuple):      # _build_mirror returns (url, log_dir)
+        front_url = front_url[0]
+    _wait_front_serves(front_url, probe_file)
+
+    env = dict(os.environ)
+    env["CONFORMANCE_NGINX_URL"] = front_url
+    env["TEST_SKIP_SERVER_SETUP"] = "1"      # reuse the running fleet
+    env["PYTHONPATH"] = "tests" + (
+        os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+
     try:
-        front_url, confs = builder()
-        _wait_front_serves(front_url, probe_file)
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", "tests/test_conformance.py",
+             "-p", "no:xdist", "-p", "no:cacheprovider",
+             "--timeout=60", "-o", "addopts="],
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            env=env, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        # Fail cleanly rather than letting the outer pytest-timeout fire while
+        # we are blocked in communicate() (which it cannot interrupt → whole
+        # run hangs/aborts).  A 5-min nested conformance run means the topology
+        # front is wedged.
+        pytest.fail(
+            f"conformance subprocess through '{topo}' ({front_url}) did not "
+            f"finish within 300s — topology front wedged")
 
-        env = dict(os.environ)
-        env["CONFORMANCE_NGINX_URL"] = front_url
-        env["TEST_SKIP_SERVER_SETUP"] = "1"      # reuse the running fleet
-        env["PYTHONPATH"] = "tests" + (
-            os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    out = proc.stdout
+    tail = out[-4000:] + ("\nSTDERR:\n" + proc.stderr[-1500:]
+                          if proc.stderr.strip() else "")
 
-        try:
-            proc = subprocess.run(
-                [sys.executable, "-m", "pytest", "tests/test_conformance.py",
-                 "-p", "no:xdist", "-p", "no:cacheprovider",
-                 "--timeout=60", "-o", "addopts="],
-                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                env=env, capture_output=True, text=True, timeout=300)
-        except subprocess.TimeoutExpired:
-            # Fail cleanly rather than letting the outer pytest-timeout fire while
-            # we are blocked in communicate() (which it cannot interrupt → whole
-            # run hangs/aborts).  A 5-min nested conformance run means the topology
-            # front is wedged.
-            pytest.fail(
-                f"conformance subprocess through '{topo}' ({front_url}) did not "
-                f"finish within 300s — topology front wedged")
+    # Parse the real pytest summary — a bare exit code is not enough: a
+    # subprocess that collected nothing or was short-circuited also exits 0.
+    m_pass = re.search(r"(\d+) passed", out)
+    n_pass = int(m_pass.group(1)) if m_pass else 0
+    m_bad = re.search(r"(\d+) (failed|error)", out)
 
-        out = proc.stdout
-        tail = out[-4000:] + ("\nSTDERR:\n" + proc.stderr[-1500:]
-                              if proc.stderr.strip() else "")
-
-        # Parse the real pytest summary — a bare exit code is not enough: a
-        # subprocess that collected nothing or was short-circuited also exits 0.
-        m_pass = re.search(r"(\d+) passed", out)
-        n_pass = int(m_pass.group(1)) if m_pass else 0
-        m_bad = re.search(r"(\d+) (failed|error)", out)
-
-        assert proc.returncode == 0 and n_pass > 0 and m_bad is None, (
-            f"full conformance suite did NOT cleanly pass through '{topo}' "
-            f"({front_url}): rc={proc.returncode}, passed={n_pass}, "
-            f"bad={m_bad.group(0) if m_bad else None}\n{tail}")
-        # Sanity: the topology run must cover the same breadth as a direct run.
-        assert n_pass >= 25, (
-            f"only {n_pass} conformance tests ran through '{topo}' "
-            f"(expected ~30) — suite may have been truncated:\n{tail}")
-    finally:
-        for c in confs:
-            _stop(c)
+    assert proc.returncode == 0 and n_pass > 0 and m_bad is None, (
+        f"full conformance suite did NOT cleanly pass through '{topo}' "
+        f"({front_url}): rc={proc.returncode}, passed={n_pass}, "
+        f"bad={m_bad.group(0) if m_bad else None}\n{tail}")
+    # Sanity: the topology run must cover the same breadth as a direct run.
+    assert n_pass >= 25, (
+        f"only {n_pass} conformance tests ran through '{topo}' "
+        f"(expected ~30) — suite may have been truncated:\n{tail}")
 
 
 # ---------------------------------------------------------------------------
@@ -333,7 +290,7 @@ def test_full_conformance_through_topology(topo, probe_file):
 # host's background load test has the shared fleet down.
 # ---------------------------------------------------------------------------
 
-def test_cluster_nonexistent_returns_not_found():
+def test_cluster_nonexistent_returns_not_found(lifecycle):
     """A stat of a path no data server holds must return kXR_NotFound (3011),
     NOT redirect-loop until the client hits its limit.
 
@@ -344,34 +301,29 @@ def test_cluster_nonexistent_returns_not_found():
     matching server has been tried; wired into stat/open/checksum redirects."""
     from XRootD import client
 
-    confs = []
-    try:
-        front_url, confs = _build_cluster()
+    front_url = _build_cluster(lifecycle)
 
-        # Wait for the data server to register so redirects resolve at all.
-        deadline = time.time() + 30
-        registered = False
-        while time.time() < deadline:
-            st, _ = client.FileSystem(front_url).stat("//")
-            if st.ok:
-                registered = True
-                break
-            time.sleep(0.5)
-        if not registered:
-            pytest.skip("cluster data server did not register in time")
+    # Wait for the data server to register so redirects resolve at all.
+    deadline = time.time() + 30
+    registered = False
+    while time.time() < deadline:
+        st, _ = client.FileSystem(front_url).stat("//")
+        if st.ok:
+            registered = True
+            break
+        time.sleep(0.5)
+    if not registered:
+        pytest.skip("cluster data server did not register in time")
 
-        st, _ = client.FileSystem(front_url).stat(
-            "//definitely_absent_redirect_loop_probe.bin")
-        assert not st.ok, "nonexistent path should fail"
-        msg = (st.message or "").lower()
-        assert "redirect limit" not in msg, (
-            f"redirect loop NOT fixed — manager still bounces the client: {st.message!r}")
-        assert getattr(st, "errno", 0) == 3011 \
-            or "not found" in msg or "no such" in msg, (
-            f"expected kXR_NotFound (3011), got: {st.message!r}")
-    finally:
-        for c in confs:
-            _stop(c)
+    st, _ = client.FileSystem(front_url).stat(
+        "//definitely_absent_redirect_loop_probe.bin")
+    assert not st.ok, "nonexistent path should fail"
+    msg = (st.message or "").lower()
+    assert "redirect limit" not in msg, (
+        f"redirect loop NOT fixed — manager still bounces the client: {st.message!r}")
+    assert getattr(st, "errno", 0) == 3011 \
+        or "not found" in msg or "no such" in msg, (
+        f"expected kXR_NotFound (3011), got: {st.message!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -381,26 +333,21 @@ def test_cluster_nonexistent_returns_not_found():
 # same bytes (shared DATA_ROOT) with no mirror divergence logged.
 # ---------------------------------------------------------------------------
 
-def test_mirror_readwrite_against_official_xrootd():
+def test_mirror_readwrite_against_official_xrootd(lifecycle):
     _require_fleet_backends()
     from XRootD import client
     from XRootD.client.flags import OpenFlags, QueryCode
     import zlib
 
-    confs = []
     rel = f"_mirror_rw_{os.getpid()}.bin"
     data = bytes((i * 37 + 5) & 0xFF for i in range(256 * 1024 + 123))
     try:
-        # Dedicated port + run-dir so this never collides with the conformance
-        # [mirror] topology test (which uses MIRROR_PORT).
-        front_url, confs = _build_mirror(MIRROR_RW_PORT, "mirror_rw")
-        for _ in range(40):                       # wait for the front to listen
-            if _reachable(MIRROR_RW_PORT, 0.5):
-                break
-            time.sleep(0.25)
+        # A dedicated spec name so this never collides with the conformance
+        # [mirror] topology test.
+        front_url, log_dir = _build_mirror(lifecycle, "mirror_rw")
 
         # Remember where this run's log starts (nginx appends across runs).
-        log = os.path.join(_DIR, "mirror_rw-run", "logs", "error.log")
+        log = os.path.join(log_dir, "error.log")
         log_off = os.path.getsize(log) if os.path.exists(log) else 0
 
         # --- write through the mirror ---
@@ -455,8 +402,6 @@ def test_mirror_readwrite_against_official_xrootd():
                 "mirror reported a divergence vs the official xrootd:\n"
                 + "\n".join(diverged[:8]))
     finally:
-        for c in confs:
-            _stop(c)
         try:
             os.unlink(os.path.join(DATA_ROOT, rel))
         except FileNotFoundError:

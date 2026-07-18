@@ -106,7 +106,7 @@ LIB_SRCS   := \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_io.c lib/core/aio/aio_mgr.c lib/core/aio/uring.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
-  lib/net/conn.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
+  lib/net/conn.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
   lib/auth/auth.c lib/auth/sigver.c \
   lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \
@@ -116,7 +116,7 @@ LIB_SRCS   := \
   lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/path.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
   lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
   lib/protocols/root/frame.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
-  lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
+  lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/web_ka.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
   lib/protocols/s3/s3.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
   lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_remote.c lib/xfer/copy_zip.c \
@@ -229,7 +229,7 @@ xrdprep_OBJS      := apps/prep/xrdprep.o
 ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto clean lib install install-bin install-man install-completions example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount
+.PHONY: all proto clean lib install install-bin install-man install-completions install-automount example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount
 all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
@@ -313,6 +313,7 @@ BRIX_CVMFS_OBJS := \
   $(SHARED_DIR)/cvmfs/config/cvmfs_conf.o \
   $(SHARED_DIR)/cvmfs/failover/failover.o $(SHARED_DIR)/cvmfs/object/object.o \
   $(SHARED_DIR)/cvmfs/fetch/fetch.o       $(SHARED_DIR)/cvmfs/catalog/catalog.o \
+  $(SHARED_DIR)/cvmfs/walk/walk.o \
   $(SHARED_DIR)/cvmfs/client/client.o     $(SHARED_DIR)/cache/cas_store.o
 
 # shared cvmfs core: pure C, only needs -I../shared (no client/lib, no ngx).
@@ -325,8 +326,11 @@ apps/fs/brixcvmfs_rw.o: apps/fs/brixcvmfs_rw.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
 apps/fs/brixmount.o: apps/fs/brixmount.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
+apps/fs/brixautofs.o: apps/fs/brixautofs.c apps/fs/brixautofs.h | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 
 BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o \
+                  apps/fs/brixautofs.o \
                   $(BRIX_CVMFS_OBJS) apps/fs/xrootdfs.o $(XROOTDFS_SPLIT)
 $(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
@@ -574,6 +578,38 @@ install-completions:
 	done
 	install -m644 completions/_brix-client \
 		$(DESTDIR)$(PREFIX)/share/zsh/site-functions/_brix-client
+
+# ---------------------------------------------------------------------------
+# Install the CVMFS automount stack (helpers + autofs map + default config/keys
+# + systemd units). One canonical file list, two entry points: this target is
+# invoked both by the RPM %install and by deploy/cvmfs/install-automount.sh's
+# packaged sibling. DESTDIR/UNITDIR-aware; config lands as plain files —
+# %config(noreplace) / cp -n semantics are the packager's job, not ours.
+UNITDIR   ?= $(PREFIX)/lib/systemd/system
+DEPLOY_CVMFS := ../deploy/cvmfs
+install-automount:
+	install -d $(DESTDIR)/sbin $(DESTDIR)/etc/auto.master.d \
+	           $(DESTDIR)/etc/cvmfs/default.d $(DESTDIR)/etc/cvmfs/domain.d \
+	           $(DESTDIR)/etc/cvmfs/config.d $(DESTDIR)$(UNITDIR) \
+	           $(DESTDIR)/var/lib/brixcvmfs $(DESTDIR)/cvmfs
+	install -m755 $(DEPLOY_CVMFS)/mount.cvmfs $(DESTDIR)/sbin/mount.cvmfs
+	install -m755 $(DEPLOY_CVMFS)/auto.cvmfs $(DESTDIR)/etc/auto.cvmfs
+	printf '/cvmfs /etc/auto.cvmfs\n' > $(DESTDIR)/etc/auto.master.d/cvmfs.autofs
+	install -m644 $(DEPLOY_CVMFS)/etc/cvmfs/default.d/*.conf \
+		$(DESTDIR)/etc/cvmfs/default.d/
+	install -m644 $(DEPLOY_CVMFS)/etc/cvmfs/domain.d/*.conf \
+		$(DESTDIR)/etc/cvmfs/domain.d/
+	install -m644 $(DEPLOY_CVMFS)/etc/cvmfs/config.d/README \
+		$(DESTDIR)/etc/cvmfs/config.d/README
+	for d in cern.ch egi.eu opensciencegrid.org; do \
+		install -d $(DESTDIR)/etc/cvmfs/keys/$$d; \
+		install -m644 $(DEPLOY_CVMFS)/etc/cvmfs/keys/$$d/*.pub \
+			$(DESTDIR)/etc/cvmfs/keys/$$d/; \
+	done
+	install -m644 $(DEPLOY_CVMFS)/etc/cvmfs/keys/README.md \
+		$(DESTDIR)/etc/cvmfs/keys/README.md
+	install -m644 ../packaging/brixcvmfs-automount.service \
+	              ../packaging/brixcvmfs@.service $(DESTDIR)$(UNITDIR)/
 
 # ---------------------------------------------------------------------------
 # `make test` — build + run every self-contained C unit test under tests/c/.

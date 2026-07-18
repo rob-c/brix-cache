@@ -29,10 +29,12 @@ from pathlib import Path
 
 import pytest
 
-from config_templates import render_config
+from server_registry import NginxInstanceSpec
+from settings import free_port
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NGINX_BIN = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 
@@ -61,12 +63,12 @@ def _wait_listen(port, tries=60):
     return False
 
 
-@pytest.fixture(scope="module")
-def gsi_tpc(tmp_path_factory):
+@pytest.fixture
+def gsi_tpc(lifecycle, tmp_path_factory):
     if not _have("xrootd", "openssl", "xrdgsiproxy"):
         pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
-    if not (os.path.exists(XRDCP) and os.path.exists(NGINX_BIN)):
-        pytest.skip("native xrdcp / nginx binary not built")
+    if not os.path.exists(XRDCP):
+        pytest.skip("native xrdcp not built")
 
     base = tmp_path_factory.mktemp("tpcgsi")
     ca, srv, certs, src_data, dst_data, logs = (
@@ -126,7 +128,7 @@ def gsi_tpc(tmp_path_factory):
     (src_data / "hello.txt").write_text("hello-tpc-gsi\n")
 
     # ---- GSI source: stock xrootd, GSI required ----
-    src_port = 21194
+    src_port = free_port()
     src_cfg = base / "xrootd.cfg"
     src_cfg.write_text(
         f"xrd.port {src_port}\n"
@@ -153,38 +155,36 @@ def gsi_tpc(tmp_path_factory):
         pytest.skip("stock xrootd GSI source did not come up")
 
     # ---- TPC destination: nginx-xrootd, native TPC + outbound GSI cert ----
-    dst_port = 21195
-    dst_cfg = base / "nginx.conf"
-    dst_cfg.write_text(render_config(
-        "nginx_tpc_gsi_outbound_dest.conf",
-        BASE_DIR=base,
-        LOG_DIR=logs,
-        PORT=dst_port,
-        DATA_DIR=dst_data,
-        CERT_FILE=srv / "destproxy.pem",
-        KEY_FILE=srv / "destproxy.pem",
-        CA_DIR=certs,
-    ))
-    _free_port(dst_port)
-    dst = subprocess.Popen([NGINX_BIN, "-c", str(dst_cfg), "-p", str(base)],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait_listen(dst_port):
-        dst.terminate()
+    try:
+        dst = lifecycle.start(NginxInstanceSpec(
+            name="lc-tpc-gsi-outbound-dest",
+            template="nginx_tpc_gsi_outbound_dest.conf",
+            protocol="root",
+            readiness="tcp",
+            data_root=str(dst_data),
+            template_values={
+                "CERT_FILE": str(srv / "destproxy.pem"),
+                "KEY_FILE": str(srv / "destproxy.pem"),
+                "CA_DIR": str(certs),
+            },
+            reason="TPC outbound-GSI dest; auths to stock GSI source with its proxy.",
+        ))
+    except Exception:
         src.terminate()
-        pytest.skip("nginx TPC destination did not come up")
+        raise
 
-    ctx = {"fqdn": fqdn, "src_port": src_port, "dst_port": dst_port,
+    dst_logs = os.path.join(dst.prefix, "logs")
+    ctx = {"fqdn": fqdn, "src_port": src_port, "dst_port": dst.port,
            "env": penv, "certs": str(certs), "base": str(base),
-           "dst_data": str(dst_data), "logs": str(logs),
+           "dst_data": str(dst_data), "logs": dst_logs,
            "src_url": f"root://{fqdn}:{src_port}",
-           "dst_url": f"root://127.0.0.1:{dst_port}"}
+           "dst_url": f"root://127.0.0.1:{dst.port}"}
     yield ctx
-    for p in (dst, src):
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+    src.terminate()
+    try:
+        src.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        src.kill()
 
 
 def test_tpc_pull_over_gsi(gsi_tpc):

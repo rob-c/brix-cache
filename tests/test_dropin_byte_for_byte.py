@@ -31,7 +31,11 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, SERVER_HOST, free_ports
+from settings import NGINX_BIN, SERVER_HOST, BIND_HOST, free_port
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 REF_XROOTD_BIN = os.environ.get(
     "TEST_REF_BIN",
@@ -41,12 +45,12 @@ H = SERVER_HOST
 
 # Dedicated workspace for this file.
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_dropin_bfb")
-# Ports the fixture BINDS (nginx listen + official xrootd xrd.port): allocate
-# distinct free OS ports so they never collide with the managed fleet or with
-# another self-contained test running in the same pytest invocation.  Any
-# explicit env override is still honoured.
-_NGINX_FREE, _REF_XROOTD_FREE = free_ports(2)
-NGINX_PORT  = int(os.environ.get("TEST_DROPIN_NGINX_PORT") or _NGINX_FREE)
+# Port the fixture BINDS for the official xrootd xrd.port: allocate a free OS
+# port so it never collides with the managed fleet or with another
+# self-contained test running in the same pytest invocation.  Any explicit env
+# override is still honoured.  The nginx front's port is owned by the registry
+# LifecycleHarness (see the `stack` fixture).
+_REF_XROOTD_FREE = free_port(H)
 REF_XROOTD_PORT = int(os.environ.get("TEST_DROPIN_XROOTD_PORT")
                       or os.environ.get("TEST_DROPIN_BRIX_PORT")
                       or _REF_XROOTD_FREE)
@@ -455,40 +459,6 @@ def _stop_xrootd(cfg):
     subprocess.run(["pkill", "-f", cfg], capture_output=True)
 
 
-def _nginx_conf(data_dir):
-    base = os.path.join(_DIR, "nginx")
-    _mkdirs(os.path.join(base, "logs"))
-    conf = os.path.join(base, "nginx.conf")
-    with open(conf, "w") as f:
-        f.write(
-            f"worker_processes 1;\n"
-            f"error_log {base}/logs/error.log info;\n"
-            f"pid {base}/logs/nginx.pid;\n"
-            f"events {{ worker_connections 128; }}\n"
-            f"stream {{\n"
-            f"    server {{\n"
-            f"        listen 0.0.0.0:{NGINX_PORT};\n"
-            f"        brix_root on;\n"
-            f"        brix_storage_backend posix:{data_dir};\n"
-            f"        brix_auth none;\n"
-            f"        brix_allow_write on;\n"
-            f"    }}\n"
-            f"}}\n")
-    return conf
-
-
-def _start_nginx(conf):
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        raise RuntimeError(f"nginx config rejected: {chk.stderr[-400:]}")
-    subprocess.run([NGINX_BIN, "-c", conf], capture_output=True)
-
-
-def _stop_nginx(conf):
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-
-
 @pytest.fixture(scope="module")
 def stack():
     if not os.path.exists(NGINX_BIN):
@@ -499,9 +469,12 @@ def stack():
     data_dir = os.path.join(_DIR, "data")
     _seed_data(data_dir)
 
+    # This is a MODULE-scoped nginx fixture, so drive the registry launcher
+    # directly (the function-scoped `lifecycle` fixture is just a thin wrapper
+    # around this same LifecycleHarness).  The reference xrootd keeps its own
+    # subprocess lifecycle unchanged.
     xr_cfg = _start_xrootd(data_dir)
-    nx_cfg = _nginx_conf(data_dir)
-    started = {"xr": xr_cfg, "nx": nx_cfg}
+    harness = LifecycleHarness()
     try:
         if not _wait_port(REF_XROOTD_PORT):
             pytest.skip("official xrootd did not come up")
@@ -512,19 +485,25 @@ def stack():
         if not _serves_seed(REF_XROOTD_PORT):
             pytest.skip("official xrootd is up but not serving the seed data "
                         "(stale listener / bind race) — skipping parity run")
-        _start_nginx(nx_cfg)
-        if not _wait_port(NGINX_PORT):
+        ep = harness.start(NginxInstanceSpec(
+            name="lc-dropin-front",
+            template="nginx_lc_dropin_front.conf",
+            protocol="root",
+            template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": data_dir},
+            reason="drop-in byte-for-byte parity front over the shared "
+                   "data root vs the official xrootd"))
+        if not _wait_port(ep.port):
             pytest.skip("nginx did not come up")
-        if not _serves_seed(NGINX_PORT):
+        if not _serves_seed(ep.port):
             pytest.skip("nginx is up but not serving the seed data")
         yield {
             "data_dir": data_dir,
-            "nginx": (H, NGINX_PORT),
+            "nginx": (ep.host, ep.port),
             "xrootd": (H, REF_XROOTD_PORT),
         }
     finally:
-        _stop_nginx(started["nx"])
-        _stop_xrootd(started["xr"])
+        harness.close()
+        _stop_xrootd(xr_cfg)
 
 
 @pytest.fixture

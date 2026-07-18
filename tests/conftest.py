@@ -19,8 +19,14 @@ import subprocess
 import tempfile
 
 import pytest
+import fleet_declares
 from server_launcher import LifecycleHarness, RegistryLauncher
-from server_registry import get_server, read_manifest, register_compat_fleet, selected_specs
+from server_registry import (
+    dependency_closure,
+    get_server,
+    read_manifest,
+    selected_specs,
+)
 from settings import (
     CA_CERT,
     CA_DIR,
@@ -132,7 +138,7 @@ def _seed_canonical_data():
     """Idempotently place the canonical seed files in the shared export.
 
     Own-fleet setup wipes + seeds DATA_ROOT; attach mode (an external fleet owns
-    the lifecycle) skips that, and neither manage_test_servers.sh nor the fleet
+    the lifecycle) skips that, and neither the fleet CLI nor the launcher
     seeds the MAIN export — so test.txt / random.bin / large200.bin can be absent
     (and a canonical file another test deleted is never restored), which fails
     every read / GSI / large-file test that expects them.  Runs on the xdist
@@ -207,7 +213,7 @@ def _external_fleet_attached() -> bool:
     no rmtree.
 
     This closes a footgun in the dev-iteration workflow: an operator keeps a
-    fleet up out of band (``tests/manage_test_servers.sh start-all``) and runs a
+    fleet up out of band (``python3 -m cmdscripts.manage_test_servers start-all``) and runs a
     single test file for a quick check.  Without this guard the session teardown
     would ``stop-all`` + ``rmtree(TEST_ROOT)`` and orphan every still-running
     server's export-root fd, so the next manual ``xrdcp``/TPC hangs -- looking
@@ -274,7 +280,7 @@ def requires_krb5():
     rather than for the tooling: the dedicated nginx port must accept AND a
     client credential cache must have been minted by ``kdc_helpers.up``.  This is
     re-checked each session (not cached at import) because the tier is started by
-    ``manage_test_servers.sh start-all`` after this module is imported.
+    the registry launcher (``krb5-kdc`` external spec) after this module is imported.
     """
     if REMOTE_SERVER:
         pytest.skip("krb5 tier is local-only (KDC + keytab live on the test host)")
@@ -442,6 +448,12 @@ def _setup_session():
     os.environ["X509_CERT_DIR"] = CA_DIR
     os.environ["X509_USER_PROXY"] = PROXY_STD
 
+    # Generate every pre-instance session artifact (PKI + proxies, token signing
+    # keys + issued JWTs, JWKS, CRL drops, authdb, stage hook) — the fleet-wide
+    # setup the retired bash bridge performed at the top of start-all.
+    import fleet_prep  # noqa: PLC0415 — pure-Python session artifact generator
+    fleet_prep.prepare()
+
     specs = getattr(_pytest_config, "_nginx_xrootd_selected_registry_specs", None)
     _start_all_resilient(specs)
 
@@ -480,6 +492,16 @@ def _reap_leaked_test_servers():
                     pass
 
 
+def _register_fleet() -> None:
+    """Populate the server registry with the full pure-Python fleet catalogue.
+
+    Idempotent (``register_full_fleet`` skips already-registered names), so the
+    collection-time and start-time call sites can both invoke it safely.
+    """
+    import fleet_specs  # noqa: PLC0415 — declarative fleet catalogue
+    fleet_specs.register_full_fleet()
+
+
 def _start_all_resilient(specs=None):
     """Start the fleet, self-healing the one recoverable start-all failure.
 
@@ -498,7 +520,7 @@ def _start_all_resilient(specs=None):
 
     for attempt in (1, 2):
         try:
-            register_compat_fleet()
+            _register_fleet()
             RegistryLauncher(os.path.dirname(__file__)).start_registered(specs)
             return
         except Exception as exc:
@@ -644,6 +666,148 @@ def _is_slow_module(name):
     return any(h in stem for h in _SLOW_MODULE_HINTS)
 
 
+# --- server-declaration gate -------------------------------------------------
+# Every collected test that *uses* a dedicated fleet server (statically: it
+# references that server's settings.py port constant) must *declare* it with a
+# @pytest.mark.registry_server("name") marker.  The always-on backbone (core
+# specs — the main nginx and the reference xrootd variants) is free: it boots
+# every session and is reached through session fixtures, so no test declares it.
+#
+# Hard-fails collection by default now that the tree is fully declared; set
+# REGISTRY_STRICT_DECLARATIONS=0 to downgrade to a report-only warning (writes
+# tests/.registry_declare_report.txt) while migrating a batch of new tests.
+# Booting the *declared union* rather than all ~120 specs is a separate opt-in
+# (REGISTRY_SUBSET_BOOT=1, see _specs_to_boot) — the default still boots all.
+_STRICT_DECLARATIONS = os.environ.get("REGISTRY_STRICT_DECLARATIONS", "1") != "0"
+_declare_usage_cache: dict = {}
+_always_on_cache = None
+
+
+def _always_on_specs() -> set:
+    """Servers that must boot regardless of markers: the always-on backbone plus
+    every dedicated spec a conftest fixture reaches (session infrastructure a
+    test uses without naming its port).  Cached — computed once per session."""
+    global _always_on_cache
+    if _always_on_cache is None:
+        try:
+            with open(os.path.abspath(__file__), encoding="utf-8", errors="ignore") as fh:
+                conftest_src = fh.read()
+        except OSError:
+            conftest_src = ""
+        _always_on_cache = (
+            set(fleet_declares.backbone_specs())
+            | set(fleet_declares.conftest_fixture_specs(conftest_src))
+        )
+    return _always_on_cache
+
+
+def _specs_to_boot(items):
+    """The spec set the session fleet should launch.
+
+    Default: every registered spec (identical to pre-declaration behavior — zero
+    risk to the full suite / CI).  Opt in to declared-union subset booting with
+    ``REGISTRY_SUBSET_BOOT=1``: boot the always-on set plus the dependency closure
+    of every server the collected tests declare, and nothing else — so a
+    single-file run starts only what that file needs."""
+    if os.environ.get("REGISTRY_SUBSET_BOOT") == "1":
+        return selected_specs(items, always_on=_always_on_specs())
+    from server_registry import registered_specs
+    return registered_specs()
+
+
+def _module_test_usage(fspath):
+    """Cached qualname→TestUsage attribution for one test module (parsed once).
+
+    Keyed by ``Class::method`` (bare name for module-level tests) so same-named
+    methods in different classes — e.g. the three cache-tier classes in
+    test_cache_write_through.py, each hitting a different dedicated spec — never
+    collide."""
+    key = str(fspath)
+    cached = _declare_usage_cache.get(key)
+    if cached is None:
+        try:
+            with open(key, encoding="utf-8", errors="ignore") as fh:
+                source = fh.read()
+        except OSError:
+            source = ""
+        cached = _declare_usage_cache[key] = {
+            usage.qualname: usage for usage in fleet_declares.analyze_source(source)
+        }
+    return cached
+
+
+def _item_qualname(item) -> str:
+    """``Class::method`` for a class-based test item, else the bare function name.
+    Matches ``TestUsage.qualname`` so the gate looks up the right attribution."""
+    func = getattr(item, "originalname", None) or getattr(item, "name", "")
+    func = func.split("[", 1)[0]
+    cls = getattr(item, "cls", None)
+    return f"{cls.__name__}::{func}" if cls is not None else func
+
+
+def _item_declared_specs(item) -> set:
+    declared: set = set()
+    for marker_name in ("registry_server", "registry_servers"):
+        for marker in item.iter_markers(marker_name):
+            declared.update(str(arg) for arg in marker.args)
+    return declared
+
+
+def _declaration_violations(items):
+    """List of (base_nodeid, lineno, sorted_missing_specs) for tests that use a
+    fleet server they neither declare nor inherit from the backbone."""
+    backbone = fleet_declares.backbone_specs()
+    seen: set = set()
+    out = []
+    for item in items:
+        usage = _module_test_usage(item.fspath).get(_item_qualname(item))
+        if usage is None or not usage.required:
+            continue
+        allowed = backbone | dependency_closure(_item_declared_specs(item))
+        missing = usage.required - allowed
+        if not missing:
+            continue
+        base = item.nodeid.split("[", 1)[0]
+        key = (base, tuple(sorted(missing)))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((base, usage.lineno, sorted(missing)))
+    return out
+
+
+def _enforce_server_declarations(config, items):
+    violations = _declaration_violations(items)
+    if not violations:
+        return
+    lines = [
+        f"  {base} (line {lineno}) uses undeclared server(s): "
+        f"{', '.join(missing)}"
+        for base, lineno, missing in sorted(violations)
+    ]
+    report = (
+        f"server-declaration gate: {len(lines)} test(s) reference a fleet server "
+        "they do not declare — add @pytest.mark.registry_server(<name>) for each:\n"
+        + "\n".join(lines)
+    )
+    try:
+        with open(os.path.join(os.path.dirname(__file__),
+                               ".registry_declare_report.txt"), "w",
+                  encoding="utf-8") as fh:
+            fh.write(report + "\n")
+    except OSError:
+        pass
+    if _STRICT_DECLARATIONS:
+        raise pytest.UsageError(report)
+    import warnings
+    warnings.warn(
+        f"server-declaration gate (report-only): {len(lines)} test(s) use an "
+        "undeclared fleet server; see tests/.registry_declare_report.txt. Set "
+        "REGISTRY_STRICT_DECLARATIONS=1 to hard-fail collection.",
+        stacklevel=2,
+    )
+
+
 def pytest_collection_modifyitems(config, items):
     """Skip requires_local_server tests in remote mode; order CMS tests last;
     auto-mark the slow families so `-m "not slow"` yields a fast iteration set."""
@@ -698,8 +862,9 @@ def pytest_collection_modifyitems(config, items):
 
     if cms_items:
         items[:] = other_items + cms_items
-    register_compat_fleet()
-    config._nginx_xrootd_selected_registry_specs = selected_specs(items)
+    _register_fleet()
+    _enforce_server_declarations(config, items)
+    config._nginx_xrootd_selected_registry_specs = _specs_to_boot(items)
 
 
 def pytest_sessionfinish(session, exitstatus):

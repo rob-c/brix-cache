@@ -35,14 +35,15 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, QueryCode
 
-from config_templates import render_config
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 from settings import SERVER_HOST, HOST, free_port
 
 # Self-provisions a stateful mirror front/sink + upstream mesh. Parallel
 # co-execution with other suites contended the shared backends and flaked
 # TestMirrorFrontServes (passes in isolation), so pin the module to the isolated
 # serial lane — the pattern the other mesh/topology suites already use.
-pytestmark = [pytest.mark.serial]
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
 
 NGINX_BIN  = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REF_XROOTD_BIN = os.environ.get(
@@ -116,42 +117,33 @@ def _stop_xrootd(cfg):
     subprocess.run(["pkill", "-f", cfg], capture_output=True)
 
 
-def _front_conf(name, port, data_dir, upstream_port, opcode_line=""):
-    """Build a mirror-front nginx config.  opcode_line is an optional extra
-    directive line (e.g. 'brix_mirror_exclude_opcodes stat;' or
-    'brix_mirror_opcodes dirlist;').  When empty, the front uses the DEFAULT —
-    mirror ALL ops."""
-    base = os.path.join(_DIR, name)
-    _mkdirs(os.path.join(base, "logs"))
+def _start_front(h, name, data_dir, upstream_port, opcode_line="", port=None):
+    """Launch a mirror-front nginx through the registry LifecycleHarness.
+
+    opcode_line is an optional extra directive line (e.g.
+    'brix_mirror_exclude_opcodes stat;' or 'brix_mirror_opcodes dirlist;');
+    when empty, the front uses the DEFAULT — mirror ALL ops.  The upstream
+    xrootd is already running, so its host/port are routed into the template as
+    values.  h.start renders the template, runs nginx -t, launches, and waits
+    for readiness, returning the ServerEndpoint."""
     extra = f"        {opcode_line}\n" if opcode_line else ""
-    conf = os.path.join(base, f"{name}.conf")
-    with open(conf, "w") as f:
-        f.write(render_config(
-            "nginx_mirror_upstream_front.conf",
-            BASE_DIR=base,
-            PORT=port,
-            DATA_DIR=data_dir,
-            UPSTREAM_HOST=HOST,
-            UPSTREAM_PORT=upstream_port,
-            EXTRA_DIRECTIVE=extra,
-        ))
-    return conf
+    return h.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_lc_mirror_upstream_front.conf",
+        port=port,
+        protocol="root",
+        data_root=data_dir,
+        template_values={
+            "UPSTREAM_HOST": HOST,
+            "UPSTREAM_PORT": upstream_port,
+            "EXTRA_DIRECTIVE": extra,
+        },
+        reason="nginx traffic-mirror front over an official xrootd upstream",
+    ))
 
 
-def _start_front(conf):
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        raise RuntimeError(f"front config rejected: {chk.stderr[-300:]}")
-    subprocess.run([NGINX_BIN, "-c", conf], capture_output=True)
-
-
-def _stop_front(conf):
-    subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
-
-
-def _front_log(name):
-    return os.path.join(_DIR, name, "logs", "error.log")
+def _front_log(ep):
+    return os.path.join(ep.prefix, "logs", "error.log")
 
 
 def _divergences_since(log_path, offset):
@@ -190,24 +182,23 @@ def stack():
         f.write(b"deep")
 
     up_cfg = _start_xrootd("up_cks", UP_CKS_PORT, up_data, checksum=True)
-    front_conf = _front_conf("front", FRONT_PORT, front_data, UP_CKS_PORT)
-    started = {"up": up_cfg, "front": front_conf}
+    # Module-scoped: instantiate the harness directly (the `lifecycle` fixture is
+    # function-scoped) and tear it down in the finally.
+    h = LifecycleHarness()
     try:
         if not _wait_port(UP_CKS_PORT):
             pytest.skip("upstream xrootd did not come up")
-        _start_front(front_conf)
-        if not _wait_port(FRONT_PORT):
-            pytest.skip("mirror front did not come up")
+        ep = _start_front(h, "front", front_data, UP_CKS_PORT, port=FRONT_PORT)
         yield {
-            "front_url": f"root://{H}:{FRONT_PORT}",
+            "front_url": f"root://{H}:{ep.port}",
             "up_url":    f"root://{H}:{UP_CKS_PORT}",
             "front_data": front_data,
             "up_data": up_data,
-            "front_log": _front_log("front"),
+            "front_log": _front_log(ep),
         }
     finally:
-        _stop_front(started["front"])
-        _stop_xrootd(started["up"])
+        h.close()
+        _stop_xrootd(up_cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -336,16 +327,14 @@ class TestMirrorGracefulUnsupported:
                 f.write(_COMMON)
 
         up_cfg = _start_xrootd("up_bare", UP_BARE_PORT, up_data, checksum=False)
-        front_conf = _front_conf("front_bare", FRONT_BARE_PORT, front_data,
-                                  UP_BARE_PORT)
+        h = LifecycleHarness()
         try:
             if not _wait_port(UP_BARE_PORT):
                 pytest.skip("bare upstream xrootd did not come up")
-            _start_front(front_conf)
-            if not _wait_port(FRONT_BARE_PORT):
-                pytest.skip("bare mirror front did not come up")
+            ep = _start_front(h, "front_bare", front_data, UP_BARE_PORT,
+                              port=FRONT_BARE_PORT)
 
-            log = _front_log("front_bare")
+            log = _front_log(ep)
             off = os.path.getsize(log) if os.path.exists(log) else 0
 
             # Sanity: the bare upstream really does NOT support checksum.
@@ -355,14 +344,14 @@ class TestMirrorGracefulUnsupported:
 
             # Front serves the checksum fine; the mirror replays it to the bare
             # upstream (which returns kXR_Unsupported) — must be benign.
-            st, _ = client.FileSystem(f"root://{H}:{FRONT_BARE_PORT}").query(
+            st, _ = client.FileSystem(f"root://{H}:{ep.port}").query(
                 QueryCode.CHECKSUM, "/common.bin")
             assert st.ok, f"front checksum failed: {st.message}"
             time.sleep(1.5)
             assert _divergences_since(log, off) == [], \
                 "Qcksum to a no-checksum upstream must be benign, not a divergence"
         finally:
-            _stop_front(front_conf)
+            h.close()
             _stop_xrootd(up_cfg)
 
 
@@ -386,24 +375,23 @@ _SEL_PORT_BASE = int(os.environ["TEST_MU_SEL_PORT_BASE"]) \
 @pytest.fixture
 def front_factory(stack):
     """Spawn mirror fronts (serving stack's front_data, mirroring to stack's
-    checksum upstream) with arbitrary opcode directives; tear them all down."""
-    confs = []
+    checksum upstream) with arbitrary opcode directives; tear them all down.
+
+    Function-scoped, so it drives its own LifecycleHarness; close() stops and
+    unregisters every front it spawned."""
+    h = LifecycleHarness()
     state = {"n": 0}
 
     def make(opcode_line):
-        port = (_SEL_PORT_BASE + state["n"]) if _SEL_PORT_BASE else free_port()
+        port = (_SEL_PORT_BASE + state["n"]) if _SEL_PORT_BASE else None
         name = f"sel_{state['n']}"
         state["n"] += 1
-        conf = _front_conf(name, port, stack["front_data"], UP_CKS_PORT,
-                           opcode_line)
-        _start_front(conf)
-        confs.append(conf)
-        assert _wait_port(port), f"front {name} did not come up"
-        return f"root://{H}:{port}", _front_log(name)
+        ep = _start_front(h, name, stack["front_data"], UP_CKS_PORT,
+                          opcode_line, port=port)
+        return f"root://{H}:{ep.port}", _front_log(ep)
 
     yield make
-    for c in confs:
-        _stop_front(c)
+    h.close()
 
 
 def _diverges_for(front_url, log, op_num):

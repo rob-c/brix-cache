@@ -27,6 +27,11 @@ typedef struct {
                                 If on (default), network errors and UNKNOWN status
                                 are treated as GOOD (non-blocking).
                                 REVOKED always fails regardless. */
+    ngx_flag_t  require_nonce;/* [brix_ocsp_require_nonce on|off]
+                                If on, an OCSP response that omits the nonce our
+                                request carried is a hard failure (replay guard,
+                                A-6 item 2).  Default off — most CA responders
+                                serve pre-signed, nonce-less responses. */
     ngx_flag_t  stapling;    /* [brix_ocsp_stapling on|off]
                                 Fetch an OCSP staple for the server certificate
                                 at init time and serve it via the TLS status_request
@@ -153,8 +158,10 @@ typedef struct {
     ngx_str_t    audit_log;          /* [brix_proxy_audit_log <path>|off] */
     ngx_fd_t     audit_log_fd;       /* opened fd; NGX_INVALID_FILE if off */
     ngx_open_file_t *audit_log_file; /* nginx-managed handle */
-    ngx_str_t    upstream_tls_ca;    /* [brix_proxy_upstream_tls_ca /etc/pki/ca.pem] */
-    ngx_str_t    upstream_tls_name;  /* [brix_proxy_upstream_tls_name host] — SNI override */
+    ngx_str_t    upstream_tls_ca;    /* [brix_tap_proxy_upstream_tls_ca /etc/pki/ca.pem] */
+    ngx_str_t    upstream_tls_name;  /* [brix_tap_proxy_upstream_tls_name host] — SNI override */
+    ngx_flag_t   upstream_ssl_verify;/* [brix_tap_proxy_upstream_tls_verify on|off] A-1: default on,
+                                      * nginx -t refuses upstream_tls without a CA unless off */
     ngx_uint_t   reconnect_attempts; /* [brix_proxy_reconnect_attempts N] */
     ngx_array_t *upstreams;          /* brix_proxy_upstream_t[]; may be NULL */
     ngx_str_t    path_strip;         /* [brix_proxy_path_rewrite strip add] */
@@ -255,6 +262,7 @@ brix_ocsp_conf_init(brix_ocsp_conf_t *c)
 {
     c->enable    = NGX_CONF_UNSET;
     c->soft_fail = NGX_CONF_UNSET;
+    c->require_nonce = NGX_CONF_UNSET;
     c->stapling  = NGX_CONF_UNSET;
 }
 
@@ -313,6 +321,7 @@ brix_proxy_conf_init(brix_proxy_conf_t *c)
     c->enable             = NGX_CONF_UNSET;
     c->port               = NGX_CONF_UNSET;
     c->upstream_tls       = NGX_CONF_UNSET;
+    c->upstream_ssl_verify = NGX_CONF_UNSET;
     c->auth               = NGX_CONF_UNSET_UINT;
     c->login_user         = NGX_CONF_UNSET_UINT;
     c->login_user_name[0] = '\0';
@@ -365,6 +374,7 @@ brix_ocsp_conf_merge(brix_ocsp_conf_t *c, brix_ocsp_conf_t *p)
 {
     ngx_conf_merge_value(c->enable,    p->enable,    0);
     ngx_conf_merge_value(c->soft_fail, p->soft_fail, 1);
+    ngx_conf_merge_value(c->require_nonce, p->require_nonce, 0);
     ngx_conf_merge_value(c->stapling,  p->stapling,  0);
 }
 

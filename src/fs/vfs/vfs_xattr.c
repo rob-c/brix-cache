@@ -85,6 +85,7 @@ brix_vfs_getxattr(brix_vfs_ctx_t *ctx, const char *name,
                       brix_vfs_export_relative(ctx, path),
                       name, buf, bufsz, use_cred ? &cred : NULL)
                 : (errno = ENOTSUP, (ssize_t) -1);
+            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
             return brix_vfs_xattr_observe_count(ctx, path, n, start);
         }
     }
@@ -136,6 +137,7 @@ brix_vfs_listxattr(brix_vfs_ctx_t *ctx, void *buf, size_t bufsz)
                       brix_vfs_export_relative(ctx, path),
                       buf, bufsz, use_cred ? &cred : NULL)
                 : (errno = ENOTSUP, (ssize_t) -1);
+            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
             return brix_vfs_xattr_observe_count(ctx, path, n, start);
         }
     }
@@ -237,6 +239,7 @@ brix_vfs_setxattr(brix_vfs_ctx_t *ctx, const char *name,
                          name, value, len, flags,
                          use_cred ? &cred : NULL) == NGX_OK)
                  ? 0 : (errno = (drv->setxattr ? errno : ENOTSUP), -1);
+            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
             return brix_vfs_xattr_observe_mut(ctx, path, rc, len, start);
         }
     }
@@ -280,6 +283,7 @@ brix_vfs_removexattr(brix_vfs_ctx_t *ctx, const char *name)
                          brix_vfs_export_relative(ctx, path), name,
                          use_cred ? &cred : NULL) == NGX_OK)
                  ? 0 : (errno = (drv->removexattr ? errno : ENOTSUP), -1);
+            brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
             return brix_vfs_xattr_observe_mut(ctx, path, rc, 0, start);
         }
     }

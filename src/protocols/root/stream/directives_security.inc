@@ -11,6 +11,53 @@
       offsetof(ngx_stream_brix_srv_conf_t, security_level),
       brix_security_levels },
 
+    /* D-1: session-posture floor (protocol-downgrade protection) — none|compat|
+     * intense (default none). Distinct axis from brix_security_level (signing):
+     * compat refuses a cleartext session post-handshake, intense also refuses an
+     * anonymous (auth=none) identity. Enforced in brix_min_sec_enforce. */
+    { ngx_string("brix_min_sec_level"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, min_sec_level),
+      brix_min_sec_levels },
+
+    /* D-2: opt-in opaque (CGI) schema enforcement — off (default) leaves only
+     * the always-on byte-hygiene gate; on additionally type-checks oss.asize as
+     * an unsigned integer and rejects any opaque key outside the recognized
+     * namespace vocabulary, before any handler parses it. Stock accepts both
+     * unchecked, so this is a deliberate posture opt-in (never a parity change).
+     * Enforced in brix_open_precheck (read/open_request.c). */
+    { ngx_string("brix_opaque_strict"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, opaque_strict),
+      NULL },
+
+    /* D-3: per-worker seccomp-BPF syscall filter — off|audit|enforce (default
+     * off). Process-global: the strictest value across enabled server blocks is
+     * installed once per worker at init_process. audit converges the allowlist
+     * risk-free; enforce kills execve/ptrace/process_vm_* and EPERMs the rest. */
+    { ngx_string("brix_seccomp"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, seccomp),
+      &brix_seccomp_modes },
+
+    /* E-4: negative-path backoff — throttle a per-principal stat/locate-harvest
+     * loop. "off" (default) or "<threshold> <window_seconds> <wait_seconds>":
+     * once one principal (token subject / GSI DN / client IP) produces more than
+     * <threshold> kXR_NotFound outcomes within <window_seconds>, further misses
+     * are answered with kXR_wait(<wait_seconds>) instead of NotFound. */
+    { ngx_string("brix_negcache_backoff"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1 | NGX_CONF_TAKE3,
+      brix_negcache_set,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, negcache),
+      NULL },
+
     /* Enable kXR_ableTLS in-protocol TLS upgrade using brix_certificate/key. */
     { ngx_string("brix_tls"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,

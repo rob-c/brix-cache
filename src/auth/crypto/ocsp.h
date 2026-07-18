@@ -29,12 +29,15 @@
  * @soft_fail: if 1, treat network errors / unknown status as pass (return 0);
  *             if 0, treat any non-GOOD status as failure (return -1).
  *             A REVOKED status always returns -1 regardless of soft_fail.
+ * @require_nonce: if 1, a response that omits the request's nonce is a hard
+ *             failure (replay defence, A-6 item 2); if 0, missing nonce warns
+ *             only (interop with pre-signed, nonce-less responders).
  *
  * Returns 0 if the certificate is GOOD (or soft_fail allows the status),
  *         -1 if the certificate is REVOKED or the check definitively fails.
  */
 int brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer,
-    int soft_fail);
+    int soft_fail, int require_nonce);
 
 /*
  * brix_ocsp_staple_fetch — fetch and cache an OCSP staple for the server

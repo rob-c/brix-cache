@@ -234,6 +234,16 @@ typedef enum {
     BRIX_SD_RES_LOST     = 3   /* the object is gone                                */
 } brix_sd_residency_t;
 
+/* Driver space report (optional `space` slot, phase-83 F5): the backend's own
+ * view of total/used/free bytes for the export — quota-aware logical space for
+ * catalog backends (pblock), rather than the raw statvfs(2) of the filesystem
+ * under it. Consumers: kXR_statvfs, SRR reporting. */
+typedef struct {
+    uint64_t total_bytes;
+    uint64_t used_bytes;
+    uint64_t free_bytes;
+} brix_sd_space_t;
+
 /* One entry the catalog-enumeration verb (driver->enumerate) reports per stored
  * backend object — independent of the namespace. `key` is the backend object key
  * (always present). `path` is the logical path the driver recovered for it, or
@@ -298,6 +308,11 @@ struct brix_sd_instance_s {
     ngx_log_t                *log;
     ngx_pool_t               *pool;
     void                     *state;
+    /* Effective capability bitmap. Seeded from driver->caps at instance create;
+     * a driver's init may narrow/extend it per export (Phase-83 pblock lab caps=
+     * mask). brix_sd_caps()/brix_sd_fd() read THIS, not driver->caps, so a masked
+     * capability is honoured everywhere the VFS dispatches on caps. */
+    uint32_t                  caps;
 };
 
 /* Opaque open object. fd is the real descriptor for CAP_FD backends, else
@@ -432,6 +447,12 @@ struct brix_sd_driver_s {
      * NGX_OK (out set) or NGX_ERROR (errno set, e.g. ENOENT for an unknown key). */
     ngx_int_t  (*residency)(brix_sd_instance_t *inst, const char *key,
                             brix_sd_residency_t *out);
+
+    /* export space report (phase-83 F5) — the driver's own total/used/free view
+     * (quota-aware logical space for catalog backends). NULL ⇒ the caller falls
+     * back to statvfs(2) on the export root. Returns NGX_OK (out set) or
+     * NGX_ERROR (errno set). */
+    ngx_int_t  (*space)(brix_sd_instance_t *inst, brix_sd_space_t *out);
 
     /* object-catalog enumeration (inventory/drift, spec §E1/D2). Enumerate the
      * driver's OWN physical object catalog — NOT a namespace walk — firing cb

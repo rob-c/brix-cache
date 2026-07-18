@@ -7,7 +7,8 @@
  *       shared/cvmfs/grammar/classify.c shared/cvmfs/grammar/hash.c \
  *       shared/cvmfs/signature/manifest.c shared/cvmfs/signature/whitelist.c \
  *       shared/cvmfs/signature/verify.c shared/cvmfs/config/repo.c \
- *       -lcrypto && /tmp/cvmfs_core_ut
+ *       shared/cvmfs/object/object.c shared/cvmfs/failover/failover.c \
+ *       -lcrypto -lz && /tmp/cvmfs_core_ut
  *
  * Exit 0 = all checks pass.
  */
@@ -42,10 +43,10 @@ static void test_classify(void) {
     cvmfs_url_info_t u;
 
     const char cas[] = "/cvmfs/atlas.cern.ch/data/ab/"
-                       "cdef0123456789abcdef0123456789abcdef0123";
+                       "cdef0123456789abcdef0123456789abcdef01";
     cvmfs_classify_url(cas, strlen(cas), &u);
     CHECK(u.cls == CVMFS_URL_CAS, "cas classified");
-    CHECK(u.cas_hex_len == 42 && u.cas_hex[0] == 'a' && u.cas_hex[1] == 'b',
+    CHECK(u.cas_hex_len == 40 && u.cas_hex[0] == 'a' && u.cas_hex[1] == 'b',
           "cas hex rejoined");
 
     const char man[] = "/cvmfs/atlas.cern.ch/.cvmfspublished";
@@ -150,10 +151,16 @@ static void test_verify(void) {
     char *pem = NULL;
     long  plen = BIO_get_mem_data(b, &pem);
 
-    /* CVMFS signs the printed hash-LINE text, not the body. */
+    /* CVMFS signs the printed hash-LINE text, and that line is the body's own
+     * SHA-1 digest — recomputing it binds the whole body to the signature.
+     * Stock coverage EXCLUDES the trailing "--\n" separator. */
     const char body[] =
         "Cabcdef0123456789abcdef0123456789abcdef01\nNatlas.cern.ch\nD240\n--\n";
-    const char hash_text[] = "1111111111111111111111111111111111111111";
+    unsigned char bd[20];
+    SHA1((const unsigned char *) body, sizeof(body) - 1 - 3, bd);
+    char hash_text[41];
+    for (int i = 0; i < 20; i++)
+        snprintf(hash_text + i * 2, 3, "%02x", bd[i]);
     unsigned char sig[512];
     size_t        sl = cvmfs_style_sign(pk, (const unsigned char *) hash_text,
                                         strlen(hash_text), sig, sizeof(sig));
@@ -176,6 +183,17 @@ static void test_verify(void) {
     cvmfs_manifest_parse(mb, o, &man);
     CHECK(cvmfs_verify_manifest(&man, (unsigned char *) pem, plen) != 0,
           "forged signature rejected");     /* security-negative */
+    mb[sig_off] ^= 0xff;   /* restore the genuine signature */
+
+    /* Body tamper with an AUTHENTIC signature: keep the signed hash-line + RSA
+     * signature verbatim, flip a byte in an unsigned body field (here the root
+     * catalog hash). The signature still verifies, but SHA1(body) no longer
+     * matches the hash-line, so body-binding must refuse it. */
+    mb[3] ^= 0xff;
+    cvmfs_manifest_parse(mb, o, &man);
+    CHECK(cvmfs_verify_manifest(&man, (unsigned char *) pem, plen) != 0,
+          "body tamper under a valid signature rejected");  /* security-negative */
+    mb[3] ^= 0xff;
 
     char fp[64];
     CHECK(cvmfs_cert_fingerprint((unsigned char *) pem, plen, fp, sizeof(fp)) == 0

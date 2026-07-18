@@ -38,6 +38,7 @@ RUN printf '%s\n' \
       brotli-devel liburing-devel \
       ceph-common librados-devel libradospp-devel libradosstriper-devel \
       libcephfs-devel python3-rados python3-cephfs \
+      xrootd-client \
  && dnf clean all
 
 # nginx upstream source - the module is added at ./configure time.

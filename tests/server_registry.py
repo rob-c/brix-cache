@@ -27,6 +27,7 @@ class NginxInstanceSpec:
     tags: tuple[str, ...] = ()
     allow_remote_skip: bool = True
     reason: str = ""
+    kind: str = "nginx"
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,41 @@ def registered_specs() -> list[NginxInstanceSpec]:
     return [_SPECS[name] for name in dependency_order()]
 
 
+def declared_ports(spec: NginxInstanceSpec) -> set[int]:
+    """Every fixed port a spec statically claims: its own ``port`` plus any
+    ``extra_ports`` values.
+
+    Auto-assigned specs (``port is None``) contribute only their ``extra_ports``.
+    A port reused *within one spec* — e.g. an XrdHttp instance that re-exposes
+    its own listen port under an ``extra_ports`` template key — counts once, so
+    only genuine cross-service reuse shows up as a conflict.
+    """
+    ports: set[int] = set()
+    if spec.port is not None:
+        ports.add(spec.port)
+    ports.update(p for p in spec.extra_ports.values() if p is not None)
+    return ports
+
+
+def port_conflicts(
+    specs: list[NginxInstanceSpec] | tuple[NginxInstanceSpec, ...] | None = None
+) -> dict[int, list[str]]:
+    """Map each fixed port claimed by more than one distinct spec to its
+    claimant names (an empty dict means the fleet is collision-free).
+
+    The registry pins most fleet instances to a hardcoded port so the 414
+    fixed-port test files stay valid; a copy-paste slip that points two
+    *different* services at the same port would let them race for the socket at
+    start-all (whoever binds first wins, the other dies) — a silent, confusing
+    failure. This surfaces every such collision statically, before any launch.
+    """
+    owners: dict[int, set[str]] = {}
+    for spec in (specs if specs is not None else registered_specs()):
+        for port in declared_ports(spec):
+            owners.setdefault(port, set()).add(spec.name)
+    return {port: sorted(names) for port, names in owners.items() if len(names) > 1}
+
+
 def registered_command_suites() -> list[CommandSpec]:
     return [_COMMAND_SPECS[name] for name in sorted(_COMMAND_SPECS)]
 
@@ -163,14 +199,46 @@ def dependency_order() -> list[str]:
     return ordered
 
 
-def selected_specs(pytest_items) -> list[NginxInstanceSpec]:
+def dependency_closure(names) -> set[str]:
+    """Every spec name reachable from ``names`` by following ``requires`` edges.
+
+    Declaring a leaf spec implicitly declares the servers it subscribes up to
+    (a cluster data-server's redirector, a KRB5 role's KDC), so the declaration
+    gate credits the whole closure — a test that declares ``cluster-ds`` need not
+    also spell out ``cluster-redir``.  Unknown names are returned as-is (the gate
+    reports them; it does not resolve them) rather than raising, so a stale marker
+    surfaces as a violation instead of crashing collection.
+    """
+    closure: set[str] = set()
+
+    def add(name: str) -> None:
+        if name in closure:
+            return
+        closure.add(name)
+        spec = _SPECS.get(name)
+        if spec is not None:
+            for dep in spec.requires:
+                add(dep)
+
+    for name in names:
+        add(name)
+    return closure
+
+
+def selected_specs(pytest_items, always_on=()) -> list[NginxInstanceSpec]:
     """Return dependency-ordered specs requested by collected pytest items.
 
     Tests opt into a subset with either ``@pytest.mark.registry_server("name")``
-    or ``@pytest.mark.registry_servers("a", "b")``.  If no collected item asks
-    for a subset, keep the migration-safe behavior and return every spec.
+    or ``@pytest.mark.registry_servers("a", "b")``.  ``always_on`` names the
+    servers that must boot regardless of any marker — the always-on backbone
+    (core specs, reached through session fixtures) plus any dedicated spec a
+    conftest fixture references — so subset selection never drops shared
+    infrastructure the way a naive closure-of-declared would.
+
+    With neither markers nor an ``always_on`` set (the pre-declaration state of
+    the tree) every spec is returned, preserving the migration-safe behavior.
     """
-    requested: set[str] = set()
+    requested: set[str] = set(always_on)
     for item in pytest_items:
         for marker_name in ("registry_server", "registry_servers"):
             marker = item.get_closest_marker(marker_name)
@@ -180,21 +248,7 @@ def selected_specs(pytest_items) -> list[NginxInstanceSpec]:
     if not requested:
         return registered_specs()
 
-    closure: set[str] = set()
-
-    def add(name: str) -> None:
-        if name in closure:
-            return
-        spec = _SPECS.get(name)
-        if spec is None:
-            raise KeyError(f"selected test requested unknown registry server: {name}")
-        for dep in spec.requires:
-            add(dep)
-        closure.add(name)
-
-    for name in sorted(requested):
-        add(name)
-
+    closure = dependency_closure(requested)
     return [spec for spec in registered_specs() if spec.name in closure]
 
 
@@ -295,20 +349,3 @@ def _caller_site() -> str:
         if not filename.endswith("server_registry.py"):
             return f"{filename}:{frame.lineno}"
     return "unknown location"
-
-
-def register_compat_fleet() -> None:
-    """Register the existing fixed-port fleet as the migration baseline."""
-    if "compat-fleet" in _SPECS:
-        return
-    register_nginx(
-        NginxInstanceSpec(
-            name="compat-fleet",
-            template="nginx_shared.conf",
-            port=int(os.environ.get("TEST_NGINX_ANON_PORT", "11094")),
-            protocol="root",
-            data_root=os.path.join(TEST_ROOT, "data"),
-            tags=("compat", "fleet"),
-            reason="Compatibility bridge for the pre-existing fixed-port test fleet.",
-        )
-    )

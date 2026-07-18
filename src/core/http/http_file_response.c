@@ -366,7 +366,14 @@ brix_http_send_file_range(ngx_http_request_t *r, ngx_fd_t fd,
     }
 
     rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || r->header_only) {
+    /* rc > NGX_OK is a special-response code from the header-filter chain (e.g.
+     * nginx's core range filter mapping a malformed "bytes=" spec to 416): the
+     * chain short-circuited WITHOUT writing header bytes, so we must NOT push a
+     * body — return the code and let ngx_http_finalize_request emit the error
+     * response. Sending the file here would put raw body bytes on a wire that
+     * has no status line, i.e. an HTTP/0.9 corruption. (Canonical nginx static-
+     * handler guard; the memory-backed sibling in file_serve.c already has it.) */
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
         if (close_fd) {
             ngx_close_file(fd);
             if (clnf != NULL) {

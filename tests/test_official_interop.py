@@ -13,7 +13,6 @@ Self-provisioning; skips entirely without the stock xrootd toolchain.
 """
 
 import os
-import subprocess
 
 import pytest
 
@@ -45,17 +44,14 @@ def srv(tmp_path_factory):
         pytest.skip("our nginx server did not start")
     if not off:
         if ours:
-            ours.terminate()
+            L.stop_pair([ours])
         pytest.skip("stock xrootd server did not start")
     ctx = {"our": L.our_url(our_port), "off": L.off_url(off_port),
            "our_data": our_data, "off_data": off_data}
     yield ctx
-    for p in (ours, off):
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+    # `ours` is a LifecycleHarness (closed via .close()), `off` a stock-xrootd
+    # Popen (reaped via its process group) — stop_pair handles both.
+    L.stop_pair([ours, off])
 
 
 def fs(url, *args, timeout=60):

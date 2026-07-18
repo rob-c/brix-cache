@@ -155,7 +155,7 @@ BRIX_CORE_SOURCES = [
     "shared/cvmfs/failover/failover.c", "shared/cvmfs/catalog/catalog.c", "shared/cvmfs/grammar/hash.c",
     "shared/cvmfs/grammar/classify.c", "shared/cvmfs/signature/manifest.c", "shared/cvmfs/signature/whitelist.c",
     "shared/cvmfs/signature/verify.c", "shared/cvmfs/config/repo.c", "shared/cvmfs/config/cvmfs_conf.c",
-    "shared/cache/cas_store.c", "shared/net/proxy_env.c",
+    "shared/cvmfs/walk/walk.c", "shared/cache/cas_store.c", "shared/net/proxy_env.c",
 ]
 
 

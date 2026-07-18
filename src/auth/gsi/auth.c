@@ -541,7 +541,8 @@ gsi_auth_step_cert(brix_ctx_t *ctx, ngx_connection_t *c,
         X509 *issuer = (sk_X509_num(chain) > 1)
                        ? sk_X509_value(chain, 1) : NULL;
         if (brix_ocsp_check_cert(c->log, leaf, issuer,
-                                   (int)conf->ocsp.soft_fail) != 0)
+                                   (int)conf->ocsp.soft_fail,
+                                   (int)conf->ocsp.require_nonce) != 0)
         {
             return gsi_cert_deny(ctx, c, chain,
                                  "OCSP check failed",

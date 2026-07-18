@@ -113,6 +113,7 @@ vfs_dir_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_dir_t *dh,
         ? brix_sd_opendir_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
               logical, &err, use_cred ? &cred : NULL)
         : NULL;
+    brix_sd_ucred_wipe(&store);   /* secret consumed by opendir; erase (A-4/T4) */
     if (dh->sd_dir == NULL) {
         *err_out = (err != 0) ? err : errno;
         return NGX_ERROR;

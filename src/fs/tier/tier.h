@@ -82,6 +82,16 @@ typedef struct {
                                                         "" = unlink the failed part */
     time_t                      cvmfs_manifest_ttl; /* phase-68: TTL stamped on
                                                   MANIFEST-class fills (0 = none) */
+    time_t                      cvmfs_offline_ttl; /* phase-85 F10: offline-survival
+                                                  horizon for the failed-refill
+                                                  stale serve, measured from
+                                                  filled_at; extends the 10x-TTL
+                                                  window when longer (0 = off) */
+    const unsigned char        *cvmfs_master_pub; /* phase-85 F1: repo master public
+                                                  key(s), concatenated PEM, loaded at
+                                                  config time (cf->pool). NULL = no
+                                                  manifest/whitelist signature verify */
+    size_t                      cvmfs_master_pub_len;
     regex_t                    *include_regex;   /* brix_cache_include             */
     ngx_array_t                *deny_prefixes;   /* brix_cache_deny  (ngx_str_t[]) */
     ngx_array_t                *allow_prefixes;  /* brix_cache_allow (ngx_str_t[]) */
@@ -183,6 +193,22 @@ brix_sd_instance_t *brix_tier_build_stack(brix_tier_stack_t *s,
  * types) to keep the widely-included registry header free of tier.h. */
 void brix_vfs_backend_config_cache_store(const char *root_canon,
     const brix_tier_cfg_t *cfg, const brix_cache_policy_t *policy);
+
+/* Phase-85 F7: register the OPTIONAL cold store tier under the cache tier of
+ * `root_canon` (brix_cache_cold_store). No policy of its own — the hot cache's
+ * policy governs; the compose step builds this store and attaches it to the
+ * sd_cache decorator via brix_sd_cache_set_cold. */
+void brix_vfs_backend_config_cache_cold_store(const char *root_canon,
+    const brix_tier_cfg_t *cfg);
+
+/* Phase-85 F8: register the sibling-mesh ring for `root_canon`
+ * (brix_cache_peers). `hosts`/`ports` are the n ring members in declaration
+ * order (identical on every node of the mesh); `self` is the index of this
+ * node's own slot. The compose step builds one http fill source per non-self
+ * member and attaches the ring via brix_sd_cache_set_peers. n is capped by
+ * the registry ring size (16). */
+void brix_vfs_backend_config_cache_peers(const char *root_canon,
+    const char (*hosts)[256], const int *ports, int n, int self);
 
 void brix_vfs_backend_config_stage_store(const char *root_canon,
     const brix_tier_cfg_t *cfg, const brix_stage_policy_t *policy);

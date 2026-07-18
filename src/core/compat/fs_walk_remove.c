@@ -47,9 +47,15 @@
  *      match the original, and NGX_ERROR signals the loop to break.
  */
 
+/* Depth-carrying recursive core; the public brix_fs_remove_tree_confined() is a
+ * depth-0 wrapper.  Threading depth here (rather than resetting it at the public
+ * entry each level) is what makes the BRIX_FS_TREE_MAX_DEPTH cap actually bite. */
+static ngx_int_t brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
+    const char *path, ngx_uint_t depth);
+
 static ngx_int_t
 brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
-    const char *path, const struct dirent *de)
+    const char *path, const struct dirent *de, ngx_uint_t depth)
 {
     char        child[PATH_MAX];
     struct stat st;
@@ -82,7 +88,7 @@ brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
     }
 
     if (S_ISDIR(st.st_mode)) {
-        return brix_fs_remove_tree_confined(log, root_canon, child);
+        return brix_fs_remove_tree_at(log, root_canon, child, depth + 1);
     }
 
     if (brix_unlink_beneath(rootfd, child_rel, 0) != 0) {
@@ -111,15 +117,25 @@ brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
  *      children processed → brix_unlink_confined_canon(root_canon, path, 1) (rmdir).
  */
 
-ngx_int_t
-brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
-    const char *path)
+static ngx_int_t
+brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
+    const char *path, ngx_uint_t depth)
 {
     DIR           *dp;
     struct dirent *de;
     ngx_int_t      rc;
     int            rootfd;
     const char    *path_rel;
+
+    /* D-6/T2: independent C-stack recursion — bound it so a hostile deep tree
+     * aborts cleanly instead of overflowing the worker stack. */
+    if (depth > BRIX_FS_TREE_MAX_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "brix: remove-tree depth cap (%d) exceeded at \"%s\"",
+                      BRIX_FS_TREE_MAX_DEPTH, path);
+        errno = ELOOP;
+        return NGX_ERROR;
+    }
 
     /*
      * The opendir/readdir/lstat iteration below is NOT a beneath site: it walks
@@ -163,7 +179,7 @@ brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
     rc = NGX_OK;
 
     while ((de = readdir(dp)) != NULL) {
-        if (brix_fs_remove_tree_entry(log, root_canon, rootfd, path, de)
+        if (brix_fs_remove_tree_entry(log, root_canon, rootfd, path, de, depth)
             != NGX_OK)
         {
             rc = NGX_ERROR;
@@ -183,4 +199,12 @@ brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
 
     close(rootfd);
     return rc;
+}
+
+/* See fs_walk.h — depth-0 entry into the recursive core. */
+ngx_int_t
+brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
+    const char *path)
+{
+    return brix_fs_remove_tree_at(log, root_canon, path, 0);
 }

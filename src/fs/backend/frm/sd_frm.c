@@ -143,9 +143,14 @@ sd_frm_close(brix_sd_obj_t *obj)
         (void) close(obj->fd);
         obj->fd = -1;
     }
-    if (obj->heap_shell) {
-        free(obj);
-    }
+    /* The shell is NOT freed here. driver->close closes the fd/state only; the
+     * malloc'd shell (heap_shell) is owned by the caller that holds the object
+     * by pointer — brix_sd_obj_release() and the VFS adopt paths both do
+     * `close(o); if (o->heap_shell) free(o);`, and brix_vfs_adopt_obj() frees
+     * the original after copying it by value. Freeing it here double-frees the
+     * shell the moment the object is released or adopt fails (matches the posix
+     * / http / remote / pblock drivers, which all leave the shell to the owner).
+     */
     return NGX_OK;
 }
 
@@ -455,6 +460,11 @@ brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
     }
 
     inst->driver = &brix_sd_frm_driver;
+    inst->caps   = brix_sd_frm_driver.caps;  /* effective caps default = descriptor
+                                              * caps (matches brix_sd_instance_create);
+                                              * without this brix_sd_caps() reports 0
+                                              * and the CAP_NEARLINE residency/recall
+                                              * gates never see the tape driver. */
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = st;

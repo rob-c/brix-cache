@@ -35,6 +35,7 @@ char * webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *con
 
 /* module_init.c */
 ngx_int_t brix_http_protocol_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+ngx_int_t brix_http_delegated_cred_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 ngx_int_t brix_http_add_protocol_variables(ngx_conf_t *cf);
 ngx_int_t ngx_http_brix_webdav_preconfiguration(ngx_conf_t *cf);
 ngx_int_t ngx_http_brix_webdav_init_process(ngx_cycle_t *cycle);

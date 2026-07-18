@@ -194,13 +194,16 @@ webdav_tpc_user_proxy_from_store(ngx_http_request_t *r,
     if (cred.is_bearer || cred.is_s3 || cred.is_ceph) {
         /* A non-x509 stored credential is not a curl client cert for the pull
          * leg (the bearer path is applied as an Authorization header, s3/ceph
-         * are backend-only). Fall back to the service cert. */
+         * are backend-only). Fall back to the service cert. Erase the resolved
+         * secret we are declining before returning (A-4/T4). */
+        brix_sd_ucred_wipe(&cred);
         return;
     }
 
     path_len = ngx_strlen(cred.path);
     path = ngx_pnalloc(r->pool, path_len + 1);
     if (path == NULL) {
+        brix_sd_ucred_wipe(&cred);
         return;
     }
     ngx_memcpy(path, cred.path, path_len);
@@ -212,6 +215,7 @@ webdav_tpc_user_proxy_from_store(ngx_http_request_t *r,
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: TPC pull presenting delegated proxy"
                   " (store) to source");
+    brix_sd_ucred_wipe(&cred);   /* x509 proxy PATH captured; erase residue */
 }
 
 void

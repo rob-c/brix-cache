@@ -44,6 +44,17 @@ static size_t cvmfs_sign(EVP_PKEY *pk, const unsigned char *m, size_t ml, unsign
     EVP_PKEY_CTX*c=EVP_PKEY_CTX_new(pk,NULL); EVP_PKEY_sign_init(c); EVP_PKEY_CTX_set_rsa_padding(c,RSA_PKCS1_PADDING);
     size_t sl=cap; EVP_PKEY_sign(c,sig,&sl,m,ml); EVP_PKEY_CTX_free(c); return sl;
 }
+/* Lowercase SHA-1 hex of a buffer → out[41] (NUL-terminated). CVMFS prints this
+ * digest of the manifest/whitelist body on the hash line, binding the whole body
+ * to the RSA signature — the client recomputes and compares it. */
+static void sha1_hex(const unsigned char *m, size_t n, char out[41]) {
+    unsigned char md[20]; unsigned int mdn=0;
+    EVP_MD_CTX*h=EVP_MD_CTX_new();
+    EVP_DigestInit_ex(h,EVP_sha1(),NULL); EVP_DigestUpdate(h,m,n); EVP_DigestFinal_ex(h,md,&mdn);
+    EVP_MD_CTX_free(h);
+    static const char hx[]="0123456789abcdef";
+    for(unsigned i=0;i<20;i++){ out[2*i]=hx[md[i]>>4]; out[2*i+1]=hx[md[i]&0xf]; } out[40]=0;
+}
 /* Write a CAS object (compressed) at <webroot>/cvmfs/<repo>/data/<2>/<rest><suffix>.
  * The object identity is the hash of the STORED (compressed) bytes (real CVMFS),
  * returned in *out_h. */
@@ -102,6 +113,8 @@ int main(int argc, char **argv) {
       sqlite3_bind_int64(st,7,0100644);sqlite3_bind_int64(st,8,CVMFS_FLAG_FILE);
       sqlite3_bind_text(st,9,"hello",-1,SQLITE_STATIC);sqlite3_bind_null(st,10);
       sqlite3_step(st);sqlite3_finalize(st); }
+    /* revision property must match manifest 'S1' — the client cross-checks them. */
+    sqlite3_exec(db,"INSERT INTO properties (key,value) VALUES ('revision','1')",NULL,NULL,NULL);
     sqlite3_close(db);
 
     FILE*f=fopen(catdb,"rb"); fseek(f,0,SEEK_END); long csz=ftell(f); fseek(f,0,SEEK_SET);
@@ -132,7 +145,7 @@ int main(int argc, char **argv) {
 
     /* whitelist */
     char wlb[512]; int wlbn=snprintf(wlb,sizeof(wlb),"20991231235959\nN%s\n%s\n--\n",repo,fp);
-    const char wlh[]="2222222222222222222222222222222222222222";
+    char wlh[41]; sha1_hex((const unsigned char*)wlb,(size_t)wlbn-3,wlh);  /* SHA1(body excl "--\n") — stock coverage */
     unsigned char wsig[512]; size_t wsl=cvmfs_sign(master,(const unsigned char*)wlh,strlen(wlh),wsig,sizeof(wsig));
     unsigned char wl[1024]; size_t wn=0; memcpy(wl,wlb,wlbn);wn=wlbn;
     memcpy(wl+wn,wlh,strlen(wlh));wn+=strlen(wlh);wl[wn++]='\n';memcpy(wl+wn,wsig,wsl);wn+=wsl;
@@ -141,7 +154,7 @@ int main(int argc, char **argv) {
     /* manifest */
     char cathex[64],certhex[64]; cvmfs_hash_to_hex(&cat_h,0,cathex,sizeof(cathex)); cvmfs_hash_to_hex(&cert_h,0,certhex,sizeof(certhex));
     char mb[512]; int mbn=snprintf(mb,sizeof(mb),"C%s\nB%ld\nX%s\nS1\nN%s\nT1700000000\nD240\n--\n",cathex,csz,certhex,repo);
-    const char mh[]="1111111111111111111111111111111111111111";
+    char mh[41]; sha1_hex((const unsigned char*)mb,(size_t)mbn-3,mh);  /* SHA1(body excl "--\n") — stock coverage */
     unsigned char msig[512]; size_t msl=cvmfs_sign(certpk,(const unsigned char*)mh,strlen(mh),msig,sizeof(msig));
     unsigned char man[1024]; size_t mn=0; memcpy(man,mb,mbn);mn=mbn;
     memcpy(man+mn,mh,strlen(mh));mn+=strlen(mh);man[mn++]='\n';memcpy(man+mn,msig,msl);mn+=msl;

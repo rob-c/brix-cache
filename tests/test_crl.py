@@ -282,6 +282,7 @@ class TestCRLStreamRejection:
             f"baseline GSI stat failed: {result.stderr}"
         )
 
+    @pytest.mark.registry_server("crl")
     def test_revoked_cert_rejected_by_crl_server(self, crl_nginx):
         """The CRL-enabled listener should reject the revoked proxy."""
         env = os.environ.copy()
@@ -302,6 +303,7 @@ class TestCRLStreamRejection:
 class TestCRLWebDAVRejection:
     """WebDAV/HTTPS should reject a revoked client certificate."""
 
+    @pytest.mark.registry_server("crl")
     def test_revoked_cert_rejected_by_webdav(self, crl_nginx):
         """HTTPS request with revoked client cert should fail auth."""
         # We need to present the client cert for mutual TLS.
@@ -321,12 +323,14 @@ class TestCRLWebDAVRejection:
 class TestCRLConfigDirectives:
     """Verify CRL configuration is accepted and operational."""
 
+    @pytest.mark.registry_server("crl")
     def test_nginx_config_accepted(self, crl_nginx):
         """Server reachability confirms the CRL config was accepted by nginx."""
         assert _wait_for_port(CRL_HOST, CRL_PORT), (
             f"CRL nginx not reachable on port {CRL_PORT}"
         )
 
+    @pytest.mark.registry_server("crl")
     def test_crl_loaded_in_logs(self, crl_nginx):
         """The configured CRL must be loaded into the GSI store and enforced.
 
@@ -362,6 +366,7 @@ class TestCRLConfigDirectives:
 class TestCRLDirectoryMode:
     """Verify brix_crl with a directory of CRL files."""
 
+    @pytest.mark.registry_server("crl-dir")
     def test_revoked_cert_rejected_stream(self, crl_dir_nginx):
         """Stream: revoked cert should fail via directory-loaded CRL."""
         env = os.environ.copy()
@@ -378,6 +383,7 @@ class TestCRLDirectoryMode:
             "revoked cert should be rejected via directory CRL"
         )
 
+    @pytest.mark.registry_server("crl-dir")
     def test_revoked_cert_rejected_webdav(self, crl_dir_nginx):
         """WebDAV: revoked cert should fail via directory-loaded CRL."""
         resp = requests.get(
@@ -389,12 +395,14 @@ class TestCRLDirectoryMode:
             f"expected 403, got {resp.status_code}: {resp.text}"
         )
 
+    @pytest.mark.registry_server("crl-dir")
     def test_directory_crl_config_accepted(self, crl_dir_nginx):
         """Server reachability confirms the directory-mode CRL config was accepted."""
         assert _wait_for_port(CRL_HOST, CRL_DIR_PORT), (
             f"CRL dir nginx not reachable on port {CRL_DIR_PORT}"
         )
 
+    @pytest.mark.registry_server("crl-dir")
     def test_directory_crl_loaded_in_logs(self, crl_dir_nginx):
         """Directory-mode CRLs must be loaded into the GSI store and enforced.
 
@@ -423,6 +431,7 @@ class TestCRLDirectoryMode:
 class TestCRLReload:
     """Verify brix_crl_reload picks up new CRLs without restart."""
 
+    @pytest.mark.registry_server("crl-reload")
     def test_initially_accepts_revoked_cert(self, crl_reload_nginx):
         """Before CRL is placed, revoked cert should be accepted."""
         env = os.environ.copy()
@@ -440,6 +449,7 @@ class TestCRLReload:
             f"should accept before CRL is loaded: {result.stderr}"
         )
 
+    @pytest.mark.registry_server("crl-reload")
     def test_rejects_after_crl_reload(self, crl_reload_nginx):
         """After CRL is copied into directory and timer fires, cert rejected."""
         import shutil
@@ -467,6 +477,7 @@ class TestCRLReload:
             "revoked cert should be rejected after CRL reload"
         )
 
+    @pytest.mark.registry_server("crl-reload")
     def test_reload_timer_log_message(self, crl_reload_nginx):
         """The error log should contain the CRL reload timer message."""
         info = crl_reload_nginx

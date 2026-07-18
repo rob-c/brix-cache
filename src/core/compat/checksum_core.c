@@ -97,11 +97,36 @@ u32_update(int kind, const unsigned char *buf, size_t n,
     }
 }
 
+/* ---- Bytes to request this read given the remaining range budget ----
+ *
+ * WHAT: For a bounded range (len >= 0) returns min(bufsz, remaining), clamping
+ *       the final read so the sum stops exactly at start+len; for an unbounded
+ *       range (len < 0, "to EOF") always returns bufsz.
+ *
+ * WHY:  All three ranged kernels (u32/u64/digest) share the same last-read clamp;
+ *       naming it keeps each read loop a flat drain and puts the boundary
+ *       arithmetic — the one place an off-by-one would corrupt a partial-range
+ *       checksum — in a single reviewable spot.
+ */
+static size_t
+range_want(off_t len, off_t remaining, size_t bufsz)
+{
+    if (len < 0) {
+        return bufsz;
+    }
+    if (remaining <= 0) {
+        return 0;
+    }
+    return (remaining < (off_t) bufsz) ? (size_t) remaining : bufsz;
+}
+
 int
-brix_cksum_u32_obj(int kind, brix_sd_obj_t *obj, uint32_t *out)
+brix_cksum_u32_obj_range(int kind, brix_sd_obj_t *obj, off_t start, off_t len,
+                         uint32_t *out)
 {
     unsigned char buf[BRIX_CK_BUFSZ];
-    off_t         offset = 0;
+    off_t         offset;
+    off_t         remaining = len;
     uint32_t      crc32c = 0;
     uLong         zcrc;
 
@@ -112,14 +137,16 @@ brix_cksum_u32_obj(int kind, brix_sd_obj_t *obj, uint32_t *out)
     }
 
     if (out == NULL || obj == NULL || obj->driver == NULL
-        || !u32_kind_ok(kind)) {
+        || !u32_kind_ok(kind) || start < 0) {
         return -1;
     }
 
     zcrc = u32_seed(kind);
+    offset = start;
 
-    for (;;) {
-        ssize_t n = obj->driver->pread(obj, buf, sizeof(buf), offset);
+    while (len < 0 || remaining > 0) {
+        size_t  want = range_want(len, remaining, sizeof(buf));
+        ssize_t n = obj->driver->pread(obj, buf, want, offset);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;
@@ -130,11 +157,20 @@ brix_cksum_u32_obj(int kind, brix_sd_obj_t *obj, uint32_t *out)
             break;
         }
         offset += (off_t) n;
+        if (len >= 0) {
+            remaining -= (off_t) n;
+        }
         u32_update(kind, buf, (size_t) n, &zcrc, &crc32c);
     }
 
     *out = (kind == BRIX_CK_CRC32C) ? crc32c : (uint32_t) zcrc;
     return 0;
+}
+
+int
+brix_cksum_u32_obj(int kind, brix_sd_obj_t *obj, uint32_t *out)
+{
+    return brix_cksum_u32_obj_range(kind, obj, 0, -1, out);
 }
 
 int
@@ -147,14 +183,16 @@ brix_cksum_u32_fd(int kind, int fd, uint32_t *out)
 }
 
 int
-brix_cksum_u64_obj(int kind, brix_sd_obj_t *obj, uint64_t *out)
+brix_cksum_u64_obj_range(int kind, brix_sd_obj_t *obj, off_t start, off_t len,
+                         uint64_t *out)
 {
     unsigned char          buf[BRIX_CK_BUFSZ];
-    off_t                  offset = 0;
+    off_t                  offset;
+    off_t                  remaining = len;
     uint64_t               crc = 0;
     brix_crc64_variant_t variant;
 
-    if (out == NULL || obj == NULL || obj->driver == NULL) {
+    if (out == NULL || obj == NULL || obj->driver == NULL || start < 0) {
         return -1;
     }
     if (kind == BRIX_CK_CRC64) {
@@ -165,8 +203,11 @@ brix_cksum_u64_obj(int kind, brix_sd_obj_t *obj, uint64_t *out)
         return -1;
     }
 
-    for (;;) {
-        ssize_t n = obj->driver->pread(obj, buf, sizeof(buf), offset);
+    offset = start;
+
+    while (len < 0 || remaining > 0) {
+        size_t  want = range_want(len, remaining, sizeof(buf));
+        ssize_t n = obj->driver->pread(obj, buf, want, offset);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;
@@ -177,11 +218,20 @@ brix_cksum_u64_obj(int kind, brix_sd_obj_t *obj, uint64_t *out)
             break;
         }
         offset += (off_t) n;
+        if (len >= 0) {
+            remaining -= (off_t) n;
+        }
         crc = brix_crc64_extend(variant, crc, buf, (size_t) n);
     }
 
     *out = crc;
     return 0;
+}
+
+int
+brix_cksum_u64_obj(int kind, brix_sd_obj_t *obj, uint64_t *out)
+{
+    return brix_cksum_u64_obj_range(kind, obj, 0, -1, out);
 }
 
 int
@@ -204,19 +254,22 @@ md_for(int kind)
     }
 }
 
-/* Drive an initialised ctx over the whole object; caller owns/frees ctx. 0/-1. */
+/* Drive an initialised ctx over the byte extent [start, start+len) of the object
+ * (len < 0 ⇒ to EOF); caller owns/frees ctx. 0/-1. */
 static int
 digest_drive(EVP_MD_CTX *ctx, const EVP_MD *md, brix_sd_obj_t *obj,
-             unsigned char *out, unsigned int *outlen)
+             off_t start, off_t len, unsigned char *out, unsigned int *outlen)
 {
     unsigned char buf[BRIX_CK_BUFSZ];
-    off_t         offset = 0;
+    off_t         offset = start;
+    off_t         remaining = len;
 
     if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
         return -1;
     }
-    for (;;) {
-        ssize_t n = obj->driver->pread(obj, buf, sizeof(buf), offset);
+    while (len < 0 || remaining > 0) {
+        size_t  want = range_want(len, remaining, sizeof(buf));
+        ssize_t n = obj->driver->pread(obj, buf, want, offset);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;
@@ -227,6 +280,9 @@ digest_drive(EVP_MD_CTX *ctx, const EVP_MD *md, brix_sd_obj_t *obj,
             break;
         }
         offset += (off_t) n;
+        if (len >= 0) {
+            remaining -= (off_t) n;
+        }
         if (EVP_DigestUpdate(ctx, buf, (size_t) n) != 1) {
             return -1;
         }
@@ -235,24 +291,31 @@ digest_drive(EVP_MD_CTX *ctx, const EVP_MD *md, brix_sd_obj_t *obj,
 }
 
 int
-brix_cksum_digest_obj(int kind, brix_sd_obj_t *obj, unsigned char *out,
-                        unsigned int *outlen)
+brix_cksum_digest_obj_range(int kind, brix_sd_obj_t *obj, off_t start,
+                            off_t len, unsigned char *out, unsigned int *outlen)
 {
     const EVP_MD *md = md_for(kind);
     EVP_MD_CTX   *ctx;
     int           rc;
 
     if (md == NULL || obj == NULL || obj->driver == NULL
-        || out == NULL || outlen == NULL) {
+        || out == NULL || outlen == NULL || start < 0) {
         return -1;
     }
     ctx = EVP_MD_CTX_new();
     if (ctx == NULL) {
         return -1;
     }
-    rc = digest_drive(ctx, md, obj, out, outlen);
+    rc = digest_drive(ctx, md, obj, start, len, out, outlen);
     EVP_MD_CTX_free(ctx);
     return rc;
+}
+
+int
+brix_cksum_digest_obj(int kind, brix_sd_obj_t *obj, unsigned char *out,
+                        unsigned int *outlen)
+{
+    return brix_cksum_digest_obj_range(kind, obj, 0, -1, out, outlen);
 }
 
 int

@@ -113,12 +113,14 @@ def _new_locked_file():
 FORGED = "opaquelocktoken:00000000-0000-0000-0000-000000000000"
 
 
+@pytest.mark.registry_server("webdav-unlock-ownership")
 def test_unlock_correct_token_succeeds(lock_server):
     path, token = _new_locked_file()
     assert _unlock(path, token).status_code == 204, \
         "UNLOCK with the correct token must succeed (204)"
 
 
+@pytest.mark.registry_server("webdav-unlock-ownership")
 def test_unlock_wrong_token_rejected_and_lock_survives(lock_server):
     path, token = _new_locked_file()
     # A forged/other token must NOT release someone else's lock.
@@ -129,6 +131,7 @@ def test_unlock_wrong_token_rejected_and_lock_survives(lock_server):
         "the lock must survive a wrong-token UNLOCK attempt"
 
 
+@pytest.mark.registry_server("webdav-unlock-ownership")
 def test_unlock_garbage_token_rejected_and_lock_survives(lock_server):
     path, token = _new_locked_file()
     assert _unlock(path, "garbage-not-a-token").status_code in (400, 409), \
@@ -137,6 +140,7 @@ def test_unlock_garbage_token_rejected_and_lock_survives(lock_server):
         "the lock must survive a garbage-token UNLOCK attempt"
 
 
+@pytest.mark.registry_server("webdav-unlock-ownership")
 def test_unlock_no_lock_token_header_400(lock_server):
     path, token = _new_locked_file()
     assert _unlock(path, token=None).status_code == 400, \
@@ -144,6 +148,7 @@ def test_unlock_no_lock_token_header_400(lock_server):
     _unlock(path, token)  # cleanup
 
 
+@pytest.mark.registry_server("webdav-unlock-ownership")
 def test_unlock_never_locked_resource_409(lock_server):
     path = f"/never_locked_{uuid.uuid4().hex}.txt"
     requests.put(_url(path), data=b"x", timeout=10)

@@ -43,6 +43,11 @@
 #define BRIX_VFS_O_APPEND      0x20
 #define BRIX_VFS_O_MKDIRPATH   0x40
 #define BRIX_VFS_O_NOCACHE     0x80
+/* Writer-session only (brix_vfs_writer_open): force the atomic staged temp+publish
+ * path even for a random-write-capable backend, so a failed/aborted write never
+ * leaves a partial object at the final path (the WebDAV/S3 PUT invariant). Ignored
+ * by brix_vfs_open (only O_TRUNC is forwarded from the writer to the handle open). */
+#define BRIX_VFS_O_ATOMIC      0x100
 
 typedef struct brix_vfs_file_s   brix_vfs_file_t;
 typedef struct brix_vfs_dir_s    brix_vfs_dir_t;
@@ -166,6 +171,15 @@ void brix_vfs_ctx_bind_backend_deleg(brix_vfs_ctx_t *vctx,
  * or BRIX_CRED_SELECT when no bag is bound. Defined in vfs_deleg.c. */
 enum brix_cred_mode brix_vfs_backend_mode(brix_vfs_ctx_t *vctx);
 
+/* Does the storage backend resolved for this ctx consume a forwarded X.509 proxy
+ * PEM (BRIX_SD_CRED_PROXY_PEM in its cred_accept mask)? Lets a protocol gate a
+ * default-on proxy delegation to only the backends that can actually use it
+ * (xroot, s3), leaving posix/pblock (which accept no forwarded proxy) untouched
+ * so binding a proxy bag there never turns into a spurious cred-gate deny.
+ * Returns 1 when the backend accepts a proxy PEM, 0 otherwise (incl. NULL ctx or
+ * the default-POSIX NULL backend). Defined in vfs_deleg.c. */
+int brix_vfs_backend_accepts_proxy(brix_vfs_ctx_t *vctx);
+
 /* Snapshot the ctx's bound delegation bytes so a caller can re-bind the same
  * credential onto a derived/child ctx (phase-70). Writes the resolved mode into
  * *mode and, if `bearer` is non-NULL, the raw JWT (borrowed — same lifetime as
@@ -279,6 +293,24 @@ const char *brix_vfs_file_backend_name(const brix_vfs_file_t *fh);
  * (0 = EOF) or -1/errno. */
 ssize_t brix_vfs_file_pread(brix_vfs_file_t *fh, void *buf, size_t len,
     off_t off);
+/* Write up to `len` bytes at offset `off` through the handle's storage driver —
+ * the backend-neutral write twin of brix_vfs_file_pread. Unlike
+ * brix_vfs_pwrite_full (which wraps a raw fd in the POSIX driver and so bypasses
+ * an object backend's block layout + size bookkeeping), this dispatches to the
+ * bound driver's pwrite slot, so a pblock/object backend routes its blocks and
+ * tracks the catalog size. Bytes written or -1/errno; the caller loops on a
+ * short write. */
+ssize_t brix_vfs_file_pwrite(brix_vfs_file_t *fh, const void *buf, size_t len,
+    off_t off);
+/* Self-computed write-verify seam (src/fs/vfs/vfs_wverify.c): given a write-side
+ * CRC accumulator (core/compat/wverify.h) fed with every written extent and a
+ * FRESH read-only handle on the just-closed object, re-read the object through
+ * its storage driver and confirm the persisted content matches what was written.
+ * NGX_OK on match; NGX_ERROR on any mismatch, gap, short/oversize object, or
+ * read failure. Backend-agnostic — the only trustworthy end-to-end check for an
+ * object backend (pblock/rados) with no single kernel-file identity. */
+struct brix_wverify_s;
+ngx_int_t brix_vfs_wverify_check(struct brix_wverify_s *w, brix_vfs_file_t *rfh);
 /* Borrowed pointer to the handle's NUL-terminated path (owned by the pool);
  * returns "" (never NULL) when fh or its path is NULL. */
 const char *brix_vfs_file_path(const brix_vfs_file_t *fh);
@@ -318,6 +350,13 @@ ngx_int_t brix_vfs_statf(brix_vfs_ctx_t *ctx,
  * distinguish ONLINE-on-a-tape-export (ONLINE_AND_NEARLINE) from ONLINE-on-disk. */
 ngx_int_t brix_vfs_residency(brix_vfs_ctx_t *ctx,
     brix_sd_residency_t *out, int *nearline_export);
+
+/* Driver-reported export space (phase-83 F5): walk the ctx's backend (through
+ * cache/stage decorators) to the first driver implementing the optional `space`
+ * slot and return its quota-aware total/used/free view. NGX_OK (out set),
+ * NGX_DECLINED (no driver reports space — caller falls back to statvfs(2)), or
+ * NGX_ERROR (errno) on a guard/driver failure. */
+ngx_int_t brix_vfs_space(brix_vfs_ctx_t *ctx, brix_sd_space_t *out);
 
 /* Confined existence/type probe for pre-op resolution / ACL gates. Like
  * brix_vfs_stat but emits NO OP_STAT metric/access-log line (the caller's own

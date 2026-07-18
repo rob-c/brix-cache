@@ -26,6 +26,24 @@
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_token_issuers),
       NULL },
 
+    /* ---- token-gated repos (phase-85 F3) ---- */
+
+    { ngx_string("brix_cvmfs_repo_authz"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE2,
+      cvmfs_conf_repo_authz,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, repo_authz),
+      NULL },
+
+    /* ---- per-VO/per-job QoS fill throttling (phase-85 F9) ---- */
+
+    { ngx_string("brix_cvmfs_qos"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE3,
+      cvmfs_conf_qos,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, qos),
+      NULL },
+
     /* brix_cache_verify is owned by ngx_http_brix_common_module (same
      * off|cvmfs-cas enum); this protocol adopts it via brix_http_common_adopt(). */
 
@@ -50,11 +68,25 @@
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.negative_ttl),
       NULL },
 
+    { ngx_string("brix_cvmfs_offline_ttl"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.offline_ttl),
+      NULL },
+
     { ngx_string("brix_cvmfs_quarantine_dir"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.quarantine_dir),
+      NULL },
+
+    { ngx_string("brix_cvmfs_verify_manifest"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.master_key),
       NULL },
 
     { ngx_string("brix_cvmfs_upstream_allow"),

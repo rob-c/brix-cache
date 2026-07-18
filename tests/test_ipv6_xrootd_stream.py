@@ -315,6 +315,7 @@ class TestIpv6Bringup:
     """The handshake/protocol/login sequence must complete unchanged over the
     IPv6 loopback transport (REGRESSION / SMOKE)."""
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_connect_handshake_login(self):
         """ClientInitHandShake accepted (8-byte body, protover 0x520);
         kXR_protocol -> kXR_ok with kXR_isServer-bearing advert; kXR_login ->
@@ -338,6 +339,7 @@ class TestIpv6Bringup:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_ping_round_trip(self):
         """A kXR_ping liveness round-trip succeeds on an established IPv6
         session — the simplest end-to-end transport check."""
@@ -355,6 +357,7 @@ class TestIpv6Bringup:
 class TestIpv6Read:
     """open + read + close, byte-exact, over IPv6 (REGRESSION / SMOKE)."""
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_open_read_scalar_byte_exact(self):
         """open(read) -> a valid handle; read(HELLO_LEN) returns exactly the
         seeded "hello from nginx-xrootd" bytes."""
@@ -378,6 +381,7 @@ class TestIpv6Read:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_open_read_binary_byte_exact(self):
         """A larger binary file reads back byte-exact over IPv6 — proves the
         data path (not just a 23-byte payload) is faithful across the transport."""
@@ -396,6 +400,7 @@ class TestIpv6Read:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_open_nonexistent_clean_error(self):
         """open of a path that does not exist returns a clean protocol error
         (NOT a crash / hang) and the session survives — negative control for
@@ -417,6 +422,7 @@ class TestIpv6Read:
 class TestIpv6Write:
     """open(write) + write + read-back, byte-exact, over IPv6 (REGRESSION)."""
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_write_open_new_byte_exact(self):
         """open(updt|delete) creates/truncates a file, write(64 KiB) lands the
         bytes, and an independent re-open+read returns the exact md5.  Also
@@ -471,6 +477,7 @@ class TestIpv6Write:
 class TestIpv6Metadata:
     """stat + dirlist over IPv6 (REGRESSION / SMOKE)."""
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_stat_size(self):
         """stat of the seeded text file returns a kXR_ok ASCII body
         "<id> <size> <flags> <mtime>" whose size field equals HELLO_LEN."""
@@ -487,6 +494,7 @@ class TestIpv6Metadata:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_stat_nonexistent_clean_error(self):
         """stat of a missing path returns a clean error, session survives —
         negative control proving stat is a real parse, not a blanket ok."""
@@ -498,6 +506,7 @@ class TestIpv6Metadata:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_dirlist(self):
         """A dirlist of the root lists the seeded entries.  The name-only body
         is newline-delimited; test.txt must appear, and after the write test
@@ -526,6 +535,7 @@ class TestIpv6Locate:
     (src/protocols/root/read/locate.c, AF_INET6 branch) formats the response from
     c->local_sockaddr and MUST bracket the address."""
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_locate_local_brackets_regression(self):
         """GATING for the bracket-on-emit contract over IPv6: the kXR_locate
         reply for a file on this IPv6 data server is the "S<acc>..." location
@@ -560,6 +570,7 @@ class TestIpv6Locate:
         finally:
             sock.close()
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_locate_wildcard_self(self):
         """The '*' wildcard locate (locate the local server itself) also returns
         a bracketed IPv6 location token — exercises the same emit path without
@@ -585,6 +596,7 @@ class TestIpv6Locate:
 class TestIpv6Concurrency:
     """Multiple IPv6 sessions are independent (REGRESSION)."""
 
+    @pytest.mark.registry_server("ipv6-stream")
     def test_ipv6_concurrent_streams_isolation(self):
         """Three simultaneous IPv6 sessions each open+read the same file
         byte-exact; closing one leaves the others usable.  Proves per-stream

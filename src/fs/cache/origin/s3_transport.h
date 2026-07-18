@@ -61,4 +61,22 @@ void brix_s3_origin_timeouts_set(long connect_ms, long stall_secs,
  * middlebox makes reuse time out on a stale connection. */
 void brix_s3_origin_reuse_set(int reuse_on);
 
+/* Origin HTTP-version policy (process-global; set pre-fork from the cvmfs
+ * merge, phase-85 F11). `ver` uses the brix_cvmfs_origin_http_e wire values:
+ *   0  — unset: leave libcurl's own default policy untouched (parity).
+ *   11 — force HTTP/1.1.
+ *   20 — HTTP/2: ALPN h2 over TLS, h2c Upgrade over cleartext, with libcurl's
+ *        automatic fallback to HTTP/1.1 when the origin does not negotiate.
+ *   21 — HTTP/2 prior knowledge: cleartext h2 with NO 1.1 fallback (the origin
+ *        MUST speak h2c directly, e.g. nghttpd/haproxy h2c listeners).
+ *   30 — HTTP/3 over QUIC (requires an HTTP/3-enabled libcurl build).
+ * The success trace line reports the version the origin actually negotiated
+ * (`proto=`), so a fallback is observable, not silent. */
+void brix_s3_origin_http_version_set(int ver);
+
+/* 1 when the RUNTIME libcurl can attempt `ver` (same wire values as above),
+ * else 0. Lets the config merge refuse an impossible version at nginx -t time
+ * instead of failing every fill at runtime. */
+int brix_s3_origin_http_version_supported(int ver);
+
 #endif /* BRIX_CACHE_ORIGIN_S3_TRANSPORT_H */

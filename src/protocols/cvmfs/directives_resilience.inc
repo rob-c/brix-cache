@@ -103,6 +103,13 @@
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.fill_retry_policy),
       brix_cvmfs_retry_policy_enum },
 
+    { ngx_string("brix_cvmfs_origin_http_version"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.origin_http_version),
+      brix_cvmfs_origin_httpv_enum },
+
     /* ---- server-side geo answering (2026-07-03) ---- */
 
     { ngx_string("brix_cvmfs_geo_answer"),

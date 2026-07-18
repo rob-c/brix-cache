@@ -58,14 +58,19 @@ from settings import (
     HA_HAPROXY_PORT,
     HA_NGINX1_PORT,
     HA_NGINX2_PORT,
-    NGINX_BIN,
     SERVER_HOST,
     TEST_ROOT,
     XRDCP_BIN,
     XRDFS_BIN,
 )
+from server_launcher import launch_fleet_nginx
 
-pytestmark = pytest.mark.e2e
+# The HA group is a standing fleet (haproxy + two fixed-port nginx, brought up by
+# `manage_test_servers.sh start-ha`), not a per-test harness; the only nginx the
+# test starts itself is the restart of the member it kills, routed through the
+# registry's fleet-relaunch seam.  The marker keeps this out of the direct-launch
+# lint scope.
+pytestmark = [pytest.mark.e2e, pytest.mark.uses_lifecycle_harness]
 
 
 def _wait_port(host: str, port: int, timeout: float = 10.0) -> bool:
@@ -153,6 +158,7 @@ def _orphaned_handles() -> int:
 class TestHABothInstancesServe:
     """Verify both HA nginx instances can independently serve reads."""
 
+    @pytest.mark.registry_servers("ha-haproxy", "ha-nginx1", "ha-nginx2")
     def test_nginx1_serves_file(self, ha_cluster, tmp_path):
         """Nginx instance 1 serves a file directly."""
         payload = os.urandom(8 * 1024)
@@ -165,6 +171,7 @@ class TestHABothInstancesServe:
         with open(dst, "rb") as fh:
             assert _md5(fh.read()) == _md5(payload)
 
+    @pytest.mark.registry_servers("ha-haproxy", "ha-nginx1", "ha-nginx2")
     def test_nginx2_serves_file(self, ha_cluster, tmp_path):
         """Nginx instance 2 serves a file directly."""
         payload = os.urandom(8 * 1024)
@@ -177,6 +184,7 @@ class TestHABothInstancesServe:
         with open(dst, "rb") as fh:
             assert _md5(fh.read()) == _md5(payload)
 
+    @pytest.mark.registry_servers("ha-haproxy", "ha-nginx1", "ha-nginx2")
     def test_haproxy_balances_across_both(self, ha_cluster, tmp_path):
         """HAProxy distributes reads across both nginx instances without error."""
         import concurrent.futures
@@ -210,6 +218,7 @@ class TestHAHandleLeaks:
 
     @pytest.mark.skipif(not os.path.exists("/proc/net/tcp"),
                         reason="/proc/net/tcp not available (not Linux)")
+    @pytest.mark.registry_servers("ha-haproxy", "ha-nginx1", "ha-nginx2")
     def test_no_orphaned_handles_after_100_operations(self, ha_cluster, tmp_path):
         """After 100 xrdcp reads through HAProxy, no TIME_WAIT/CLOSE_WAIT sockets remain
         for our ports.  Each xrdcp creates one TCP connection; they should all be
@@ -259,6 +268,7 @@ class TestHAFailover:
             pass
         return None
 
+    @pytest.mark.registry_servers("ha-haproxy", "ha-nginx1", "ha-nginx2")
     def test_new_connections_handled_after_nginx1_stop(self, ha_cluster, tmp_path):
         """After nginx-1 stops, new connections through HAProxy still succeed.
 
@@ -298,9 +308,8 @@ class TestHAFailover:
                     "Content mismatch after HA failover"
                 )
         finally:
-            # Restart nginx-1 so subsequent tests are not affected.
+            # Restart nginx-1 (the fleet member this test killed) so subsequent
+            # tests are not affected — through the registry's standing-fleet
+            # relaunch seam, into the member's own fixed prefix tree.
             nginx_prefix = os.path.join(TEST_ROOT, "dedicated", "ha-nginx1")
-            subprocess.run(
-                [NGINX_BIN, "-p", nginx_prefix, "-c", "conf/nginx.conf"],
-                capture_output=True, timeout=10,
-            )
+            launch_fleet_nginx("conf/nginx.conf", prefix=nginx_prefix)

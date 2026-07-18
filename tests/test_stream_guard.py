@@ -18,6 +18,7 @@ Run:
 
 import os
 import pathlib
+import socket
 import subprocess
 import time
 
@@ -40,6 +41,22 @@ def _xrdfs(port, *args, timeout=30):
     return subprocess.run(
         [XRDFS, f"root://{BIND_HOST}:{port}", *args],
         capture_output=True, text=True, timeout=timeout, env=env)
+
+
+def _raw_probe(port, payload, read_timeout=3.0):
+    """Open a raw TCP connection, send `payload`, and report whether the peer
+    tore the connection down — recv() returns b"" on a clean close, raises on
+    RST. A timeout means the peer held the connection (not dropped)."""
+    with socket.create_connection((BIND_HOST, port), timeout=5) as sock:
+        if payload:
+            sock.sendall(payload)
+        sock.settimeout(read_timeout)
+        try:
+            return sock.recv(64) == b""      # EOF = server closed on us
+        except ConnectionResetError:
+            return True
+        except (socket.timeout, TimeoutError):
+            return False                     # still open = not dropped
 
 
 def _guard_lines(prefix):
@@ -134,6 +151,68 @@ class TestStreamGuard:
         lines = _guard_lines(relays["guarded_prefix"])
         assert any("signal=notfound" in ln and "proto=root" in ln
                    for ln in lines), f"no notfound audit line; got: {lines}"
+
+    # ---- wire-level "not speaking root" guard (first-bytes classifier) ----
+
+    NONROOT_PROBES = [
+        ("tls-clienthello", b"\x16\x03\x01\x00\x50" + b"\x00" * 40),
+        ("http-request", b"GET / HTTP/1.1\r\nHost: x\r\n\r\n"),
+        ("ssh-banner", b"SSH-2.0-OpenSSH_9.6\r\n"),
+        ("junk", b"\xde\xad\xbe\xef\xca\xfe\xba\xbe" * 4),
+    ]
+
+    @pytest.mark.parametrize("wire,payload", NONROOT_PROBES)
+    def test_nonroot_client_dropped(self, relays, wire, payload):
+        """A client not speaking kXR is dropped before reaching the backend,
+        with one signal=notroot audit line naming the wire it spoke."""
+        before = len(_guard_lines(relays["guarded_prefix"]))
+        dropped = _raw_probe(relays["guarded_port"], payload)
+        assert dropped, f"{wire}: guard did not drop the connection"
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            lines = _guard_lines(relays["guarded_prefix"])[before:]
+            if any("signal=notroot" in ln for ln in lines):
+                break
+            time.sleep(0.1)
+        lines = _guard_lines(relays["guarded_prefix"])[before:]
+        nr = [ln for ln in lines if "signal=notroot" in ln]
+        assert nr, f"{wire}: no notroot audit line; got: {lines}"
+        assert "proto=root" in nr[-1] and "op=handshake" in nr[-1]
+        assert f'path="{wire}"' in nr[-1], nr[-1]
+
+    def test_fragmented_root_handshake_not_flagged(self, relays):
+        """The 20-byte kXR handshake split across TCP segments is reassembled
+        by the guard — never misclassified as notroot (fragmentation fail-open)."""
+        # kXR ClientInitHandShake: 12 zeros, fourth=htonl(4), fifth=htonl(2012).
+        hs = bytes(12) + bytes([0, 0, 0, 4]) + bytes([0, 0, 0x07, 0xDC])
+        before = len(_guard_lines(relays["guarded_prefix"]))
+        with socket.create_connection(
+                (BIND_HOST, relays["guarded_port"]), timeout=5) as sock:
+            for i in range(0, len(hs), 4):     # dribble 4 bytes at a time
+                sock.sendall(hs[i:i + 4])
+                time.sleep(0.05)
+            time.sleep(0.3)
+        after = _guard_lines(relays["guarded_prefix"])[before:]
+        assert not any("signal=notroot" in ln for ln in after), \
+            f"fragmented root handshake wrongly flagged: {after}"
+
+    def test_real_root_client_not_flagged(self, relays):
+        """The genuine 20-byte kXR handshake is forwarded, never flagged."""
+        before = len(_guard_lines(relays["guarded_prefix"]))
+        result = _xrdfs(relays["guarded_port"], "stat", "/f.bin")
+        assert result.returncode == 0, result.stderr
+        time.sleep(0.3)
+        after = _guard_lines(relays["guarded_prefix"])[before:]
+        assert not any("signal=notroot" in ln for ln in after), \
+            f"real root client wrongly flagged: {after}"
+
+    def test_unguarded_relay_passes_nonroot(self, relays):
+        """Without brix_guard_stream a non-root probe is never classified."""
+        _raw_probe(relays["unguarded_port"], b"GET / HTTP/1.1\r\n\r\n")
+        time.sleep(0.3)
+        assert not any("signal=notroot" in ln
+                       for ln in _guard_lines(relays["unguarded_prefix"])), \
+            "unguarded relay must not classify non-root clients"
 
     def test_unguarded_relay_passes_junk(self, relays):
         """Without brix_guard_stream the same junk path is relayed."""

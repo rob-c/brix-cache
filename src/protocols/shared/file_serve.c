@@ -213,17 +213,25 @@ serve_apply_tcp_congestion(ngx_http_request_t *r)
  * WHY:  An unsatisfiable Range short-circuits the whole pipeline: no dashboard
  *       record, no send, no accounting. Factoring it out keeps the orchestrator's
  *       success path flat.
- * HOW:  Mirrors the original inline block byte-for-byte — same status, same
- *       content_length_n=0, same send_header + send_special(NGX_HTTP_LAST).
+ * HOW:  Closes fh, then emits "Content-Range: bytes * /<total>" (RFC 9110
+ *       §15.5.17 — a 416 must report the selected representation's complete
+ *       length so a client can re-issue a satisfiable range), then the
+ *       zero-length 416 response.
  */
 static ngx_int_t
 serve_range_unsatisfiable(ngx_http_request_t *r, brix_vfs_file_t *fh,
-    brix_http_serve_result_t *result)
+    brix_http_serve_result_t *result, off_t total)
 {
+    char cr_buf[64];
+
     brix_vfs_close(fh, r->connection->log);
     result->range_result            = BRIX_SERVE_RANGE_UNSATISFIED;
     r->headers_out.status           = NGX_HTTP_RANGE_NOT_SATISFIABLE;
     r->headers_out.content_length_n = 0;
+
+    snprintf(cr_buf, sizeof(cr_buf), "bytes */%lld", (long long) total);
+    (void) brix_http_set_header(r, "Content-Range", cr_buf, NULL);
+
     ngx_http_send_header(r);
     return ngx_http_send_special(r, NGX_HTTP_LAST);
 }
@@ -459,7 +467,7 @@ brix_http_serve_file_ranged(ngx_http_request_t *r,
         vst->size, &rng);
 
     if (rng.present && !rng.satisfiable) {
-        return serve_range_unsatisfiable(r, fh, result);
+        return serve_range_unsatisfiable(r, fh, result, vst->size);
     }
 
     sc.range_start       = rng.start;

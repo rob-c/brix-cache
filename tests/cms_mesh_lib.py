@@ -30,6 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from settings import NGINX_BIN, HOST, BIND_HOST
 from mesh_config import render
+from server_launcher import launch_fleet_nginx
 
 # --------------------------------------------------------------------------- #
 # Binaries / constants
@@ -289,10 +290,13 @@ class Mesh:
             os.remove(pid)                       # stale pid blocks a clean start
         conf_text = conf_text.replace("{PID}", pid).replace("{ERR}", err)
         conf = self.write(f"{label}.conf", conf_text)
-        # cwd=self.root for parity with the daemons — keep any relative artifact
-        # inside the mesh's /tmp tree rather than the pytest CWD.
-        subprocess.run([NGINX_BIN, "-c", conf], check=False,
-                       start_new_session=True, cwd=self.root)
+        # Route the raw nginx launch through the registry's fleet seam rather
+        # than shelling out to NGINX_BIN here (phase-81 lifecycle policy): the
+        # mesh still owns the config text, the fixed ports and this pid file, and
+        # reaps the daemon via stop_all().  cwd=self.root for parity with the
+        # xrootd/cmsd daemons — keep any relative artifact inside the mesh's /tmp
+        # tree rather than the pytest CWD.
+        launch_fleet_nginx(conf, cwd=self.root)
 
 
 # --------------------------------------------------------------------------- #

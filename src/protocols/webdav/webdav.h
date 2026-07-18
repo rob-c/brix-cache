@@ -278,6 +278,18 @@ char     *webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd,
 char     *webdav_conf_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char     *webdav_conf_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
+/* brix_client_certificate_folder <dir> — parse-time auto-pick of the stock
+ * ssl_client_certificate from an OpenSSL hashed CA dir, matched against the
+ * issuer of the server's own ssl_certificate leaf. */
+char     *webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+
+/* brix_proxy_ssl_capath <dir> — hashed CA dir for the proxy back leg: seeds
+ * the stock proxy_ssl_trusted_certificate at parse time (one <hash>.N file)
+ * and records the dir for the postconfiguration upstream-SSL_CTX add. */
+char     *webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+
 /* Operation Registry (operation_table.c) */
 extern const brix_http_operation_t brix_webdav_operations[];
 extern const ngx_uint_t brix_webdav_operations_count;

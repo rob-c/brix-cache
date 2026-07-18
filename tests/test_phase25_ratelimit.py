@@ -167,6 +167,22 @@ def test_http_directives_parse(lifecycle):
         http_extra="    brix_rate_limit_zone zone=rl:4m;\n"))
 
 
+def test_subject_key_wired_and_parses(lifecycle):
+    # E-4 part 1: a SUBJECT (JWT/WLCG token subject) rate-limit key, hashed like
+    # the DN so no raw identity ever reaches a metric label (INVARIANT #8).
+    keys = _read("src/net/ratelimit/ratelimit_keys.c")
+    assert "BRIX_RL_KEY_SUBJECT" in keys and "rl_key_sub_hash" in keys
+    assert "sub:" in keys                       # hashed, low-cardinality label
+    assert "BRIX_RL_KEY_SUBJECT" in _read("src/net/ratelimit/ratelimit.h")
+    # both planes accept key=subject at config parse.
+    _parse_ok(lifecycle, "lc-rl-subj-http", "nginx_rl_http.conf", _http_values(
+        "            brix_rate_limit_rule zone=rl key=subject rate=10r/s burst=10;\n",
+        http_extra="    brix_rate_limit_zone zone=rl:1m;\n"))
+    _parse_ok(lifecycle, "lc-rl-subj-stream", "nginx_rl_stream.conf", _stream_values(
+        "        brix_rate_limit_rule zone=rls key=subject rate=10r/s burst=10;\n",
+        "    brix_rate_limit_zone zone=rls:1m;\n"))
+
+
 def test_bad_rate_rejected(lifecycle, tmp_path):
     rc, out = _parse_fail(lifecycle, tmp_path, "lc-rl-badrate",
                           "nginx_rl_http.conf", _http_values(

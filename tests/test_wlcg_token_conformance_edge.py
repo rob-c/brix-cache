@@ -887,6 +887,62 @@ def test_e07_key2_signed_on_strict_port_reject():
     assert root_ztn(tok, "/test.txt", port=STRICT) == "reject"
 
 
+# ---------------------------------------------------------------------------
+# D-5 — asserted kid is authoritative even with a single loaded key.
+#
+# The former single-key leniency (unmatched kid → use the sole JWKS key anyway)
+# meant an asserted kid that named no loaded key still authenticated as long as
+# the signature happened to verify under the one key.  Port 11097's JWKS holds
+# exactly test-key-1, which is also the forge's default signing key, so the same
+# valid signature reaches the verifier in all three cases below — only the kid
+# header differs.  The exact-match kid must accept; any other asserted kid must
+# now reject.  (The kid-*absent* multi-key trial — rotation grace — is unchanged
+# and is exercised by E04/no_kid_key2.)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tokenconf
+def test_e08_matching_kid_single_key_accept():
+    """kid=test-key-1 (the sole loaded key), RSA-signed, on 11097 → accept.
+
+    WHY:  An asserted kid that exactly names the one configured JWKS key is the
+          spec-correct path (RFC 7515 §4.1.4); hardening the single-key case
+          must not disturb it.  wrong_kid() signs with the default key and lets
+          us set the kid explicitly, so asserting the real kid is a pure
+          exact-match accept — the success anchor for the D-5 change.
+    """
+    tok = _f().wrong_kid("test-key-1")
+    assert root_ztn(tok, "/test.txt", port=PORT) == "accept"
+
+
+@pytest.mark.tokenconf
+def test_e09_unmatched_kid_single_key_reject():
+    """kid=does-not-exist, RSA-signed by the sole key, on 11097 → reject.
+
+    WHY:  This is the D-5 behaviour change.  Before, the single-key fallback
+          used test-key-1 despite the asserted kid matching nothing, so this
+          validly-signed token was accepted; the asserted kid was therefore not
+          authoritative.  Now an asserted kid that names no loaded key is a hard
+          reject even though the signature would verify under the only key.
+    """
+    tok = _f().wrong_kid("does-not-exist")
+    assert root_ztn(tok, "/test.txt", port=PORT) == "reject"
+
+
+@pytest.mark.tokenconf
+def test_e10_traversal_shaped_kid_single_key_reject():
+    """kid="../../../../etc/passwd", RSA-signed, on 11097 → reject.
+
+    WHY:  Security-negative for D-5: an attacker who asserts a bogus, path-like
+          kid must not slip through on the single-key fallback.  The kid is
+          in-memory JWKS array lookup only (never a filesystem path — see
+          test_malicious_credentials.test_kid_path_traversal_not_used_as_path);
+          here we additionally require that it is rejected, not silently
+          accepted under the retired leniency.
+    """
+    tok = _f().wrong_kid("../../../../etc/passwd")
+    assert root_ztn(tok, "/test.txt", port=PORT) == "reject"
+
+
 @pytest.mark.tokenconf
 def test_e08_valid_token_multikey_port_root_scope_accept():
     """Valid RS256 token, scope=storage.read:/, GET /test.txt on 11250 → accept.

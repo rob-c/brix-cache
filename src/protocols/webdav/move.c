@@ -353,7 +353,8 @@ webdav_move_resolve_dest(ngx_http_request_t *r,
     /* Resolve destination */
     return webdav_resolve_destination_path(r->connection->log, "MOVE",
                                            conf->common.root_canon, dest_decoded,
-                                           dst_path, dst_cap);
+                                           dst_path, dst_cap,
+                                           conf->common.cache_store_endpoint);
 }
 
 /*

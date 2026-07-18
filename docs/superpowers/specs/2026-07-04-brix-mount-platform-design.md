@@ -1,7 +1,7 @@
 # brix Mount Platform — design (CVMFS-brix + XRootDFS-brix + shared hardened core)
 
 **Date:** 2026-07-04
-**Status:** approved design → implementation
+**Status:** approved design → implementation; feature F (CVMFS driver + automount) DELIVERED 2026-07-18 (see docs/05-operations/cvmfs-automount.md)
 **Author:** brainstorming session (Rob Currie)
 
 ---
@@ -160,7 +160,7 @@ and path-escape.
 | **C** | Shared POSIX content-addressed cache | — | extract pure-C `shared/cache/` from `src/fs/cache` (path layout, `.cinfo` v3, atomic writes, LRU/quota reap); refactor server `cstore`/`cinfo` onto it — ⚠ load-bearing, behavior-preserving, guard-tested |
 | **D** | Object decode + fetch orchestrator | B, C | `object/` (zlib/zstd/none decode + hash-verify) + `fetch/` (cache-first → failover-fetch → verify → store; hash-safe mirror-agnostic retry/resume); client `transport` impl over `client/lib` HTTP + `resilient.c` |
 | **E** | Catalog engine | D | `catalog/`: SQLite reader (NEW libsqlite3 dep, gated), md5-path lookup, readdir, nested catalogs, chunked files, magic xattrs |
-| **F** | CVMFS-brix FUSE driver + autofs | E | FUSE ops (getattr/lookup/readdir/open/read/readlink/listxattr/statfs), offline/degraded mode, mount.cvmfs + `auto.cvmfs`, `CVMFS_*` config compat, TTL auto-refresh; real + mock repo tests |
+| **F** | CVMFS-brix FUSE driver + autofs | E | ✅ DELIVERED (2026-07-18) — FUSE ops, offline/degraded mode, mount.cvmfs + `auto.cvmfs`, `CVMFS_*` config compat, TTL auto-refresh, real + mock repo tests; PLUS the native `brixMount autofs` umbrella daemon (symlink-farm automount, no autofs/systemd dependency — see docs/05-operations/cvmfs-automount.md), default config+keys payload, systemd units, RPM subpackages brix-cvmfs-automount + brix-cvmfs-config, WSL2 recipes |
 | **G** | brixMount umbrella + branding | F | `brixMount <type> <endpoint> <mountdir>` dispatch, rebrand `xrootdfs` → XRootDFS-brix (eos/root driver), docs/branding, man pages |
 
 **Parallelism.** C has no dependency on A/B and can proceed in parallel; D joins A/B/C.

@@ -155,6 +155,7 @@ class TestWLCGGateway:
     Covers roadmap Section 3A, Permutation 1.
     """
 
+    @pytest.mark.registry_servers("proxy-nginx", "proxy-upstream")
     def test_read_through_proxy_bytes_exact(self, proxy_env, tmp_path):
         """xrdcp reads a file through the nginx proxy; byte content is exact."""
         payload = os.urandom(32 * 1024)
@@ -170,6 +171,7 @@ class TestWLCGGateway:
             got = fh.read()
         assert _md5(got) == _md5(payload), "Downloaded content does not match origin"
 
+    @pytest.mark.registry_servers("proxy-nginx", "proxy-upstream")
     def test_write_through_proxy_bytes_exact(self, proxy_env, tmp_path):
         """xrdcp writes a file through the nginx proxy; verify at origin."""
         payload = os.urandom(16 * 1024)
@@ -187,6 +189,7 @@ class TestWLCGGateway:
         assert _md5(got) == _md5(payload), "Written content does not match what was uploaded"
 
     @pytest.mark.timeout(120)
+    @pytest.mark.registry_servers("proxy-nginx", "proxy-upstream")
     def test_large_file_round_trip_proxy(self, proxy_env, tmp_path):
         """1 MiB round-trip through proxy preserves checksum (Section 5C read relay)."""
         payload = os.urandom(1 * 1024 * 1024)
@@ -200,6 +203,7 @@ class TestWLCGGateway:
             got = fh.read()
         assert _md5(got) == _md5(payload)
 
+    @pytest.mark.registry_servers("proxy-nginx", "proxy-upstream")
     def test_parallel_reads_through_proxy(self, proxy_env, tmp_path):
         """Section 5A: 4 concurrent xrdcp readers through the proxy, all byte-exact.
 
@@ -223,6 +227,7 @@ class TestWLCGGateway:
             results = list(ex.map(_fetch, range(4)))
         assert all(results), f"Some parallel reads failed: {results}"
 
+    @pytest.mark.registry_servers("proxy-nginx", "proxy-upstream")
     def test_stat_through_proxy(self, proxy_env):
         """xrdfs stat returns correct size through proxy (Section 5C kXR_stat relay)."""
         payload = os.urandom(4096)
@@ -238,6 +243,7 @@ class TestWLCGGateway:
             f"File size {len(payload)} not in xrdfs stat output:\n{r.stdout}"
         )
 
+    @pytest.mark.registry_servers("proxy-nginx", "proxy-upstream")
     def test_authorization_header_stripped_for_anon_backend(self, proxy_env, tmp_path):
         """Section 3A.1: Credentials from the client are NOT forwarded to the
         anonymous backend.  We verify the transfer succeeds (confirming the
@@ -328,6 +334,7 @@ class TestPureNginxStack:
             "pure-nginx proxy server (PROXY_PURE_NGINX_PROXY_PORT)"
         )
 
+    @pytest.mark.registry_server("pure-nginx-proxy")
     def test_read_through_pure_nginx_stack(self, tmp_path):
         """xrdcp reads through nginx→nginx; data served correctly end-to-end."""
         payload = os.urandom(32 * 1024)
@@ -343,6 +350,7 @@ class TestPureNginxStack:
             got = fh.read()
         assert _md5(got) == _md5(payload)
 
+    @pytest.mark.registry_server("pure-nginx-proxy")
     def test_write_through_pure_nginx_stack(self, tmp_path):
         """xrdcp writes through nginx→nginx; file appears in data nginx root."""
         payload = os.urandom(16 * 1024)
@@ -362,6 +370,7 @@ class TestPureNginxStack:
             assert _md5(fh.read()) == _md5(payload)
 
     @pytest.mark.timeout(120)
+    @pytest.mark.registry_server("pure-nginx-proxy")
     def test_64bit_offset_preserved_through_nginx_proxy(self, tmp_path):
         """Section 5C: 64-bit offsets in kXR_read are preserved through nginx→nginx.
 

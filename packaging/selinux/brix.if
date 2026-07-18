@@ -1,0 +1,60 @@
+## <summary>BriX-Cache — XRootD/WebDAV/S3 storage gateway modules for nginx.</summary>
+
+########################################
+## <summary>
+##	Read the BriX export root and cache tree (backup agents,
+##	monitoring, checksum scanners).
+## </summary>
+## <param name="domain">
+##	<summary>Domain allowed access.</summary>
+## </param>
+#
+interface(`brix_read_data',`
+	gen_require(`
+		type brix_var_lib_t, brix_cache_t;
+	')
+
+	read_files_pattern($1, brix_var_lib_t, brix_var_lib_t)
+	read_lnk_files_pattern($1, brix_var_lib_t, brix_var_lib_t)
+	list_dirs_pattern($1, brix_var_lib_t, brix_var_lib_t)
+	read_files_pattern($1, brix_cache_t, brix_cache_t)
+	list_dirs_pattern($1, brix_cache_t, brix_cache_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete BriX export-root and cache
+##	content (migration and rescue tooling).
+## </summary>
+## <param name="domain">
+##	<summary>Domain allowed access.</summary>
+## </param>
+#
+interface(`brix_manage_data',`
+	gen_require(`
+		type brix_var_lib_t, brix_cache_t;
+	')
+
+	manage_dirs_pattern($1, brix_var_lib_t, brix_var_lib_t)
+	manage_files_pattern($1, brix_var_lib_t, brix_var_lib_t)
+	manage_lnk_files_pattern($1, brix_var_lib_t, brix_var_lib_t)
+	manage_dirs_pattern($1, brix_cache_t, brix_cache_t)
+	manage_files_pattern($1, brix_cache_t, brix_cache_t)
+')
+
+########################################
+## <summary>
+##	Bind to and connect to the BriX network ports (root://, S3,
+##	metrics).
+## </summary>
+## <param name="domain">
+##	<summary>Domain allowed access.</summary>
+## </param>
+#
+interface(`brix_use_ports',`
+	gen_require(`
+		type brix_port_t;
+	')
+
+	allow $1 brix_port_t:tcp_socket { name_bind name_connect };
+')

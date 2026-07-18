@@ -15,19 +15,18 @@ locate must come back as kXR_redirect — proving nginx completed both auth roun
 import os
 import socket
 import struct
-import subprocess
 import threading
-import time
 from pathlib import Path
 
 import pytest
 
-from config_templates import render_config
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 HOST = "127.0.0.1"
-NGINX_PORT = 21240
+
+pytestmark = pytest.mark.uses_lifecycle_harness
 
 kXR_ok, kXR_redirect, kXR_authmore = 0, 4004, 4002
 kXR_protocol, kXR_login, kXR_auth, kXR_locate = 3006, 3007, 3000, 3027
@@ -134,15 +133,6 @@ class StubOrigin(threading.Thread):
         conn.sendall(_hdr(sid, kXR_redirect, len(body)) + body)
 
 
-def _wait_listen(port, tries=80):
-    for _ in range(tries):
-        if subprocess.run(["bash", "-c",
-                           f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return True
-        time.sleep(0.1)
-    return False
-
-
 def _client_handshake_login(port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(30)
@@ -174,48 +164,32 @@ def _send_locate(sock, path):
 
 @pytest.fixture
 def redirector(tmp_path):
-    if not os.path.exists(NGINX):
-        pytest.skip("nginx not built")
     origin = StubOrigin()
     origin.start()
     token = tmp_path / "upstream.jwt"
     token.write_text("eyJhbGciOiJSUzI1NiJ9.multiround.sig\n")
-    data = tmp_path / "data"
-    data.mkdir()
-    # nginx master runs as root here, so the worker drops to the built-in
-    # 'nobody' user; the checkpoint-recovery lock is written INTO the export, so
-    # the export must be writable by that worker (the fleet exports are 0777 for
-    # the same reason). Without this the worker fails the lock with EACCES and
-    # exits fatally — the master still holds the listen socket (so _wait_listen
-    # passes) but no worker answers, and the client handshake times out.
-    data.chmod(0o777)
-    cfg = tmp_path / "redir.conf"
-    cfg.write_text(render_config("nginx_upstream_auth_multiround.conf",
-                                 BASE_DIR=tmp_path,
-                                 HOST=HOST,
-                                 PORT=NGINX_PORT,
-                                 DATA_DIR=data,
-                                 UPSTREAM_PORT=origin.port,
-                                 TOKEN_FILE=token))
-    subprocess.run(["bash", "-c", f"fuser -k {NGINX_PORT}/tcp 2>/dev/null"])
-    proc = subprocess.Popen([NGINX, "-c", str(cfg), "-p", str(tmp_path)],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait_listen(NGINX_PORT):
-        proc.terminate()
-        origin.stop()
-        pytest.skip("redirector nginx did not come up")
-    yield {"origin": origin, "base": tmp_path}
-    proc.terminate()
+
+    harness = LifecycleHarness()
     try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+        ep = harness.start(NginxInstanceSpec(
+            name="lc-upstream-multiround",
+            template="nginx_upstream_auth_multiround.conf",
+            protocol="root", readiness="tcp",
+            template_values={"UPSTREAM_PORT": str(origin.port),
+                             "TOKEN_FILE": str(token)}))
+    except Exception:
+        harness.close()
+        origin.stop()
+        raise
+    yield {"origin": origin, "port": ep.port,
+           "errlog": Path(ep.prefix) / "logs" / "error.log"}
+    harness.close()
     origin.stop()
 
 
 def test_upstream_multiround_authmore(redirector):
     """nginx completes a 2-round kXR_authmore exchange and forwards the redirect."""
-    s = _client_handshake_login(NGINX_PORT)
+    s = _client_handshake_login(redirector["port"])
     _send_locate(s, "/data/file.root")
     status, body = _read_response(s)
     s.close()
@@ -223,7 +197,7 @@ def test_upstream_multiround_authmore(redirector):
     origin = redirector["origin"]
     if status != kXR_redirect:
         tail = ""
-        errlog = Path(redirector["base"]) / "err.log"
+        errlog = redirector["errlog"]
         if errlog.exists():
             tail = "\n".join(errlog.read_text(errors="replace").splitlines()[-15:])
         pytest.fail(f"expected kXR_redirect after {AUTH_ROUNDS}-round auth, got "

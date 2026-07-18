@@ -131,6 +131,7 @@ def _seed(data_root, name, payload):
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("label,url,droot", ENDPOINTS, ids=EP_IDS)
+@pytest.mark.registry_server("cluster-redir")
 def test_conformance_stat(label, url, droot):
     name = f"_conf_stat_{os.getpid()}_{int(time.time()*1000)}.bin"
     path = _seed(droot, name, os.urandom(4321))
@@ -146,6 +147,7 @@ def test_conformance_stat(label, url, droot):
 
 
 @pytest.mark.parametrize("label,url,droot", ENDPOINTS, ids=EP_IDS)
+@pytest.mark.registry_server("cluster-redir")
 def test_conformance_stat_missing(label, url, droot):
     missing = f"/_conf_absent_{os.getpid()}.bin"
     n = _run([XRDFS_BIN, url, "stat", missing])
@@ -159,6 +161,7 @@ def test_conformance_stat_missing(label, url, droot):
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("label,url,droot", ENDPOINTS, ids=EP_IDS)
+@pytest.mark.registry_server("cluster-redir")
 def test_conformance_ls_set(label, url, droot):
     uid = f"{os.getpid()}_{int(time.time()*1000)}"
     sub = f"_conf_ls_{uid}"
@@ -183,6 +186,7 @@ def test_conformance_ls_set(label, url, droot):
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("label,url,droot", ENDPOINTS, ids=EP_IDS)
+@pytest.mark.registry_server("cluster-redir")
 def test_conformance_download_md5(label, url, droot, tmp_path):
     name = f"_conf_dl_{os.getpid()}_{int(time.time()*1000)}.bin"
     path = _seed(droot, name, os.urandom(200000))
@@ -200,6 +204,7 @@ def test_conformance_download_md5(label, url, droot, tmp_path):
         os.unlink(path)
 
 
+@pytest.mark.registry_server("cluster-redir")
 def test_conformance_upload_cross_tool(tmp_path):
     """native-upload → system-download and system-upload → native-download both
     preserve md5 (the two tools write/read mutually compatible bytes)."""
@@ -233,6 +238,7 @@ def test_conformance_upload_cross_tool(tmp_path):
 # query checksum
 # --------------------------------------------------------------------------
 
+@pytest.mark.registry_server("cluster-redir")
 def test_conformance_query_checksum():
     url = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
     name = f"_conf_ck_{os.getpid()}_{int(time.time()*1000)}.bin"
@@ -253,6 +259,7 @@ def test_conformance_query_checksum():
 # cross-tool namespace interop (native mkdir, system sees it; and vice-versa)
 # --------------------------------------------------------------------------
 
+@pytest.mark.registry_server("cluster-redir")
 def test_conformance_mkdir_cross_tool():
     url = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
     d = f"_conf_mkdir_{os.getpid()}_{int(time.time()*1000)}"

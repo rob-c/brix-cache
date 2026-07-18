@@ -38,6 +38,7 @@ typedef enum {
     BRIX_RL_KEY_IP      = 2,   /* client address                         */
     BRIX_RL_KEY_DN      = 3,   /* GSI subject DN (hashed into the key)   */
     BRIX_RL_KEY_VOLUME  = 4,   /* longest-prefix match on the request path */
+    BRIX_RL_KEY_SUBJECT = 5,   /* WLCG/JWT token subject (hashed into key) */
 } brix_rl_key_type_t;
 
 #define BRIX_RL_KEY_LEN   128  /* max bytes of the human-readable key string */

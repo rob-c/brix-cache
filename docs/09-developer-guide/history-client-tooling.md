@@ -94,6 +94,8 @@ TPC delegation, VOMS-FQAN selection, krb5 lifecycle, S3 STS/presigned/vhost.
 | 2026-07-04 | `client/` flat→concept-bucket reorg (phase-69) | phase-69-client-map.tsv |
 | 2026-07-06 | Client feature-gap program (20 tasks, ~36 commits) landed on main | this doc §13 |
 | 2026-07-15 | Correction: `phase37_native_clients`' "host load, not code" verdicts retracted — the load *was* an uninitialized-timer crash loop | `host_load_excuse_debunked` |
+| 2026-07-17 | CVMFS conformance corpus (phase-84, 1188 tests) + client transport/trust hardening burndown: body-bound hash-lines, wall-clock whitelist expiry, atomic refresh, rollback protection, cache sidecar re-verification, DIRECT-failover + range-blind-origin fixes | phase-84-cvmfs-conformance-corpus.md § Hardening burndown |
+| 2026-07-18 | `brixMount autofs` /cvmfs automount umbrella (symlink-farm design) + automount packaging (RPM subpackages `brix-cvmfs-automount`/`brix-cvmfs-config`, systemd units, portable installer, WSL2 recipes); fixed the phase-84 body-binding to match stock hash coverage (excludes `--\n`) | this doc §19 · ../05-operations/cvmfs-automount.md |
 
 ---
 
@@ -721,3 +723,54 @@ This is the client-side twin of the server-side gotcha documented as
 AI code-intelligence services (OLMx model server, OAK CI, opencode's
 codebase-index plugin) — unrelated to the native client program and not
 represented in this document beyond this note.
+
+---
+
+## 19. brixMount autofs — the /cvmfs automount umbrella (2026-07-18)
+
+Goal: make the in-tree client a drop-in replacement for the stock cvmfs
+client's automount experience (`ls /cvmfs/atlas.cern.ch` mounts on demand),
+with **zero autofs-kernel-module/systemd dependency** so it works OOTB on
+WSL2, in containers, and unprivileged. Delivered as `brixMount autofs`
+(`client/apps/fs/brixautofs.c`), packaged via `make -C client
+install-automount` → RPM subpackages `brix-cvmfs-automount` (units,
+mount.cvmfs, auto.cvmfs, `Conflicts: cvmfs`) and `brix-cvmfs-config`
+(default config + upstream keys for cern.ch/egi.eu/opensciencegrid.org,
+`Provides: cvmfs-config`, conflicts with the stock config packages), plus
+`deploy/cvmfs/install-automount.sh` for non-RPM hosts. Cookbook:
+`../05-operations/cvmfs-automount.md`.
+
+**Lesson 1 — a FUSE umbrella cannot host nested child mounts over its own
+virtual subdirs.** The obvious autofs-clone design (lookup of `<fqrn>`
+spawns `brixMount cvmfs` mounting *over* `<umbrella>/<fqrn>`) deadlocks
+deterministically: the kernel serializes same-name lookups on the in-lookup
+dentry, so while the umbrella's lookup handler blocks waiting for the child,
+the child's own `mount(2)` path-walk of the same name blocks in
+`d_alloc_parallel` — D-state, unkillable. Multithreaded FUSE does not help;
+this is per-dentry, not per-thread. That kernel assist is precisely why
+stock autofs is a kernel module. The working design is a **symlink farm**:
+children mount in an external directory the umbrella never path-walks
+(`<cachebase>/.mnt/<fqrn>`), the umbrella serves symlinks, and `readlink`
+is the blocking mount trigger (so normal path resolution automounts, while
+`lstat`/`readdir` ghost listings never spawn anything). Works unprivileged.
+
+**Lesson 2 — stock CVMFS signed-hash coverage EXCLUDES the `--` separator.**
+The phase-84 "body-bound hash-lines" hardening (row above) hashed the body
+*through* the `--\n` separator because the parsers record
+`signed_body_len = marker + 3` as a parse offset. Stock CVMFS computes the
+hash over the body up to but **excluding** `--\n` — verified empirically
+against live CERN stratum-1 `.cvmfswhitelist`/`.cvmfspublished` (SHA-1 of
+`body[:sep]` matches the signed hash line; `body[:sep+3]` does not). The
+off-by-three made the client fail-closed against **every genuine
+repository** ("trust/catalog error -5" from `cvmfs_verify_whitelist`),
+while all in-tree fixtures passed because `brix_mkrepo` made the same
+mistake symmetrically. Fix: strip 3 bytes in `body_bound_to_hash()`
+(`shared/cvmfs/signature/verify.c`) + fixture generators/unittests aligned.
+Moral: a mock-repo test bed that shares hash-computation code (or
+assumptions) with the implementation cannot catch coverage-boundary bugs —
+only the live-repo scenario (`atlas-live`) did.
+
+Also of note: after enforcing the binding, `client_unittest.c`'s dummy
+hash-line fixtures made mount fail and the test crashed (NULL-deref on the
+unmounted catalog) instead of reporting — fixtures now compute real digests
+and the test bails out cleanly if mount fails.

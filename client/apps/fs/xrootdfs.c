@@ -4,8 +4,36 @@
  */
 #include "xrootdfs_internal.h"
 #include "core/version.h"
+#include "net/cpool.h"
+#include "protocols/http/web_ka.h"
 
 brix_pool *g_pool;
+
+/* Phase-86: pooled keep-alive WebDAV metadata (getattr/readdir) on web mounts.
+ * NULL on root:// mounts. The template is copied into each slot by the vtable. */
+brix_cpool         *g_web_pool;
+static brix_webmeta g_web_tmpl;
+
+static int
+web_slot_connect(void *conn, void *ctx, brix_status *st)
+{
+    brix_webmeta *m = conn;
+    *m = *(const brix_webmeta *) ctx;   /* copy host/port/tls/auth template */
+    m->ka.connected = 0;
+    m->ka.io.fd = -1;
+    m->ka.tls_ctx = NULL;               /* fresh transport per slot */
+    return brix_kaconn_connect(&m->ka, st);
+}
+
+static void
+web_slot_close(void *conn)
+{
+    brix_kaconn_disconnect(&((brix_webmeta *) conn)->ka);
+}
+
+static const brix_cpool_vtbl WEB_VT = {
+    sizeof(brix_webmeta), web_slot_connect, web_slot_close,
+};
 
 brix_url   g_url;
 
@@ -428,10 +456,24 @@ aio_web_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
     }
     fprintf(stderr,
             "xrootdfs: mounted %s:%d via %s%s (read-only WebDAV; "
-            "verify=%d, auth=%s)\n",
+            "verify=%d, auth=%s, meta-pool=%d)\n",
             g_weburl.host, g_weburl.port, g_weburl.tls ? "HTTPS" : "HTTP",
-            g_base, g_web_verify, g_bearer ? "bearer" : "anon");
-    return fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
+            g_base, g_web_verify, g_bearer ? "bearer" : "anon", g_max_conns);
+
+    /* Pool the metadata path: the probe above validated endpoint/auth/TLS, so
+     * slot-0's eager connect will not be the first failure point. */
+    brix_webmeta_init(&g_web_tmpl, g_weburl.host, g_weburl.port, g_weburl.tls,
+                      g_web_verify, g_web_ca, g_bearer, 0 /* → default 30 s */);
+    brix_status_clear(&st);
+    g_web_pool = brix_cpool_create(&WEB_VT, &g_web_tmpl, g_max_conns, &st);
+    if (g_web_pool == NULL) {
+        fprintf(stderr, "xrootdfs: web pool: %s\n", st.msg);
+        return brix_shellcode(&st);
+    }
+    int rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
+    brix_cpool_destroy(g_web_pool);
+    g_web_pool = NULL;
+    return rc;
 }
 
 

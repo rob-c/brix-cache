@@ -150,6 +150,7 @@ class TestCredentialTranslationBridge:
         if not _wait_port(SERVER_HOST, NGINX_TOKEN_PORT, timeout=5.0):
             pytest.skip("Token-only backend not running on NGINX_TOKEN_PORT")
 
+    @pytest.mark.registry_server("credential-bridge")
     def test_gsi_client_reads_through_bridge(self, tmp_path):
         """GSI client successfully reads from a token-only backend via the bridge."""
         payload = os.urandom(16 * 1024)
@@ -167,6 +168,7 @@ class TestCredentialTranslationBridge:
             got = fh.read()
         assert _md5(got) == _md5(payload), "Credential bridge content mismatch"
 
+    @pytest.mark.registry_server("credential-bridge")
     def test_backend_receives_bearer_token_not_proxy(self):
         """Roadmap 4C Validation: backend log shows token auth (JWT sub), not proxy cert.
 
@@ -236,6 +238,7 @@ class TestCredentialTranslationBridge:
             "translation bypass possible"
         )
 
+    @pytest.mark.registry_server("credential-bridge")
     def test_anonymous_client_rejected_by_bridge(self, tmp_path):
         """Section 7 (security negative): anonymous client must be rejected at bridge."""
         name = f"bridge_anon_{uuid.uuid4().hex[:8]}.bin"

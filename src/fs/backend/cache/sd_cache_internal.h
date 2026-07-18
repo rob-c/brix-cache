@@ -12,12 +12,25 @@
  */
 
 #include "fs/backend/sd.h"       /* brix_sd_instance_t */
+#include "fs/backend/cache/sd_cache.h" /* brix_sd_cache_peer_t (F8 mesh)   */
 #include "fs/cache/cstore.h"     /* brix_cstore_t */
 #include "fs/tier/tier.h"        /* brix_cache_policy_t */
 
 /* Per-export instance state (inst->state). */
 typedef struct {
     brix_sd_instance_t  *source;         /* the tier below (stage | backend)    */
+    brix_sd_instance_t  *cold;           /* phase-85 F7 OPTIONAL cold store tier
+                                          * (borrowed, registry-owned); NULL =
+                                          * no cold tier. A miss tries a verified
+                                          * promote from here before the origin;
+                                          * the evictor demotes into it.        */
+    /* phase-85 F8 sibling mesh: the rendezvous ring (copies of the registry's
+     * members; instances borrowed). n_peers == 0 means no mesh. A miss whose
+     * ring owner is a non-self member tries one verified fill from that
+     * sibling before the origin. */
+    brix_sd_cache_peer_t peers[BRIX_SD_CACHE_MAX_PEERS];
+    int                   n_peers;
+    int                   peer_self;
     brix_cstore_t        cstore;
     brix_cache_policy_t  policy;
     ngx_log_t             *log;
@@ -43,6 +56,33 @@ typedef struct {
  * and the async fill-key entrypoint in sd_cache.c. */
 ngx_int_t sd_cache_fill(sd_cache_inst_state *st, const char *key,
     const brix_sd_cred_t *cred);
+
+/* Emit the unified guard-core audit line (signal=cvmfs_tamper) for a fill whose
+ * bytes failed CVMFS integrity verification. `actor` is the fill SOURCE that
+ * served the bad bytes — the origin tier, or a mesh sibling (phase-85 F8) —
+ * and its last-answering authority rides the ip field (the tamper actor is
+ * upstream, not a client); NULL falls back to st->source. Thread-safe (fill
+ * pool). Called from the verify mismatch paths in sd_cache_fill.c. */
+void sd_cache_guard_tamper(sd_cache_inst_state *st,
+    brix_sd_instance_t *actor, const char *key);
+
+/* ---- CVMFS manifest/whitelist signature verify (sd_cache_manifest.c) ----- */
+
+/* Phase-85 F1: verify a MANIFEST-class staged fill before commit when the
+ * repo master public key is configured (policy.cvmfs_master_pub):
+ *   .cvmfspublished — full chain: whitelist sig vs master key → whitelist not
+ *   expired → manifest cert fingerprint ∈ whitelist → manifest sig vs cert
+ *   (whitelist + certificate fetched through the fill's source tier);
+ *   .cvmfswhitelist — signature vs master key + expiry.
+ * Returns NGX_OK (verified, or key is not a signed-metadata shape / verify not
+ * configured — commit proceeds); NGX_ERROR (verification definitively FAILED —
+ * the caller emits signal=cvmfs_tamper, quarantines, aborts, EBADMSG); or
+ * NGX_DECLINED (the chain could not be evaluated — sibling fetch / part read
+ * failed; the caller fails the fill closed with EIO, NO tamper signal, so an
+ * origin outage never feeds the maxretry=1 tamper jail). `pp` is the staged
+ * part path. */
+ngx_int_t sd_cache_verify_manifest(sd_cache_inst_state *st, const char *key,
+    const char *pp);
 
 /* ---- slice / partial caching (sd_cache_partial.c) ------------------------ */
 

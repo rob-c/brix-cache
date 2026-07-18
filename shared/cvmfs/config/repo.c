@@ -22,13 +22,15 @@ int cvmfs_repo_config_defaults(const char *repo_name, cvmfs_repo_config_t *out) 
 }
 
 int cvmfs_repo_config_add_server(cvmfs_repo_config_t *c, const char *url) {
-    if (c->n_servers >= 8 || strlen(url) >= sizeof(c->server_urls[0])) return -1;
-    strcpy(c->server_urls[c->n_servers++], url);
+    size_t len = strlen(url);
+    if (c->n_servers >= 8 || len >= sizeof(c->server_urls[0])) return -1;
+    memcpy(c->server_urls[c->n_servers++], url, len + 1);   /* bound proven above */
     return 0;
 }
 
 int cvmfs_repo_config_add_proxy(cvmfs_repo_config_t *c, const char *proxy) {
-    if (c->n_proxies >= 8 || strlen(proxy) >= sizeof(c->proxies[0])) return -1;
-    strcpy(c->proxies[c->n_proxies++], proxy);
+    size_t len = strlen(proxy);
+    if (c->n_proxies >= 8 || len >= sizeof(c->proxies[0])) return -1;
+    memcpy(c->proxies[c->n_proxies++], proxy, len + 1);     /* bound proven above */
     return 0;
 }

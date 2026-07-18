@@ -48,6 +48,10 @@ int brix_cas_open(const brix_cas_store_t *s, const char *key);
  * exceeds its quota. Returns 0/-1 (errno set). */
 int brix_cas_put(brix_cas_store_t *s, const char *key, const void *data, size_t len);
 
+/* Remove the object stored for `key` (and adjust the byte counter). Returns 0 if
+ * removed, -1 if absent or on error (errno set). */
+int brix_cas_del(brix_cas_store_t *s, const char *key);
+
 /* Total bytes currently stored (walks the tree). */
 long brix_cas_size(const brix_cas_store_t *s);
 

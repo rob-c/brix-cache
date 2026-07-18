@@ -142,6 +142,25 @@ sd_http_log_key(const char *key, char *buf, size_t cap)
     return buf;
 }
 
+/* Live process error log for fill-thread diagnostics, or NULL when logging is
+ * disabled for this instance (is->log unset at build).
+ *
+ * The instance is built at postconfiguration and memoized for the worker's whole
+ * life, so is->log — captured at build time — points at the config-phase cycle
+ * log, which fork retires; its fd is then reused (a fill-thread write there can
+ * land on a live client socket). ngx_cycle->log always names the CURRENT process
+ * error log, so resolve it at call time. is->log is used only as the enable gate;
+ * it is never dereferenced (safe even once stale). */
+static ngx_log_t *
+sd_http_live_log(const sd_http_inst_state *is)
+{
+    if (is->log == NULL) {
+        return NULL;
+    }
+    return (ngx_cycle != NULL && ngx_cycle->log != NULL) ? ngx_cycle->log
+                                                         : is->log;
+}
+
 /* Selection audit: log (NOTICE) every change of the endpoint that answers —
  * the "why is RAL being skipped for CERN" record. States why the policy-
  * preferred endpoint was overridden when it was (health benching). Called
@@ -149,6 +168,7 @@ sd_http_log_key(const char *key, char *buf, size_t cap)
 static void
 sd_http_log_switch(sd_http_inst_state *is, sd_http_endpoint *ep)
 {
+    ngx_log_t        *lg;
     int               idx = (int) (ep - is->eps);
     sd_http_endpoint *pref;
     char              prev[300];
@@ -163,18 +183,19 @@ sd_http_log_switch(sd_http_inst_state *is, sd_http_endpoint *ep)
         snprintf(prev, sizeof(prev), "(none)");
     }
     is->cur_ep = idx;
-    if (is->log == NULL) {
+    lg = sd_http_live_log(is);
+    if (lg == NULL) {
         return;
     }
     pref = sd_http_preferred(is);
     if (ep == pref) {
-        ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
+        ngx_log_error(NGX_LOG_NOTICE, lg, 0,
             "brix: http origin switched to %s:%d (endpoint %d, rank %d, "
             "fail_score %d; the policy-preferred endpoint), was %s",
             ep->host, ep->port, idx, sd_http_ep_rank(ep), ep->fail_score,
             prev);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
+        ngx_log_error(NGX_LOG_NOTICE, lg, 0,
             "brix: http origin switched to %s:%d (endpoint %d, rank %d, "
             "fail_score %d), was %s; policy-preferred %s:%d SKIPPED "
             "(rank %d, fail_score %d - benched by recent transport failures, "
@@ -213,8 +234,9 @@ sd_http_fo_select(const sd_http_req_t *rq)
     if (pref->fail_score <= 0) {
         return ep;
     }
-    if (pref != ep && is->log != NULL) {
-        ngx_log_error(NGX_LOG_INFO, is->log, 0,
+    ngx_log_t *lg = sd_http_live_log(is);
+    if (pref != ep && lg != NULL) {
+        ngx_log_error(NGX_LOG_INFO, lg, 0,
             "brix: http origin half-open probe: re-trying benched "
             "preferred %s:%d (rank %d, fail_score %d) instead of "
             "%s:%d for %s \"%s\"",
@@ -317,8 +339,9 @@ sd_http_fo_next(const sd_http_req_t *rq, sd_http_endpoint *first)
     if (is->failover_note != NULL) {
         is->failover_note();                   /* T16: failover accounting */
     }
-    if (is->log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, is->log, 0,
+    ngx_log_t *lg = sd_http_live_log(is);
+    if (lg != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, lg, 0,
             "brix: http origin failover for %s \"%s\": %s:%d -> %s:%d "
             "(alternate rank %d, fail_score %d)",
             rq->method, sd_http_log_key(rq->key, klog, sizeof(klog)),
@@ -333,12 +356,13 @@ static void
 sd_http_fo_note_fail(const sd_http_req_t *rq, sd_http_endpoint *ep,
     const char *errbuf, int attempt, int score_before)
 {
-    if (rq->is->log == NULL) {
+    ngx_log_t *lg = sd_http_live_log(rq->is);
+    if (lg == NULL) {
         return;
     }
     char klog[160];
 
-    ngx_log_error(NGX_LOG_WARN, rq->is->log, 0,
+    ngx_log_error(NGX_LOG_WARN, lg, 0,
         "brix: http origin %s:%d failed %s \"%s\": %s "
         "(attempt %d/2, rank %d, fail_score %d -> %d)",
         ep->host, ep->port, rq->method,
@@ -384,8 +408,9 @@ sd_http_request_fo(const sd_http_req_t *rq, sd_http_endpoint **used)
             break;
         }
     }
-    if (is->log != NULL) {
-        ngx_log_error(NGX_LOG_ERR, is->log, 0,
+    ngx_log_t *lg = sd_http_live_log(is);
+    if (lg != NULL) {
+        ngx_log_error(NGX_LOG_ERR, lg, 0,
             "brix: http origin request exhausted all endpoints (%d tried) "
             "for %s \"%s\" - reporting EIO to the fill layer",
             (is->n_eps < 2) ? 1 : 2, rq->method,
